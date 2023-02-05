@@ -135,7 +135,7 @@ def set_environment(
             "'user_project' and 'project' are deprecated in 1.3.0, and will be removed in 1.5.0, use project "
             "APIs such as 'get_or_create_project', 'load_project' to configure the active project.",
             # TODO: Remove in 1.5.0
-            FutureWarning,
+            DeprecationWarning,
         )
 
     if env_file:

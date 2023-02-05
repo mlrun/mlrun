@@ -518,7 +518,6 @@ class ModelArtifact(Artifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyModelArtifact' will be removed in 1.5.0, use 'ModelArtifact' instead",
-    category=FutureWarning,
 )
 class LegacyModelArtifact(LegacyArtifact):
     """ML Model artifact

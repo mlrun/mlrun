@@ -41,7 +41,6 @@ VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 @deprecated(
     version="1.3.0",
     reason="'mount_v3io_extended' will be removed in 1.5.0, use 'mount_v3io' instead",
-    category=FutureWarning,
 )
 def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
@@ -87,7 +86,6 @@ def mount_v3io(
 @deprecated(
     version="1.3.0",
     reason="'mount_v3io_legacy' will be removed in 1.5.0, use 'mount_v3io' instead",
-    category=FutureWarning,
 )
 def mount_v3io_legacy(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None

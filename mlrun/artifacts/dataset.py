@@ -405,7 +405,6 @@ class DatasetArtifact(Artifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
-    category=FutureWarning,
 )
 class LegacyTableArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + ["schema", "header"]
@@ -458,7 +457,6 @@ class LegacyTableArtifact(LegacyArtifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyDatasetArtifact' will be removed in 1.5.0, use 'DatasetArtifact' instead",
-    category=FutureWarning,
 )
 class LegacyDatasetArtifact(LegacyArtifact):
     # List of all the supported saving formats of a DataFrame:

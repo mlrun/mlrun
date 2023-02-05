@@ -26,7 +26,6 @@ from ..datastore import DataItem
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def get_sample(
     src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None
@@ -72,7 +71,6 @@ def _get_label_from_raw(raw, label):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def get_splits(
     raw,
@@ -117,7 +115,6 @@ def get_splits(
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def save_test_set(
     context,

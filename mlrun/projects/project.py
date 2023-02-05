@@ -921,7 +921,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.params instead. "
             "This is deprecated in 1.3.0, and will be removed in 1.5.0",
             # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         self.spec.params = params
 
@@ -963,7 +963,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.workflows instead. "
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         return self.spec.workflows
 
@@ -973,7 +973,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.workflows instead. "
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         self.spec.workflows = workflows
 
@@ -1058,7 +1058,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.artifacts instead"
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         return self.spec.artifacts
 
@@ -1068,7 +1068,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.artifacts instead"
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         self.spec.artifacts = artifacts
 
@@ -1602,7 +1602,7 @@ class MlrunProject(ModelObj):
             "This will be deprecated in future releases, use  get_function() instead. "
             "This is deprecated in 1.3.0, and will be removed in 1.5.0",
             # TODO: do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
+            DeprecationWarning,
         )
         return self.get_function(key, sync)
 
@@ -2028,7 +2028,7 @@ class MlrunProject(ModelObj):
         warnings.warn(
             "This is deprecated in 1.3.0, and will be removed in 1.5.0. "
             "Use `timeout` parameter in `project.run()` method instead",
-            FutureWarning,
+            DeprecationWarning,
         )
         return run._engine.get_run_status(
             project=self,

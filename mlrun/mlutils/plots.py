@@ -35,7 +35,6 @@ from ..artifacts import PlotArtifact
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def gcf_clear(plt):
     """Utility to clear matplotlib figure
@@ -51,7 +50,6 @@ def gcf_clear(plt):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def feature_importances(model, header):
     """Display estimated feature importances
@@ -89,7 +87,6 @@ def feature_importances(model, header):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def plot_importance(
     context, model, key: str = "feature-importances", plots_dest: str = "plots"
@@ -131,7 +128,6 @@ def plot_importance(
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def learning_curves(model):
     """model class dependent
@@ -189,7 +185,6 @@ def learning_curves(model):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def confusion_matrix(model, xtest, ytest, cmap="Blues"):
     cmd = metrics.plot_confusion_matrix(
@@ -212,7 +207,6 @@ def confusion_matrix(model, xtest, ytest, cmap="Blues"):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     """"""
@@ -275,7 +269,6 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def roc_multi(ytest_b, yprob, labels):
     """"""
@@ -353,7 +346,6 @@ def roc_multi(ytest_b, yprob, labels):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def roc_bin(ytest, yprob, clear: bool = False):
     """"""
@@ -375,7 +367,6 @@ def roc_bin(ytest, yprob, clear: bool = False):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
     """"""
@@ -394,7 +385,6 @@ def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def plot_roc(
     context,
@@ -462,7 +452,6 @@ def plot_roc(
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def eval_class_model(
     xtest, ytest, model, labels: str = "labels", pred_params: dict = {}
@@ -684,7 +673,6 @@ def eval_class_model(
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
-    category=FutureWarning,
 )
 def eval_model_v2(
     context,

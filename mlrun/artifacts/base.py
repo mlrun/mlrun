@@ -972,7 +972,6 @@ class LinkArtifact(Artifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyArtifact' will be removed in 1.5.0, use 'Artifact' instead",
-    category=FutureWarning,
 )
 class LegacyArtifact(ModelObj):
 
@@ -1139,7 +1138,6 @@ class LegacyArtifact(ModelObj):
 @deprecated(
     version="1.3.0",
     reason="'LegacyDirArtifact' will be removed in 1.5.0, use 'DirArtifact' instead",
-    category=FutureWarning,
 )
 class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
@@ -1175,7 +1173,6 @@ class LegacyDirArtifact(LegacyArtifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyLinkArtifact' will be removed in 1.5.0, use 'LinkArtifact' instead",
-    category=FutureWarning,
 )
 class LegacyLinkArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + [

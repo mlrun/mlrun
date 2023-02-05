@@ -67,6 +67,7 @@ class ModelObj:
             if not exclude or t not in exclude:
                 val = getattr(self, t, None)
                 if val is not None and not (isinstance(val, dict) and not val):
+                    print(t)
                     if hasattr(val, "to_dict"):
                         val = val.to_dict()
                         if val:

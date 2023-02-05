@@ -133,10 +133,10 @@ class BaseMerger(abc.ABC):
         if self.vector.spec.with_indexes:
             from mlrun.feature_store.feature_vector import Feature
 
-            # self.vector.spec.entity_fields = [
-            #     Feature(name=feature, value_type=self._result_df[feature][0].dtype)
-            #     for feature in self._index_columns
-            # ]
+            self.vector.spec.entity_fields = [
+                Feature(name=feature, value_type=self._result_df[feature][0].dtype)
+                for feature in self._index_columns
+            ]
             self.vector.save()
 
     def _set_indexes(self, df):

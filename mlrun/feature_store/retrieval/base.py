@@ -117,6 +117,7 @@ class BaseMerger(abc.ABC):
         )
 
     def _write_to_target(self):
+        self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -129,6 +130,9 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
+        if not self.vector.spec.with_indexes:
+            self.vector.spec.entity_fields = self._index_columns
+            self.vector.save(entity_fields)
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:

@@ -222,12 +222,10 @@ class BaseMerger(abc.ABC):
                 if column not in node.data["save_cols"]
             }
             fs_entities = list(feature_set.spec.entities.keys())
-            df_temp = (
-                self.rename_columns_and_select(
-                    df,
-                    rename_col_dict,
-                    all_columns=list(set(column_names + fs_entities)),
-                )
+            df_temp = self.rename_columns_and_select(
+                df,
+                rename_col_dict,
+                all_columns=list(set(column_names + fs_entities)),
             )
 
             df = df_temp if df_temp is not None else df
@@ -273,16 +271,26 @@ class BaseMerger(abc.ABC):
         all_columns = None
         if not self._drop_indexes and entity_timestamp_column:
             if entity_timestamp_column not in self._alias.values():
-                self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
-                all_columns = list(set([entity_timestamp_column] + list(self._alias.keys())))
+                self._update_alias(
+                    key=entity_timestamp_column, val=entity_timestamp_column
+                )
+                all_columns = list(
+                    set([entity_timestamp_column] + list(self._alias.keys()))
+                )
             else:
-                all_columns = list(set([key for key, val in self._alias if val==entity_timestamp_column]
-                                       + list(self._alias.keys())))
+                all_columns = list(
+                    set(
+                        [
+                            key
+                            for key, val in self._alias
+                            if val == entity_timestamp_column
+                        ]
+                        + list(self._alias.keys())
+                    )
+                )
 
-        df_temp = (
-            self.rename_columns_and_select(
-                self._result_df, self._alias, all_columns=all_columns
-            )
+        df_temp = self.rename_columns_and_select(
+            self._result_df, self._alias, all_columns=all_columns
         )
         self._result_df = df_temp if df_temp is not None else self._result_df
         del df_temp

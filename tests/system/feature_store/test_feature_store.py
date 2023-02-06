@@ -1995,7 +1995,11 @@ class TestFeatureStore(TestMLRunSystem):
             .sort_index()
             .equals(off1.to_dataframe().sort_index())
         )
-        assert df1.set_index(keys="name").sort_index().equals(dfout1.set_index(keys="name").sort_index())
+        assert (
+            df1.set_index(keys="name")
+            .sort_index()
+            .equals(dfout1.set_index(keys="name").sort_index())
+        )
 
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         fstore.ingest(fset, df2)
@@ -2006,7 +2010,11 @@ class TestFeatureStore(TestMLRunSystem):
             .sort_index()
             .equals(off2.to_dataframe().sort_index())
         )
-        assert df2.set_index(keys="name").sort_index().equals(dfout2.set_index(keys="name").sort_index())
+        assert (
+            df2.set_index(keys="name")
+            .sort_index()
+            .equals(dfout2.set_index(keys="name").sort_index())
+        )
 
     def test_overwrite_specified_nosql_path(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
@@ -3652,7 +3660,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize("engine", ['local', 'dask'])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_relation_asof_join(self, with_indexes, engine):
         engine_args = {}
         if engine == "dask":

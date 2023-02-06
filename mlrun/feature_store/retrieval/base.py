@@ -13,11 +13,16 @@
 # limitations under the License.
 #
 import abc
+import typing
+from datetime import datetime
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
+from mlrun.feature_store.feature_set import FeatureSet
+from mlrun.feature_store.feature_vector import Feature
 
 from ...utils import logger
+from ..feature_vector import OfflineVectorResponse
 
 
 class BaseMerger(abc.ABC):
@@ -36,6 +41,7 @@ class BaseMerger(abc.ABC):
         self._drop_indexes = True
         self._target = None
         self._alias = dict()
+        self._origin_alias = dict()
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -71,6 +77,7 @@ class BaseMerger(abc.ABC):
         update_stats=None,
         query=None,
         join_type="inner",
+        order_by=None,
     ):
         self._target = target
         self._join_type = join_type
@@ -110,9 +117,11 @@ class BaseMerger(abc.ABC):
             start_time=start_time,
             end_time=end_time,
             query=query,
+            order_by=order_by,
         )
 
     def _write_to_target(self):
+        self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -125,6 +134,12 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
+        if self.vector.spec.with_indexes:
+            self.vector.spec.entity_fields = [
+                Feature(name=feature, value_type=str(type(self._result_df[feature][0])))
+                for feature in self._index_columns
+            ]
+            self.vector.save()
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:
@@ -134,25 +149,15 @@ class BaseMerger(abc.ABC):
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    if self.engine == "local" or self.engine == "spark":
-                        df.set_index(self._index_columns, inplace=True)
-                    elif self.engine == "dask" and len(self._index_columns) == 1:
-                        return df.set_index(self._index_columns[0])
-                    elif self.engine == "dask" and len(self._index_columns) != 1:
-                        return self._reset_index(self._result_df)
-                    else:
-                        logger.info(
-                            "The entities will stay as columns because "
-                            "Dask dataframe does not yet support multi-indexes"
-                        )
-                        return self._result_df
+                    df.set_index(self._index_columns, inplace=True)
+
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
-            else:
-                return df
+        else:
+            df.reset_index(drop=True, inplace=True)
 
     @abc.abstractmethod
     def _generate_vector(
@@ -164,8 +169,163 @@ class BaseMerger(abc.ABC):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
-        raise NotImplementedError("_generate_vector() operation not supported in class")
+        self._create_engine_env()
+
+        feature_sets = []
+        dfs = []
+        keys = (
+            []
+        )  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
+        # featureset is connected to the previous one, and within each record the left keys are indicated in index 0
+        # and the right keys in index 1, this keys will be the keys that will be used in this join
+        all_columns = []
+
+        fs_link_list = self._create_linked_relation_list(
+            feature_set_objects, feature_set_fields
+        )
+
+        for node in fs_link_list:
+            name = node.name
+            feature_set = feature_set_objects[name]
+            feature_sets.append(feature_set)
+            columns = feature_set_fields[name]
+            self._origin_alias.update({name: alias for name, alias in columns})
+            column_names = [name for name, _ in columns]
+
+            for column in node.data["save_cols"]:
+                if column not in column_names:
+                    self._append_drop_column(column)
+            column_names += node.data["save_cols"]
+
+            df = self._get_engine_df(
+                feature_set,
+                name,
+                column_names,
+                start_time,
+                end_time,
+                entity_timestamp_column,
+            )
+
+            column_names += node.data["save_index"]
+            node.data["save_cols"] += node.data["save_index"]
+            if feature_set.spec.timestamp_key:
+                entity_timestamp_column_list = [feature_set.spec.timestamp_key]
+                column_names += entity_timestamp_column_list
+                node.data["save_cols"] += entity_timestamp_column_list
+                if not entity_timestamp_column:
+                    # if not entity_timestamp_column the firs `FeatureSet` will define it
+                    entity_timestamp_column = feature_set.spec.timestamp_key
+
+            # rename columns to be unique for each feature set and select if needed
+            rename_col_dict = {
+                column: f"{column}_{name}"
+                for column in column_names
+                if column not in node.data["save_cols"]
+            }
+            fs_entities = list(feature_set.spec.entities.keys())
+            df_temp = self._rename_columns_and_select(
+                df, rename_col_dict, columns=list(set(column_names + fs_entities))
+            )
+
+            df = df_temp if df_temp is not None else df
+
+            dfs.append(df)
+            del df
+            del df_temp
+
+            keys.append([node.data["left_keys"], node.data["right_keys"]])
+
+            # update alias according to the unique column name
+            new_columns = []
+            if not self._drop_indexes:
+                new_columns.extend([(ind, ind) for ind in fs_entities])
+            for column, alias in columns:
+                if column in rename_col_dict and alias:
+                    new_columns.append((rename_col_dict[column], alias))
+                elif column in rename_col_dict and not alias:
+                    new_columns.append((rename_col_dict[column], column))
+                else:
+                    new_columns.append((column, alias))
+            self._update_alias(
+                dictionary={name: alias for name, alias in new_columns if alias}
+            )
+
+        # convert pandas entity_rows to spark DF if needed
+        if (
+            entity_rows is not None
+            and not hasattr(entity_rows, "rdd")
+            and self.engine == "spark"
+        ):
+            entity_rows = self.spark.createDataFrame(entity_rows)
+
+        # join the feature data frames
+        self.merge(
+            entity_df=entity_rows,
+            entity_timestamp_column=entity_timestamp_column,
+            featuresets=feature_sets,
+            featureset_dfs=dfs,
+            keys=keys,
+        )
+
+        all_columns = None
+        if not self._drop_indexes and entity_timestamp_column:
+            if entity_timestamp_column not in self._alias.values():
+                self._update_alias(
+                    key=entity_timestamp_column, val=entity_timestamp_column
+                )
+                all_columns = list(
+                    set([entity_timestamp_column] + list(self._alias.keys()))
+                )
+            else:
+                all_columns = list(
+                    set(
+                        [
+                            key
+                            for key, val in self._alias.items()
+                            if val == entity_timestamp_column
+                        ]
+                        + list(self._alias.keys())
+                    )
+                )
+
+        df_temp = self._rename_columns_and_select(
+            self._result_df, self._alias, columns=all_columns
+        )
+        self._result_df = df_temp if df_temp is not None else self._result_df
+        del df_temp
+
+        df_temp = self._drop_columns_from_result()
+        self._result_df = df_temp if df_temp is not None else self._result_df
+        del df_temp
+
+        if self.vector.status.label_column:
+            self._result_df = self._result_df.dropna(
+                subset=[self.vector.status.label_column]
+            )
+        # filter joined data frame by the query param
+        if query:
+            self._filter(query)
+
+        if order_by:
+            if isinstance(order_by, str):
+                order_by = [order_by]
+            order_by_active = [
+                order_col
+                if order_col in self._result_df.columns
+                else self._origin_alias.get(order_col, None)
+                for order_col in order_by
+            ]
+            if None in order_by_active:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"self._result_df contains {self._result_df.columns} "
+                    f"columns and can't order by {order_by}"
+                )
+            self._order_by(order_by_active)
+
+        self._write_to_target()
+        return OfflineVectorResponse(self)
 
     def _unpersist_df(self, df):
         pass
@@ -177,7 +337,6 @@ class BaseMerger(abc.ABC):
         featuresets: list,
         featureset_dfs: list,
         keys: list = None,
-        all_columns: list = None,
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df
@@ -189,10 +348,6 @@ class BaseMerger(abc.ABC):
             else:
                 # keys can be multiple keys on each side of the join
                 keys = [[[], []]] * len(featureset_dfs)
-            if all_columns is not None:
-                all_columns.pop(0)
-            else:
-                all_columns = [[]] * len(featureset_dfs)
             entity_timestamp_column = (
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
@@ -202,9 +357,7 @@ class BaseMerger(abc.ABC):
             # and it can join only by the entities of the first `featureset`
             keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
-        for featureset, featureset_df, lr_key, columns in zip(
-            featuresets, featureset_dfs, keys, all_columns
-        ):
+        for featureset, featureset_df, lr_key in zip(featuresets, featureset_dfs, keys):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
                 if self._join_type != "inner":
@@ -222,7 +375,6 @@ class BaseMerger(abc.ABC):
                 featureset_df,
                 lr_key[0],
                 lr_key[1],
-                columns,
             )
 
             # unpersist as required by the implementation (e.g. spark) and delete references
@@ -241,7 +393,6 @@ class BaseMerger(abc.ABC):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
@@ -254,7 +405,6 @@ class BaseMerger(abc.ABC):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 
@@ -266,6 +416,7 @@ class BaseMerger(abc.ABC):
 
     def get_df(self, to_pandas=True):
         """return the result as a dataframe (pandas by default)"""
+        self._set_indexes(self._result_df)
         return self._result_df
 
     def to_parquet(self, target_path, **kw):
@@ -480,5 +631,73 @@ class BaseMerger(abc.ABC):
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 
+    def _create_engine_env(self):
+        """
+        initialize engine env if needed
+        """
+        raise NotImplementedError
+
     def _reset_index(self, _result_df):
+        raise NotImplementedError
+
+    def _get_engine_df(
+        self,
+        feature_set: FeatureSet,
+        feature_set_name: typing.List[str],
+        column_names: typing.List[str] = None,
+        start_time: typing.Union[str, datetime] = None,
+        end_time: typing.Union[str, datetime] = None,
+        entity_timestamp_column: str = None,
+    ):
+        """
+        Return the feature_set data frame according to the args
+
+        :param feature_set:             current feature_set to extract from the data frame
+        :param feature_set_name:        the name of the current feature_set
+        :param column_names:            list of columns to select (if not all)
+        :param start_time:              filter by start time
+        :param end_time:                filter by end time
+        :param entity_timestamp_column: specify the time column name in the file
+
+        :return: Data frame of the current engine
+        """
+        raise NotImplementedError
+
+    def _rename_columns_and_select(
+        self,
+        df,
+        rename_col_dict: typing.Dict[str, str],
+        columns: typing.List[str] = None,
+    ):
+        """
+        rename the columns of the df according to rename_col_dict, and select only `columns` if it is not none
+
+        :param df:              the data frame to change
+        :param rename_col_dict: the renaming dictionary - {<current_column_name>: <new_column_name>, ...}
+        :param columns:         list of columns to select (if not all)
+
+        :return: the data frame after the transformation or None if the transformation were preformed inplace
+        """
+        raise NotImplementedError
+
+    def _drop_columns_from_result(self):
+        """
+        drop `self._drop_columns` from `self._result_df`
+        """
+        raise NotImplementedError
+
+    def _filter(self, query: str):
+        """
+        filter `self._result_df` by `query`
+
+        :param query: The query string used to filter rows
+        """
+        raise NotImplementedError
+
+    def _order_by(self, order_by_active: typing.List[str]):
+        """
+        Order by `order_by_active` along all axis.
+
+        :param order_by_active: list of names to sort by.
+        """
         raise NotImplementedError

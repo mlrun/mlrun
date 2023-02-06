@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
-from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 
 class SparkFeatureMerger(BaseMerger):
+    engine = "spark"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
@@ -40,99 +42,18 @@ class SparkFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
-        from pyspark.sql import SparkSession
-        from pyspark.sql.functions import col
-
-        if self.spark is None:
-            # create spark context
-            self.spark = SparkSession.builder.appName(
-                f"vector-merger-{self.vector.metadata.name}"
-            ).getOrCreate()
-
-        feature_sets = []
-        dfs = []
-
-        for name, columns in feature_set_fields.items():
-            feature_set = feature_set_objects[name]
-            feature_sets.append(feature_set)
-            column_names = [name for name, alias in columns]
-
-            if feature_set.spec.passthrough:
-                if not feature_set.spec.source:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"passthrough feature set {name} with no source"
-                    )
-                source_kind = feature_set.spec.source.kind
-                source_path = feature_set.spec.source.path
-            else:
-                target = get_offline_target(feature_set)
-                if not target:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"feature set {name} does not have offline targets"
-                    )
-                source_kind = target.kind
-                source_path = target.get_target_path()
-
-            # handling case where there are multiple feature sets and user creates vector where
-            # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
-            source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
-            if (
-                entity_timestamp_column in column_names
-                or feature_set.spec.timestamp_key == entity_timestamp_column
-            ):
-                source = source_driver(
-                    name=self.vector.metadata.name,
-                    path=source_path,
-                    time_field=entity_timestamp_column,
-                    start_time=start_time,
-                    end_time=end_time,
-                )
-            else:
-                source = source_driver(
-                    name=self.vector.metadata.name,
-                    path=source_path,
-                    time_field=entity_timestamp_column,
-                )
-
-            # add the index/key to selected columns
-            timestamp_key = feature_set.spec.timestamp_key
-
-            df = source.to_spark_df(
-                self.spark, named_view=self.named_view, time_field=timestamp_key
-            )
-
-            if timestamp_key and timestamp_key not in column_names:
-                columns.append((timestamp_key, None))
-            for entity in feature_set.spec.entities.keys():
-                if entity not in column_names:
-                    columns.append((entity, None))
-
-            # select requested columns and rename with alias where needed
-            df = df.select([col(name).alias(alias or name) for name, alias in columns])
-            dfs.append(df)
-            del df
-
-        # convert pandas entity_rows to spark DF if needed
-        if entity_rows is not None and not hasattr(entity_rows, "rdd"):
-            entity_rows = self.spark.createDataFrame(entity_rows)
-
-        # join the feature data frames
-        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
-
-        # filter joined data frame by the query param
-        if query:
-            self._result_df = self._result_df.filter(query)
-
-        self._result_df = self._result_df.drop(*self._drop_columns)
-
-        if self.vector.status.label_column:
-            self._result_df = self._result_df.dropna(
-                subset=[self.vector.status.label_column]
-            )
-
-        self._write_to_target()
-        return OfflineVectorResponse(self)
+        return super()._generate_vector(
+            entity_rows,
+            entity_timestamp_column,
+            feature_set_objects,
+            feature_set_fields,
+            start_time=start_time,
+            end_time=end_time,
+            query=query,
+            order_by=order_by,
+        )
 
     def _unpersist_df(self, df):
         df.unpersist()
@@ -145,7 +66,6 @@ class SparkFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
 
         """Perform an as of join between entity and featureset.
@@ -168,15 +88,13 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
-        indexes = list(featureset.spec.entities.keys())
-
+        rename_right_keys = {}
+        for key in right_keys + [entity_timestamp_column]:
+            if key in entity_df.columns:
+                rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
         projection = [
-            col(col_name).alias(
-                f"ft__{col_name}"
-                if col_name in indexes + [entity_timestamp_column]
-                else col_name
-            )
+            col(col_name).alias(rename_right_keys.get(col_name, col_name))
             for col_name in featureset_df.columns
         ]
 
@@ -185,31 +103,37 @@ class SparkFeatureMerger(BaseMerger):
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[f"ft__{entity_timestamp_column}"]
+            >= aliased_featureset_df[
+                rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)
+            ]
         )
 
         # join based on entities
-        for key in indexes:
+        for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key] == aliased_featureset_df[f"ft__{key}"]
+                entity_with_id[key_l]
+                == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
             )
 
         conditional_join = entity_with_id.join(
             aliased_featureset_df, join_cond, "leftOuter"
         )
-        for key in indexes + [entity_timestamp_column]:
-            conditional_join = conditional_join.drop(
-                aliased_featureset_df[f"ft__{key}"]
-            )
+        for key in right_keys + [entity_timestamp_column]:
+            if f"ft__{key}" in conditional_join.columns:
+                conditional_join = conditional_join.drop(
+                    aliased_featureset_df[f"ft__{key}"]
+                )
 
-        window = Window.partitionBy("_row_nr", *indexes).orderBy(
+        window = Window.partitionBy("_row_nr", *left_keys).orderBy(
             col(entity_timestamp_column).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
-        ).filter(col("_rank") == 1)
+        )._filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")._order_by(
+            col(entity_timestamp_column)
+        )
 
     def _join(
         self,
@@ -219,7 +143,6 @@ class SparkFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
 
         """
@@ -240,8 +163,23 @@ class SparkFeatureMerger(BaseMerger):
                 be prefixed with featureset_df name.
 
         """
-        indexes = list(featureset.spec.entities.keys())
-        merged_df = entity_df.join(featureset_df, on=indexes)
+        # fs_name = featureset.metadata.name
+        join_cond = None
+        if left_keys != right_keys:
+            for key_l, key_r in zip(left_keys, right_keys):
+                join_cond = (
+                    join_cond & (entity_df[key_l] == featureset_df[key_r])
+                    if join_cond
+                    else (entity_df[key_l] == featureset_df[key_r])
+                )
+        else:
+            join_cond = left_keys
+
+        merged_df = entity_df.join(
+            featureset_df,
+            join_cond,
+            how=self._join_type,
+        )
         return merged_df
 
     def get_df(self, to_pandas=True):
@@ -263,3 +201,90 @@ class SparkFeatureMerger(BaseMerger):
             return RemoteSparkRuntime.default_image
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")
+
+    def _create_engine_env(self):
+        from pyspark.sql import SparkSession
+
+        if self.spark is None:
+            # create spark context
+            self.spark = SparkSession.builder.appName(
+                f"vector-merger-{self.vector.metadata.name}"
+            ).getOrCreate()
+
+    def _get_engine_df(
+        self,
+        feature_set,
+        feature_set_name,
+        column_names=None,
+        start_time=None,
+        end_time=None,
+        entity_timestamp_column=None,
+    ):
+        if feature_set.spec.passthrough:
+            if not feature_set.spec.source:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"passthrough feature set {feature_set_name} with no source"
+                )
+            source_kind = feature_set.spec.source.kind
+            source_path = feature_set.spec.source.path
+        else:
+            target = get_offline_target(feature_set)
+            if not target:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"feature set {feature_set_name} does not have offline targets"
+                )
+            source_kind = target.kind
+            source_path = target.get_target_path()
+
+        # handling case where there are multiple feature sets and user creates vector where
+        # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
+        source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
+        if (
+            entity_timestamp_column in column_names
+            or feature_set.spec.timestamp_key == entity_timestamp_column
+        ):
+            source = source_driver(
+                name=self.vector.metadata.name,
+                path=source_path,
+                time_field=entity_timestamp_column,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        else:
+            source = source_driver(
+                name=self.vector.metadata.name,
+                path=source_path,
+                time_field=entity_timestamp_column,
+            )
+
+        if not entity_timestamp_column:
+            entity_timestamp_column = feature_set.spec.timestamp_key
+        # add the index/key to selected columns
+        timestamp_key = feature_set.spec.timestamp_key
+
+        return source.to_spark_df(
+            self.spark, named_view=self.named_view, time_field=timestamp_key
+        )
+
+    def _rename_columns_and_select(self, df, rename_col_dict, columns):
+        from pyspark.sql.functions import col
+
+        return df.select(
+            [
+                col(name).alias(rename_col_dict.get(name, name))
+                for name in columns or rename_col_dict.keys()
+            ]
+        )
+
+    def _drop_columns_from_result(self):
+        self._result_df = self._result_df.drop(*self._drop_columns)
+
+    def _filter(self, query):
+        self._result_df = self._result_df._filter(query)
+
+    def _order_by(self, order_by_active):
+        from pyspark.sql.functions import col
+
+        self._result_df = self._result_df._order_by(
+            *[col(col_name).asc_nulls_last() for col_name in order_by_active]
+        )

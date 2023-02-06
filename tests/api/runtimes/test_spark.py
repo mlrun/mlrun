@@ -618,6 +618,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "with_indexes": True,
                 "query": None,
                 "join_type": "inner",
+                "order_by": None,
                 "engine_args": None,
             },
             "outputs": [],

@@ -22,6 +22,7 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
+from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
 
 import mlrun
@@ -869,12 +870,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
     # ML-3092
-    def test_get_offline_features_with_filter_and_indexes(self):
+    @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
+    def test_get_offline_features_with_filter_and_indexes(self, timestamp_key):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
+            timestamp_key=timestamp_key,
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
@@ -901,14 +903,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
-        source_df = source.to_dataframe()
-        source_df.set_index(key, drop=True, inplace=True)
-        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        target_df.set_index(["patient_id"], drop=True, inplace=True)
         assert resp_df.equals(target_df)
+
+        source_df = source.to_dataframe()
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
+        resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
     # ML-2802
@@ -1146,3 +1153,387 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    @pytest.mark.parametrize("join_type", ["inner", "outer"])
+    def test_relation_join(self, join_type, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+            }
+        )
+
+        employees_with_class = pd.DataFrame(
+            {
+                "id": [100, 200, 300],
+                "name": [f"employee{num}" for num in range(100, 400, 100)],
+                "department_id": [1, 1, 2],
+                "class_id": [i for i in range(20, 23)],
+            }
+        )
+
+        classes = pd.DataFrame(
+            {
+                "c_id": [i for i in range(20, 30, 2)],
+                "name": [f"class{num}" for num in range(20, 30, 2)],
+            }
+        )
+
+        managers = pd.DataFrame(
+            {
+                "m_id": [i for i in range(10, 20, 2)],
+                "name": [f"manager{num}" for num in range(10, 20, 2)],
+            }
+        )
+
+        join_employee_department = pd.merge(
+            employees_with_department,
+            departments,
+            how=join_type,
+            left_on=["department_id"],
+            right_on=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        join_employee_managers = pd.merge(
+            join_employee_department,
+            managers,
+            how=join_type,
+            left_on=["manager_id"],
+            right_on=["m_id"],
+            suffixes=("_manage", "_"),
+        )
+
+        join_employee_sets = pd.merge(
+            employees_with_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_employees", "_e_mini"),
+        )
+
+        _merge_step = pd.merge(
+            join_employee_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_", "_e_mini"),
+        )
+
+        join_all = pd.merge(
+            _merge_step,
+            classes,
+            how=join_type,
+            left_on=["class_id"],
+            right_on=["c_id"],
+            suffixes=("_e_mini", "_cls"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        col_2 = ["name_employees", "name_departments", "name"]
+        col_3 = ["name_employees", "name_e_mini"]
+        col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
+        if with_indexes:
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+            join_employee_managers.set_index(
+                ["id", "d_id", "m_id"], drop=True, inplace=True
+            )
+            join_employee_sets.set_index(["id"], drop=True, inplace=True)
+            join_all.set_index(["id", "d_id", "c_id"], drop=True, inplace=True)
+
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_managers = (
+            join_employee_managers[col_2]
+            .rename(
+                columns={
+                    "name_departments": "n2",
+                    "name_employees": "n",
+                    "name": "man_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_sets = (
+            join_employee_sets[col_3]
+            .rename(
+                columns={"name_employees": "n", "name_e_mini": "mini_name"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_all = (
+            join_all[col_4]
+            .rename(
+                columns={
+                    "name_employees": "n",
+                    "name_departments": "n2",
+                    "name_e_mini": "mini_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
+        # relations according to departments_set relations
+        managers_set_entity = fstore.Entity("m_id")
+        managers_set = fstore.FeatureSet(
+            "managers",
+            entities=[managers_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(managers_set, managers)
+
+        classes_set_entity = fstore.Entity("c_id")
+        classes_set = fstore.FeatureSet(
+            "classes",
+            entities=[classes_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(classes_set, classes)
+
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments",
+            entities=[departments_set_entity],
+            relations={"manager_id": managers_set_entity},
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        mini_employees_set = fstore.FeatureSet(
+            "mini-employees",
+            entities=[employees_set_entity],
+            relations={
+                "department_id": departments_set_entity,
+                "class_id": classes_set_entity,
+            },
+        )
+        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(mini_employees_set, employees_with_class)
+
+        features = ["employees.name"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="name",
+        )
+        if with_indexes:
+            expected = pd.DataFrame(
+                employees_with_department, columns=["id", "name"]
+            ).set_index("id", drop=True)
+            assert_frame_equal(expected, resp.to_dataframe())
+        else:
+            assert_frame_equal(
+                pd.DataFrame(employees_with_department, columns=["name"]),
+                resp.to_dataframe(),
+            )
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_1 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="n",
+        )
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "managers.name as man_name",
+        ]
+
+        vector = fstore.FeatureVector(
+            "man-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_2 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by=["n"],
+        )
+        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+
+        features = ["employees.name as n", "mini-employees.name as mini_name"]
+
+        vector = fstore.FeatureVector(
+            "mini-emp-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_3 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="name",
+        )
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "mini-employees.name as mini_name",
+            "classes.name as name_cls",
+        ]
+
+        vector = fstore.FeatureVector(
+            "four-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_4 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="n",
+        )
+        assert_frame_equal(join_all, resp_4.to_dataframe())
+
+    @pytest.mark.parametrize("with_indexes", [False, True])
+    def test_relation_asof_join(self, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        join_employee_department = pd.merge_asof(
+            employees_with_department,
+            departments,
+            left_on=["time"],
+            right_on=["time"],
+            left_by=["department_id"],
+            right_by=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        if with_indexes:
+            col_1 = ["time", "name_employees", "name_departments"]
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values("n")
+        )
+
+        # relations according to departments_set relations
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments", entities=[departments_set_entity], timestamp_key="time"
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+            timestamp_key="time",
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_1 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            order_by=["n"],
+        )
+
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())

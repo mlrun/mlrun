@@ -282,7 +282,7 @@ class BaseMerger(abc.ABC):
                     set(
                         [
                             key
-                            for key, val in self._alias
+                            for key, val in self._alias.items()
                             if val == entity_timestamp_column
                         ]
                         + list(self._alias.keys())

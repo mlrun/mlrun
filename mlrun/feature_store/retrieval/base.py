@@ -153,6 +153,8 @@ class BaseMerger(abc.ABC):
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
+        else:
+            df.reset_index(drop=True, inplace=True)
 
     @abc.abstractmethod
     def _generate_vector(
@@ -275,7 +277,7 @@ class BaseMerger(abc.ABC):
 
         df_temp = (
             self.rename_columns_and_select(
-                self._result_df, self._alias, all_columns=None
+                self._result_df, self._alias, all_columns=[entity_timestamp_column] + list(self._alias.keys())
             )
         )
         self._result_df = df_temp if df_temp is not None else self._result_df

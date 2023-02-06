@@ -69,24 +69,11 @@ class DaskFeatureMerger(BaseMerger):
         right_keys: list,
     ):
 
-        entity_df = self._reset_index(entity_df)
-        entity_df = (
-            entity_df
-            if entity_timestamp_column not in entity_df
-            else entity_df.set_index(entity_timestamp_column, drop=True)
-        )
-        featureset_df = self._reset_index(featureset_df)
-        featureset_df = (
-            featureset_df
-            if entity_timestamp_column not in featureset_df
-            else featureset_df.set_index(entity_timestamp_column, drop=True)
-        )
-
         merged_df = merge_asof(
             entity_df,
             featureset_df,
-            left_index=True,
-            right_index=True,
+            left_on=entity_timestamp_column,
+            right_on=entity_timestamp_column,
             left_by=left_keys or None,
             right_by=right_keys or None,
             suffixes=("", f"_{featureset.metadata.name}_"),

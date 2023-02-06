@@ -16,7 +16,6 @@ import re
 
 import pandas as pd
 
-from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 

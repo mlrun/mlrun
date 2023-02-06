@@ -20,7 +20,6 @@ from dask.distributed import Client
 
 import mlrun
 
-from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 

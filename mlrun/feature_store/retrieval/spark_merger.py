@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
 
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
-from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 
@@ -206,6 +203,8 @@ class SparkFeatureMerger(BaseMerger):
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")
 
     def _create_engine_env(self):
+        from pyspark.sql import SparkSession
+
         if self.spark is None:
             # create spark context
             self.spark = SparkSession.builder.appName(
@@ -268,6 +267,8 @@ class SparkFeatureMerger(BaseMerger):
         )
 
     def _rename_columns_and_select(self, df, rename_col_dict, columns):
+        from pyspark.sql.functions import col
+
         return df.select(
             [
                 col(name).alias(rename_col_dict.get(name, name))
@@ -282,6 +283,8 @@ class SparkFeatureMerger(BaseMerger):
         self._result_df = self._result_df._filter(query)
 
     def _order_by(self, order_by_active):
+        from pyspark.sql.functions import col
+
         self._result_df = self._result_df._order_by(
             *[col(col_name).asc_nulls_last() for col_name in order_by_active]
         )

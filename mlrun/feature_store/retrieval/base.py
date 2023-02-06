@@ -270,13 +270,13 @@ class BaseMerger(abc.ABC):
             keys=keys,
         )
 
+        all_columns = None
         if not self._drop_indexes and entity_timestamp_column:
-            self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
+            all_columns = list(set([entity_timestamp_column] + list(self._alias.keys())))
 
         df_temp = (
             self.rename_columns_and_select(
-                self._result_df, self._alias, all_columns=list(set([entity_timestamp_column] +
-                                                                   list(self._alias.keys())))
+                self._result_df, self._alias, all_columns=all_columns
             )
         )
         self._result_df = df_temp if df_temp is not None else self._result_df

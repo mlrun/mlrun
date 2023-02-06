@@ -276,8 +276,8 @@ class BaseMerger(abc.ABC):
                 self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
                 all_columns = list(set([entity_timestamp_column] + list(self._alias.keys())))
             else:
-                all_columns = list(set([self._alias[entity_timestamp_column]] + list(self._alias.keys())))
-
+                all_columns = list(set([key for key, val in self._alias if val==entity_timestamp_column]
+                                       + list(self._alias.keys())))
 
         df_temp = (
             self.rename_columns_and_select(

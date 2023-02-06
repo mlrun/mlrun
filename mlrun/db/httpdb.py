@@ -1412,7 +1412,8 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: Set the TTL for the pipeline after its completion.
+        :param ttl: pipeline cleanup ttl in secs (time to wait workflow after completion, at which point the workflow
+                    and all its resources are deleted)
         """
 
         if isinstance(pipeline, str):

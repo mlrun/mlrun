@@ -1895,7 +1895,8 @@ class MlrunProject(ModelObj):
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
-        :param ttl:       pipeline ttl in secs (after that the pods will be removed)
+        :param ttl:       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted)
         :param engine:    workflow engine running the workflow.
                           supported values are 'kfp' (default), 'local' or 'remote'.
                           for setting engine for remote running use 'remote:local' or 'remote:kfp'.

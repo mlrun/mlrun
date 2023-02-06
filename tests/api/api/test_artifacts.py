@@ -273,6 +273,7 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
         },
     )
 
+    # ensure default flow (no tag) and flow where tag is '*' produce all tags
     for artifacts_path in [
         API_ARTIFACTS_PATH.format(project=PROJECT),
         LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"),

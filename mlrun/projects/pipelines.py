@@ -538,7 +538,9 @@ class _KFPRunner(_PipelineRunner):
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
-        conf = new_pipe_meta(artifact_path, cleanup_ttl=workflow_spec.cleanup_ttl)
+        conf = new_pipe_meta(
+            artifact_path, cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl
+        )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
         pipeline_context.clear()
@@ -570,7 +572,7 @@ class _KFPRunner(_PipelineRunner):
             experiment=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
-            cleanup_ttl=workflow_spec.cleanup_ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
@@ -774,7 +776,7 @@ class _RemoteRunner(_PipelineRunner):
                     "artifact_path": artifact_path,
                     "workflow_handler": workflow_handler or workflow_spec.handler,
                     "namespace": namespace,
-                    "ttl": workflow_spec.cleanup_ttl,
+                    "ttl": workflow_spec.cleanup_ttl or workflow_spec.ttl,
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
                     "schedule": workflow_spec.schedule,

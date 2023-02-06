@@ -1948,7 +1948,9 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-            workflow_spec.cleanup_ttl = cleanup_ttl or ttl or workflow_spec.ttl
+            workflow_spec.cleanup_ttl = (
+                cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+            )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name

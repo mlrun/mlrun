@@ -287,10 +287,11 @@ class Projects(
         return self._cache["project_resources_counters"]["result"]
 
     @staticmethod
-    def _list_pipelines(session):
-        return mlrun.api.crud.Pipelines().list_pipelines(
-            session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
-        )
+    def _list_pipelines(
+        session,
+        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+    ):
+        return mlrun.api.crud.Pipelines().list_pipelines(session, "*", format_=format_)
 
     async def _calculate_pipelines_counters(
         self,

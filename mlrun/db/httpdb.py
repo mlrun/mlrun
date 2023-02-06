@@ -1400,7 +1400,7 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
-        # TODO: deprecated, remove in 1.6.0
+        # TODO: deprecated, remove in 1.5.0
         ttl=None,
         cleanup_ttl=None,
     ):

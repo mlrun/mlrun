@@ -924,7 +924,7 @@ def run_pipeline(
     artifact_path=None,
     ops=None,
     url=None,
-    # TODO: deprecated, remove in 1.6.0
+    # TODO: deprecated, remove in 1.5.0
     ttl=None,
     remote: bool = True,
     cleanup_ttl=None,

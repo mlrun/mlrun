@@ -71,7 +71,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args=None,
         name=None,
         handler=None,
-        # TODO: deprecated, remove in 1.6.0
+        # TODO: deprecated, remove in 1.5.0
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
@@ -975,7 +975,7 @@ def load_and_run(
     namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
-    # TODO: deprecated, remove in 1.6.0
+    # TODO: deprecated, remove in 1.5.0
     ttl: int = None,
     engine: str = None,
     local: bool = None,

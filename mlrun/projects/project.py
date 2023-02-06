@@ -1870,7 +1870,7 @@ class MlrunProject(ModelObj):
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
-        # TODO: deprecated, remove in 1.6.0
+        # TODO: deprecated, remove in 1.5.0
         ttl: int = None,
         engine: str = None,
         local: bool = None,

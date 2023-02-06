@@ -275,7 +275,8 @@ class BaseMerger(abc.ABC):
 
         df_temp = (
             self.rename_columns_and_select(
-                self._result_df, self._alias, all_columns=[entity_timestamp_column] + list(self._alias.keys())
+                self._result_df, self._alias, all_columns=list(set([entity_timestamp_column] +
+                                                                   list(self._alias.keys())))
             )
         )
         self._result_df = df_temp if df_temp is not None else self._result_df

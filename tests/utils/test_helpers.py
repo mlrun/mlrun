@@ -28,6 +28,7 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
+    update_in,
     extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
@@ -582,7 +583,7 @@ def test_update_in():
         (["metadata", "test.middle.com", "labels", "test.data"], "data"),
     ],
 )
-def test_update_in_for_key_with_dots(keys, val):
+def test_update_in_with_dotted_keys(keys, val):
     obj = {}
     update_in(
         obj, ".".join([key if "." not in key else f"\\{key}\\" for key in keys]), val

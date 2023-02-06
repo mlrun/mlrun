@@ -310,9 +310,9 @@ def verify_list_and_update_in(
     update_in(obj, key, value, append, replace)
 
 
-def split_by_dots_with_escaping(key: str):
+def _split_by_dots_with_escaping(key: str):
     """
-    splits the key by dots, taking escaping into account so that the key can contain dots
+    splits the key by dots, taking escaping into account so that an escaped key can contain dots
     """
     parts = []
     current_key, escape = "", False
@@ -329,7 +329,7 @@ def split_by_dots_with_escaping(key: str):
 
 
 def update_in(obj, key, value, append=False, replace=True):
-    parts = split_by_dots_with_escaping(key) if isinstance(key, str) else key
+    parts = _split_by_dots_with_escaping(key) if isinstance(key, str) else key
     for part in parts[:-1]:
         sub = obj.get(part, missing)
         if sub is missing:

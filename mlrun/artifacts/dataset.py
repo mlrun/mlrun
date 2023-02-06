@@ -282,12 +282,10 @@ class DatasetArtifact(Artifact):
 
     @property
     def column_metadata(self):
-        """dict of metadata per column"""
         return self.spec.column_metadata
 
     @column_metadata.setter
     def column_metadata(self, column_metadata):
-        """dict of metadata per column"""
         self.spec.column_metadata = column_metadata
 
     @property

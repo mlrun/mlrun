@@ -28,7 +28,6 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
-    update_in,
     extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
@@ -36,6 +35,7 @@ from mlrun.utils.helpers import (
     get_regex_list_as_string,
     resolve_image_tag_suffix,
     str_to_timestamp,
+    update_in,
     validate_tag_name,
     verify_field_regex,
     verify_list_items_type,

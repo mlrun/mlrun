@@ -583,8 +583,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         fv = fstore.FeatureVector("my-vector", features=[])
         fv.save = unittest.mock.Mock()
 
-        self._reset_mocks()
         runtime = self._generate_runtime()
+        runtime.with_igz_spark = unittest.mock.Mock()
+
+        self._reset_mocks()
 
         mlrun.config.config.artifact_path = "v3io:///mypath"
 
@@ -622,7 +624,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@0f4fef1da6f72c229b33fefbff0e5b58d87263c7",
+            "function": "None/my-vector_merger@b1bb6dd86fd4eb95cff8f6231b260dcc71fbeaa0",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",

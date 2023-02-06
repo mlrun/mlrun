@@ -520,6 +520,8 @@ class OnlineVectorService:
                     v = data[name]
                     if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
                         data[name] = self._impute_values.get(name, v)
+            for name in list(self.vector.spec.entity_fields.keys()):
+                data.pop(name, None)
 
             if as_list and data:
                 data = [

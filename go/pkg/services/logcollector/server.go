@@ -117,8 +117,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
-	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, bufferSizeBytes)
-	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, bufferSizeBytes)
+	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, logCollectionBufferSizeBytes)
+	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, getLogsBufferSizeBytes)
 
 	return &Server{
 		AbstractMlrunGRPCServer:      abstractServer,

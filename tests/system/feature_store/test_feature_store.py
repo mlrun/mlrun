@@ -1995,7 +1995,7 @@ class TestFeatureStore(TestMLRunSystem):
             .sort_index()
             .equals(off1.to_dataframe().sort_index())
         )
-        assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
+        assert df1.set_index(keys="name").sort_index().equals(dfout1.set_index(keys="name").sort_index())
 
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
         fstore.ingest(fset, df2)
@@ -2006,7 +2006,7 @@ class TestFeatureStore(TestMLRunSystem):
             .sort_index()
             .equals(off2.to_dataframe().sort_index())
         )
-        assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
+        assert df2.set_index(keys="name").sort_index().equals(dfout2.set_index(keys="name").sort_index())
 
     def test_overwrite_specified_nosql_path(self):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
@@ -3353,6 +3353,20 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("join_type", ["inner", "outer"])
     def test_relation_join(self, engine, join_type, with_indexes):
         """Test 3 option of using get offline feature with relations"""
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_scheduler_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
         departments = pd.DataFrame(
             {
                 "d_id": [i for i in range(1, 11, 2)],
@@ -3439,72 +3453,56 @@ class TestFeatureStore(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         col_2 = ["name_employees", "name_departments", "name"]
+        col_3 = ["name_employees", "name_e_mini"]
         col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
         if with_indexes:
-            join_employee_sets.set_index(["id"], inplace=True)
-            if engine == "local":
-                join_employee_department.set_index(["id", "d_id"], inplace=True)
-                join_employee_managers.set_index(["id", "d_id", "m_id"], inplace=True)
-                join_all.set_index(["id", "d_id", "c_id"], inplace=True)
-            else:
-                col_1 = ["id", "name_employees", "d_id", "name_departments"]
-                col_2 = [
-                    "id",
-                    "name_employees",
-                    "d_id",
-                    "name_departments",
-                    "m_id",
-                    "name",
-                ]
-                col_4 = [
-                    "id",
-                    "name_employees",
-                    "d_id",
-                    "name_departments",
-                    "name_e_mini",
-                    "c_id",
-                    "name_cls",
-                ]
-
-        join_employee_department = join_employee_department[col_1].rename(
-            columns={"name_departments": "n2", "name_employees": "n"},
-        )
-
-        join_employee_managers = join_employee_managers[col_2].rename(
-            columns={
-                "name_departments": "n2",
-                "name_employees": "n",
-                "name": "man_name",
-            },
-        )
-
-        join_employee_sets = join_employee_sets[
-            ["name_employees", "name_e_mini"]
-        ].rename(
-            columns={"name_employees": "n", "name_e_mini": "mini_name"},
-        )
-
-        join_all = join_all[col_4].rename(
-            columns={
-                "name_employees": "n",
-                "name_departments": "n2",
-                "name_e_mini": "mini_name",
-            },
-        )
-
-        engine_args = {}
-        if engine == "dask":
-            dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+            join_employee_managers.set_index(
+                ["id", "d_id", "m_id"], drop=True, inplace=True
             )
-            dask_cluster.apply(mlrun.mount_v3io())
-            dask_cluster.spec.remote = True
-            dask_cluster.with_scheduler_requests(mem="2G")
-            dask_cluster.save()
-            engine_args = {
-                "dask_client": dask_cluster,
-                "dask_cluster_uri": dask_cluster.uri,
-            }
+            join_employee_sets.set_index(["id"], drop=True, inplace=True)
+            join_all.set_index(["id", "d_id", "c_id"], drop=True, inplace=True)
+
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_managers = (
+            join_employee_managers[col_2]
+            .rename(
+                columns={
+                    "name_departments": "n2",
+                    "name_employees": "n",
+                    "name": "man_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_sets = (
+            join_employee_sets[col_3]
+            .rename(
+                columns={"name_employees": "n", "name_e_mini": "mini_name"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_all = (
+            join_all[col_4]
+            .rename(
+                columns={
+                    "name_employees": "n",
+                    "name_departments": "n2",
+                    "name_e_mini": "mini_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
         # relations according to departments_set relations
         managers_set_entity = fstore.Entity("m_id")
         managers_set = fstore.FeatureSet(
@@ -3560,13 +3558,16 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = fstore.get_offline_features(
             vector,
-            engine_args=engine_args,
             with_indexes=with_indexes,
             engine=engine,
+            engine_args=engine_args,
+            join_type=join_type,
+            order_by="name",
         )
         if with_indexes:
-            expected = pd.DataFrame(employees_with_department, columns=["name", "id"])
-            expected.set_index("id", inplace=True)
+            expected = pd.DataFrame(
+                employees_with_department, columns=["id", "name"]
+            ).set_index("id", drop=True)
             assert_frame_equal(expected, resp.to_dataframe())
         else:
             assert_frame_equal(
@@ -3582,10 +3583,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp_1 = fstore.get_offline_features(
             vector,
-            join_type=join_type,
-            engine_args=engine_args,
             with_indexes=with_indexes,
             engine=engine,
+            engine_args=engine_args,
+            join_type=join_type,
+            order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
@@ -3595,33 +3597,35 @@ class TestFeatureStore(TestMLRunSystem):
             "managers.name as man_name",
         ]
 
-        vector_2 = fstore.FeatureVector(
+        vector = fstore.FeatureVector(
             "man-vec", features, description="Employees feature vector"
         )
-        vector_2.save()
+        vector.save()
 
         resp_2 = fstore.get_offline_features(
-            vector_2,
-            join_type=join_type,
-            engine_args=engine_args,
+            vector,
             with_indexes=with_indexes,
             engine=engine,
+            engine_args=engine_args,
+            join_type=join_type,
+            order_by=["n"],
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
-        vector_3 = fstore.FeatureVector(
+        vector = fstore.FeatureVector(
             "mini-emp-vec", features, description="Employees feature vector"
         )
-        vector_3.save()
+        vector.save()
 
         resp_3 = fstore.get_offline_features(
-            vector_3,
-            join_type=join_type,
-            engine_args=engine_args,
+            vector,
             with_indexes=with_indexes,
             engine=engine,
+            engine_args=engine_args,
+            join_type=join_type,
+            order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
 
@@ -3632,23 +3636,38 @@ class TestFeatureStore(TestMLRunSystem):
             "classes.name as name_cls",
         ]
 
-        vector_4 = fstore.FeatureVector(
+        vector = fstore.FeatureVector(
             "four-vec", features, description="Employees feature vector"
         )
-        vector_4.save()
+        vector.save()
 
         resp_4 = fstore.get_offline_features(
-            vector_4,
-            join_type=join_type,
-            engine_args=engine_args,
+            vector,
             with_indexes=with_indexes,
             engine=engine,
+            engine_args=engine_args,
+            join_type=join_type,
+            order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    def test_relation_asof_join(self, with_indexes):
-        """Test 3 option of using get offline feature with relations"""
+    @pytest.mark.parametrize("engine", ['local', 'dask'])
+    def test_relation_asof_join(self, with_indexes, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_scheduler_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
         departments = pd.DataFrame(
             {
                 "d_id": [i for i in range(1, 11, 2)],
@@ -3679,11 +3698,15 @@ class TestFeatureStore(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
-            join_employee_department.set_index(["id", "d_id"], inplace=True)
-            col_1 = ["time"] + col_1
+            col_1 = ["time", "name_employees", "name_departments"]
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
 
-        join_employee_department = join_employee_department[col_1].rename(
-            columns={"name_departments": "n2", "name_employees": "n"},
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values("n")
         )
 
         # relations according to departments_set relations
@@ -3710,11 +3733,14 @@ class TestFeatureStore(TestMLRunSystem):
             "employees-vec", features, description="Employees feature vector"
         )
         vector.save()
-
         resp_1 = fstore.get_offline_features(
             vector,
             with_indexes=with_indexes,
+            engine=engine,
+            engine_args=engine_args,
+            order_by=["n"],
         )
+
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])

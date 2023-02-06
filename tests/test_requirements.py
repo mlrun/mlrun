@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import builtins
 import collections
 import json
@@ -78,13 +92,16 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.8.0"},
+        "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=0.8.11, <0.8.12"},
+        "storey": {"~=1.3.7"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # Black is not stable yet and does not have a release that is not beta, so can't be used with ~=
-        "black": {"<=19.10b0"},
+        "typing-extensions": {">=3.10.0,<5"},
+        "sphinx": {"~=4.3.0"},
+        "setuptools": {"~=65.5"},
+        "transformers": {"~=4.11.3"},
+        "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -105,17 +122,26 @@ def test_requirement_specifiers_convention():
         "urllib3": {">=1.25.4, <1.27"},
         "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
-        "google-auth": {">=1.25.0, <2.0dev"},
-        "numpy": {">=1.16.5, <1.22.0"},
-        "orjson": {">=3,<3.4"},
+        "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
-        "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<6"},
+        "pyarrow": {">=3,<7"},
+        "nbclassic": {">=0.2.8"},
+        "protobuf": {">=3.13, <3.20"},
+        "pandas": {"~=1.2, <1.5.0"},
+        "importlib_metadata": {">=3.6"},
+        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+        "plotly": {"~=5.4, <5.12.0"},
+        # used in tests
+        "aioresponses": {"~=0.7"},
     }
 
-    for (ignored_requirement_name, ignored_specifiers,) in ignored_invalid_map.items():
+    for (
+        ignored_requirement_name,
+        ignored_specifiers,
+    ) in ignored_invalid_map.items():
         if ignored_requirement_name in invalid_requirement_specifiers_map:
             diff = deepdiff.DeepDiff(
                 invalid_requirement_specifiers_map[ignored_requirement_name],
@@ -244,11 +270,7 @@ def _import_extras_requirements():
     setuptools.setup = original_setup
     builtins.open = original_open
 
-    ignored_extras = [
-        "api",
-        "complete",
-        "complete-api",
-    ]
+    ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
     for extra_name, extra_requirements in setup.extras_require.items():

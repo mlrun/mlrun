@@ -1,5 +1,0 @@
-# Best Practices
-
-## Scale
-
-## GPU

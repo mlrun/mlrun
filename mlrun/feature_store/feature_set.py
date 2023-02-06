@@ -11,22 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
 import warnings
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
+from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
     TargetTypes,
-    default_target_names,
+    get_default_targets,
     get_offline_target,
+    get_online_target,
     get_target_driver,
+    update_targets_run_id_for_ingest,
     validate_target_list,
     validate_target_placement,
 )
@@ -36,13 +40,14 @@ from ..model import (
     DataTarget,
     DataTargetBase,
     ModelObj,
+    ObjectDict,
     ObjectList,
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..serving.utils import StepToDict
-from ..utils import StorePrefix
+from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
@@ -79,7 +84,28 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
+        passthrough=None,
     ):
+        """Feature set spec object, defines the feature-set's configuration.
+
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the spec manually may result in unpredictable behaviour.
+
+        :param description:   text description (copied from parent feature-set)
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param features: list of features - :py:class:`~mlrun.features.FeatureSet.Feature`
+        :param partition_keys: list of fields to partition results by (other than the default timestamp key)
+        :param timestamp_key: timestamp column name
+        :param label_column: name of the label column (the one holding the target (y) values)
+        :param targets: list of data targets
+        :param graph: the processing graph
+        :param function: MLRun runtime to execute the feature-set in
+        :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        :param passthrough: if true, ingest will skip offline targets, and get_offline_features will
+               read directly from source
+        """
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
@@ -87,14 +113,15 @@ class FeatureSetSpec(ModelObj):
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
+        self._relations: ObjectDict = None
 
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
+        self.relations: Dict[str, Entity] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
-        self.relations = relations or {}
         self.source = source
         self.targets = targets or []
         self.graph = graph
@@ -103,6 +130,7 @@ class FeatureSetSpec(ModelObj):
         self.analysis = analysis or {}
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
+        self.passthrough = passthrough
 
     @property
     def entities(self) -> List[Entity]:
@@ -178,11 +206,29 @@ class FeatureSetSpec(ModelObj):
         return self._source
 
     @source.setter
-    def source(self, source: DataSource):
-        self._source = self._verify_dict(source, "source", DataSource)
+    def source(self, source: Union[BaseSourceDriver, dict]):
+        if isinstance(source, dict):
+            kind = source.get("kind", "")
+            source = source_kind_to_driver[kind].from_dict(source)
+        self._source = source
+
+    @property
+    def relations(self) -> Dict[str, Entity]:
+        """feature set relations dict"""
+        return self._relations
+
+    @relations.setter
+    def relations(self, relations: Dict[str, Entity]):
+        self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
         return len(self._graph.steps) > 0
+
+    def validate_no_processing_for_passthrough(self):
+        if self.passthrough and self.require_processing():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "passthrough feature set can not have graph transformations"
+            )
 
 
 class FeatureSetStatus(ModelObj):
@@ -195,6 +241,20 @@ class FeatureSetStatus(ModelObj):
         function_uri=None,
         run_uri=None,
     ):
+        """Feature set status object, containing the current feature-set's status.
+
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
+
+        :param state: object's current state
+        :param targets: list of the data targets used in the last ingestion operation
+        :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)
+        :param preview: preview of the feature-set contents (if preview generation was requested)
+        :param function_uri: function used to execute the feature-set graph
+        :param run_uri: last run used for ingestion
+        """
+
         self.state = state or "created"
         self._targets: ObjectList = None
         self.targets = targets or []
@@ -215,12 +275,26 @@ class FeatureSetStatus(ModelObj):
     def update_target(self, target: DataTarget):
         self._targets.update(target)
 
-    def update_last_written_for_target(
-        self, target_path: str, last_written: datetime.datetime
-    ):
+    def update_last_written_for_target(self, target_path: str, last_written: datetime):
         for target in self._targets:
-            if target.path == target_path or target.path.rstrip("/") == target_path:
+            actual_target_path = get_target_driver(target).get_target_path()
+            if (
+                actual_target_path == target_path
+                or actual_target_path.rstrip("/") == target_path
+            ):
                 target.last_written = last_written
+
+
+def emit_policy_to_dict(policy: EmitPolicy):
+    # Storey expects the policy to be converted to a dictionary with specific params and won't allow extra params
+    # (see Storey's _dict_to_emit_policy function). This takes care of creating a dict conforming to it.
+    # TODO - fix Storey's handling of emit policy and parsing of dict in _dict_to_emit_policy.
+    struct = {"mode": policy.name()}
+    if hasattr(policy, "delay_in_seconds"):
+        struct["delay"] = getattr(policy, "delay_in_seconds")
+    if hasattr(policy, "max_events"):
+        struct["maxEvents"] = getattr(policy, "max_events")
+    return struct
 
 
 class FeatureSet(ModelObj):
@@ -236,6 +310,9 @@ class FeatureSet(ModelObj):
         entities: List[Union[Entity, str]] = None,
         timestamp_key: str = None,
         engine: str = None,
+        label_column: str = None,
+        relations: Dict[str, Entity] = None,
+        passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -250,6 +327,12 @@ class FeatureSet(ModelObj):
         :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param label_column:  name of the label column (the one holding the target (y) values)
+        :param relations:     dictionary that indicates all the relations this feature set
+                              have with another feature sets. The format of this dictionary is
+                              {"my_column":Entity, ...}
+        :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
+                              directly from source
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -262,6 +345,9 @@ class FeatureSet(ModelObj):
             entities=entities,
             timestamp_key=timestamp_key,
             engine=engine,
+            label_column=label_column,
+            relations=relations,
+            passthrough=passthrough,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -304,8 +390,8 @@ class FeatureSet(ModelObj):
         return get_store_uri(StorePrefix.FeatureSet, self.fullname)
 
     @property
-    def fullname(self):
-        """full name in the form project/name[:tag]"""
+    def fullname(self) -> str:
+        """full name in the form {project}/{name}[:{tag}]"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -314,7 +400,8 @@ class FeatureSet(ModelObj):
         return fullname
 
     def _override_run_db(
-        self, session,
+        self,
+        session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
@@ -331,8 +418,12 @@ class FeatureSet(ModelObj):
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
+
+        if not target and name:
+            target = get_online_target(self, name)
+
         if target:
-            return target.path
+            return target.get_path().get_absolute_path()
 
     def set_targets(
         self,
@@ -365,7 +456,7 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
-            targets.extend(default_target_names())
+            targets.extend(get_default_targets())
 
         validate_target_list(targets=targets)
 
@@ -376,20 +467,64 @@ class FeatureSet(ModelObj):
                     f"target kind is not supported, use one of: {','.join(TargetTypes.all())}"
                 )
             if not hasattr(target, "kind"):
-                target = DataTargetBase(target, name=str(target))
+                target = DataTargetBase(
+                    target, name=str(target), partitioned=(target == "parquet")
+                )
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
-        """ Delete data of specific targets
+        """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
-        :param silent: Fail silently if target doesn't exist in featureset status """
+        :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
             self, mlrun.api.schemas.AuthorizationAction.delete
         )
 
+        purge_targets = self._reload_and_get_status_targets(
+            target_names=target_names, silent=silent
+        )
+
+        if purge_targets:
+            purge_target_names = list(purge_targets.keys())
+            for target_name in purge_target_names:
+                target = purge_targets[target_name]
+                driver = get_target_driver(target_spec=target, resource=self)
+                try:
+                    driver.purge()
+                except FileNotFoundError:
+                    pass
+                del self.status.targets[target_name]
+
+            self.save()
+
+    def update_targets_for_ingest(
+        self,
+        targets: List[DataTargetBase],
+        overwrite: bool = None,
+    ):
+        if not targets:
+            return
+
+        ingestion_target_names = [t.name for t in targets]
+
+        status_targets = {}
+        if not overwrite:
+            # silent=True always because targets are not guaranteed to be found in status
+            status_targets = (
+                self._reload_and_get_status_targets(
+                    target_names=ingestion_target_names, silent=True
+                )
+                or {}
+            )
+
+        update_targets_run_id_for_ingest(overwrite, targets, status_targets)
+
+    def _reload_and_get_status_targets(
+        self, target_names: List[str] = None, silent: bool = False
+    ):
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -400,31 +535,23 @@ class FeatureSet(ModelObj):
                 raise
 
         if target_names:
-            purge_targets = ObjectList(DataTarget)
+            targets = ObjectList(DataTarget)
             for target_name in target_names:
                 try:
-                    purge_targets[target_name] = self.status.targets[target_name]
+                    targets[target_name] = self.status.targets[target_name]
                 except KeyError:
                     if silent:
                         pass
                     else:
                         raise mlrun.errors.MLRunNotFoundError(
                             "Target not found in status (fset={0}, target={1})".format(
-                                self.name, target_name
+                                self.metadata.name, target_name
                             )
                         )
         else:
-            purge_targets = self.status.targets
-        purge_target_names = list(purge_targets.keys())
-        for target_name in purge_target_names:
-            target = purge_targets[target_name]
-            driver = get_target_driver(target_spec=target, resource=self)
-            try:
-                driver.purge()
-            except FileNotFoundError:
-                pass
-            del self.status.targets[target_name]
-        self.save()
+            targets = self.status.targets
+
+        return targets
 
     def has_valid_source(self):
         """check if object's spec has a valid (non empty) source definition"""
@@ -440,6 +567,19 @@ class FeatureSet(ModelObj):
     ):
         """add/set an entity (dataset index)
 
+        example::
+
+            import mlrun.feature_store as fstore
+
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_entity("country",
+                            mlrun.data_types.ValueType.STRING,
+                            description="stock country")
+            ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
+            ticks.save()
+
         :param name:        entity name
         :param value_type:  type of the entity (default to ValueType.STRING)
         :param description: description of the entity
@@ -448,8 +588,26 @@ class FeatureSet(ModelObj):
         entity = Entity(name, value_type, description=description, labels=labels)
         self._spec.entities.update(entity, name)
 
-    def add_feature(self, feature, name=None):
-        """add/set a feature"""
+    def add_feature(self, feature: mlrun.features.Feature, name=None):
+        """add/set a feature
+
+        example::
+
+            import mlrun.feature_store as fstore
+            from mlrun.features import Feature
+
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.STRING,
+                            description="client consistency"),"ABC01")
+            ticks.add_feature(Feature(value_type=mlrun.data_types.ValueType.FLOAT,
+                            description="client volatility"),"SAB")
+            ticks.save()
+
+        :param feature:         setting of Feature
+        :param name:            feature name
+        """
         self._spec.features.update(feature, name)
 
     def link_analysis(self, name, uri):
@@ -498,6 +656,7 @@ class FeatureSet(ModelObj):
         after=None,
         before=None,
         state_name=None,
+        emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
 
@@ -505,10 +664,13 @@ class FeatureSet(ModelObj):
 
             myset.add_aggregation("ask", ["sum", "max"], "1h", "10m", name="asks")
 
-        :param column:     name of column/field aggregate
+        :param column:     name of column/field aggregate. Do not name columns starting with either `_` or `aggr_`.
+                           They are reserved for internal use, and the data does not ingest correctly.
+                           When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
+                           they cause errors in the ingestion.
         :param operations: aggregation operations, e.g. ['sum', 'std']
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
-                            or a list of same unit windows e.g ['1h', '6h']
+                            or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
                             sliding windows depending whether period parameter
                             provided.
@@ -526,12 +688,17 @@ class FeatureSet(ModelObj):
                               to a specific window. It is processed only once
                               (when the query processes the window to which the record belongs).
         :param period:     optional, sliding window granularity, e.g. '20s' '10m'  '3h' '7d'
-        :param name:       optional, aggregation name/prefix. Must be unique per feature set.If not passed,
+        :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
         :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
+        :param emit_policy: optional, which emit policy to use when performing the aggregations. Use the derived
+                            classes of ``storey.EmitPolicy``. The default is to emit every period for Spark engine
+                            and emit every event for storey. Currently the only other supported option is to use
+                            ``emit_policy=storey.EmitEveryEvent()`` when using the Spark engine to emit every event
+
         """
         if isinstance(operations, str):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -570,21 +737,37 @@ class FeatureSet(ModelObj):
             step = graph.steps[step_name]
             self._add_aggregation_to_existing(aggregation)
             step.class_args["aggregates"] = list(self._aggregations.values())
+            if emit_policy and self.spec.engine == "spark":
+                # Using simple override here - we might want to consider exploding if different emit policies
+                # were used for multiple aggregations.
+                emit_policy_dict = emit_policy_to_dict(emit_policy)
+                if "emit_policy" in step.class_args:
+                    curr_emit_policy = step.class_args["emit_policy"]["mode"]
+                    if curr_emit_policy != emit_policy_dict["mode"]:
+                        logger.warning(
+                            f"Current emit policy will be overridden: {curr_emit_policy} => {emit_policy_dict['mode']}"
+                        )
+                step.class_args["emit_policy"] = emit_policy_dict
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
+            if before is None and after is None:
+                after = previous_step
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
                     name=step_name,
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
+                    time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
                     **class_args,
                 )
             elif self.spec.engine == "spark":
                 key_columns = []
+                if emit_policy:
+                    class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
                 for entity in self.spec.entities:
                     key_columns.append(entity.name)
                 step = graph.add_step(
@@ -592,7 +775,7 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
                     **class_args,
@@ -617,10 +800,37 @@ class FeatureSet(ModelObj):
         return self._spec.features[name]
 
     def __setitem__(self, key, item):
-        self._spec.features.update(item, key)
+        if key not in self._spec.entities.keys():
+            self._spec.features.update(item, key)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A `FeatureSet` cannot have an entity and a feature with the same name. "
+                f"The feature that was given to add '{key}' has the same name of the `FeatureSet`'s entity."
+            )
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
-        """generate graphviz plot"""
+        """plot/save graph using graphviz
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ...
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_aggregation(name='priceN',
+                                column='price',
+                                operations=['avg'],
+                                windows=['1d'],
+                                period='1h')
+            ticks.plot(rankdir="LR", with_targets=True)
+
+        :param filename:     target filepath for the graph image (None for the notebook)
+        :param format:       the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param with_targets: show targets in the graph image
+        :param kw:           kwargs passed to graphviz, e.g. rankdir=”LR” (see https://graphviz.org/doc/info/attrs.html)
+        :return:             graphviz graph object
+        """
         graph = self.spec.graph
         _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
@@ -629,7 +839,7 @@ class FeatureSet(ModelObj):
             validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
-                    target.kind,
+                    f"{target.kind}/{target.name}",
                     after=target.after_step or default_final_step,
                     shape="cylinder",
                 )
@@ -663,12 +873,20 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
-        driver = get_offline_target(self, name=target_name)
-        if not driver:
+
+        if self.spec.passthrough:
+            if not self.spec.source:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "passthrough feature set {self.metadata.name} with no source"
+                )
+            return self.spec.source.to_dataframe()
+
+        target = get_offline_target(self, name=target_name)
+        if not target:
             raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature set"
             )
-        return driver.as_df(
+        result = target.as_df(
             columns=columns,
             df_module=df_module,
             entities=entities,
@@ -677,6 +895,23 @@ class FeatureSet(ModelObj):
             time_column=time_column,
             **kwargs,
         )
+        if not columns:
+            drop_cols = []
+            if target.time_partitioning_granularity:
+                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
+                    drop_cols.append(col)
+                    if col == target.time_partitioning_granularity:
+                        break
+            elif (
+                target.partitioned
+                and not target.partition_cols
+                and not target.key_bucketing_number
+            ):
+                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+            if drop_cols:
+                # if these columns aren't present for some reason, that's no reason to fail
+                result.drop(columns=drop_cols, inplace=True, errors="ignore")
+        return result
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""
@@ -704,11 +939,20 @@ class FeatureSet(ModelObj):
 
 class SparkAggregateByKey(StepToDict):
     def __init__(
-        self, key_columns: List[str], time_column: str, aggregates: List[Dict]
+        self,
+        key_columns: List[str],
+        time_column: str,
+        aggregates: List[Dict],
+        emit_policy: Union[EmitPolicy, Dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
+        self.emit_policy_mode = None
+        if emit_policy:
+            if isinstance(emit_policy, EmitPolicy):
+                emit_policy = emit_policy_to_dict(emit_policy)
+            self.emit_policy_mode = emit_policy["mode"]
 
     @staticmethod
     def _duration_to_spark_format(duration):
@@ -716,7 +960,7 @@ class SparkAggregateByKey(StepToDict):
         unit = duration[-1:]
         if unit == "d":
             unit = "day"
-        if unit == "h":
+        elif unit == "h":
             unit = "hour"
         elif unit == "m":
             unit = "minute"
@@ -726,38 +970,139 @@ class SparkAggregateByKey(StepToDict):
             raise ValueError(f"Invalid duration '{duration}'")
         return f"{num} {unit}"
 
+    def _extract_fields_from_aggregate_dict(self, aggregate):
+        name = aggregate["name"]
+        column = aggregate["column"]
+        operations = aggregate["operations"]
+        windows = aggregate["windows"]
+        spark_period = (
+            self._duration_to_spark_format(aggregate["period"])
+            if "period" in aggregate
+            else None
+        )
+        return name, column, operations, windows, spark_period
+
     def do(self, event):
         import pyspark.sql.functions as funcs
+        from pyspark.sql import Window
 
         time_column = self.time_column or "time"
+        input_df = event
 
-        dfs = []
-        for aggregate in self.aggregates:
-            name = aggregate["name"]
-            column = aggregate["column"]
-            operations = aggregate["operations"]
-            windows = aggregate["windows"]
-            period = aggregate["period"]
+        if not self.emit_policy_mode or self.emit_policy_mode != EmitEveryEvent.name():
+            last_value_aggs = [
+                funcs.last(column).alias(column)
+                for column in input_df.columns
+                if column not in self.key_columns and column != time_column
+            ]
 
-            spark_period = self._duration_to_spark_format(period)
+            dfs = []
+            for aggregate in self.aggregates:
+                (
+                    name,
+                    column,
+                    operations,
+                    windows,
+                    spark_period,
+                ) = self._extract_fields_from_aggregate_dict(aggregate)
 
-            input_df = event
-            for window in windows:
-                spark_window = self._duration_to_spark_format(window)
-                aggs = []
-                for operation in operations:
-                    func = getattr(funcs, operation)
-                    agg_name = f"{name if name else column}_{operation}_{window}"
-                    agg = func(column).alias(agg_name)
-                    aggs.append(agg)
-                window_column = funcs.window(time_column, spark_window, spark_period)
-                df = input_df.groupBy(
-                    *self.key_columns, window_column.end.alias(time_column),
-                ).agg(*aggs)
-                df = df.withColumn(f"{time_column}_window", funcs.lit(window))
-                dfs.append(df)
+                for window in windows:
+                    spark_window = self._duration_to_spark_format(window)
+                    aggs = last_value_aggs
+                    for operation in operations:
+                        func = getattr(funcs, operation)
+                        agg_name = f"{name if name else column}_{operation}_{window}"
+                        agg = func(column).alias(agg_name)
+                        aggs.append(agg)
+                    window_column = funcs.window(
+                        time_column, spark_window, spark_period
+                    )
+                    df = input_df.groupBy(
+                        *self.key_columns,
+                        window_column.end.alias(time_column),
+                    ).agg(*aggs)
+                    df = df.withColumn(f"{time_column}_window", funcs.lit(window))
+                    dfs.append(df)
 
-        union_df = dfs[0]
-        for df in dfs[1:]:
-            union_df = union_df.unionByName(df, allowMissingColumns=True)
-        return union_df
+            union_df = dfs[0]
+            for df in dfs[1:]:
+                union_df = union_df.unionByName(df, allowMissingColumns=True)
+
+            return union_df
+
+        else:
+            window_counter = 0
+            # We'll use this column to identify our original row and group-by across the various windows
+            # (either sliding windows or multiple windows provided). See below comment for more details.
+            rowid_col = "__mlrun_rowid"
+            df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
+
+            drop_columns = [rowid_col]
+            window_rank_cols = []
+            union_df = None
+            for aggregate in self.aggregates:
+                (
+                    name,
+                    column,
+                    operations,
+                    windows,
+                    spark_period,
+                ) = self._extract_fields_from_aggregate_dict(aggregate)
+
+                for window in windows:
+                    spark_window = self._duration_to_spark_format(window)
+                    window_col = f"__mlrun_window_{window_counter}"
+                    win_df = df.withColumn(
+                        window_col,
+                        funcs.window(time_column, spark_window, spark_period).end,
+                    )
+                    function_window = Window.partitionBy(*self.key_columns, window_col)
+
+                    window_rank_col = f"__mlrun_win_rank_{window_counter}"
+                    rank_window = Window.partitionBy(rowid_col).orderBy(window_col)
+                    win_df = win_df.withColumn(
+                        window_rank_col, funcs.row_number().over(rank_window)
+                    )
+                    window_rank_cols.append(window_rank_col)
+                    drop_columns.extend([window_col, window_rank_col])
+
+                    window_counter += 1
+
+                    for operation in operations:
+                        func = getattr(funcs, operation)
+                        agg_name = f"{name if name else column}_{operation}_{window}"
+                        win_df = win_df.withColumn(
+                            agg_name, func(column).over(function_window)
+                        )
+
+                    union_df = (
+                        union_df.unionByName(win_df, allowMissingColumns=True)
+                        if union_df
+                        else win_df
+                    )
+
+            # We need to collapse the multiple window rows that were generated during the query processing. For that
+            # purpose we'll pick just the 1st row for each window, and then group-by with ignorenulls. Basically since
+            # the result is a union of multiple windows, we'll get something like this for each input row:
+            # row   window_1    rank_window_1   window_2    rank_window_2   ...calculations and fields...
+            # 1     10:00       1               null        null            ...
+            # 2     10:10       2               null        null            ...
+            # 3     null        null            10:00       1               ...
+            # 4     null        null            10:10       2               ...
+            # And we want to take rows 1 and 3 in this case. Then the group-by will merge them to a single line since
+            # it ignores nulls, so it will take the values for window_1 from row 1 and for window_2 from row 3.
+            window_filter = " or ".join(
+                [f"{window_rank_col} == 1" for window_rank_col in window_rank_cols]
+            )
+            first_value_aggs = [
+                funcs.first(column, ignorenulls=True).alias(column)
+                for column in union_df.columns
+                if column not in drop_columns
+            ]
+
+            return (
+                union_df.filter(window_filter)
+                .groupBy(rowid_col)
+                .agg(*first_value_aggs)
+                .drop(rowid_col)
+            )

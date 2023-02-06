@@ -21,12 +21,21 @@ from .iguazio import (
     V3ioStreamClient,
     VolumeMount,
     add_or_refresh_credentials,
+    is_iguazio_session_cookie,
     mount_v3io,
     mount_v3io_extended,
     mount_v3io_legacy,
     v3io_cred,
 )
-from .other import auto_mount, mount_configmap, mount_hostpath, mount_pvc
+from .other import (
+    auto_mount,
+    mount_configmap,
+    mount_hostpath,
+    mount_pvc,
+    mount_s3,
+    mount_secret,
+    set_env_variables,
+)
 
 
 def watch_stream(
@@ -40,12 +49,13 @@ def watch_stream(
     """watch on a v3io stream and print data every interval
 
     example::
+
         watch_stream('v3io:///users/admin/mystream')
 
     :param url:        stream url
     :param shard_ids:  range or list of shard IDs
     :param seek_to:    where to start/seek ('EARLIEST', 'LATEST', 'TIME', 'SEQUENCE')
-    :param interval    watch interval time in seconds, 0 to run once and return
+    :param interval:   watch interval time in seconds, 0 to run once and return
     :param is_json:    indicate the payload is json (will be deserialized)
     """
     interval = 3 if interval is None else interval

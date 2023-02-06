@@ -1,14 +1,25 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from enum import Enum
-from typing import Dict, List, Union
-
-import numpy as np
-import pandas as pd
+from typing import Dict, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact, DatasetArtifact
 
 from ..plan import MLPlan, MLPlanStages
-from ..utils import concatenate_x_y
+from ..utils import MLTypes, MLUtils
 
 
 class DatasetPlan(MLPlan):
@@ -19,7 +30,7 @@ class DatasetPlan(MLPlan):
 
     class Purposes(Enum):
         """
-        All of the dataset split purposes.
+        All the dataset split purposes.
         """
 
         OTHER = "other"
@@ -111,24 +122,26 @@ class DatasetPlan(MLPlan):
 
     def produce(
         self,
-        x: Union[list, dict, np.ndarray, pd.DataFrame, pd.Series],
-        y: Union[list, dict, np.ndarray, pd.DataFrame, pd.Series] = None,
-        y_columns: Union[List[str], List[int]] = None,
+        x: MLTypes.DatasetType,
+        y: MLTypes.DatasetType = None,
+        target_columns_names: MLTypes.TargetColumnsNamesType = None,
         **kwargs,
     ) -> Dict[str, Artifact]:
         """
         Produce the dataset artifact according to this plan.
 
-        :param x:         A collection of inputs to a model.
-        :param y:         A collection of ground truth labels corresponding to the inputs.
-        :param y_columns: List of names or indices to give the columns of the ground truth labels.
+        :param x:                    A collection of inputs to a model.
+        :param y:                    A collection of ground truth labels corresponding to the inputs.
+        :param target_columns_names: List of names or indices to give the columns of the ground truth labels.
 
         :return: The produced dataset artifact.
 
         :raise MLRunInvalidArgumentError: If no dataset parameters were passed.
         """
         # Merge x and y into a single dataset:
-        dataset, y_columns = concatenate_x_y(x=x, y=y, y_columns=y_columns)
+        dataset, y_columns = MLUtils.concatenate_x_y(
+            x=x, y=y, target_columns_names=target_columns_names
+        )
 
         # Create the dataset artifact:
         dataset_artifact = DatasetArtifact(
@@ -143,7 +156,7 @@ class DatasetPlan(MLPlan):
         if self._purpose != self.Purposes.OTHER:
             dataset_artifact.labels["Purpose"] = self._purpose.value
 
-        # TODO: Add the y columns as an additional artifact (save as a json for example)
+        # TODO: Add the target columns names as an additional artifact (save as a json for example)
 
         # Store it:
         self._artifacts[self._name] = dataset_artifact

@@ -1,16 +1,77 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import re
 import uuid
+import warnings
+from collections import OrderedDict
 from typing import Any, Dict, List, Union
 
 import numpy as np
 import pandas as pd
 from storey import MapClass
 
-from mlrun.serving.server import get_event_time
+import mlrun.errors
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
 
-class FeaturesetValidator(StepToDict, MapClass):
+def get_engine(first_event):
+    if hasattr(first_event, "body"):
+        first_event = first_event.body
+    if isinstance(first_event, pd.DataFrame):
+        return "pandas"
+    if hasattr(first_event, "rdd"):
+        return "spark"
+    return "storey"
+
+
+class MLRunStep(MapClass):
+    def __init__(self, **kwargs):
+        """Abstract class for mlrun step.
+        Can be used in pandas/storey/spark feature set ingestion"""
+        super().__init__(**kwargs)
+        self._engine_to_do_method = {
+            "pandas": self._do_pandas,
+            "spark": self._do_spark,
+            "storey": self._do_storey,
+        }
+
+    def do(self, event):
+        """
+        This method defines the do method of this class according to the first event type.
+        """
+        engine = get_engine(event)
+        self.do = self._engine_to_do_method.get(engine, None)
+        if self.do is None:
+            raise mlrun.errors.InvalidArgummentError(
+                f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"
+            )
+
+        return self.do(event)
+
+    def _do_pandas(self, event):
+        raise NotImplementedError
+
+    def _do_storey(self, event):
+        raise NotImplementedError
+
+    def _do_spark(self, event):
+        raise NotImplementedError
+
+
+class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
 
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
@@ -35,7 +96,7 @@ class FeaturesetValidator(StepToDict, MapClass):
                 feature.validator.set_feature(feature)
                 self._validators[key] = feature.validator
 
-    def do(self, event):
+    def _do_storey(self, event):
         body = event.body
         for name, validator in self._validators.items():
             if name in body:
@@ -43,15 +104,34 @@ class FeaturesetValidator(StepToDict, MapClass):
                 if not ok:
                     message = args.pop("message")
                     key_text = f" key={event.key}" if event.key else ""
-                    if event.time:
-                        key_text += f" time={event.time}"
                     print(
                         f"{validator.severity}! {name} {message},{key_text} args={args}"
                     )
         return event
 
+    def _do_pandas(self, event):
+        body = event.body
+        for column in body:
+            validator = self._validators.get(column, None)
+            if validator:
+                violations = 0
+                all_args = []
+                for i in body.index:
+                    # check each body entry if there is validator for it
+                    ok, args = validator.check(body.at[i, column])
+                    if not ok:
+                        violations += 1
+                        all_args.append(args)
+                        message = args.pop("message")
+                if violations != 0:
+                    text = f" column={column}, has {violations} violations"
+                    print(
+                        f"{validator.severity}! {column} {message},{text} args={all_args}"
+                    )
+        return event
 
-class MapValues(StepToDict, MapClass):
+
+class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
@@ -98,12 +178,12 @@ class MapValues(StepToDict, MapClass):
         # Is it a regular replacement
         return feature_map.get(value, value)
 
-    def _feature_name(self, feature) -> str:
+    def _get_feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
 
-    def do(self, event):
+    def _do_storey(self, event):
         mapped_values = {
-            self._feature_name(feature): self._map_value(feature, val)
+            self._get_feature_name(feature): self._map_value(feature, val)
             for feature, val in event.items()
             if feature in self.mapping
         }
@@ -113,13 +193,75 @@ class MapValues(StepToDict, MapClass):
 
         return mapped_values
 
+    def _do_pandas(self, event):
+        df = pd.DataFrame(index=event.index)
+        for feature in event.columns:
+            feature_map = self.mapping.get(feature, {})
+            if "ranges" in feature_map:
+                # create and apply range map
+                for val, val_range in feature_map.get("ranges", {}).items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    feature_map["ranges"][val] = [min_val, max_val]
 
-class Imputer(StepToDict, MapClass):
+                matchdf = pd.DataFrame.from_dict(
+                    feature_map["ranges"], "index"
+                ).reset_index()
+                matchdf.index = pd.IntervalIndex.from_arrays(
+                    left=matchdf[0], right=matchdf[1], closed="both"
+                )
+                df[self._get_feature_name(feature)] = matchdf.loc[event[feature]][
+                    "index"
+                ].values
+            elif feature_map:
+                # create and apply simple map
+                df[self._get_feature_name(feature)] = event[feature].map(
+                    lambda x: feature_map.get(x, None)
+                )
+
+        if self.with_original_features:
+            df = pd.concat([event, df], axis=1)
+        return df
+
+    def _do_spark(self, event):
+        from itertools import chain
+
+        from pyspark.sql.functions import col, create_map, lit, when
+
+        for column, column_map in self.mapping.items():
+            new_column_name = self._get_feature_name(column)
+            if "ranges" not in column_map:
+                mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
+                event = event.withColumn(
+                    new_column_name, mapping_expr.getItem(col(column))
+                )
+            else:
+                for val, val_range in column_map["ranges"].items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    otherwise = ""
+                    if new_column_name in event.columns:
+                        otherwise = event[new_column_name]
+                    event = event.withColumn(
+                        new_column_name,
+                        when(
+                            (event[column] < max_val) & (event[column] >= min_val),
+                            lit(val),
+                        ).otherwise(otherwise),
+                    )
+
+        if not self.with_original_features:
+            event = event.select(*self.mapping.keys())
+
+        return event
+
+
+class Imputer(StepToDict, MLRunStep):
     def __init__(
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Dict[str, Dict[str, Any]] = None,
+        mapping: Dict[str, Any] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -130,24 +272,43 @@ class Imputer(StepToDict, MapClass):
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)
-        self.mapping = mapping
+        self.mapping = mapping or {}
         self.method = method
         self.default_value = default_value
 
-    def _impute(self, feature: str, value):
-        if value is None:
+    def _impute(self, feature: str, value: Any):
+        if pd.isna(value):
             return self.mapping.get(feature, self.default_value)
         return value
 
-    def do(self, event):
+    def _do_storey(self, event):
         imputed_values = {
             feature: self._impute(feature, val) for feature, val in event.items()
         }
         return imputed_values
 
+    def _do_pandas(self, event):
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event[feature].fillna(val, inplace=True)
+        return event
 
-class OneHotEncoder(StepToDict, MapClass):
-    def __init__(self, mapping: Dict[str, Dict[str, Any]], **kwargs):
+    def _do_spark(self, event):
+
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event = event.na.fill(val, feature)
+                # for future use - for now sparks=storey=pandas
+                # from pyspark.ml.feature import Imputer
+                # imputer = Imputer(inputCols=[feature], outputCols=[feature]).setStrategy(val)
+                # event = imputer.fit(event).transform(event)
+        return event
+
+
+class OneHotEncoder(StepToDict, MLRunStep):
+    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -161,28 +322,79 @@ class OneHotEncoder(StepToDict, MapClass):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
+        for key, values in mapping.items():
+            for val in values:
+                if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "For OneHotEncoder you must provide int or string mapping list"
+                    )
+            # Use OrderedDict to dedup without losing the original order
+            mapping[key] = list(OrderedDict.fromkeys(values).keys())
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            one_hot_encoding = {f"{feature}_{category}": 0 for category in encoding}
+
+            one_hot_encoding = {
+                f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
+                for category in encoding
+            }
             if value in encoding:
-                one_hot_encoding[f"{feature}_{value}"] = 1
+                one_hot_encoding[
+                    f"{feature}_{OneHotEncoder._sanitized_category(value)}"
+                ] = 1
             else:
                 print(f"Warning, {value} is not a known value by the encoding")
             return one_hot_encoding
 
         return {feature: value}
 
-    def do(self, event):
+    def _do_storey(self, event):
         encoded_values = {}
+
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
 
+    def _do_pandas(self, event):
 
-class DateExtractor(StepToDict, MapClass):
+        for key, values in self.mapping.items():
+            event[key] = pd.Categorical(event[key], categories=list(values))
+            encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
+            col_rename = {
+                name: OneHotEncoder._sanitized_category(name)
+                for name in encoded.columns
+            }
+            encoded.rename(columns=col_rename, inplace=True)
+            event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
+        event.drop(columns=list(self.mapping.keys()), inplace=True)
+        return event
+
+    def _do_spark(self, event):
+        from pyspark.sql.functions import lit, when
+
+        for key, values in self.mapping.items():
+            for val in values:
+                event = event.withColumn(
+                    f"{key}_{self._sanitized_category(val)}",
+                    when(
+                        (event[key] == val),
+                        lit(1),
+                    ).otherwise(lit(0)),
+                )
+        event = event.drop(*self.mapping.keys())
+        return event
+
+    @staticmethod
+    def _sanitized_category(category):
+        # replace(" " and "-") -> "_"
+        if isinstance(category, str):
+            return re.sub("[ -]", "_", category)
+        return category
+
+
+class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
@@ -221,8 +433,8 @@ class DateExtractor(StepToDict, MapClass):
 
             # (taken from the fraud-detection end-to-end feature store demo)
             # Define the Transactions FeatureSet
-            transaction_set = fs.FeatureSet("transactions",
-                                            entities=[fs.Entity("source")],
+            transaction_set = fstore.FeatureSet("transactions",
+                                            entities=[fstore.Entity("source")],
                                             timestamp_key='timestamp',
                                             description="transactions feature set")
 
@@ -243,35 +455,76 @@ class DateExtractor(StepToDict, MapClass):
                               by default "timestamp"
         """
         super().__init__(**kwargs)
-        self.timestamp_col = timestamp_col
+        self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
+        self.fstore_date_format_to_spark_date_format = {
+            "day_of_year": "DD",
+            "day_of_month": "dd",
+            "dayofyear": "DD",
+            "dayofmonth": "dd",
+            "month": "MM",
+            "year": "yyyy",
+            "quarter": "Q",
+            "hour": "hh",
+            "minute": "mm",
+            "second": "ss",
+        }
 
-    def _get_key_name(self, part: str, timestamp_col: str):
-        timestamp_col = timestamp_col if timestamp_col else "timestamp"
-        return f"{timestamp_col}_{part}"
+    def _get_key_name(self, part: str):
+        return f"{self.timestamp_col}_{part}"
 
-    def do(self, event):
+    def _extract_timestamp(self, event):
         # Extract timestamp
-        if self.timestamp_col is None:
-            timestamp = event["timestamp"]
-        else:
-            try:
-                timestamp = event[self.timestamp_col]
-            except Exception:
-                raise ValueError(f"{self.timestamp_col} does not exist in the event")
+        try:
+            timestamp = event[self.timestamp_col]
+        except KeyError:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{self.timestamp_col} does not exist in the event"
+            )
+        return timestamp
 
+    def _do_storey(self, event):
+        timestamp = self._extract_timestamp(event)
         # Extract specified parts
         timestamp = pd.Timestamp(timestamp)
         for part in self.parts:
             # Extract part
             extracted_part = getattr(timestamp, part)
             # Add to event
-            event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+            event[self._get_key_name(part)] = extracted_part
+        return event
+
+    def _do_pandas(self, event):
+        timestamp = self._extract_timestamp(event)
+        # Extract specified parts
+        for part in self.parts:
+            # Extract part and add it to event
+            event[self._get_key_name(part)] = timestamp.map(
+                lambda x: getattr(pd.Timestamp(x), part)
+            )
+        return event
+
+    def _do_spark(self, event):
+        from pyspark.sql.functions import date_format
+
+        for part in self.parts:
+            if part in self.fstore_date_format_to_spark_date_format:
+                event = event.withColumn(
+                    self._get_key_name(part),
+                    date_format(
+                        self.timestamp_col,
+                        self.fstore_date_format_to_spark_date_format[part],
+                    ),
+                )
+            else:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"DateExtractor with spark engine doesn't support {part} param"
+                )
         return event
 
 
 class SetEventMetadata(MapClass):
-    """Set the event metadata (id, key, timestamp) from the event body"""
+    """Set the event metadata (id and key) from the event body"""
 
     def __init__(
         self,
@@ -281,9 +534,9 @@ class SetEventMetadata(MapClass):
         random_id: bool = None,
         **kwargs,
     ):
-        """Set the event metadata (id, key, timestamp) from the event body
+        """Set the event metadata (id, key) from the event body
 
-        set the event metadata fields (id, key, and time) from the event body data structure
+        set the event metadata fields (id and key) from the event body data structure
         the xx_path attribute defines the key or path to the value in the body dict, "." in the path string
         indicate the value is in a nested dict e.g. `"x.y"` means `{"x": {"y": value}}`
 
@@ -291,25 +544,30 @@ class SetEventMetadata(MapClass):
 
             flow = function.set_topology("flow")
             # build a graph and use the SetEventMetadata step to extract the id, key and path from the event body
-            # ("myid", "mykey" and "mytime" fields), the metadata will be used for following data processing steps
-            # (e.g. feature store ops, time/key aggregations, write to databases/streams, etc.)
-            flow.to(SetEventMetadata(id_path="myid", key_path="mykey", time_path="mytime"))
+            # ("myid" and "mykey" fields), the metadata will be used for following data processing steps
+            # (e.g. feature store ops, key aggregations, write to databases/streams, etc.)
+            flow.to(SetEventMetadata(id_path="myid", key_path="mykey"))
                 .to(...)  # additional steps
 
             server = function.to_mock_server()
-            event = {"myid": "34", "mykey": "123", "mytime": "2022-01-18 15:01"}
+            event = {"myid": "34", "mykey": "123"}
             resp = server.test(body=event)
 
         :param id_path:   path to the id value
         :param key_path:  path to the key value
-        :param time_path: path to the time value (value should be of type str or datetime)
+        :param time_path: DEPRECATED
         :param random_id: if True will set the event.id to a random value
         """
+        if time_path:
+            warnings.warn(
+                "SetEventMetadata's time_path parameter is deprecated and has no effect",
+                PendingDeprecationWarning,
+            )
+
         kwargs["full_event"] = True
         super().__init__(**kwargs)
         self.id_path = id_path
         self.key_path = key_path
-        self.time_path = time_path
         self.random_id = random_id
 
         self._tagging_funcs = []
@@ -330,10 +588,6 @@ class SetEventMetadata(MapClass):
             self._tagging_funcs.append(add_metadata("id", self.id_path))
         if self.key_path:
             self._tagging_funcs.append(add_metadata("key", self.key_path))
-        if self.time_path:
-            self._tagging_funcs.append(
-                add_metadata("time", self.time_path, get_event_time)
-            )
         if self.random_id:
             self._tagging_funcs.append(set_random_id)
 
@@ -341,3 +595,41 @@ class SetEventMetadata(MapClass):
         for func in self._tagging_funcs:
             func(event)
         return event
+
+
+class DropFeatures(StepToDict, MLRunStep):
+    def __init__(self, features: List[str], **kwargs):
+        """Drop all the features from feature list
+
+        :param features:    string list of the features names to drop
+
+        example::
+
+            feature_set = fstore.FeatureSet("fs-new",
+                                        entities=[fstore.Entity("id")],
+                                        description="feature set",
+                                        engine="pandas",
+                                        )
+            # Pre-processing graph steps
+            feature_set.graph.to(DropFeatures(features=["age"]))
+            df_pandas = fstore.ingest(feature_set, data)
+
+        """
+        super().__init__(**kwargs)
+        self.features = features
+
+    def _do_storey(self, event):
+        for feature in self.features:
+            try:
+                del event[feature]
+            except KeyError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The ingesting data doesn't contain a feature named '{feature}'"
+                )
+        return event
+
+    def _do_pandas(self, event):
+        return event.drop(columns=self.features)
+
+    def _do_spark(self, event):
+        return event.drop(*self.features)

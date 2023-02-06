@@ -1,15 +1,31 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
 import deepdiff
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.endpoints.feature_store
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import tests.api.api.utils
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
@@ -59,6 +75,8 @@ def _create_and_assert_feature_vector(
 
 def test_feature_vector_create(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_set1"
     feature_vector = _generate_feature_vector(name)
     feature_vector["metadata"]["project"] = project_name
@@ -95,6 +113,8 @@ def test_feature_vector_create(db: Session, client: TestClient) -> None:
 
 def test_list_feature_vectors(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 10
     dead_count = 0
     blue_lables_count = 0
@@ -161,6 +181,8 @@ def _store_feature_vector(
 
 def test_feature_vector_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
 
@@ -203,6 +225,8 @@ def test_feature_vector_store(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
 
@@ -232,6 +256,7 @@ def test_feature_vector_re_tag_using_store(db: Session, client: TestClient) -> N
 
 def test_feature_vector_patch(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_vector_1"
     feature_vector = _generate_feature_vector(name)
@@ -275,6 +300,8 @@ def test_feature_vector_patch(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_vector_{i}"
@@ -290,7 +317,7 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 1)
 
-    # Delete the first fs
+    # Delete the first feature set
     response = client.delete(
         f"projects/{project_name}/feature-vectors/feature_vector_0"
     )
@@ -300,6 +327,7 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
 
 def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
 
     name = "feature_vector"
     feature_vector = _generate_feature_vector(name)
@@ -346,6 +374,8 @@ def test_feature_vector_delete_version(db: Session, client: TestClient) -> None:
 
 def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector1"
     feature_vector = _generate_feature_vector(name)
     feature_vector_response = _create_and_assert_feature_vector(
@@ -388,6 +418,8 @@ def test_unversioned_feature_vector_actions(db: Session, client: TestClient) -> 
 
 def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
     project_name = "some-project"
+    tests.api.api.utils.create_project(client, project_name)
+
     name = "feature_vector-1"
     name_2 = "feature_vector-2"
     feature_vector_1 = _generate_feature_vector(name)
@@ -404,12 +436,17 @@ def test_list_feature_vectors_tags(db: Session, client: TestClient) -> None:
                 feature_vector,
             )
     _list_tags_and_assert(
-        client, "feature_vectors", project_name, tags,
+        client,
+        "feature_vectors",
+        project_name,
+        tags,
     )
 
 
 def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> None:
     project_name = f"prj-{uuid4().hex}"
+    tests.api.api.utils.create_project(client, project_name)
+
     count = 5
     for i in range(count):
         name = f"feature_vector_{i}"
@@ -426,7 +463,8 @@ def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> No
     )
 
 
-def test_verify_feature_vector_features_permissions(
+@pytest.mark.asyncio
+async def test_verify_feature_vector_features_permissions(
     db: Session, client: TestClient
 ) -> None:
     project = "some-project"
@@ -458,13 +496,18 @@ def test_verify_feature_vector_features_permissions(
             (project, "some-feature-set"),
         ]
         assert (
-            deepdiff.DeepDiff(expected_resources, resources, ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_resources,
+                resources,
+                ignore_order=True,
+            )
+            == {}
         )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = unittest.mock.Mock(
-        side_effect=_verify_queried_resources
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = (
+        unittest.mock.AsyncMock(side_effect=_verify_queried_resources)
     )
-    mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
+    await mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.api.schemas.AuthInfo(),
         project,
         {"spec": {"features": features, "label_feature": label_feature}},

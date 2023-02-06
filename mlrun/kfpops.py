@@ -18,7 +18,11 @@ import os
 import os.path
 from copy import deepcopy
 
+from kfp import dsl
+from kubernetes import client as k8s_client
+
 import mlrun
+from mlrun.errors import err_to_str
 
 from .config import config
 from .db import get_or_set_dburl, get_run_db
@@ -30,16 +34,21 @@ from .utils import (
     get_in,
     get_workflow_url,
     is_ipython,
+    is_legacy_artifact,
     logger,
     run_keys,
 )
 
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
+# default KFP artifacts and output (ui metadata, metrics etc.)
+# directories to /tmp to allow running with security context
+KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
 project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
 function_annotation = "mlrun/function-uri"
+
+dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 
 class PipelineRunType:
@@ -108,9 +117,18 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        key = output["key"]
-        target = output.get("target_path", "")
-        target = output.get("inline", target)
+        if is_legacy_artifact(output):
+            key = output["key"]
+            # The spec in a legacy artifact is contained in the main object, so using this assignment saves us a lot
+            # of if/else in the rest of this function.
+            output_spec = output
+        else:
+            key = output.get("metadata")["key"]
+            output_spec = output.get("spec", {})
+
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
+
         out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith("v3io:///"):
@@ -121,13 +139,13 @@ def get_kfp_outputs(artifacts, labels, project):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
 
-        viewer = output.get("viewer", "")
+        viewer = output_spec.get("viewer", "")
         if viewer in ["web-app", "chart"]:
             meta = {"type": "web-app", "source": target}
             outputs += [meta]
 
         elif viewer == "table":
-            header = output.get("header", None)
+            header = output_spec.get("header", None)
             if header and target.endswith(".csv"):
                 meta = {
                     "type": "table",
@@ -137,13 +155,13 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output["kind"] == "dataset":
-            header = output.get("header")
-            preview = output.get("preview")
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
                 text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output["preview"]
+                del output_spec["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]
@@ -211,7 +229,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
@@ -253,11 +271,6 @@ def mlrun_op(
             train.outputs['model-txt']).apply(mount_v3io())
 
     """
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
-
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
@@ -330,7 +343,12 @@ def mlrun_op(
             raise ValueError("name or function object must be specified")
         name = function_name
         if handler:
-            name += "-" + handler
+            short_name = handler
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            name += "-" + short_name
 
     if hyperparams or param_file:
         outputs.append("iteration_results")
@@ -342,7 +360,7 @@ def mlrun_op(
     inputs = inputs or {}
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in environ and "v3io_user" not in labels:
+    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
         labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
     if "owner" not in labels:
         labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -406,10 +424,12 @@ def mlrun_op(
         command=cmd + [command],
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
+            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
         },
     )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
@@ -440,8 +460,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-    from kfp import dsl
-    from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
@@ -481,6 +499,8 @@ def deploy_op(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
@@ -498,8 +518,6 @@ def add_env(env=None):
     env = {} if env is None else env
 
     def _add_env(task):
-        from kubernetes import client as k8s_client
-
         for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
@@ -520,11 +538,6 @@ def build_op(
 ):
     """build Docker image."""
 
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
-
     cmd = ["python", "-m", "mlrun", "build", "--kfp"]
     if function:
         if not hasattr(function, "to_dict"):
@@ -541,7 +554,7 @@ def build_op(
     if secret_name:
         cmd += ["--secret-name", secret_name]
     if with_mlrun:
-        cmd += ["--with_mlrun"]
+        cmd += ["--with-mlrun"]
     if skip_deployed:
         cmd += ["--skip"]
     for c in commands:
@@ -555,6 +568,8 @@ def build_op(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
@@ -564,7 +579,7 @@ def build_op(
                 value=config.httpdb.builder.docker_registry,
             )
         )
-    if "IGZ_NAMESPACE_DOMAIN" in environ:
+    if "IGZ_NAMESPACE_DOMAIN" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="IGZ_NAMESPACE_DOMAIN",
@@ -575,7 +590,7 @@ def build_op(
     is_v3io = function.spec.build.source and function.spec.build.source.startswith(
         "v3io"
     )
-    if "V3IO_ACCESS_KEY" in environ and is_v3io:
+    if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
@@ -611,12 +626,12 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    if "MLRUN_AUTH_SESSION" in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="MLRUN_AUTH_SESSION",
-                value=os.environ.get("MLRUN_AUTH_SESSION")
-                or os.environ.get("V3IO_ACCESS_KEY"),
+                name=auth_env_var,
+                value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
             )
         )
 
@@ -779,4 +794,35 @@ def show_kfp_run(run, clear_output=False):
             )
             IPython.display.display(html, dag)
         except Exception as exc:
-            logger.warning(f"failed to plot graph, {exc}")
+            logger.warning(f"failed to plot graph, {err_to_str(exc)}")
+
+
+def add_default_function_resources(
+    container_op: dsl.ContainerOp,
+) -> dsl.ContainerOp:
+    default_resources = config.get_default_function_pod_resources()
+    for resource_name, resource_value in default_resources["requests"].items():
+        if resource_value:
+            container_op.container.add_resource_request(resource_name, resource_value)
+
+    for resource_name, resource_value in default_resources["limits"].items():
+        if resource_value:
+            container_op.container.add_resource_limit(resource_name, resource_value)
+    return container_op
+
+
+def add_function_node_selection_attributes(
+    function, container_op: dsl.ContainerOp
+) -> dsl.ContainerOp:
+
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
+
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
+
+    return container_op

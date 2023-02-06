@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import io
 import re
 import unittest.mock
@@ -101,25 +115,28 @@ def test_generate_release_notes():
             "_run_command": [
                 None,
                 "fd6c5a86 {Gal Topper} [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
-                "985d7cb8 {Saar Cohen} [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+                "985d7cb8 {Saar Cohen} [Secrets] Verify project secrets do not exist when deleting a project (#1552)\n"
+                "5633cf68 {Liran BG} [Chief] Fix double quoting cookies (#2942)\n",
                 "fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
-                "985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+                "985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)\n"
+                "5633cf68 [Chief] Fix double quoting cookies (#2942)",
             ],
-            "_resolve_github_username": ["gtopper", "theSaarco"],
+            "_resolve_github_username": ["gtopper", "theSaarco", "liranbg"],
             "expected_response": f"""
 ### Features / Enhancements
 * **Requirements**: Bump storey to 0.8.15 and v3io-frames to 0.10.2, #1553, @gtopper
 * **Secrets**: Verify project secrets do not exist when deleting a project, #1552, @theSaarco
-
 * **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
 
 ### Bug fixes
+* **Chief**: Fix double quoting cookies, #2942, @liranbg
 * **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{release}#bug-fixes)
 
 
 #### Pull requests:
 fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)
+5633cf68 [Chief] Fix double quoting cookies (#2942)
 
 """,
         },
@@ -139,7 +156,6 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
 ### Features / Enhancements
 * **Requirements**: Bump storey to 0.8.15 and v3io-frames to 0.10.2, #1553, @gtopper
 * **Secrets**: Verify project secrets do not exist when deleting a project, #1552, @theSaarco
-
 * **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
 
 ### Bug fixes
@@ -162,7 +178,6 @@ fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
             "expect_failure": False,
             "expected_response": f"""
 ### Features / Enhancements
-
 * **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
 
 ### Bug fixes

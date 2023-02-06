@@ -1,19 +1,34 @@
-import enum
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 
 import pydantic
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
+import mlrun.api.utils.helpers
 
-class ProjectsRole(str, enum.Enum):
+
+class ProjectsRole(mlrun.api.utils.helpers.StrEnum):
     iguazio = "iguazio"
     mlrun = "mlrun"
     nuclio = "nuclio"
     nop = "nop"
 
 
-class AuthorizationAction(str, enum.Enum):
+class AuthorizationAction(mlrun.api.utils.helpers.StrEnum):
     read = "read"
     create = "create"
     update = "update"
@@ -24,7 +39,7 @@ class AuthorizationAction(str, enum.Enum):
     store = "store"
 
 
-class AuthorizationResourceTypes(str, enum.Enum):
+class AuthorizationResourceTypes(mlrun.api.utils.helpers.StrEnum):
     project = "project"
     log = "log"
     runtime_resource = "runtime-resource"
@@ -44,7 +59,9 @@ class AuthorizationResourceTypes(str, enum.Enum):
     marketplace_source = "marketplace-source"
 
     def to_resource_string(
-        self, project_name: str, resource_name: str,
+        self,
+        project_name: str,
+        resource_name: str,
     ):
         return {
             # project is the resource itself, so no need for both resource_name and project_name
@@ -91,7 +108,9 @@ class AuthInfo(pydantic.BaseModel):
     access_key: typing.Optional[str] = None
     user_id: typing.Optional[str] = None
     user_group_ids: typing.List[str] = []
+    user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
+    planes: typing.List[str] = []
 
     def to_nuclio_auth_info(self):
         if self.session != "":

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import importlib
 import json
@@ -18,8 +32,8 @@ import tests.conftest
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-        return_value=True
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
+        unittest.mock.Mock(return_value=True)
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
@@ -67,7 +81,10 @@ def test_list_pipelines_formats(
             db, expected_runs, format_
         )
         _mock_list_runs(kfp_client_mock, runs)
-        response = client.get("projects/*/pipelines", params={"format": format_},)
+        response = client.get(
+            "projects/*/pipelines",
+            params={"format": format_},
+        )
         expected_response = mlrun.api.schemas.PipelinesOutput(
             runs=expected_runs, total_size=len(runs), next_page_token=None
         )
@@ -88,7 +105,8 @@ def test_get_pipeline_formats(
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
         response = client.get(
-            f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
+            f"projects/*/pipelines/{api_run_detail.run.id}",
+            params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
             db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
@@ -107,12 +125,13 @@ def test_get_pipeline_no_project_opa_validation(
         return_value=project
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
-        f"projects/*/pipelines/{api_run_detail.run.id}", params={"format": format_},
+        f"projects/*/pipelines/{api_run_detail.run.id}",
+        params={"format": format_},
     )
     assert (
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
@@ -221,7 +240,9 @@ def test_create_pipeline_legacy(
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
-        "submit_pipeline", data=contents, headers={"content-type": "application/yaml"},
+        "submit_pipeline",
+        data=contents,
+        headers={"content-type": "application/yaml"},
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
@@ -236,7 +257,8 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
             name="run1",
             description="desc1",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest,
+                pipeline_id="pipe_id1",
+                workflow_manifest=workflow_manifest,
             ),
         ),
         pipeline_runtime=kfp_server_api.models.api_pipeline_runtime.ApiPipelineRuntime(
@@ -253,7 +275,8 @@ def _generate_list_runs_mocks():
             name="run1",
             description="desc1",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id1", workflow_manifest=workflow_manifest,
+                pipeline_id="pipe_id1",
+                workflow_manifest=workflow_manifest,
             ),
         ),
         kfp_server_api.models.api_run.ApiRun(
@@ -261,7 +284,8 @@ def _generate_list_runs_mocks():
             name="run2",
             description="desc2",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id2", workflow_manifest=workflow_manifest,
+                pipeline_id="pipe_id2",
+                workflow_manifest=workflow_manifest,
             ),
         ),
         kfp_server_api.models.api_run.ApiRun(
@@ -269,7 +293,8 @@ def _generate_list_runs_mocks():
             name="run3",
             description="desc3",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id3", workflow_manifest=workflow_manifest,
+                pipeline_id="pipe_id3",
+                workflow_manifest=workflow_manifest,
             ),
         ),
         kfp_server_api.models.api_run.ApiRun(
@@ -277,7 +302,8 @@ def _generate_list_runs_mocks():
             name="run4",
             description="desc4",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
-                pipeline_id="pipe_id4", workflow_manifest=workflow_manifest,
+                pipeline_id="pipe_id4",
+                workflow_manifest=workflow_manifest,
             ),
         ),
     ]
@@ -402,7 +428,9 @@ def _generate_workflow_manifest(with_status=False):
 def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
     def _mock_create_experiment(name, description=None, namespace=None):
         return kfp_server_api.models.ApiExperiment(
-            id="some-exp-id", name=name, description=description,
+            id="some-exp-id",
+            name=name,
+            description=description,
         )
 
     def _mock_run_pipeline(
@@ -472,7 +500,11 @@ def _assert_list_pipelines_response(
 ):
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        deepdiff.DeepDiff(expected_response.dict(), response.json(), ignore_order=True,)
+        deepdiff.DeepDiff(
+            expected_response.dict(),
+            response.json(),
+            ignore_order=True,
+        )
         == {}
     )
 
@@ -480,5 +512,10 @@ def _assert_list_pipelines_response(
 def _assert_get_pipeline_response(expected_response: dict, response):
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        deepdiff.DeepDiff(expected_response, response.json(), ignore_order=True,) == {}
+        deepdiff.DeepDiff(
+            expected_response,
+            response.json(),
+            ignore_order=True,
+        )
+        == {}
     )

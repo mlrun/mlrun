@@ -19,11 +19,12 @@ import typing
 from kubernetes import client
 
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
-from mlrun.runtimes.utils import AsyncLogWriter, RunError
+from mlrun.runtimes.utils import RunError
 from mlrun.utils import get_in, logger
 
 
@@ -56,6 +57,9 @@ class MPIResourceSpec(KubeResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
+        preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -81,6 +85,9 @@ class MPIResourceSpec(KubeResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -107,7 +114,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -142,6 +152,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         meta = self._get_meta(runobj, True)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         job = self._generate_mpi_job(runobj, execution, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)
@@ -162,29 +174,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state("running" if state == "active" else state)
-                if self.kfp:
-                    writer = AsyncLogWriter(self._db_conn, runobj)
-                    status = self._get_k8s().watch(
-                        launcher, meta.namespace, writer=writer
-                    )
-                    logger.info(f"MpiJob {meta.name} finished with state {status}")
-                    if status == "succeeded":
-                        execution.set_state("completed")
-                    else:
-                        execution.set_state(
-                            "error", f"MpiJob {meta.name} finished with state {status}",
-                        )
-                else:
-                    txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
-                    logger.info(txt)
-                    runobj.status.status_text = txt
+                txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
+                logger.info(txt)
+                runobj.status.status_text = txt
+
             else:
                 pods_phases = self.get_pods(meta.name, meta.namespace)
                 txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
                 logger.warning(txt)
                 runobj.status.status_text = txt
-                if self.kfp:
-                    execution.set_state("error", txt)
 
         return None
 
@@ -205,8 +203,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             logger.info(f"MpiJob {name} created")
             return resp
         except client.rest.ApiException as exc:
-            logger.error(f"Exception when creating MPIJob: {exc}")
-            raise RunError(f"Exception when creating MPIJob: {exc}")
+            logger.error(f"Exception when creating MPIJob: {err_to_str(exc)}")
+            raise RunError("Exception when creating MPIJob") from exc
 
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -221,12 +219,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             deletion_status = get_in(resp, "status", "unknown")
             logger.info(f"del status: {deletion_status}")
         except client.rest.ApiException as exc:
-            print(f"Exception when deleting MPIJob: {exc}")
+            print(f"Exception when deleting MPIJob: {err_to_str(exc)}")
 
     def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
+        items = []
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
                 mpi_group,
@@ -236,10 +235,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 watch=False,
                 label_selector=selector,
             )
-        except client.rest.ApiException as exc:
-            print(f"Exception when reading MPIJob: {exc}")
+        except client.exceptions.ApiException as exc:
+            print(f"Exception when reading MPIJob: {err_to_str(exc)}")
+            return items
 
-        items = []
         if resp:
             items = resp.get("items", [])
             if show and items:
@@ -254,8 +253,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
-        except client.rest.ApiException as exc:
-            print(f"Exception when reading MPIJob: {exc}")
+        except client.exceptions.ApiException as exc:
+            print(f"Exception when reading MPIJob: {err_to_str(exc)}")
+            return None
         return resp
 
     def get_pods(self, name=None, namespace=None, launcher=False):
@@ -273,8 +273,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if not pods:
             logger.error("no pod matches that job name")
             return
-        # TODO: Why was this here?
-        # k8s = self._get_k8s()
         return list(pods.items())[0]
 
     def with_tracing(

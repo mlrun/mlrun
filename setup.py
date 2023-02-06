@@ -83,21 +83,50 @@ extras_require = {
         "aiobotocore~=1.4.0",
         "s3fs~=2021.8.1",
     ],
-    "azure-blob-storage": ["azure-storage-blob~=12.0", "adlfs~=2021.8.1"],
+    "azure-blob-storage": [
+        "msrest~=0.6.21",
+        "azure-core~=1.24",
+        "azure-storage-blob~=12.13",
+        "adlfs~=2021.8.1",
+    ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [
         # >=2.4.2 to force having a security fix done in 2.4.2
         "bokeh~=2.4, >=2.4.2",
     ],
-    "plotly": ["plotly~=5.4"],
+    # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+    # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+    "plotly": ["plotly~=5.4, <5.12.0"],
+    # used to generate visualization nuclio/serving graph steps
+    "graphviz": ["graphviz~=0.20.0"],
+    # google-cloud is mainly used for QA, that is why we are not including it in complete
+    "google-cloud": [
+        # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
+        "google-cloud-storage~=1.20",
+        # because of storey which isn't compatible with google-cloud-bigquery >3.2, conflicting grpcio
+        # google-cloud-bigquery 3.3.0 has grpcio >= 1.47.0, < 2.0dev while storey 1.2.2 has grpcio<1.42 and >1.34.0
+        "google-cloud-bigquery[pandas]~=3.2",
+        "google-cloud~=0.34",
+    ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
+    "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.2"],
+    "kafka": ["kafka-python~=2.0"],
+    "redis": ["redis~=4.3"],
 }
 extras_require["complete"] = sorted(
     {
         requirement
         for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
-        if extra_key != "bokeh"
+        # see above why we are excluding google-cloud
+        if extra_key not in ["bokeh", "google-cloud"]
+    }
+)
+extras_require["all"] = sorted(
+    {
+        requirement
+        for extra_key, requirement_list in extras_require.items()
+        for requirement in requirement_list
     }
 )
 extras_require["api"] = api_deps
@@ -121,7 +150,9 @@ setup(
         "mlrun.api",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",
+        "mlrun.api.api.endpoints.internal",
         "mlrun.api.crud",
+        "mlrun.api.crud.model_monitoring",
         "mlrun.api.db",
         "mlrun.api.db.filedb",
         "mlrun.api.db.sqldb",
@@ -135,6 +166,7 @@ setup(
         "mlrun.api.utils.auth",
         "mlrun.api.utils.auth.providers",
         "mlrun.api.utils.clients",
+        "mlrun.api.utils.clients.protocols",
         "mlrun.api.utils.db",
         "mlrun.api.utils.projects",
         "mlrun.api.utils.projects.remotes",
@@ -142,6 +174,7 @@ setup(
         "mlrun.artifacts",
         "mlrun.data_types",
         "mlrun.datastore",
+        "mlrun.datastore.wasbfs",
         "mlrun.db",
         "mlrun.feature_store",
         "mlrun.feature_store.retrieval",
@@ -150,9 +183,13 @@ setup(
         "mlrun.frameworks._dl_common",
         "mlrun.frameworks._dl_common.loggers",
         "mlrun.frameworks._ml_common",
+        "mlrun.frameworks._ml_common.loggers",
         "mlrun.frameworks._ml_common.plans",
         "mlrun.frameworks.auto_mlrun",
+        "mlrun.frameworks.huggingface",
         "mlrun.frameworks.lgbm",
+        "mlrun.frameworks.lgbm.callbacks",
+        "mlrun.frameworks.lgbm.mlrun_interfaces",
         "mlrun.frameworks.onnx",
         "mlrun.frameworks.pytorch",
         "mlrun.frameworks.pytorch.callbacks",
@@ -169,6 +206,8 @@ setup(
         "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.utils",
+        "mlrun.utils.notifications",
+        "mlrun.utils.notifications.notification",
         "mlrun.utils.version",
     ],
     install_requires=install_requires,
@@ -182,6 +221,7 @@ setup(
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

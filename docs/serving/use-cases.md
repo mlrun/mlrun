@@ -1,16 +1,17 @@
+(use-cases-serving)=
 # Use cases
 
 <!-- ## Data preparation, ## Model serving -->
 
-This section presents:
+**In this section**
 * [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
 * [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-nlp-processing-pipeline-with-real-time-streaming)
 
 In addition to the examples in this section, see the:
-- [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
-- [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
+- [Distributed (multi-function) pipeline example](./distributed-graph.html) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Advanced Model Serving Graph Notebook Example](./graph-example.html) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
 
 ## Data and feature engineering (using the feature store)
@@ -23,13 +24,13 @@ and native user code. Iguazio’s solution uses a unique multi-model database, s
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
 resulting in better accuracy and simpler integration.
 
-Read more in the [Feature Store Overview](../feature-store/feature-store.md), and [Feature set transformations](../feature-store/transformations.md).
+Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.html).
 
 ## Example of a simple model serving router
 
 Graphs are used for serving models with different transformations.
 
-To deploy a serving function you need to import or create the serving function, 
+To deploy a serving function, you need to import or create the serving function, 
 add models to it, and then deploy it.  
 
 ```python
@@ -49,7 +50,7 @@ add models to it, and then deploy it.
 The Serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
 To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**](./model-api.md) for details.
+See the [**serving protocol specification**](./model-api.html) for details.
 
 ```{note}
 Model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
@@ -83,7 +84,7 @@ MLRun Serving graphs can host advanced pipelines that handle event/data processi
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
 passes the data into a model ensemble, and finishes off with post processing. 
 
-**For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
+**For a complete example, see the [Advanced graph example notebook](./graph-example.html).**
 
 Create a new function of type serving from code and set the graph topology to `async flow`.
 
@@ -152,7 +153,7 @@ streaming protocols to connect those functions. In this example the data
 processing is in the first function/container and the NLP processing is in the second function. 
 In this example the GPU contained in the second function.
 
-See the [full notebook example](./distributed-graph.ipynb).
+See the [full notebook example](./distributed-graph.html).
 
 ```python
 # define a new real-time serving function (from code) with an async graph
@@ -178,4 +179,4 @@ child.spec.build.commands = ["python -m pip install spacy",
 graph.plot()
 ```
 
-> Currently queues only support iguazio v3io stream, Kafka support will soon be added.
+Currently queues support iguazio v3io and Kafka streams.

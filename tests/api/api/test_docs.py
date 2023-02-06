@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import os
 
@@ -22,7 +36,7 @@ def test_docs(
 def test_save_openapi_json(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    """"The purpose of the test is to create an openapi.json file that is used to run backward compatibility tests"""
+    """ "The purpose of the test is to create an openapi.json file that is used to run backward compatibility tests"""
     response = client.get("openapi.json")
     path = os.path.abspath(os.getcwd())
     if os.getenv("MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH"):

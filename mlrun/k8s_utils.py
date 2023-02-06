@@ -12,23 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import hashlib
 import time
+import typing
 from datetime import datetime
 from sys import stdout
 
+import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
+from .errors import err_to_str
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, silent=False, log=False):
+def get_k8s_helper(namespace=None, silent=False, log=False) -> "K8sHelper":
     """
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
@@ -38,6 +43,11 @@ def get_k8s_helper(namespace=None, silent=False, log=False):
     if not _k8s:
         _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
+
+
+class SecretTypes:
+    opaque = "Opaque"
+    v3io_fuse = "v3io/fuse"
 
 
 class K8sHelper:
@@ -83,7 +93,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list pods: {exc}")
+            logger.error(f"failed to list pods: {err_to_str(exc)}")
             raise exc
 
         items = []
@@ -97,23 +107,46 @@ class K8sHelper:
             raise ValueError("labels selector or states list must be specified")
         items = self.list_pods(namespace, selector, states)
         for item in items:
-            self.del_pod(item.metadata.name, item.metadata.namespace)
+            self.delete_pod(item.metadata.name, item.metadata.namespace)
 
-    def create_pod(self, pod):
+    def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
-        try:
-            resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
-        except ApiException as exc:
-            logger.error(f"spec:\n{pod.spec}")
-            logger.error(f"failed to create pod: {exc}")
-            raise exc
 
-        logger.info(f"Pod {resp.metadata.name} created")
-        return resp.metadata.name, resp.metadata.namespace
+        retry_count = 0
+        while True:
+            try:
+                resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
+            except ApiException as exc:
 
-    def del_pod(self, name, namespace=None):
+                if retry_count > max_retry:
+                    logger.error(
+                        "failed to create pod after max retries",
+                        retry_count=retry_count,
+                        exc=err_to_str(exc),
+                        pod=pod,
+                    )
+                    raise exc
+
+                logger.error("failed to create pod", exc=err_to_str(exc), pod=pod)
+
+                # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
+                if "gke-resource-quotas" in err_to_str(exc):
+                    logger.warning(
+                        "failed to create pod due to gke resource error, "
+                        f"sleeping {retry_interval} seconds and retrying"
+                    )
+                    retry_count += 1
+                    time.sleep(retry_interval)
+                    continue
+
+                raise exc
+            else:
+                logger.info(f"Pod {resp.metadata.name} created")
+                return resp.metadata.name, resp.metadata.namespace
+
+    def delete_pod(self, name, namespace=None):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
@@ -125,8 +158,8 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete pod: {exc}")
-            raise exc
+                logger.error(f"failed to delete pod: {err_to_str(exc)}", pod_name=name)
+                raise exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
@@ -136,7 +169,7 @@ class K8sHelper:
             return api_response
         except ApiException as exc:
             if exc.status != 404:
-                logger.error(f"failed to get pod: {exc}")
+                logger.error(f"failed to get pod: {err_to_str(exc)}")
                 raise exc
             else:
                 if raise_on_not_found:
@@ -148,13 +181,41 @@ class K8sHelper:
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
+    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+        try:
+            namespace = self.resolve_namespace(namespace)
+            self.crdapi.delete_namespaced_custom_object(
+                crd_group,
+                crd_version,
+                namespace,
+                crd_plural,
+                name,
+            )
+            logger.info(
+                "Deleted crd object",
+                crd_name=name,
+                namespace=namespace,
+            )
+        except ApiException as exc:
+
+            # ignore error if crd is already removed
+            if exc.status != 404:
+                logger.error(
+                    f"failed to delete crd: {err_to_str(exc)}",
+                    crd_name=name,
+                    crd_group=crd_group,
+                    crd_version=crd_version,
+                    crd_plural=crd_plural,
+                )
+                raise exc
+
     def logs(self, name, namespace=None):
         try:
             resp = self.v1api.read_namespaced_pod_log(
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as exc:
-            logger.error(f"failed to get pod logs: {exc}")
+            logger.error(f"failed to get pod logs: {err_to_str(exc)}")
             raise exc
 
         return resp
@@ -188,7 +249,7 @@ class K8sHelper:
                 if status != "pending":
                     logger.warning(f"pod state in loop is {status}")
             except ApiException as exc:
-                logger.error(f"failed waiting for pod: {str(exc)}\n")
+                logger.error(f"failed waiting for pod: {err_to_str(exc)}\n")
                 return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
@@ -226,7 +287,7 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as exc:
-            logger.error(f"failed to create configmap: {exc}")
+            logger.error(f"failed to create configmap: {err_to_str(exc)}")
             raise exc
 
         logger.info(f"ConfigMap {resp.metadata.name} created")
@@ -245,7 +306,7 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if ConfigMap is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete ConfigMap: {exc}")
+                logger.error(f"failed to delete ConfigMap: {err_to_str(exc)}")
             raise exc
 
     def list_cfgmap(self, namespace=None, selector=""):
@@ -254,7 +315,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list ConfigMaps: {exc}")
+            logger.error(f"failed to list ConfigMaps: {err_to_str(exc)}")
             raise exc
 
         items = []
@@ -262,30 +323,47 @@ class K8sHelper:
             items.append(i)
         return items
 
-    def get_logger_pods(self, project, uid, namespace=""):
+    def get_logger_pods(self, project, uid, run_kind, namespace=""):
+
+        # As this file is imported in mlrun.runtimes, we sadly cannot have this import in the top level imports
+        # as that will create an import loop.
+        # TODO: Fix the import loops already!
+        import mlrun.runtimes
+
         namespace = self.resolve_namespace(namespace)
+        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version(
+            api_context=True
+        )
+        mpijob_role_label = (
+            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+                mpijob_crd_version
+            )
+        )
+        extra_selectors = {
+            "spark": "spark-role=driver",
+            "mpijob": f"{mpijob_role_label}=launcher",
+        }
+
         # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
         #  inclusive place.
-        selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+        selectors = [
+            "mlrun/class",
+            f"mlrun/project={project}",
+            f"mlrun/uid={uid}",
+        ]
+
+        # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for
+        # the relevant pods using the proper label selector according to the run kind
+        if run_kind in extra_selectors:
+            selectors.append(extra_selectors[run_kind])
+
+        selector = ",".join(selectors)
         pods = self.list_pods(namespace, selector=selector)
         if not pods:
             logger.error("no pod matches that uid", uid=uid)
             return
 
-        kind = pods[0].metadata.labels.get("mlrun/class")
-        results = {}
-        for p in pods:
-            if (
-                (kind not in ["spark", "mpijob"])
-                or (p.metadata.labels.get("spark-role", "") == "driver")
-                # v1alpha1
-                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
-                # v1
-                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
-            ):
-                results[p.metadata.name] = p.status.phase
-
-        return results
+        return {p.metadata.name: p.status.phase for p in pods}
 
     def create_project_service_account(self, project, service_account, namespace=""):
         namespace = self.resolve_namespace(namespace)
@@ -296,11 +374,12 @@ class K8sHelper:
         )
         try:
             api_response = self.v1api.create_namespaced_service_account(
-                namespace, k8s_service_account,
+                namespace,
+                k8s_service_account,
             )
             return api_response
         except ApiException as exc:
-            logger.error(f"failed to create service account: {exc}")
+            logger.error(f"failed to create service account: {err_to_str(exc)}")
             raise exc
 
     def get_project_vault_secret_name(
@@ -315,7 +394,7 @@ class K8sHelper:
         except ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
-                logger.error(f"failed to retrieve service accounts: {exc}")
+                logger.error(f"failed to retrieve service accounts: {err_to_str(exc)}")
                 raise exc
             return None
 
@@ -326,24 +405,97 @@ class K8sHelper:
 
         return service_account.secrets[0].name
 
-    def get_project_secret_name(self, project):
+    def get_project_secret_name(self, project) -> str:
         return mlconfig.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
+    def get_auth_secret_name(self, access_key: str) -> str:
+        hashed_access_key = self._hash_access_key(access_key)
+        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=hashed_access_key
+        )
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha224(access_key.encode()).hexdigest()
+
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.store_secrets(secret_name, secrets, namespace)
+
+    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
+        except ApiException as exc:
+            logger.error(
+                "Failed to read secret",
+                secret_name=secret_name,
+                namespace=namespace,
+                exc=err_to_str(exc),
+            )
+            if exc.status != 404:
+                raise exc
+            elif raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Secret '{secret_name}' was not found in namespace '{namespace}'"
+                ) from exc
+
+            return None, None
+
+        def _get_secret_value(key):
+            if secret_data.get(key):
+                return base64.b64decode(secret_data[key]).decode("utf-8")
+            else:
+                return None
+
+        username = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+        )
+        access_key = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
+
+        return username, access_key
+
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+        secret_name = self.get_auth_secret_name(access_key)
+        secret_data = {
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }
+        self.store_secrets(
+            secret_name,
+            secret_data,
+            namespace,
+            type_=SecretTypes.v3io_fuse,
+            labels={"mlrun/username": username},
+        )
+        return secret_name
+
+    def store_secrets(
+        self,
+        secret_name,
+        secrets,
+        namespace="",
+        type_=SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
+    ):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
             # If secret doesn't exist, we'll simply create it
             if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
                 raise exc
-            k8s_secret = client.V1Secret(type="Opaque")
+            k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace
+                name=secret_name, namespace=namespace, labels=labels
             )
             k8s_secret.string_data = secrets
             self.v1api.create_namespaced_secret(namespace, k8s_secret)
@@ -358,6 +510,12 @@ class K8sHelper:
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        self.delete_secrets(secret_name, secrets, namespace)
+
+    def delete_auth_secret(self, secret_ref: str, namespace=""):
+        self.delete_secrets(secret_ref, {}, namespace)
+
+    def delete_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -367,7 +525,7 @@ class K8sHelper:
             if exc.status == 404:
                 return
             else:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
                 raise exc
 
         if not secrets:
@@ -385,6 +543,9 @@ class K8sHelper:
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        return self._get_secret_raw_data(secret_name, namespace)
+
+    def _get_secret_raw_data(self, secret_name, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -394,16 +555,28 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def get_project_secret_keys(self, project, namespace=""):
+    def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
         if not secrets_data:
-            return None
+            return []
 
-        return list(secrets_data.keys())
+        secret_keys = list(secrets_data.keys())
+        if filter_internal:
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
+        return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
-        results = {}
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
+        return self._decode_secret_data(secrets_data, secret_keys)
+
+    def get_secret_data(self, secret_name, namespace=""):
+        secrets_data = self._get_secret_raw_data(secret_name, namespace)
+        return self._decode_secret_data(secrets_data)
+
+    def _decode_secret_data(self, secrets_data, secret_keys=None):
+        results = {}
         if not secrets_data:
             return results
 
@@ -414,7 +587,6 @@ class K8sHelper:
             encoded_value = secrets_data.get(key)
             if encoded_value:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
-
         return results
 
 
@@ -428,6 +600,8 @@ class BasePod:
         namespace="",
         kind="job",
         project=None,
+        default_pod_spec_attributes=None,
+        resources=None,
     ):
         self.namespace = namespace
         self.name = ""
@@ -438,6 +612,7 @@ class BasePod:
         self._volumes = []
         self._mounts = []
         self.env = None
+        self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
@@ -445,32 +620,43 @@ class BasePod:
             "mlrun/project": self.project,
         }
         self._annotations = {}
-        self._init_container = None
+        self._init_containers = []
+        # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
+        self.default_pod_spec_attributes = default_pod_spec_attributes
+        self.resources = resources
 
     @property
     def pod(self):
         return self._get_spec()
 
     @property
-    def init_container(self):
-        return self._init_container
+    def init_containers(self):
+        return self._init_containers
 
-    @init_container.setter
-    def init_container(self, container):
-        self._init_container = container
+    @init_containers.setter
+    def init_containers(self, containers):
+        self._init_containers = containers
 
-    def set_init_container(
-        self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
+    def append_init_container(
+        self,
+        image,
+        command=None,
+        args=None,
+        env=None,
+        image_pull_policy="IfNotPresent",
+        name="init",
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
-        self._init_container = client.V1Container(
-            name="init",
-            image=image,
-            env=env,
-            command=command,
-            args=args,
-            image_pull_policy=image_pull_policy,
+        self._init_containers.append(
+            client.V1Container(
+                name=name,
+                image=image,
+                env=env,
+                command=command,
+                args=args,
+                image_pull_policy=image_pull_policy,
+            )
         )
 
     def add_label(self, key, value):
@@ -514,11 +700,17 @@ class BasePod:
         self.add_volume(
             client.V1Volume(
                 name=name,
-                secret=client.V1SecretVolumeSource(secret_name=name, items=items,),
+                secret=client.V1SecretVolumeSource(
+                    secret_name=name,
+                    items=items,
+                ),
             ),
             mount_path=path,
             sub_path=sub_path,
         )
+
+    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
+        self.node_selector = node_selector
 
     def _get_spec(self, template=False):
 
@@ -535,15 +727,24 @@ class BasePod:
             command=self.command,
             args=self.args,
             volume_mounts=self._mounts,
+            resources=self.resources,
         )
 
         pod_spec = client.V1PodSpec(
-            containers=[container], restart_policy="Never", volumes=self._volumes
+            containers=[container],
+            restart_policy="Never",
+            volumes=self._volumes,
+            node_selector=self.node_selector,
         )
 
-        if self._init_container:
-            self._init_container.volume_mounts = self._mounts
-            pod_spec.init_containers = [self._init_container]
+        # if attribute isn't defined use default pod spec attributes
+        for key, val in self.default_pod_spec_attributes.items():
+            if not getattr(pod_spec, key, None):
+                setattr(pod_spec, key, val)
+
+        for init_containers in self._init_containers:
+            init_containers.volume_mounts = self._mounts
+        pod_spec.init_containers = self._init_containers
 
         pod = pod_obj(
             metadata=client.V1ObjectMeta(
@@ -558,8 +759,114 @@ class BasePod:
 
 
 def format_labels(labels):
-    """ Convert a dictionary of labels into a comma separated string """
+    """Convert a dictionary of labels into a comma separated string"""
     if labels:
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
+
+
+def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )
+
+
+def generate_preemptible_node_selector_requirements(
+    node_selector_operator: str,
+) -> typing.List[kubernetes.client.V1NodeSelectorRequirement]:
+    """
+    Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
+    node selector operator represents a key's relationship to a set of values.
+    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    :param node_selector_operator: The operator of V1NodeSelectorRequirement
+    :return: List[V1NodeSelectorRequirement]
+    """
+    match_expressions = []
+    for (
+        node_selector_key,
+        node_selector_value,
+    ) in mlconfig.get_preemptible_node_selector().items():
+        match_expressions.append(
+            kubernetes.client.V1NodeSelectorRequirement(
+                key=node_selector_key,
+                operator=node_selector_operator,
+                values=[node_selector_value],
+            )
+        )
+    return match_expressions
+
+
+def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Generate node selector term containing anti-affinity expressions based on the
+    pre-configured node selector of the preemptible nodes.
+    Use for purpose of scheduling on node only if all match_expressions are satisfied.
+    This function uses a single term with potentially multiple expressions to ensure anti affinity.
+    https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+    :return: List contains one nodeSelectorTerm with multiple expressions.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_not_in.value
+    )
+    return [
+        kubernetes.client.V1NodeSelectorTerm(
+            match_expressions=node_selector_requirements,
+        )
+    ]
+
+
+def generate_preemptible_nodes_affinity_terms() -> typing.List[
+    kubernetes.client.V1NodeSelectorTerm
+]:
+    """
+    Use for purpose of scheduling on node having at least one of the node selectors.
+    When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
+    then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
+    :return: List of nodeSelectorTerms associated with the preemptible nodes.
+    """
+    # import here to avoid circular imports
+    from mlrun.api.schemas import NodeSelectorOperator
+
+    node_selector_terms = []
+
+    # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
+    node_selector_requirements = generate_preemptible_node_selector_requirements(
+        NodeSelectorOperator.node_selector_op_in.value
+    )
+    for expression in node_selector_requirements:
+        node_selector_terms.append(
+            kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
+        )
+    return node_selector_terms
+
+
+def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
+    tolerations = mlconfig.get_preemptible_tolerations()
+
+    toleration_objects = []
+    for toleration in tolerations:
+        toleration_objects.append(
+            kubernetes.client.V1Toleration(
+                effect=toleration.get("effect", None),
+                key=toleration.get("key", None),
+                value=toleration.get("value", None),
+                operator=toleration.get("operator", None),
+                toleration_seconds=toleration.get("toleration_seconds", None)
+                or toleration.get("tolerationSeconds", None),
+            )
+        )
+    return toleration_objects

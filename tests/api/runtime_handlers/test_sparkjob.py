@@ -1,5 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -13,18 +28,25 @@ from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def custom_setup(self):
+        self.kind = RuntimeKinds.spark
         self.runtime_handler = get_runtime_handler(RuntimeKinds.spark)
         self.runtime_handler.wait_for_deletion_interval = 0
 
         # initializing them here to save space in tests
         self.running_crd_dict = self._generate_sparkjob_crd(
-            self.project, self.run_uid, self._get_running_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_running_crd_status(),
         )
         self.completed_crd_dict = self._generate_sparkjob_crd(
-            self.project, self.run_uid, self._get_completed_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_completed_crd_status(),
         )
         self.failed_crd_dict = self._generate_sparkjob_crd(
-            self.project, self.run_uid, self._get_failed_crd_status(),
+            self.project,
+            self.run_uid,
+            self._get_failed_crd_status(),
         )
 
         executor_pod_labels = {
@@ -46,7 +68,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         executor_pod_name = "my-spark-jdbc-2ea432f1-1597760338437-exec-1"
 
         self.executor_pod = self._generate_pod(
-            executor_pod_name, executor_pod_labels, PodPhases.running,
+            executor_pod_name,
+            executor_pod_labels,
+            PodPhases.running,
         )
 
         driver_pod_labels = {
@@ -67,7 +91,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         driver_pod_name = "my-spark-jdbc-2ea432f1-driver"
 
         self.driver_pod = self._generate_pod(
-            driver_pod_name, driver_pod_labels, PodPhases.running,
+            driver_pod_name,
+            driver_pod_labels,
+            PodPhases.running,
         )
 
         self.pod_label_selector = self._generate_get_logger_pods_label_selector(
@@ -103,7 +129,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 group_by=group_by,
             )
 
-    def test_delete_resources_completed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_completed_crd(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_crds_calls = [
             [self.completed_crd_dict],
             # 2 additional time for wait for pods deletion
@@ -112,8 +141,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
-            # for the get_logger_pods
-            [self.executor_pod, self.driver_pod],
+            # for the get_logger_pods with proper selector
+            [self.driver_pod],
             # additional time for wait for pods deletion - simulate pods not removed yet
             [self.executor_pod, self.driver_pod],
             # additional time for wait for pods deletion - simulate pods gone
@@ -130,7 +159,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
@@ -140,8 +170,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.driver_pod.metadata.name,
         )
 
     def test_delete_resources_running_crd(self, db: Session, client: TestClient):
@@ -155,10 +189,12 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause crd is running
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler, [],
+            self.runtime_handler,
+            [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
@@ -177,13 +213,16 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # nothing removed cause grace period didn't pass
         self._assert_delete_namespaced_custom_objects(
-            self.runtime_handler, [],
+            self.runtime_handler,
+            [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
 
-    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             # additional time for wait for pods deletion
@@ -191,8 +230,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
-            # for the get_logger_pods
-            [self.executor_pod, self.driver_pod],
+            # for the get_logger_pods with proper selector
+            [self.driver_pod],
             # additional time for wait for pods deletion - simulate pods gone
             [],
         ]
@@ -207,7 +246,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.running_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, len(list_namespaced_crds_calls),
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
@@ -217,19 +257,24 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
-        self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.driver_pod.metadata.name,
         )
 
-    def test_monitor_run_completed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_completed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             [self.completed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
+        # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
-            [self.executor_pod, self.driver_pod],
+            [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -240,7 +285,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, expected_number_of_list_crds_calls,
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
@@ -250,19 +296,24 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.driver_pod.metadata.name,
         )
 
-    def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             [self.failed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        # for the get_logger_pods
+        # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
-            [self.executor_pod, self.driver_pod],
+            [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -273,7 +324,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler, expected_number_of_list_crds_calls,
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
@@ -281,9 +333,19 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.pod_label_selector,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(
-            db, self.project, self.run_uid, log, self.driver_pod.metadata.name,
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.driver_pod.metadata.name,
         )
+
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
+            runtime_handler
+        )
+        return f"{logger_pods_label_selector},spark-role=driver"
 
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(

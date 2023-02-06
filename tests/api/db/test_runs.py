@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime, timezone
 
 import pytest
@@ -41,6 +55,57 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
 
     runs = db.list_runs(db_session, name="~RUN_naMe", project=project)
     assert len(runs) == 2
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
+    project_name = "project"
+    uid = "run-uid"
+    # create 3 runs with same uid but different iterations
+    for i in range(3):
+        _create_new_run(db, db_session, project=project_name, iteration=i, uid=uid)
+
+    runs = db.list_runs(db_session, project=project_name, iter=True)
+    assert len(runs) == 3
+
+    distinct_runs = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=False
+    )
+    assert len(distinct_runs) == 1
+    assert type(distinct_runs[0]) == dict
+    assert distinct_runs[0]["metadata"]["uid"] == uid
+
+    only_uids = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=True
+    )
+    assert len(only_uids) == 1
+    assert type(only_uids[0]) == str
+    assert only_uids[0] == uid
+
+    only_uids_requested_true = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=True, requested_logs_modes=[True]
+    )
+    assert len(only_uids_requested_true) == 0
+
+    only_uids_requested_false = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=True, requested_logs_modes=[False]
+    )
+    assert len(only_uids_requested_false) == 1
+    assert type(only_uids[0]) == str
+
+    distinct_runs_requested_true = db.list_distinct_runs_uids(
+        db_session, project=project_name, requested_logs_modes=[True]
+    )
+    assert len(distinct_runs_requested_true) == 0
+
+    distinct_runs_requested_false = db.list_distinct_runs_uids(
+        db_session, project=project_name, requested_logs_modes=[False]
+    )
+    assert len(distinct_runs_requested_false) == 1
+    assert type(distinct_runs[0]) == dict
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
@@ -138,7 +203,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         _change_run_record_to_before_align_runs_migration(run, time_before_creation)
-        db._upsert(db_session, run, ignore=True)
+        db._upsert(db_session, [run], ignore=True)
 
     # run the migration
     mlrun.api.initial_data._align_runs_table(db, db_session)
@@ -168,7 +233,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     # change to be as it will be in field (before the migration) and then empty the body
     _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run.struct = {}
-    db._upsert(db_session, run, ignore=True)
+    db._upsert(db_session, [run], ignore=True)
 
     # run the migration
     mlrun.api.initial_data._align_runs_table(db, db_session)
@@ -211,6 +276,28 @@ def test_store_run_success(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
+    runs_before = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
+    assert runs_before[0].requested_logs is False
+    run_updated_time = runs_before[0].updated
+
+    db.update_runs_requested_logs(db_session, [uid], True)
+
+    runs_after = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
+    assert runs_after[0].requested_logs is True
+    assert runs_after[0].updated > run_updated_time
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -241,7 +328,11 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
     ):
         run["metadata"]["name"] = "new-name"
         db.store_run(
-            db_session, run, uid, project, iteration,
+            db_session,
+            run,
+            uid,
+            project,
+            iteration,
         )
 
     with pytest.raises(
@@ -249,7 +340,11 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
         match="Changing name for an existing run is invalid",
     ):
         db.update_run(
-            db_session, {"metadata.name": "new-name"}, uid, project, iteration,
+            db_session,
+            {"metadata.name": "new-name"},
+            uid,
+            project,
+            iteration,
         )
 
 
@@ -263,7 +358,9 @@ def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session
         match="Limiting the number of returned records without sorting will provide non-deterministic results",
     ):
         db.list_runs(
-            db_session, sort=False, last=1,
+            db_session,
+            sort=False,
+            last=1,
         )
 
 

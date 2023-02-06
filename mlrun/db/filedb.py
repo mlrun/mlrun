@@ -50,6 +50,7 @@ functions_dir = "functions"
 schedules_dir = "schedules"
 
 
+# TODO: remove fileDB, doesn't needs to be used anymore
 class FileRunDB(RunDBInterface):
     kind = "file"
 
@@ -58,12 +59,23 @@ class FileRunDB(RunDBInterface):
         self.dirpath = dirpath
         self._datastore = None
         self._subpath = None
+        self._secrets = None
         makedirs(self.schedules_dir, exist_ok=True)
 
     def connect(self, secrets=None):
-        sm = store_manager.set(secrets)
+        self._secrets = secrets
+        return self
+
+    def _connect(self, secrets=None):
+        sm = store_manager.set(secrets or self._secrets)
         self._datastore, self._subpath = sm.get_or_create_store(self.dirpath)
         return self
+
+    @property
+    def datastore(self):
+        if not self._datastore:
+            self._connect()
+        return self._datastore
 
     def store_log(self, uid, project="", body=None, append=False):
         filepath = self._filepath(run_logs, project, uid, "") + ".log"
@@ -80,7 +92,7 @@ class FileRunDB(RunDBInterface):
                 if offset:
                     fp.seek(offset)
                 if not size:
-                    size = 2 ** 18
+                    size = 2**18
                 return "", fp.read(size)
         return "", None
 
@@ -95,11 +107,10 @@ class FileRunDB(RunDBInterface):
             self._filepath(run_logs, project, self._run_path(uid, iter), "")
             + self.format
         )
-        self._datastore.put(filepath, data)
+        self.datastore.put(filepath, data)
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         run = self.read_run(uid, project, iter=iter)
-        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
@@ -115,13 +126,13 @@ class FileRunDB(RunDBInterface):
         )
         if not pathlib.Path(filepath).is_file():
             raise mlrun.errors.MLRunNotFoundError(uid)
-        data = self._datastore.get(filepath)
+        data = self.datastore.get(filepath)
         return self._loads(data)
 
     def list_runs(
         self,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         state="",
@@ -136,11 +147,17 @@ class FileRunDB(RunDBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         if partition_by is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs partitioning not supported"
             )
+        if uid and isinstance(uid, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runs list with multiple uids not supported"
+            )
+
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
@@ -153,7 +170,10 @@ class FileRunDB(RunDBInterface):
                 and match_value_options(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
-                    start_time_from, start_time_to, run, "status.start_time",
+                    start_time_from,
+                    start_time_to,
+                    run,
+                    "status.start_time",
                 )
                 and match_times(
                     last_update_time_from,
@@ -217,11 +237,11 @@ class FileRunDB(RunDBInterface):
         if iter:
             key = f"{iter}-{key}"
         filepath = self._filepath(artifacts_dir, project, key, uid) + self.format
-        self._datastore.put(filepath, data)
+        self.datastore.put(filepath, data)
         filepath = (
             self._filepath(artifacts_dir, project, key, tag or "latest") + self.format
         )
-        self._datastore.put(filepath, data)
+        self.datastore.put(filepath, data)
 
     def read_artifact(self, key, tag="", iter=None, project=""):
         tag = tag or "latest"
@@ -231,7 +251,7 @@ class FileRunDB(RunDBInterface):
 
         if not pathlib.Path(filepath).is_file():
             raise RunDBError(key)
-        data = self._datastore.get(filepath)
+        data = self.datastore.get(filepath)
         return self._loads(data)
 
     def list_artifacts(
@@ -323,7 +343,7 @@ class FileRunDB(RunDBInterface):
             )
             + self.format
         )
-        self._datastore.put(filepath, data)
+        self.datastore.put(filepath, data)
         if versioned:
 
             # the "hash_key" version should not include the status
@@ -342,7 +362,7 @@ class FileRunDB(RunDBInterface):
                 + self.format
             )
             data = self._dumps(function)
-            self._datastore.put(filepath, data)
+            self.datastore.put(filepath, data)
         return hash_key
 
     def get_function(self, name, project="", tag="", hash_key=""):
@@ -361,7 +381,7 @@ class FileRunDB(RunDBInterface):
         if not pathlib.Path(filepath).is_file():
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
-        data = self._datastore.get(filepath)
+        data = self.datastore.get(filepath)
         parsed_data = self._loads(data)
 
         # tag should be filled only when queried by tag
@@ -375,7 +395,9 @@ class FileRunDB(RunDBInterface):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
-            self.dirpath, functions_dir, project or config.default_project,
+            self.dirpath,
+            functions_dir,
+            project or config.default_project,
         )
         filepath += "/"
 
@@ -469,8 +491,40 @@ class FileRunDB(RunDBInterface):
         ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
-    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
+    ):
         raise NotImplementedError()
+
+    def delete_objects_tag(
+        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+    ):
+        raise NotImplementedError()
+
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        raise NotImplementedError()
+
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+        # returns None if project not found, mainly for tests, until we remove fileDB
+        return None
 
     def delete_project(
         self,
@@ -480,7 +534,9 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -493,7 +549,8 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -571,7 +628,11 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         raise NotImplementedError()
 
@@ -597,7 +658,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+        self,
+        name,
+        feature_set,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
     ):
         raise NotImplementedError()
 
@@ -627,7 +694,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         raise NotImplementedError()
 
@@ -700,20 +773,21 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None, category=None):
         raise NotImplementedError()
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key=None,
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key=None
+    def delete_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         raise NotImplementedError()
 
@@ -726,7 +800,6 @@ class FileRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key=None,
     ):
         raise NotImplementedError()
 
@@ -738,7 +811,14 @@ class FileRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
     ):
         raise NotImplementedError()
 

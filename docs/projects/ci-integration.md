@@ -1,45 +1,45 @@
+(ci-integration)=
+# CI/CD integration
 
-## Github/Gitlab and CI/CD Integration
+You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
+with the CI systems. 
 
-Users may want to run their ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc.
-MLRun support simple and native integration with the CI systems, users can implement workflows which we combine 
-local code (from the repository) with MLRun marketplace functions to build an automated ML pipeline which:
+- Build/run complex workflows composed of local/library functions or external cloud services (e.g. AutoML)
+- Support various Pipeline/CI engines (Kubeflow, GitHub, Gitlab, Jenkins)
+- Track & version code, data, params, results with minimal effort
+- Elastic scaling of each step
+- Extensive Function Hub
 
-* runs data preparation
-* train a model
-* test the trained model
-* deploy the model into a cluster
-* test the deployed model
+MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
+and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
 
-MLRun workflows can run inside the CI system, we will ususlly use the `mlrun project` CLI command to load the project 
-and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks will be executed on the Kubernetes cluster which is orchestrated by MLRun.
+When MLRun is executed inside a [GitHub Action](https://docs.github.com/en/actions) or [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) 
+pipeline it detects the environment attributes automatically 
+(e.g. repo, commit id, etc.). In addition, a few environment variables and credentials must be set:
 
-See details:
-* [**Using GitHub Actions**](#using-github-actions)
-* [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
+* **MLRUN_DBPATH** &mdash; url of the MLRun cluster.
+* **V3IO_USERNAME** &mdash; username in the remote Iguazio cluster.
+* **V3IO_ACCESS_KEY** &mdash; access key to the remote Iguazio cluster.
+* **GIT_TOKEN** or **GITHUB_TOKEN** &mdash; Github/Gitlab API token (set automatically in Github Actions).
+* **SLACK_WEBHOOK** &mdash; optional. Slack API key when using slack notifications.
 
-When MLRun is executed inside a [GitHub Actions](https://docs.github.com/en/actions) or [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) pipeline it will detect the environment attributes automatically 
-(e.g. repo, commit id, etc..), in addition few environment variables and credentials must be set.
-
-* **MLRUN_DBPATH** - url of the mlrun cluster
-* **V3IO_USERNAME** - username in the remote iguazio cluster
-* **V3IO_ACCESS_KEY** - access key to the remote iguazio cluster
-* **GIT_TOKEN** or **GITHUB_TOKEN** - Github/Gitlab API Token (will be set automatically in Github Actions)
-* **SLACK_WEBHOOK** - optional, Slack API key when using slack notifications
-
-When the workflow runs inside the Git CI system it will report the pipeline progress and results back into the Git tracking system
-
-**The results will appear in the CI system in the following way:**
+When the workflow runs inside the Git CI system it reports the pipeline progress and results back into the Git tracking system, similar to:
 
 <img src="../_static/images/git-pipeline.png" alt="mlrun-architecture" width="800"/><br>
 
+When working with a private Git repository, you need to create **GIT_TOKEN** secrets. For more details about creating secrets in mlrun see [MLRun-managed secrets](../secrets.html#mlrun-managed-secrets).
 
-### Using GitHub Actions
+**Contents**
+* [**Using GitHub Actions**](#using-github-actions)
+* [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
+* [**Using Jenkins Pipeline**](#using-jenkins-pipeline)
 
-when running using [GitHub Actions](https://docs.github.com/en/actions) the user need to set the credentials/secrets 
-and add a script under the `.github/workflows/` directory which will be executed when code is commited/pushed.
+## Using GitHub Actions
 
-Example script, will be invoked when we add the comment "/run" to our pull request:
+When running using [GitHub Actions](https://docs.github.com/en/actions) you need to set the credentials/secrets 
+and add a script under the `.github/workflows/` directory, which is executed when the code is commited/pushed.
+
+Example script that is invoked when you add the comment "/run" to your pull request:
 
 ```yaml
 name: mlrun-project-workflow
@@ -51,9 +51,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: '3.7'
         architecture: 'x64'
@@ -75,12 +75,12 @@ jobs:
 See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo)
 
 
-### Using GitLab CI/CD
+## Using GitLab CI/CD
 
-when running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) the user need to set the credentials/secrets 
-and update the script `.gitlab-ci.yml` directory which will be executed when code is commited/pushed.
+When running using [GitLab CI/CD](https://docs.gitlab.com/ee/ci/) you need to set the credentials/secrets 
+and update the script `.gitlab-ci.yml` directory, which is executed when code is commited/pushed.
 
-Example script, will be invoked when we create a pull request (merge requests):
+Example script that is invoked when you create a pull request (merge requests):
 
 ```yaml
 image: mlrun/mlrun
@@ -93,3 +93,75 @@ run:
 ```
 
 See the full example in [**https://gitlab.com/yhaviv/test2**](https://gitlab.com/yhaviv/test2)
+
+## Using Jenkins Pipeline
+
+When using [Jenkins Pipeline](https://www.jenkins.io/doc/book/pipeline/) you need to set up the credentials/secrets in Jenkins and 
+and update the script `Jenkinsfile` in your codebase. You can trigger the Jenkins pipeline either through Jenkins triggers or through the GitHub webhooks. 
+
+Example `Jenkinesfile` that is invoked when you start a Jenkins pipeline (via triggers or GitHub webhooks):
+
+```Groovy
+pipeline {
+   agent any
+    environment {
+      RELEASE='1.0.0'
+      PROJECT_NAME='project-demo'
+    }
+   stages {
+      stage('Audit tools') {
+         steps{
+            auditTools()
+         }
+      }
+      stage('Build') {
+            environment {
+               MLRUN_DBPATH='https://mlrun-api.default-tenant.app.us-sales-341.iguazio-cd1.com'
+               V3IO_ACCESS_KEY=credentials('V3IO_ACCESS_KEY')
+               V3IO_USERNAME='xingsheng'
+            }
+            agent {
+                docker {
+                    image 'mlrun/mlrun:1.2.0'
+                }
+            }
+            steps {
+               echo "Building release ${RELEASE} for project ${PROJECT_NAME}..."
+               sh 'chmod +x build.sh'
+               withCredentials([string(credentialsId: 'an-api-key', variable: 'API_KEY')]) {
+                  sh '''
+                     ./build.sh
+                  '''
+               }
+            }
+        }
+        stage('Test') {
+            steps {
+               echo "Testing release ${RELEASE}"
+            }
+        }
+   }
+   post {
+      success {
+         slackSend channel: '#builds',
+                   color: 'good',
+                   message: "Project ${env.PROJECT_NAME}, success: ${currentBuild.fullDisplayName}."
+      }
+      failure {
+         slackSend channel: '#builds',
+                   color: 'danger',
+                   message: "Project ${env.PROJECT_NAME}, FAILED: ${currentBuild.fullDisplayName}."
+      }
+   }
+}
+
+void auditTools() {
+   sh '''
+      git version
+      docker version
+   '''
+}
+```
+After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI.
+
+See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo).

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from os import listdir
+import os
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
@@ -20,6 +20,9 @@ import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.artifacts import ModelArtifact
+from mlrun.artifacts.base import LegacyLinkArtifact, LinkArtifact
+from mlrun.artifacts.model import LegacyModelArtifact
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -34,18 +37,18 @@ df = pd.DataFrame(raw_data, columns=["name", "age"])
 def test_in_memory():
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
-    context.log_artifact("k1", body="abc")
-    context.log_dataset("k2", df=df)
+    k1 = context.log_artifact("k1", body="abc")
+    k2 = context.log_dataset("k2", df=df)
 
     data = mlrun.datastore.set_in_memory_item("aa", "123")
     in_memory_store = mlrun.datastore.get_in_memory_items()
-    new_df = mlrun.run.get_dataitem("memory://k2").as_df()
+    new_df = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
     assert len(in_memory_store) == 3, "data not written properly to in mem store"
     assert data.get() == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
     assert (
-        mlrun.run.get_dataitem("memory://k1").get() == "abc"
+        mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"
     ), "failed to log in mem artifact"
 
 
@@ -68,19 +71,19 @@ def test_file():
         # test that we can get the artifact as dataitem
         assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-        alist = listdir(tmpdir)
-        print(alist)
-        assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, "failed listdir"
+        assert "test1.txt" in mlrun.run.get_dataitem(tmpdir).listdir(), "failed listdir"
 
-        expected = ["test1.txt", "x.txt", "k2.csv"]
+        expected = [f"{tmpdir}/test1.txt", k2.get_target_path(), k1.get_target_path()]
         for a in expected:
-            assert a in alist, f"artifact {a} was not generated"
+            assert os.path.isfile(a) and a.startswith(
+                tmpdir
+            ), f"artifact {a} was not generated"
 
-        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2.csv").as_df()
+        new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
         assert len(new_fd) == 5, "failed dataframe test"
         assert (
-            mlrun.run.get_dataitem(tmpdir + "/x.txt").get() == b"abc"
+            mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc"
         ), "failed to log in file artifact"
 
         name = k2.uri
@@ -188,6 +191,54 @@ def test_get_store_artifact_url_parsing():
         mlrun.datastore.store_resources.get_store_resource(url, db)
 
 
+@pytest.mark.parametrize("legacy_format", [False, True])
+def test_get_store_resource_with_linked_artifacts(legacy_format):
+    artifact_key = "key1"
+    project = "test_project"
+    link_iteration = 7
+
+    if legacy_format:
+        link_artifact = LegacyLinkArtifact(
+            key=artifact_key, target_path="/some/path", link_iteration=link_iteration
+        )
+        link_artifact.project = project
+        model_artifact = LegacyModelArtifact(
+            key=f"{artifact_key}#{link_iteration}",
+            target_path="/some/path/again",
+            body="just a body",
+        )
+        model_artifact.project = project
+    else:
+        link_artifact = LinkArtifact(
+            key=artifact_key,
+            project=project,
+            target_path="/some/path",
+            link_iteration=link_iteration,
+        )
+        model_artifact = ModelArtifact(
+            key=f"{artifact_key}#{link_iteration}",
+            project=project,
+            target_path="/some/path/again",
+            body="just a body",
+        )
+
+    mock_artifacts = [link_artifact, model_artifact]
+
+    def mock_read_artifact(key, tag=None, iter=None, project=""):
+        for artifact in mock_artifacts:
+            key_ = f"{key}#{iter}" if iter else key
+            if artifact.key == key_:
+                return artifact.to_dict()
+        return {}
+
+    db = Mock()
+    db.read_artifact = mock_read_artifact
+
+    url = f"store://{project}/{artifact_key}"
+    result = mlrun.datastore.store_resources.get_store_resource(url, db)
+    assert result.kind == "model" and result.key == f"{artifact_key}#{link_iteration}"
+
+
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_forbidden_file_access():
     store = mlrun.datastore.datastore.StoreManager(
@@ -207,16 +258,97 @@ def test_forbidden_file_access():
         obj.stat()
 
 
+def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
+    mlrun.config._is_running_as_api = True
+
+    user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
+    user1_objpath = "v3io://some-system/some-dir/user1"
+
+    user2_secrets = {"V3IO_ACCESS_KEY": "user2-access-key"}
+    user2_objpath = "v3io://some-system/some-dir/user2"
+
+    user3_objpath = "v3io://some-system/some-dir/user3"
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
+    )
+    obj = store.object(url=user1_objpath, secrets=user1_secrets)
+    assert store._stores == {}
+    assert obj._store._secrets == user1_secrets
+
+    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
+    assert store._stores == {}
+    assert obj2._store._secrets == user2_secrets
+
+    obj3 = store.object(url=user3_objpath)
+    assert store._stores == {}
+    assert obj3._store._secrets == {}
+
+
+def test_verify_data_stores_are_cached_when_not_api():
+    user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
+    user1_objpath = "v3io://some-system/some-dir/user1"
+
+    user2_secrets = {"V3IO_ACCESS_KEY": "user2-access-key"}
+    user2_objpath = "v3io://some-system/some-dir/user2"
+
+    user3_objpath = "v3io://some-system/some-dir/user3"
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
+    )
+    # if secrets provided then store is not cached
+    obj = store.object(url=user1_objpath, secrets=user1_secrets)
+    assert store._stores == {}
+    assert obj._store._secrets == user1_secrets
+
+    # if secrets provided then store is not cached
+    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
+    assert store._stores == {}
+    assert obj2._store._secrets == user2_secrets
+
+    # if no secrets provided then store is cached
+    obj3 = store.object(url=user3_objpath)
+    assert len(store._stores) == 1
+    assert store._stores["v3io://some-system"] is not None
+    assert obj3._store._secrets == {}
+
+    # if secrets provided then store is not cached
+    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
+    assert len(store._stores) == 1
+    assert obj2._store._secrets == user2_secrets
+    # the store is not cached so the secrets are not updated, because this is the same store type as the one cached,
+    # so we verify that the secrets are not updated
+    assert store._stores["v3io://some-system"]._secrets == {}
+
+
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
         store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
-        fs = store.get_filesystem(False)
+        file_system = store.get_filesystem(False)
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")
         with mlrun.get_dataitem(tmpdir + "/2x.txt").open("w") as fp:
             fp.write("456")
-        files = fs.ls(tmpdir)
+        files = file_system.ls(tmpdir)
         assert len(files) == 2, "2 test files were not written"
         assert files[0].endswith("x.txt"), "wrong file name"
-        assert fs.open(tmpdir + "/1x.txt", "r").read() == "123", "wrong file content"
+        assert (
+            file_system.open(tmpdir + "/1x.txt", "r").read() == "123"
+        ), "wrong file content"
+
+
+@pytest.mark.parametrize(
+    "virtual_path", ["/dummy/path", "c:\\dummy\\path", "/dummy/path/"]
+)
+def test_item_to_real_path_map(virtual_path):
+    # test that the virtual dir (/dummy/path) is replaced with a real dir
+
+    with TemporaryDirectory() as tmpdir:
+        print(tmpdir)
+        mlrun.mlconf.storage.item_to_real_path = f"{virtual_path}::{tmpdir}"
+
+        data = mlrun.run.get_dataitem(f"{virtual_path}/test1.txt")
+        data.put("abc")
+        assert data.get() == b"abc", "failed put/get test"
+        assert data.stat().size == 3, "got wrong file size"
+        assert os.path.isfile(os.path.join(tmpdir, "test1.txt"))

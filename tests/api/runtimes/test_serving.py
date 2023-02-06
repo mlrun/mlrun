@@ -1,6 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import unittest
+import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -9,10 +24,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf
+import mlrun.api.api.utils
+import tests.api.api.utils
+from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
+from mlrun.runtimes.function import (
+    NuclioStatus,
+    compile_function_config,
+    deploy_nuclio_function,
+)
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -53,7 +74,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(func, with_mlrun):
+        def _remote_db_mock_function(func, with_mlrun, builder_env=None):
             deploy_nuclio_function(func)
             return {
                 "data": {
@@ -225,8 +246,10 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
         orig_function = get_k8s()._get_project_secrets_raw_data
         get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
+        tests.api.api.utils.create_project(client, self.project)
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
         req = {
@@ -287,3 +310,26 @@ class TestServingRuntime(TestNuclioRuntime):
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
         )
+
+    def test_empty_function(self):
+        # test simple function (no source)
+        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function.set_topology("flow")
+        _, _, config = compile_function_config(function)
+        # verify the code is filled with the mlrun serving wrapper
+        assert config["spec"]["build"]["functionSourceCode"]
+
+        # test function built from source repo (set the handler)
+        function = new_function(
+            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+        )
+        function.set_topology("flow")
+
+        # mock secrets for the source (so it will not fail)
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        _, _, config = compile_function_config(function, builder_env={})
+        get_k8s()._get_project_secrets_raw_data = orig_function
+
+        # verify the handler points to mlrun serving wrapper handler
+        assert config["spec"]["handler"].startswith("mlrun.serving")

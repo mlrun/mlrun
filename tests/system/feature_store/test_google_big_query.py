@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
 import typing
@@ -5,7 +19,7 @@ import typing
 import pandas as pd
 import pytest
 
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.datastore.sources import BigQuerySource
 from mlrun.datastore.targets import ParquetTarget
 from tests.system.base import TestMLRunSystem
@@ -26,8 +40,12 @@ def _resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
 
 
 def _are_google_credentials_not_set() -> bool:
-    credentials_path = _resolve_google_credentials_json_path()
-    return not credentials_path
+    # credentials_path = _resolve_google_credentials_json_path()
+    # return not credentials_path
+
+    # Once issues with installation of packages - 'google-cloud-bigquery' and 'six' - will be fixed
+    # uncomment the above and let the tests run.
+    return True
 
 
 # Marked as enterprise because of v3io mount and pipelines
@@ -86,7 +104,7 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
     @staticmethod
     def _test_big_query_source(name: str, source: BigQuerySource, max_results: int):
         credentials_path = _resolve_google_credentials_json_path()
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
         targets = [
             ParquetTarget(
@@ -96,13 +114,13 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
             )
         ]
         feature_set_name = "taxis"
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             feature_set_name,
-            entities=[fs.Entity("unique_key")],
+            entities=[fstore.Entity("unique_key")],
             timestamp_key="trip_start_timestamp",
             engine="pandas",
         )
-        ingest_df = fs.ingest(feature_set, source, targets, return_df=False)
+        ingest_df = fstore.ingest(feature_set, source, targets, return_df=False)
         assert ingest_df is not None
         assert len(ingest_df) == max_results
         assert ingest_df.dtypes["pickup_latitude"] == "float64"

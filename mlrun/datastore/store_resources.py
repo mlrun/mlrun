@@ -16,9 +16,13 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import parse_artifact_uri, parse_versioned_object_uri
+from mlrun.utils.helpers import (
+    is_legacy_artifact,
+    parse_artifact_uri,
+    parse_versioned_object_uri,
+)
 
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
 
@@ -67,7 +71,6 @@ class ResourceCache:
             from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
-
         if uri in self._tabels:
             return self._tabels[uri]
         if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
@@ -75,10 +78,22 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = parse_v3io_path(uri)
+            endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
                 V3ioDriver(webapi=endpoint),
+                flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            )
+            return self._tabels[uri]
+
+        if uri.startswith("redis://") or uri.startswith("rediss://"):
+            from storey.redis_driver import RedisDriver
+
+            endpoint, uri = parse_path(uri)
+            endpoint = endpoint or mlrun.mlconf.redis.url
+            self._tabels[uri] = Table(
+                uri,
+                RedisDriver(redis_url=endpoint, key_prefix="/"),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
             return self._tabels[uri]
@@ -126,7 +141,9 @@ class ResourceCache:
         return _get_store_resource
 
 
-def get_store_resource(uri, db=None, secrets=None, project=None):
+def get_store_resource(
+    uri, db=None, secrets=None, project=None, data_store_secrets=None
+):
     """get store resource object by uri"""
 
     db = db or mlrun.get_run_db(secrets=secrets)
@@ -153,8 +170,17 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
+            link_iteration = (
+                resource.get("link_iteration", 0)
+                if is_legacy_artifact(resource)
+                else resource["spec"].get("link_iteration", 0)
+            )
+
             resource = db.read_artifact(
-                key, tag=tag, iter=resource.get("link_iteration", 0), project=project,
+                key,
+                tag=tag,
+                iter=link_iteration,
+                project=project,
             )
         if resource:
             # import here to avoid circular imports
@@ -164,4 +190,4 @@ def get_store_resource(uri, db=None, secrets=None, project=None):
 
     else:
         stores = mlrun.store_manager.set(secrets, db=db)
-        return stores.object(url=uri)
+        return stores.object(url=uri, secrets=data_store_secrets)

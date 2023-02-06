@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 
 import sqlalchemy.orm
@@ -15,7 +29,9 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Runs(metaclass=mlrun.utils.singleton.Singleton,):
+class Runs(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_run(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -27,7 +43,11 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         project = project or mlrun.mlconf.default_project
         logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
-            db_session, data, uid, project, iter=iter,
+            db_session,
+            data,
+            uid,
+            project,
+            iter=iter,
         )
 
     def update_run(
@@ -104,6 +124,9 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
@@ -124,6 +147,9 @@ class Runs(metaclass=mlrun.utils.singleton.Singleton,):
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            max_partitions,
+            requested_logs,
+            return_as_run_structs,
         )
 
     def delete_run(

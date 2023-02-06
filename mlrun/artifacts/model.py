@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
+import warnings
 from os import path
 from typing import List
 
 import yaml
+from deprecated import deprecated
 
 import mlrun
 
@@ -23,10 +25,90 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
-from ..utils import StorePrefix
-from .base import Artifact, upload_extra_data
+from ..utils import StorePrefix, is_relative_path
+from .base import Artifact, ArtifactSpec, LegacyArtifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
+
+
+class ModelArtifactSpec(ArtifactSpec):
+    _dict_fields = ArtifactSpec._dict_fields + [
+        "model_file",
+        "metrics",
+        "parameters",
+        "inputs",
+        "outputs",
+        "framework",
+        "algorithm",
+        "feature_vector",
+        "feature_weights",
+        "feature_stats",
+        "model_target_file",
+    ]
+
+    def __init__(
+        self,
+        src_path=None,
+        target_path=None,
+        viewer=None,
+        is_inline=False,
+        format=None,
+        size=None,
+        db_key=None,
+        extra_data=None,
+        body=None,
+        model_file=None,
+        metrics=None,
+        paraemeters=None,
+        inputs: List[Feature] = None,
+        outputs: List[Feature] = None,
+        framework=None,
+        algorithm=None,
+        feature_vector=None,
+        feature_weights=None,
+        feature_stats=None,
+        model_target_file=None,
+    ):
+        super().__init__(
+            src_path,
+            target_path,
+            viewer,
+            is_inline,
+            format,
+            size,
+            db_key,
+            extra_data,
+            body,
+        )
+        self.model_file = model_file
+        self.metrics = metrics or {}
+        self.parameters = paraemeters or {}
+        self.inputs: List[Feature] = inputs or []
+        self.outputs: List[Feature] = outputs or []
+        self.framework = framework
+        self.algorithm = algorithm
+        self.feature_vector = feature_vector
+        self.feature_weights = feature_weights
+        self.feature_stats = feature_stats
+        self.model_target_file = model_target_file
+
+    @property
+    def inputs(self) -> List[Feature]:
+        """input feature list"""
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, inputs: List[Feature]):
+        self._inputs = ObjectList.from_list(Feature, inputs)
+
+    @property
+    def outputs(self) -> List[Feature]:
+        """output feature list"""
+        return self._outputs
+
+    @outputs.setter
+    def outputs(self, outputs: List[Feature]):
+        self._outputs = ObjectList.from_list(Feature, outputs)
 
 
 class ModelArtifact(Artifact):
@@ -35,7 +117,416 @@ class ModelArtifact(Artifact):
     Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
     """
 
-    _dict_fields = Artifact._dict_fields + [
+    kind = "model"
+    _store_prefix = StorePrefix.Model
+
+    def __init__(
+        self,
+        key=None,
+        body=None,
+        format=None,
+        model_file=None,
+        metrics=None,
+        target_path=None,
+        parameters=None,
+        inputs=None,
+        outputs=None,
+        framework=None,
+        algorithm=None,
+        feature_vector=None,
+        feature_weights=None,
+        extra_data=None,
+        model_dir=None,
+        **kwargs,
+    ):
+
+        super().__init__(key, body, format=format, target_path=target_path, **kwargs)
+        if model_file and "://" in model_file:
+            model_dir = path.dirname(model_file)
+            model_file = path.basename(model_file)
+
+        self.spec.model_file = model_file
+        self.spec.src_path = model_dir
+        self.spec.parameters = parameters or {}
+        self.spec.metrics = metrics or {}
+        self.spec.inputs = inputs or []
+        self.spec.outputs = outputs or []
+        self.spec.extra_data = extra_data or {}
+        self.spec.framework = framework
+        self.spec.algorithm = algorithm
+        self.spec.feature_vector = feature_vector
+        self.spec.feature_weights = feature_weights
+        self.spec.feature_stats = None
+
+    @property
+    def spec(self) -> ModelArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", ModelArtifactSpec)
+
+    @property
+    def inputs(self) -> List[Feature]:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.inputs instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        """input feature list"""
+        return self.spec.inputs
+
+    @inputs.setter
+    def inputs(self, inputs: List[Feature]):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.inputs instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        """input feature list"""
+        self.spec.inputs = inputs
+
+    @property
+    def outputs(self) -> List[Feature]:
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.outputs instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        """input feature list"""
+        return self.spec.outputs
+
+    @outputs.setter
+    def outputs(self, outputs: List[Feature]):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.outputs instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        """input feature list"""
+        self.spec.outputs = outputs
+
+    @property
+    def model_file(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.model_file instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.model_file
+
+    @model_file.setter
+    def model_file(self, model_file):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.model_file instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.model_file = model_file
+
+    @property
+    def parameters(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.parameters instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.parameters
+
+    @parameters.setter
+    def parameters(self, parameters):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.parameters instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.parameters = parameters
+
+    @property
+    def metrics(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.metrics instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.metrics
+
+    @metrics.setter
+    def metrics(self, metrics):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.metrics instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.metrics = metrics
+
+    @property
+    def feature_stats(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_stats instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.feature_stats
+
+    @feature_stats.setter
+    def feature_stats(self, feature_stats):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_stats instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.feature_stats = feature_stats
+
+    @property
+    def feature_vector(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_vector instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.feature_vector
+
+    @feature_vector.setter
+    def feature_vector(self, feature_vector):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_vector instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.feature_vector = feature_vector
+
+    @property
+    def feature_weights(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.feature_weights
+
+    @feature_weights.setter
+    def feature_weights(self, feature_weights):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.feature_weights = feature_weights
+
+    @property
+    def model_target_file(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.model_target_file
+
+    @model_target_file.setter
+    def model_target_file(self, model_target_file):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.model_target_file = model_target_file
+
+    def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
+        """infer inputs, outputs, and stats from provided df (training set)
+
+        :param df:      dataframe to infer from
+        :param label_columns: name of the label (target) column
+        :param with_stats:    infer statistics (min, max, .. histogram)
+        :param num_bins:      number of bins for histogram
+        """
+        subset = df
+        inferer = get_infer_interface(subset)
+        if label_columns:
+            if not isinstance(label_columns, list):
+                label_columns = [label_columns]
+            subset = df.drop(columns=label_columns)
+        inferer.infer_schema(
+            subset, self.spec.inputs, {}, options=InferOptions.Features
+        )
+        if label_columns:
+            inferer.infer_schema(
+                df[label_columns], self.spec.outputs, {}, options=InferOptions.Features
+            )
+        if with_stats:
+            self.spec.feature_stats = inferer.get_stats(
+                df, options=InferOptions.Histogram, num_bins=num_bins
+            )
+
+    @property
+    def is_dir(self):
+        return True
+
+    def before_log(self):
+        if not self.spec.model_file:
+            raise ValueError("model_file attr must be specified")
+
+        super(ModelArtifact, self).before_log()
+
+        if self.spec.framework:
+            self.metadata.labels = self.metadata.labels or {}
+            self.metadata.labels["framework"] = self.spec.framework
+
+    def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
+        # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True and the user
+        # didn't pass target_path explicitly, then target_path will be calculated right before uploading the artifact
+        # using `resolve_<body/file>_target_hash_path`
+        target_model_path = (
+            path.join(self.spec.target_path, self.spec.model_file)
+            if self.spec.target_path
+            else None
+        )
+        body = self.spec.get_body()
+        if body:
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_body_target_hash_path(
+                    body=body, artifact_path=artifact_path
+                )
+            self._upload_body(
+                body, target=target_model_path, artifact_path=artifact_path
+            )
+        else:
+            src_model_path = _get_src_path(self, self.spec.model_file)
+            if not path.isfile(src_model_path):
+                raise ValueError(f"model file {src_model_path} not found")
+
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_file_target_hash_path(
+                    source_path=src_model_path, artifact_path=artifact_path
+                )
+
+            self._upload_file(
+                src_model_path,
+                target_path=target_model_path,
+                artifact_path=artifact_path,
+            )
+
+        upload_extra_data(
+            artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
+        )
+
+        spec_body = self.to_yaml()
+        spec_target_path = None
+
+        if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
+
+            # resolving target_path for the model spec
+            _, spec_target_path = self.resolve_body_target_hash_path(
+                body=spec_body, artifact_path=artifact_path
+            )
+
+            # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path will be
+            # will point to the artifact path which is where the model and all its extra data are stored
+            self.spec.target_path = (
+                artifact_path + "/"
+                if not artifact_path.endswith("/")
+                else artifact_path
+            )
+            # unlike in extra_data, which stores for each key the path to the file, in target_path we store the
+            # target path dir, and because we generated the target path of the model from the artifact hash,
+            # the model_file doesn't represent the actual target file name of the model, so we need to update it
+            self.spec.model_target_file = target_model_path.split("/")[-1]
+
+        spec_target_path = spec_target_path or path.join(
+            self.spec.target_path, model_spec_filename
+        )
+        store_manager.object(url=spec_target_path).put(spec_body)
+        self.spec.extra_data[model_spec_filename] = spec_target_path
+
+    def _get_file_body(self):
+        body = self.spec.get_body()
+        if body:
+            return body
+        src_model_path = _get_src_path(self, self.spec.model_file)
+        if src_model_path and path.isfile(src_model_path):
+            with open(src_model_path, "rb") as fp:
+                return fp.read()
+        target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+        return mlrun.get_dataitem(target_model_path).get()
+
+
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyModelArtifact' will be removed in 1.5.0, use 'ModelArtifact' instead",
+    category=FutureWarning,
+)
+class LegacyModelArtifact(LegacyArtifact):
+    """ML Model artifact
+
+    Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
+    """
+
+    _dict_fields = LegacyArtifact._dict_fields + [
         "model_file",
         "metrics",
         "parameters",
@@ -47,6 +538,7 @@ class ModelArtifact(Artifact):
         "feature_vector",
         "feature_weights",
         "feature_stats",
+        "model_target_file",
     ]
     kind = "model"
     _store_prefix = StorePrefix.Model
@@ -67,6 +559,7 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        model_target_file=None,
         **kwargs,
     ):
 
@@ -85,6 +578,7 @@ class ModelArtifact(Artifact):
         self.feature_vector = feature_vector
         self.feature_weights = feature_weights
         self.feature_stats = None
+        self.model_target_file = model_target_file
 
     @property
     def inputs(self) -> List[Feature]:
@@ -136,9 +630,8 @@ class ModelArtifact(Artifact):
         if not self.model_file:
             raise ValueError("model_file attr must be specified")
 
-        for key, item in self.extra_data.items():
-            if hasattr(item, "target_path"):
-                self.extra_data[key] = item.target_path
+        super(LegacyModelArtifact, self).before_log()
+
         if self.framework:
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework
@@ -200,7 +693,11 @@ def get_model(model_dir, suffix=""):
         model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
-        model_file = _get_file_path(target, model_spec.model_file)
+        # in case model_target_file is specified, use it, because that means that the actual model target path
+        # in the store is different than the local model_file it was generated from
+        model_file = _get_file_path(
+            target, model_spec.model_target_file or model_spec.model_file
+        )
         extra_dataitems = _get_extra(target, model_spec.extra_data)
 
     elif model_dir.lower().endswith(".yaml"):
@@ -244,7 +741,7 @@ def _load_model_spec(spec_path):
 
 
 def _get_file_path(base_path: str, name: str, isdir=False):
-    if name.startswith("/") or "://" in name:
+    if not is_relative_path(name):
         return name
     if not isdir:
         base_path = path.dirname(base_path)

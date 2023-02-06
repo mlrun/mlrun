@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import datetime
 import os
 import pathlib
@@ -23,6 +37,10 @@ class DBBackupUtil(object):
 
     def backup_database(self, backup_file_name: str = None) -> None:
         backup_file_name = backup_file_name or self._generate_backup_file_name()
+
+        # ensure the backup directory exists
+        self._get_db_dir_path().mkdir(parents=True, exist_ok=True)
+
         if ":memory:" in mlconf.httpdb.dsn:
             return
         elif "mysql" in mlconf.httpdb.dsn:
@@ -83,6 +101,7 @@ class DBBackupUtil(object):
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
+            f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
             f"-h {dsn_data['host']} "
             f"-P {dsn_data['port']} "
             f"-u {dsn_data['username']} "
@@ -98,7 +117,8 @@ class DBBackupUtil(object):
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug(
-            "Loading mysql DB backup data", backup_path=backup_path,
+            "Loading mysql DB backup data",
+            backup_path=backup_path,
         )
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
@@ -175,7 +195,8 @@ class DBBackupUtil(object):
     @staticmethod
     def _run_shell_command(command: str) -> int:
         logger.debug(
-            "Running shell command", command=command,
+            "Running shell command",
+            command=command,
         )
         process = subprocess.Popen(
             command,

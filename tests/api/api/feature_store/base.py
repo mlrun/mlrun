@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from http import HTTPStatus
 
 from deepdiff import DeepDiff
@@ -75,7 +89,10 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     for field in allowed_metadata_fields:
         exclude_paths.append(f"root['metadata']['{field}']")
     diff = DeepDiff(
-        expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
+        expected_object,
+        actual_object,
+        ignore_order=True,
+        exclude_paths=exclude_paths,
     )
     assert diff == expected_diff
 

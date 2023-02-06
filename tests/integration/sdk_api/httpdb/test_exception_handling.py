@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 
 import mlrun
@@ -13,18 +27,20 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         handlers to be triggered and verifies that for all of them the actual error details returned in the response and
         that the client successfully parses them and raise the right error class
         """
+        mlrun.get_or_create_project("some-project", context="./")
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
-        # sending a get files request for a path that does not exists
+        # sending a store artifact request with an invalid json body
         # This is practically verifies that log_and_raise puts the kwargs under the details.reason
         with pytest.raises(
-            mlrun.errors.MLRunNotFoundError,
-            match=fr"404 Client Error: Not Found for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
-            r"\/files\?path=file%3A%2F%2F%2Fpath%2Fdoes%2F"
-            r"not%2Fexist: details: {'reason': {'path': 'file:\/\/\/path\/does\/not\/exist', 'err': \"\[Errno 2] No suc"
-            r"h file or directory: '\/path\/does\/not\/exist'\"}}",
+            mlrun.errors.MLRunBadRequestError,
+            match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
+            rf"{mlrun.get_run_db().get_api_path_prefix()}\/artifact\/some-project\/some-uid\/some-key: details: "
+            "{'reason': {'reason': 'bad JSON body'}}",
         ):
             mlrun.get_run_db().api_call(
-                "GET", "files", params={"path": "file:///path/does/not/exist"}
+                "POST",
+                "artifact/some-project/some-uid/some-key",
+                body="not a valid json",
             )
 
         # mlrun exception - mlrun code raises an mlrun exception because we're creating a project with invalid name
@@ -36,7 +52,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         )
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
-            match=fr"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
+            match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
             r"\/projects: Failed creating project some_p"
             r"roject details: {'reason': 'MLRunInvalidArgumentError\(\"Field \\'project\.metadata\.name\\' is malformed"
             r"\. Does not match required pattern: (.*)\"\)'}",
@@ -50,7 +66,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
             match=r"422 Client Error: Unprocessable Entity for url: "
-            fr"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name: "
+            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name: "
             r"Failed deleting project some-project-name details: \[{'loc':"
             r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
             r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"
@@ -60,26 +76,12 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
                 "some-project-name", deletion_strategy=invalid_deletion_strategy
             )
 
-        # python exception - list endpoints uses v3io client which uses python http client which throws some exception
-        # (socket.gaierror) since the v3io address is empty
-        # This is handled in the mlrun/api/main.py::generic_error_handler
-        with pytest.raises(
-            mlrun.errors.MLRunInternalServerError,
-            match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)"
-            fr"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/model-"
-            r"endpoints\?start=now-1h&end=now&top-level=False: details: {\'reason\': \"ValueError\(\'Access key must be"
-            r" provided in Client\(\) arguments or in the V3IO_ACCESS_KEY environment variable\'\)\"}",
-        ):
-            mlrun.get_run_db().list_model_endpoints(
-                "some-project", access_key="some-access-key"
-            )
-
         # lastly let's verify that a request error (failure reaching to the server) is handled nicely
         mlrun.get_run_db().base_url = "http://does-not-exist"
         with pytest.raises(
             mlrun.errors.MLRunRuntimeError,
             match=r"HTTPConnectionPool\(host='does-not-exist', port=80\): Max retries exceeded with url: "
-            fr"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project \(Caused by NewConnectionError"
+            rf"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project \(Caused by NewConnectionError"
             r"\('<urllib3\.connection\.HTTPConnection object at (\S*)>: Failed to establish a new connection:"
             r" \[Errno (.*)'\)\): Failed retrieving project some-project",
         ):

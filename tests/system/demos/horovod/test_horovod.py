@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pathlib
 
 import pytest
@@ -8,6 +22,7 @@ from tests.system.demos.base import TestDemo
 
 
 # Marked as enterprise because of v3io mount and pipelines
+@pytest.mark.skip("not up to date demos needs to run demos from mlrun/demos repo")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestHorovodTFv2(TestDemo):
@@ -34,7 +49,10 @@ class TestHorovodTFv2(TestDemo):
         self._logger.debug("Creating iris-generator function")
         function_path = str(self.assets_path / "utils_functions.py")
         utils = mlrun.code_to_function(
-            name="utils", kind="job", filename=function_path, image="mlrun/mlrun",
+            name="utils",
+            kind="job",
+            filename=function_path,
+            image="mlrun/mlrun",
         )
 
         utils.spec.remote = True
@@ -70,11 +88,12 @@ class TestHorovodTFv2(TestDemo):
 
         return demo_project
 
-    def test_demo(self):
-        self.run_and_verify_project(
-            runs_amount=3,
-            arguments={
-                "model_name": "cat_vs_dog_tfv2",
-                "images_dir": self._workflow_artifact_path + "/images",
-            },
-        )
+    # FIXME: test is not working for long time, commenting out, should be changed to be like the mask detection demo
+    # def test_demo(self):
+    #     self.run_and_verify_project(
+    #         runs_amount=3,
+    #         arguments={
+    #             "model_name": "cat_vs_dog_tfv2",
+    #             "images_dir": self._workflow_artifact_path + "/images",
+    #         },
+    #     )

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict
 
 import numpy as np
@@ -7,9 +21,8 @@ from sklearn.metrics import confusion_matrix
 
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType, to_dataframe
+from ..utils import MLTypes, MLUtils
 
 
 class ConfusionMatrixPlan(MLPlotPlan):
@@ -36,7 +49,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         :param sample_weight: Sample weights to apply.
         :param normalize:     One of {'true', 'pred', 'all'} to normalize the confusion matrix over the true values
                               (rows), the predicted values (columns) or all. If None, confusion matrix will not be
-                              normalized. Defaulted to None.
+                              normalized. Default: None.
         """
         # Store the parameters:
         self._labels = labels
@@ -48,8 +61,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
-        Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
-        confusion matrix is ready only post prediction.
+        Check whether the plan is fit for production by the given stage and prediction probabilities. The confusion
+        matrix is ready only post prediction.
 
         :param stage:            The stage to check if the plan is ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
@@ -61,10 +74,10 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
     def produce(
         self,
-        y: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y: MLTypes.DatasetType,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
         **kwargs
     ) -> Dict[str, Artifact]:
         """
@@ -82,8 +95,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
         y_pred = self._calculate_predictions(y_pred=y_pred, model=model, x=x)
 
         # Convert to DataFrame:
-        y = to_dataframe(dataset=y)
-        y_pred = to_dataframe(dataset=y_pred)
+        y = MLUtils.to_dataframe(dataset=y)
+        y_pred = MLUtils.to_dataframe(dataset=y_pred)
 
         # Set the labels array it not set:
         if self._labels is None:
@@ -109,7 +122,9 @@ class ConfusionMatrixPlan(MLPlotPlan):
         )
 
         # Add title:
-        figure.update_layout(title_text="Confusion matrix",)
+        figure.update_layout(
+            title_text="Confusion matrix",
+        )
 
         # Add custom x-axis title:
         figure.add_annotation(
@@ -149,7 +164,8 @@ class ConfusionMatrixPlan(MLPlotPlan):
 
         # Create the plot's artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            key=self._ARTIFACT_NAME, figure=figure,
+            key=self._ARTIFACT_NAME,
+            figure=figure,
         )
 
         return self._artifacts

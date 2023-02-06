@@ -1,45 +1,49 @@
-(serving)=
-
+(serving-graph)=
 # Real-time serving pipelines (graphs)
 
-MLRun serving graphs allow to easily build real-time pipelines that include data processing, advanced model serving, 
-custom logic, and fast access to a variety of data systems, and deploy them quickly to production with minimal effort.
-
-High-level transformation logic is automatically converted to real-time serverless processing engines that can accept events or online data, 
-handle any type of structured or unstructured data, and run complex computation graphs and native user code. The processing engines can 
-access [Iguazio’s real-time multi-model database](https://www.iguazio.com/docs/latest-release/data-layer/), to retrieve and manipulate 
-state and data at scale.
+MLRun graphs enable building and running DAGs (directed acyclic graph). 
 
 MLRun graph capabilities include:
+
 - Easy to build and deploy distributed real-time computation graphs
 - Use the real-time serverless engine (Nuclio) for auto-scaling and optimized resource utilization
 - Built-in operators to handle data manipulation, IO, machine learning, deep-learning, NLP, etc.
 - Built-in monitoring for performance, resources, errors, data, model behaviour, and custom metrics
-- Debug in the IDE/Notebook, deploy to production using a single command
+- Debug in the IDE/Notebook
 
-The serving graphs are used by [MLRun's Feature Store](../feature-store/feature-store.md) to build real-time feature engineering pipelines, 
-and are used to deploy and serve ML/DL models (read more about [model serving](./build-graph-model-serving.md) using the graphs).
+Graphs are composed of individual steps. 
+The first graph element accepts an `Event` object, transforms/processes the event and passes the result to the next steps
+in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller
+(one of the graph steps can be marked with `.respond()`). 
 
-**Accelerate performance and time to production**
+The serving graphs can be composed of [pre-defined graph steps](./available-steps.html), block-type elements (model servers, routers, ensembles, 
+data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.html), or from native python 
+classes/functions. A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.html)). Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
 
-The underlying Nuclio serverless engine uses a high-performance parallel processing engine that maximizes the 
-utilization of CPUs and GPUs, supports 13 protocols and invocation methods (for example, HTTP, Cron, Kafka, Kinesis), 
-and includes dynamic auto-scaling for HTTP and streaming. Nuclio and MLRun support the full life cycle, including auto-
-generation of micro-services, APIs, load-balancing, logging, monitoring, and configuration management&mdash;such that 
-developers can focus on code, and deploy to production faster with minimal work.
+![serving graph high level](../_static/images/serving-graph-high-level.png)
+  
+Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse 
+them from other graphs, as well as scale up and down the different components individually.
 
-**These sections provide full details to get you started with serving graphs, including examples:**
+Graphs can run inside your IDE or Notebook for test and simulation. Serving graphs are built on 
+top of [Nuclio](https://github.com/nuclio/nuclio) (real-time serverless engine), [MLRun jobs](../concepts/jobs.html), 
+[MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), 
+and other MLRun facilities. 
+
+The serving graphs are used by [MLRun’s Feature Store](../feature-store/feature-store.html) to build real-time feature engineering pipelines. 
+
+**In this section**
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
   
 getting-started
 use-cases
 realtime-pipelines
-build-graph-model-serving
+model-serving-get-started
 writing-custom-steps
 available-steps
-<!-- best-practice -->
 demos
 graph-ha-cfg
+pipelines-error-handling
 ```

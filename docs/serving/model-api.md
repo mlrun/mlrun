@@ -1,9 +1,10 @@
-# Model Server API
+(model-api)=
+# Model serving API
 
 MLRun Serving follows the same REST API defined by Triton and [KFServing v2](https://github.com/kubeflow/kfserving/blob/master/docs/predict-api/v2/required_api.md).
 
-Nuclio also supports streaming protocols (Kafka, kinesis, MQTT, etc.). When streaming,  
-the `model` name and `operation` can be encoded inside the message body.
+Nuclio also supports streaming protocols (Kafka, kinesis, MQTT, etc.). When streaming, the 
+`model` name and `operation` can be encoded inside the message body.
 
 The APIs are:
 * [explain](#explain)

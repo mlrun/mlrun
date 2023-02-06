@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from mlrun.api import schemas
 
@@ -30,7 +30,12 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_log(
-        self, session, uid, project="", body=None, append=False,
+        self,
+        session,
+        uid,
+        project="",
+        body=None,
+        append=False,
     ):
         pass
 
@@ -40,12 +45,35 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_run(
-        self, session, struct, uid, project="", iter=0,
+        self,
+        session,
+        struct,
+        uid,
+        project="",
+        iter=0,
     ):
         pass
 
     @abstractmethod
     def update_run(self, session, updates: dict, uid, project="", iter=0):
+        pass
+
+    @abstractmethod
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs_modes: List[bool] = None,
+        only_uids: bool = False,
+        last_update_time_from: datetime.datetime = None,
+        states: List[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
         pass
 
     @abstractmethod
@@ -57,7 +85,7 @@ class DBInterface(ABC):
         self,
         session,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         states=None,
@@ -72,6 +100,9 @@ class DBInterface(ABC):
         rows_per_partition: int = 1,
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         pass
 
@@ -83,9 +114,43 @@ class DBInterface(ABC):
     def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
         pass
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
     @abstractmethod
     def store_artifact(
-        self, session, key, artifact, uid, iter=None, tag="", project="",
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
     ):
         pass
 
@@ -107,6 +172,8 @@ class DBInterface(ABC):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         pass
 
@@ -129,7 +196,13 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_function(
-        self, session, function, name, project="", tag="", versioned=False,
+        self,
+        session,
+        function,
+        name,
+        project="",
+        tag="",
+        versioned=False,
     ) -> str:
         pass
 
@@ -156,6 +229,7 @@ class DBInterface(ABC):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 
@@ -170,6 +244,7 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 
@@ -211,9 +286,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    # adding **kwargs to leave room for other projects store implementations see mlrun.api.crud.projects.delete_project
-    # for explanations
-    def is_project_exists(self, session, name: str, **kwargs):
+    def is_project_exists(self, session, name: str):
         pass
 
     @abstractmethod
@@ -276,7 +349,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_set(
-        self, session, project, feature_set: schemas.FeatureSet, versioned=True,
+        self,
+        session,
+        project,
+        feature_set: schemas.FeatureSet,
+        versioned=True,
     ) -> str:
         pass
 
@@ -343,7 +420,9 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_feature_sets_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ) -> List[Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_set.name, tag)
@@ -369,7 +448,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def create_feature_vector(
-        self, session, project, feature_vector: schemas.FeatureVector, versioned=True,
+        self,
+        session,
+        project,
+        feature_vector: schemas.FeatureVector,
+        versioned=True,
     ) -> str:
         pass
 
@@ -397,7 +480,9 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_feature_vectors_tags(
-        self, session, project: str,
+        self,
+        session,
+        project: str,
     ) -> List[Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, feature_vector.name, tag)
@@ -433,11 +518,16 @@ class DBInterface(ABC):
 
     @abstractmethod
     def delete_feature_vector(
-        self, session, project, name, tag=None, uid=None,
+        self,
+        session,
+        project,
+        name,
+        tag=None,
+        uid=None,
     ):
         pass
 
-    def list_artifact_tags(self, session, project):
+    def list_artifact_tags(self, session, project, category):
         return []
 
     def create_marketplace_source(
@@ -459,4 +549,19 @@ class DBInterface(ABC):
         pass
 
     def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass
+
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        project: str,
+        state: str = schemas.BackgroundTaskState.running,
+        timeout: int = None,
+    ):
+        pass
+
+    def get_background_task(
+        self, session, name: str, project: str
+    ) -> schemas.BackgroundTask:
         pass

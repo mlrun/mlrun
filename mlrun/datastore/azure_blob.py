@@ -19,6 +19,7 @@ import fsspec
 from azure.storage.blob import BlobServiceClient
 
 import mlrun.errors
+from mlrun.errors import err_to_str
 
 from .base import DataStore, FileStats
 
@@ -27,8 +28,8 @@ from .base import DataStore, FileStats
 
 
 class AzureBlobStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.bsc = None
 
         con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
@@ -46,10 +47,10 @@ class AzureBlobStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"Azure adlfs not installed, run pip install adlfs, {exc}"
+                    f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
                 )
             return None
-        self._filesystem = fsspec.filesystem("az", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem(self.kind, **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

@@ -1,306 +1,94 @@
-# Installation Guide <!-- omit in toc -->
+(install-setup-guide)=
+# Installation and setup guide <!-- omit in toc -->
 
-This guide outlines the steps for installing and running MLRun.
+This guide outlines the steps for installing and running MLRun. 
 
-- [Install MLRun on a Kubernetes Cluster](#install-mlrun-on-a-kubernetes-cluster)
-- [Installing MLRun on a Local Docker Registry](#installing-mlrun-on-a-local-docker-registry)
+MLRun has two main components, the service and the client (SDK):
 
-Once MLRun is installed you can access it remotely from your IDE (PyCharm or VSCode), read [**how to setup your IDE environment**](./howto/remote.md). 
+- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
+- MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
-See also important details about [MLRun client backward compatibility](#mlrun-client-backward-compatibility).
+<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
 
+**In this section**
+- [Deployment options](#deployment-options)
+- [Set up your client](#set-up-your-client)
+- [Security](#security)
 
-## Install MLRun on a Kubernetes Cluster
+## Deployment options
 
-### Prerequisites
+There are several deployment options:
+- {ref}`Local deployment<install-local-docker>`: Deploy a Docker on your laptop or on a single server.
+   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but simpler for deployment.
+- {ref}`Kubernetes cluster<install-on-kubernetes>`: Deploy an MLRun server on Kubernetes.
+   This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
+- {ref}`Amazon Web Services (AWS)<install-on-AWS>`: Deploy an MLRun server on AWS.
+   This option is the easiest way to install MLRun cluster and use cloud-based services. The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+  Note that Iguazio provides a 14 day free trial.
 
-1. Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation 
-on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
-2. The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
-instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-3. Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
-4. An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+## Set up your client
 
-> **Note:**
-> These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+You can work with your favorite IDE (e.g. Pycharm, VScode, Jupyter, Colab etc..). Read how to configure your client against the deployed
+MLRun server in {ref}`install-remote`.
 
-<a id="docker-desktop-installation"></a>
-### Installing on Docker Desktop
+Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
 
-Docker Desktop is available for Mac and Windows. For download information, system requirements, and installation instructions, see:
-
-- [Install Docker Desktop on Mac](https://docs.docker.com/docker-for-mac/install/)
-- [Install Docker Desktop on Windows](https://docs.docker.com/docker-for-windows/install/). Note that WSL 2 backend was tested, Hyper-V was not tested.
-
-#### Configuring Docker Desktop
-
-Docker Desktop includes a standalone Kubernetes server and client, as well as Docker CLI integration that runs on your machine. The 
-Kubernetes server runs locally within your Docker instance. To enable Kubernetes support and install a standalone instance of Kubernetes 
-running as a Docker container, go to **Preferences** > **Kubernetes** and then click **Enable Kubernetes**. Click **Apply & Restart** to 
-save the settings and then click **Install** to confirm. This instantiates the images that are required to run the Kubernetes server as 
-containers, and installs the `/usr/local/bin/kubectl` command on your machine. For more information, see [the Kubernetes documentation](https://docs.docker.com/desktop/kubernetes/).
-
-It's recommended to limit the amount of memory allocated to Kubernetes. If you're using Windows and WSL 2, you can configure global WSL options by placing a `.wslconfig` file into the root directory of your users folder: `C:\Users\<yourUserName>\.wslconfig`. Keep in mind that you might need to run `wsl --shutdown` to shut down the WSL 2 VM and then restart your WSL instance for these changes to take effect.
-
-``` console
-[wsl2]
-memory=8GB # Limits VM memory in WSL 2 to 8 GB
-```
-
-To learn about the various UI options and their usage, see:
-
-- [Docker Desktop for Mac user manual](https://docs.docker.com/docker-for-mac/)
-- [Docker Desktop for Windows user manual](https://docs.docker.com/docker-for-windows/)
-
-
-<a id="installing-the-chart"></a>
-### Installing the Chart
-
-Create a namespace for the deployed components:
-
-```bash
-kubectl create namespace mlrun
-```
-
-Add the `v3io-stable` helm chart repo:
-
-```bash
-helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
-```
-
-Update the repo to make sure you're getting the latest chart:
-
-```bash
-helm repo update
-```
-
-Create a secret with your docker-registry named `registry-credentials`:
-
-```bash
-kubectl --namespace mlrun create secret docker-registry registry-credentials \
-    --docker-server <your-registry-server> \
-    --docker-username <your-username> \
-    --docker-password <your-password> \
-    --docker-email <your-email>
-```
-
-Where:
-
-- `<your-registry-server>` is your Private Docker Registry FQDN. (https://index.docker.io/v1/ for Docker Hub).
-- `<your-username>` is your Docker username.
-- `<your-password>` is your Docker password.
-- `<your-email>` is your Docker email.
-
-To install the chart with the release name `mlrun-kit` use the following command.
-Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
-
-```bash
-helm --namespace mlrun \
-    install mlrun-kit \
-    --wait \
-    --set global.registry.url=<registry-url> \
-    --set global.registry.secretName=registry-credentials \
-    v3io-stable/mlrun-kit
-```
-
-Where `<registry-url` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub>).
-
-
-> **Note: Installing on Minikube/VM**
-> 
-> The Open source MLRun kit uses node ports for simplicity. If your kubernetes cluster is running inside a VM, 
-> as is usually the case when using minikube, the kubernetes services exposed over node ports are not available on 
-> your local host interface, but instead, on the virtual machine's interface.
-> To accommodate for this, use the `global.externalHostAddress` value on the chart. For example, if you're using 
-> the kit inside a minikube cluster (with some non-empty `vm-driver`), pass the VM address in the chart installation 
-> command as follows:
->
-> ```bash
-> helm --namespace mlrun \
->     install my-mlrun \
->     --wait \
->     --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
->     --set global.registry.secretName=registry-credentials \
->     --set global.externalHostAddress=$(minikube ip) \
->     v3io-stable/mlrun-kit
-> ```
->
-> Where `$(minikube ip)` shell command resolving the external node address of the k8s node VM.
-
-### Install Kubeflow
-
-MLRun enables you to run your functions while saving outputs and artifacts in a way that is visible to Kubeflow Pipelines.
-To use this capability you need to install Kubeflow on your cluster.
-Refer to the [Kubeflow documentation](https://www.kubeflow.org/docs/started/getting-started/) for more information.
-
-### Usage
-
-Your applications are now available in your local browser:
-
-- Jupyter-notebook - http://localhost:30040
-- Nuclio - http://localhost:30050
-- MLRun UI - http://localhost:30060
-- MLRun API (external) - http://localhost:30070
-
-
-> **Note:**
->
-> The above links assume your Kubernetes cluster is exposed on localhost.
-> If that's not the case, the different components are available on the provided `externalHostAddress`
-> - You can change the ports by providing values to the helm install command.
-> - You can add and configure a k8s ingress-controller for better security and control over external access.
-
-### Start Working
-
-Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**docs/quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start.ipynb) notebook.
-
-> **Important:**
->
-> Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder do not retain the changes when you restart the Jupyter Lab.
-
-### Configuring Remote Environment
-
-MLRun allows you to use your code on a local machine while running your functions on a remote cluster.
-
-#### Prerequisites
-
-Before you begin, ensure that the following prerequisites are met:
-
-- Make sure the MLRun version installed with the MLRun Kit is the same as the MLRun version on your remote cluster. If needed, upgrade MLRun 
-either in your local installation or on the remote cluster so that they match.
-- Ensure that you have remote access to your MLRun service (i.e. to the service URL on the remote Kubernetes cluster).
-
-#### Set Environment Variables
-
-Define your MLRun configuration. As a minimum requirement:
-
-1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
-
-    ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-    ```
-
-2. To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
-artifact. You can use template values in the artifact path. The supported values are:
-- `{{project}}` to include the project name in the path.
-- `{{run.uid}}` to include the specific run uid in the artifact path. 
-
-For example:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
-    ```
-    
-or:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
-    ```
-    
-3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well. Replace the `<...>` placeholders with the details for your specific platform cluster:
-
-    ```ini
-    V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-    V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
-    V3IO_ACCESS_KEY=<platform access key>
-    ```
-
-    You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of 
-    any page, and select **Access Keys** from the menu. In the **Access Keys** dialog, either copy an existing access key or create a new 
-    key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
-    shell or Jupyter Notebook service.
-
-### Advanced Chart Configuration
-
-Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
-
-### Uninstalling the Chart
-
-```bash
-helm --namespace mlrun uninstall mlrun-kit
-```
-
-> **Note on terminating pods and hanging resources:**
-> 
-> It is important to note that this chart generates several persistent volume claims and also provisions an NFS
-provisioning server, to provide the user with persistency (via PVC) out of the box.
-> Because of the persistency of PV/PVC resources, after installing this chart, PVs and PVCs are created.
-Upon uninstallation, any hanging / terminating pods hold the PVCs and PVs respectively, since those
-prevent their safe removal.
-> Since pods that are stuck in terminating state seem to be a never-ending plague in k8s, please note this,
-and remember to clean the remaining PVCs and PVCs.
-
-Handing stuck-at-terminating pods:
-
-```bash
-kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
-```
-
-Reclaim dangling persistency resources:
-
-| WARNING: This will result in data loss! |
-| --- |
-
-```bash
-# To list PVCs
-kubectl --namespace mlrun get pvc
-...
-
-# To remove a PVC
-kubectl --namespace mlrun delete pvc <pvc-name>
-...
-
-# To list PVs
-kubectl --namespace mlrun get pv
-...
-
-# To remove a PV
-kubectl --namespace mlrun delete pv <pv-name>
-
-# Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created by default under /tmp, and will contain
-# your release name, e.g.:
-rm -rf /tmp/mlrun-kit-mlrun-kit-mlrun
-...
-```
-
-
-<a id="local-docker"></a>
-## Installing MLRun on a Local Docker Registry
-
-To use MLRun with your local Docker registry, run the MLRun API service, dashboard, and example Jupyter server, by using the following script.
-
-> **Note:**
-> - Using Docker is limited to local runtimes.
-> - By default, the MLRun API service runs inside the Jupyter server. Set the MLRUN_DBPATH env var in Jupyter to point to an alternative service address.
-> - The artifacts and DB are stored under **/home/jovyan/data**. Use the docker -v option to persist the content on the host (e.g. `-v $(SHARED_DIR}:/home/jovyan/data`).
-> - If Docker is running on Windows with WSL 2, you must create SHARED_DIR before running these commands. Provide the full path when executing  (e.g. `mkdir /mnt/c/mlrun-data`  `SHARED_DIR=/mnt/c/mlrun-data`).
-
-```sh
-SHARED_DIR=~/mlrun-data
-
-docker pull mlrun/jupyter:0.10.0
-docker pull mlrun/mlrun-ui:0.10.0
-
-docker network create mlrun-network
-docker run -it -p 8080:8080 -p 30040:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:0.10.0
-docker run -it -p 30050:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:0.10.0
-```
-
-When the execution completes:
-
-- Open Jupyter Lab on port 30040 and run the code in the [**mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
-- Use the MLRun dashboard on port 30050.
 
 <a id="MLRun-client-backward-compatibility"></a>
-## MLRun client backward compatibility  
+### MLRun client backward compatibility  
 
 Starting from MLRun 0.10.0, the MLRun client and images are compatible with minor MLRun releases that are released during the following 6 months. When you upgrade to 0.11.0, for example, you can continue to use your 0.10-based images. 
 
 ```{admonition} Important
 - Images from 0.9.0 are not compatible with 0.10.0. Backward compatibility starts from 0.10.0. 
 - When you upgrade the MLRun major version, for example 0.10.x to 1.0.x, there is no backward compatibility. 
-- The Feature store is not backward compatible. 
+- The feature store is not backward compatible. 
 - When you upgrade the platform, for example from 3.2 to 3.3, the clients should be upgraded. There is no guaranteed compatibility with an older MLRun client after a platform upgrade. 
 ```
 
-See also [Images and their usage in MLRun](./runtimes/images.html#mlrun-images-and-how-to-build-them).
+See also {ref}`images-usage`.
+
+
+## Security
+
+### Non-root user support
+
+By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
+which is implemented by Iguazio during installation, and applied system-wide:
+- Override: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
+- Disabled: Security context is not auto applied (the system applies the root user). (default)
+
+### Security context
+
+If your system is configured in disabled mode, you can apply the security context to individual runtimes/pods by using `function.with_security_context`, and the job is assigned to the user or to the user's group that ran the job.<br>
+(You cannot override the user of individual jobs if the system is configured in override mode.) The options are:
+
+```
+from kubernetes import client as k8s_client
+
+security_context = k8s_client.V1SecurityContext(
+            run_as_user=1000,
+            run_as_group=3000,
+        )
+function.with_security_context(security_context)
+```
+See the [full definition of the V1SecurityContext object](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1SecurityContext.md).
+
+Some services do not support security context yet:
+- Infrastructure services
+   - Kubeflow pipelines core services
+- Services created by MLRun
+   - Kaniko, used for building images. (To avoid using Kaniko, use prebuilt images that contain all the requirements.) 
+   - Spark services
+
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+install/local-docker
+install/kubernetes
+install/aws-install
+install/remote
+```

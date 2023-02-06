@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 from http import HTTPStatus
 
@@ -91,13 +105,24 @@ middleware_modes = [
 # must add it here since we're adding routes
 @pytest.fixture(params=middleware_modes)
 def client(request) -> typing.Generator:
-    if request.param == "without_middleware":
-        # HACKY
-        app.user_middleware = []
-        app.middleware_stack = app.build_middleware_stack()
-    app.include_router(test_router, prefix="/test")
-    with TestClient(app) as c:
-        yield c
+
+    # save a copy of the middlewares. we would want to restore them once we're done with the test
+    user_middleware = app.user_middleware.copy()
+    try:
+        if request.param == "without_middleware":
+
+            # this overrides the webapp middlewares by removing the logging middleware
+            app.user_middleware = []
+            app.middleware_stack = app.build_middleware_stack()
+        app.include_router(test_router, prefix="/test")
+        with TestClient(app) as c:
+            yield c
+    finally:
+
+        # restore back the middlewares
+        if request.param == "without_middleware":
+            app.user_middleware = user_middleware
+            app.middleware_stack = app.build_middleware_stack()
 
 
 def test_logging_middleware(db: Session, client: TestClient) -> None:

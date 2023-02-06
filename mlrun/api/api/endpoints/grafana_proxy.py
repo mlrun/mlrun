@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import asyncio
 import json
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Union
@@ -5,8 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.schemas
@@ -65,6 +80,8 @@ async def grafana_proxy_model_endpoints_query(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
+    if asyncio.iscoroutinefunction(function):
+        return await function(body, query_parameters, auth_info)
     result = await run_in_threadpool(function, body, query_parameters, auth_info)
     return result
 
@@ -92,6 +109,8 @@ async def grafana_proxy_model_endpoints_search(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
+    if asyncio.iscoroutinefunction(function):
+        return await function(db_session, auth_info)
     result = await run_in_threadpool(function, db_session, auth_info)
     return result
 
@@ -105,7 +124,7 @@ def grafana_list_projects(
     return projects_output.projects
 
 
-def grafana_list_endpoints(
+async def grafana_list_endpoints(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
@@ -127,10 +146,13 @@ def grafana_list_endpoints(
     end = body.get("rangeRaw", {}).get("end", "now")
 
     if project:
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
-    endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
+    endpoint_list = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
         auth_info=auth_info,
         project=project,
         model=model,
@@ -140,10 +162,13 @@ def grafana_list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_endpoints = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
-        lambda _endpoint: (_endpoint.metadata.project, _endpoint.metadata.uid,),
+        lambda _endpoint: (
+            _endpoint.metadata.project,
+            _endpoint.metadata.uid,
+        ),
         auth_info,
     )
     endpoint_list.endpoints = allowed_endpoints
@@ -195,14 +220,14 @@ def grafana_list_endpoints(
     return [table]
 
 
-def grafana_individual_feature_analysis(
+async def grafana_individual_feature_analysis(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -210,7 +235,8 @@ def grafana_individual_feature_analysis(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -257,21 +283,22 @@ def grafana_individual_feature_analysis(
     return [table]
 
 
-def grafana_overall_feature_analysis(
+async def grafana_overall_feature_analysis(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -302,7 +329,7 @@ def grafana_overall_feature_analysis(
     return [table]
 
 
-def grafana_incoming_features(
+async def grafana_incoming_features(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
@@ -312,7 +339,7 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -320,8 +347,11 @@ def grafana_incoming_features(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
-        auth_info=auth_info, project=project, endpoint_id=endpoint_id
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        auth_info=auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
     )
 
     time_series = []
@@ -341,10 +371,13 @@ def grafana_incoming_features(
     _, container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
-        token=auth_info.data_session, address=config.v3io_framesd, container=container,
+        token=auth_info.data_session,
+        address=config.v3io_framesd,
+        container=container,
     )
 
-    data: pd.DataFrame = client.read(
+    data: pd.DataFrame = await run_in_threadpool(
+        client.read,
         backend="tsdb",
         table=path,
         columns=feature_names,
@@ -354,7 +387,7 @@ def grafana_incoming_features(
     )
 
     data.drop(["endpoint_id"], axis=1, inplace=True, errors="ignore")
-    data.index = data.index.astype(np.int64) // 10 ** 6
+    data.index = data.index.astype(np.int64) // 10**6
 
     for feature, indexed_values in data.to_dict().items():
         target = GrafanaTimeSeriesTarget(target=feature)

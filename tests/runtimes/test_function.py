@@ -1,10 +1,30 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pathlib
 import sys
 
+import pytest
 from deepdiff import DeepDiff
 
 import mlrun
 from mlrun import code_to_function
+from mlrun.runtimes.function import (
+    _resolve_git_reference_from_source,
+    _resolve_nuclio_runtime_python_image,
+    _resolve_work_dir_and_handler,
+)
 from tests.runtimes.test_base import TestAutoMount
 
 
@@ -57,7 +77,14 @@ def test_generate_nuclio_volumes():
     ]
     function = mlrun.new_function(runtime=runtime)
     nuclio_volumes = function.spec.generate_nuclio_volumes()
-    assert DeepDiff(expected_nuclio_volumes, nuclio_volumes, ignore_order=True,) == {}
+    assert (
+        DeepDiff(
+            expected_nuclio_volumes,
+            nuclio_volumes,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 class TestAutoMountNuclio(TestAutoMount):
@@ -90,7 +117,10 @@ class TestAutoMountNuclio(TestAutoMount):
 def test_http_trigger():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.with_http(
-        workers=2, host="x", worker_timeout=5, extra_attributes={"yy": "123"},
+        workers=2,
+        host="x",
+        worker_timeout=5,
+        extra_attributes={"yy": "123"},
     )
 
     trigger = function.spec.config["spec.triggers.http"]
@@ -122,3 +152,75 @@ def test_v3io_stream_trigger():
     assert trigger["password"] == "x"
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["attributes"]["ackWindowSize"] == 10
+
+
+def test_resolve_work_dir_and_handler():
+    cases = [
+        (None, ("", "main:handler")),
+        ("x", ("", "x:handler")),
+        ("x:y", ("", "x:y")),
+        ("dir#", ("dir", "main:handler")),
+        ("dir#x", ("dir", "x:handler")),
+        ("dir#x:y", ("dir", "x:y")),
+    ]
+    for handler, expected in cases:
+        assert expected == _resolve_work_dir_and_handler(handler)
+
+
+@pytest.mark.parametrize(
+    "mlrun_client_version,python_version,expected_runtime",
+    [
+        ("1.3.0", "3.9.16", "python:3.9"),
+        ("1.3.0", "3.7.16", "python:3.7"),
+        (None, None, "python:3.7"),
+        (None, "3.9.16", "python:3.7"),
+        ("1.3.0", None, "python:3.7"),
+        ("0.0.0-unstable", "3.9.16", "python:3.9"),
+        ("0.0.0-unstable", "3.7.16", "python:3.7"),
+        ("1.2.0", "3.9.16", "python:3.7"),
+        ("1.2.0", "3.7.16", "python:3.7"),
+    ],
+)
+def test_resolve_nuclio_runtime_python_image(
+    mlrun_client_version, python_version, expected_runtime
+):
+    assert expected_runtime == _resolve_nuclio_runtime_python_image(
+        mlrun_client_version, python_version
+    )
+
+
+def test_resolve_git_reference_from_source():
+    cases = [
+        # source, (repo, refs, branch)
+        ("repo", ("repo", "", "")),
+        ("repo#br", ("repo", "", "br")),
+        ("repo#refs/heads/main", ("repo", "refs/heads/main", "")),
+        ("repo#refs/heads/main#commit", ("repo", "refs/heads/main#commit", "")),
+    ]
+    for source, expected in cases:
+        assert expected == _resolve_git_reference_from_source(source)
+
+
+@pytest.mark.parametrize("function_kind", ["serving", "remote"])
+def test_update_credentials_from_remote_build(function_kind):
+    secret_name = "secret-name"
+    remote_data = {
+        "metadata": {"credentials": {"access_key": secret_name}},
+        "spec": {
+            "env": [
+                {"name": "V3IO_ACCESS_KEY", "value": secret_name},
+                {"name": "MLRUN_AUTH_SESSION", "value": secret_name},
+            ],
+        },
+    }
+
+    function = mlrun.new_function("tst", kind=function_kind)
+    function.metadata.credentials.access_key = "access_key"
+    function.spec.env = [
+        {"name": "V3IO_ACCESS_KEY", "value": "access_key"},
+        {"name": "MLRUN_AUTH_SESSION", "value": "access_key"},
+    ]
+    function._update_credentials_from_remote_build(remote_data)
+
+    assert function.metadata.credentials.access_key == secret_name
+    assert function.spec.env == remote_data["spec"]["env"]

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 name: System Tests Enterprise
 
 on:
@@ -8,8 +22,8 @@ on:
   schedule:
 
     # * is a special character in YAML so you have to quote this string
-    # Run the system tests every 3 hours
-    - cron:  '0 */3 * * *'
+    # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
+    - cron:  '0 */8 * * *'
 
   workflow_dispatch:
     inputs:
@@ -21,14 +35,6 @@ on:
         description: 'Docker repo to pull images from (default: mlrun)'
         required: true
         default: 'mlrun'
-      test_code_from_action:
-        description: 'Take tested code from action REF (default: false - take from upstream) (note that test code will be taken from the action REF anyways)'
-        required: true
-        default: 'false'
-      ui_code_from_action:
-        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
-        required: true
-        default: 'false'
       clean_resources_in_teardown:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
@@ -36,22 +42,76 @@ on:
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
         required: false
+      test_code_from_action:
+        description: 'Take tested code from action REF rather than upstream (default: true). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
+        required: true
+        default: 'true'
+      ui_code_from_action:
+        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
+        required: true
+        default: 'false'
 
+concurrency: one-at-a-time
 jobs:
-  run-system-tests-enterprise-ci:
-    timeout-minutes: 120
-    name: Run System Tests Enterprise
+  system-test-cleanup:
+    name: System Test Cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: cleanup docker images from registries
+      # SSH to datanode and delete all docker images created by the system tests by restarting the docker-registry
+      # deployment and the datanode docker-registry
+      run: |
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          kubectl -n default-tenant rollout restart deployment docker-registry
+
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          scp \
+          automation/system_test/cleanup.py \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
+
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+            LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
+              /home/iguazio/cleanup.py \
+              docker-images \
+              http://localhost:8009 \
+              igz0.docker_registry.0 \
+              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"
+
+
+  prepare-system-tests-enterprise-ci:
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
+    timeout-minutes: 55
+    name: Prepare System Tests Enterprise
     runs-on: ubuntu-latest
 
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up python 3.7
-      uses: actions/setup-python@v1
+    - uses: actions/checkout@v3
+    - name: Set up python
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
+        cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Install curl and jq
@@ -59,127 +119,142 @@ jobs:
     - name: Extract git branch
       id: git_info
       run: |
-        echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
+        echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
     - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.test_code_from_action == 'true' }}
+      # by default when running as part of the CI this param doesn't get enriched meaning it will be empty.
+      # we want the mlrun_hash to be set from the $GITHUB_SHA when running in CI
+      if: ${{ github.event.inputs.test_code_from_action != 'false' }}
       id: git_action_info
       run: |
-        echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
+        echo "mlrun_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
     - name: Extract git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
       run: |
-        echo "::set-output name=ui_hash::$( \
+        echo "ui_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.git_info.outputs.branch }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
-          rm -rf mlrun-ui)"
+          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
-        echo "::set-output name=mlrun_hash::$( \
+        echo "mlrun_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
-          rm -rf mlrun-upstream)"
-        echo "::set-output name=ui_hash::$( \
+          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+        echo "ui_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
-          rm -rf mlrun-ui)"
-        echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
     - name: Set computed versions params
       id: computed_params
       run: |
         action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
         upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
         export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
-        echo "::set-output name=mlrun_hash::$(echo $mlrun_hash)"
+        echo "mlrun_hash=$(echo $mlrun_hash)" >> $GITHUB_OUTPUT
         action_mlrun_ui_hash=${{ steps.git_action_ui_info.outputs.ui_hash }} && \
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
         export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
-        echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}+$mlrun_hash)"
-        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
-        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-$ui_hash"
-        echo "::set-output name=mlrun_docker_repo::$( \
+        echo "ui_hash=$(echo $ui_hash)" >> $GITHUB_OUTPUT
+        echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
+        echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_repo=$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
-          echo ${input_docker_repo:-mlrun})"
-        echo "::set-output name=mlrun_docker_registry::$( \
+          echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_registry=$( \
           input_docker_registry=${{ github.event.inputs.docker_registry }} && \
-          echo ${input_docker_registry:-ghcr.io/})"
-        echo "::set-output name=mlrun_system_tests_clean_resources::$( \
+          echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
+        echo "mlrun_system_tests_clean_resources=$( \
           input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
-          echo ${input_system_tests_clean_resources:-true})"
-        echo "::set-output name=iguazio_version::$( \
+          echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
+        echo "iguazio_version=$( \
           override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
-          iguazio_version_by_branch=`if [ "0.6.x" = "0.5.x" ]; then echo "2.10_b81_20200903195924"; else echo "3.0_b27_20210205135416"; fi` && \
-          resolved_iguazio_version=${override_iguazio_version:-$iguazio_version_by_branch} && echo $resolved_iguazio_version)"
-    - name: Wait for existing runs to complete
-      uses: softprops/turnstyle@v1
+          iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
+          resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)" >> $GITHUB_OUTPUT
+    - name: Prepare System Test env.yaml and MLRun installation from current branch
+      timeout-minutes: 50
+      run: |
+        python automation/system_test/prepare.py run \
+          "${{ steps.computed_params.outputs.mlrun_version }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
+          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ steps.computed_params.outputs.iguazio_version }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
+          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
+          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+          --override-mlrun-images \
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+
+
+    outputs:
+      mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+
+  run-system-tests-enterprise-ci:
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
+    timeout-minutes: 360
+    name: Run System Tests Enterprise
+    # requires prepare to finish before starting
+    needs: [prepare-system-tests-enterprise-ci]
+    runs-on: ubuntu-latest
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
+    steps:
+    # checking out to the commit hash that the preparation step executed on
+    - uses: actions/checkout@v3
+    - name: Set up python
+      uses: actions/setup-python@v4
       with:
-        poll-interval-seconds: 20s
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Write google big query credentials to file
-      id: credentials
-      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
+        python-version: 3.9
+        cache: pip
+    - name: Install automation scripts dependencies and add mlrun to dev packages
+      run: pip install -r automation/requirements.txt && pip install -e .
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+    - name: Prepare System Test env.yaml and MLRun installation from current branch
+      timeout-minutes: 5
       run: |
-        export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
-        echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
-    - name: Prepare System Test env.yaml and 0.6.x system
-      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
-      timeout-minutes: 20
-      run: |
-        python automation/system_test/prepare.py run \
-          "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
-          "${{ secrets.V06_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.V06_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          "${{ secrets.V06_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.V06_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.V06_SYSTEM_TEST_FRAMESD_URL }}" \
-          "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ steps.computed_params.outputs.iguazio_version }}" \
-          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
-          "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
-          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
-          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-          --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
-
-    - name: Prepare System Test env.yaml and 0.5.x system
-      if: ${{ steps.git_info.outputs.branch == '0.5.x' }}
-      run: |
-        python automation/system_test/prepare.py run \
-          "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
-          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          "${{ secrets.V05_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.V05_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.V05_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ steps.computed_params.outputs.iguazio_version }}" \
-          "${{ secrets.V05_SYSTEM_TEST_PASSWORD }}" \
-          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
-          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-          --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
-
+        python automation/system_test/prepare.py env \
+          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}"
     - name: Run System Tests
       run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
+        MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
           make test-system-dockerized

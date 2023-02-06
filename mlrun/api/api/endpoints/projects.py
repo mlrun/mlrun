@@ -1,14 +1,30 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import typing
 
 import fastapi
-import fastapi.concurrency
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -118,7 +134,7 @@ def patch_project(
 
 
 @router.get("/projects/{name}", response_model=mlrun.api.schemas.Project)
-def get_project(
+async def get_project(
     name: str,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -127,11 +143,15 @@ def get_project(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    project = get_project_member().get_project(db_session, name, auth_info.session)
+    project = await run_in_threadpool(
+        get_project_member().get_project, db_session, name, auth_info.session
+    )
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.api.schemas.AuthorizationAction.read,
+            auth_info,
         )
     return project
 
@@ -143,8 +163,9 @@ def get_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def delete_project(
+async def delete_project(
     name: str,
+    request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
         mlrun.api.schemas.DeletionStrategy.default(),
         alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
@@ -159,7 +180,22 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    is_running_in_background = get_project_member().delete_project(
+    # delete project can be responsible for deleting schedules. Schedules are running only on chief,
+    # that is why we re-route requests to chief
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete project, re-routing to chief",
+            project=name,
+            deletion_strategy=deletion_strategy,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return await chief_client.delete_project(name=name, request=request)
+
+    is_running_in_background = await run_in_threadpool(
+        get_project_member().delete_project,
         db_session,
         name,
         deletion_strategy,
@@ -173,7 +209,7 @@ def delete_project(
 
 
 @router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)
-def list_projects(
+async def list_projects(
     format_: mlrun.api.schemas.ProjectsFormat = fastapi.Query(
         mlrun.api.schemas.ProjectsFormat.full, alias="format"
     ),
@@ -190,7 +226,8 @@ def list_projects(
     allowed_project_names = None
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        projects_output = get_project_member().list_projects(
+        projects_output = await run_in_threadpool(
+            get_project_member().list_projects,
             db_session,
             owner,
             mlrun.api.schemas.ProjectsFormat.name_only,
@@ -199,10 +236,14 @@ def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects, auth_info,
+        allowed_project_names = await (
+            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+            )
         )
-    return get_project_member().list_projects(
+    return await run_in_threadpool(
+        get_project_member().list_projects,
         db_session,
         owner,
         format_,
@@ -228,7 +269,7 @@ async def list_project_summaries(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    projects_output = await fastapi.concurrency.run_in_threadpool(
+    projects_output = await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
         owner,
@@ -241,8 +282,7 @@ async def list_project_summaries(
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        allowed_project_names = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions,
+        allowed_project_names = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
             auth_info,
         )
@@ -274,8 +314,7 @@ async def get_project_summary(
     )
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,

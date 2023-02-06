@@ -85,8 +85,10 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
-    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-        project, "feature-set"
+    resource = (
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+            project, "feature-set"
+        )
     )
 
     auth_input = AuthorizationVerificationInput(
@@ -113,8 +115,10 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
 
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
 
-    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-        project, "feature-vector"
+    resource = (
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+            project, "feature-vector"
+        )
     )
 
     if update:
@@ -136,8 +140,10 @@ def verify_feature_set_permissions(
 ):
     project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
-    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-        project, "feature-set"
+    resource = (
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+            project, "feature-set"
+        )
     )
     db = feature_set._get_run_db()
 
@@ -162,8 +168,10 @@ def verify_feature_vector_permissions(
 ):
     project = feature_vector._metadata.project or mlconf.default_project
 
-    resource = mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-        project, "feature-vector"
+    resource = (
+        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+            project, "feature-vector"
+        )
     )
 
     db = mlrun.get_run_db()
@@ -188,6 +196,7 @@ class RunConfig:
         code: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         extra_spec: dict = None,
+        auth_info=None,
     ):
         """class for holding function and run specs for jobs and serving functions
 
@@ -226,6 +235,7 @@ class RunConfig:
         :param code:        function source code (as string)
         :param requirements: python requirements file path or list of packages
         :param extra_spec:  additional dict with function spec fields/values to add to the function
+        :param auth_info:   authentication info. *For internal use* when running on server
         """
         self._function = None
         self._modifiers = []
@@ -243,6 +253,7 @@ class RunConfig:
         self.code = code or ""
         self.requirements = requirements
         self.extra_spec = extra_spec
+        self.auth_info = auth_info
 
     @property
     def function(self):
@@ -318,7 +329,7 @@ class RunConfig:
                 spec=self.extra_spec,
             ).to_function(default_kind, default_image)
 
-        if not function.is_deployed:
+        if not function.is_deployed():
             # todo: handle build for job functions
             logger.warn("cannot run function, it must be built/deployed first")
 

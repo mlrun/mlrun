@@ -23,15 +23,54 @@ from .base import DataStore, FileStats, get_range
 
 
 class S3Store(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets)
+        # will be used in case user asks to assume a role and work through fsspec
+        self._temp_credentials = None
         region = None
 
         access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile_name = self._get_secret_or_env("AWS_PROFILE")
+        assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
 
-        if access_key or secret_key:
+        # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
+        if assume_role_arn:
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+            )
+            self._temp_credentials = client.assume_role(
+                RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
+            ).get("Credentials")
+            if not self._temp_credentials:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cannot assume role {assume_role_arn}"
+                )
+
+            self.s3 = boto3.resource(
+                "s3",
+                region_name=region,
+                aws_access_key_id=self._temp_credentials["AccessKeyId"],
+                aws_secret_access_key=self._temp_credentials["SecretAccessKey"],
+                aws_session_token=self._temp_credentials["SessionToken"],
+                endpoint_url=endpoint_url,
+            )
+            return
+
+        # User asked for a profile to be used. We don't use access-key or secret-key for this, since the
+        # parameters should be in the ~/.aws/credentials file for this to work
+        if profile_name:
+            session = boto3.session.Session(profile_name=profile_name)
+            self.s3 = session.resource(
+                "s3",
+                region_name=region,
+                endpoint_url=endpoint_url,
+            )
+            return
+
+        if access_key or secret_key or force_non_anonymous:
             self.s3 = boto3.resource(
                 "s3",
                 region_name=region,
@@ -53,7 +92,7 @@ class S3Store(DataStore):
                 "choose-signer.s3.*", disable_signing
             )
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self, silent=False):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
@@ -62,22 +101,39 @@ class S3Store(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"AWS s3fs not installed, run pip install s3fs, {exc}"
-                )
+                    "AWS s3fs not installed, run pip install s3fs"
+                ) from exc
             return None
         self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):
-        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        if self._temp_credentials:
+            key = self._temp_credentials["AccessKeyId"]
+            secret = self._temp_credentials["SecretAccessKey"]
+            token = self._temp_credentials["SessionToken"]
+        else:
+            key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+            secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+            token = None
 
-        storage_options = dict(anon=not (key and secret), key=key, secret=secret)
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = self._get_secret_or_env("AWS_PROFILE")
+
+        storage_options = dict(
+            anon=not (force_non_anonymous or (key and secret)),
+            key=key,
+            secret=secret,
+            token=token,
+        )
 
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         if endpoint_url:
             client_kwargs = {"endpoint_url": endpoint_url}
             storage_options["client_kwargs"] = client_kwargs
+
+        if profile:
+            storage_options["profile"] = profile
 
         return storage_options
 
@@ -120,7 +176,7 @@ def parse_s3_bucket_and_key(s3_path):
         key = "/".join(path_parts)
     except Exception as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"failed to parse s3 bucket and key. {exc}"
-        )
+            "failed to parse s3 bucket and key"
+        ) from exc
 
     return bucket, key

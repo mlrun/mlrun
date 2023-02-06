@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 """Adding feature vectors
 
 Revision ID: f4249b4ba6fa
@@ -60,7 +74,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["feature_vectors.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["feature_vectors.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_feature_vectors_labels_uc"),
     )
@@ -83,8 +100,14 @@ def upgrade():
             sa.String(255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["feature_vectors.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["feature_vectors.name"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["feature_vectors.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"],
+            ["feature_vectors.name"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_vectors_tags_uc"

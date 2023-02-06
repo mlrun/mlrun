@@ -1,75 +1,51 @@
 (architecture)=
-# Architecture and Vision <!-- omit in toc -->
-- [The Challenge](#the-challenge)
-- [Why MLRun?](#why-mlrun)
-- [Basic Components](#basic-components)
+<a id="architecture"></a>
+# MLRun architecture
 
-<a id="the-challenge"></a>
-## The Challenge
+MLRun started as a community effort to map the different components in the ML project lifecycle, provide a common metadata layer, and automate the operationalization process (a.k.a MLOps).
+ 
+Instead of a siloed, complex, and manual process, MLRun enables production pipeline design using a modular strategy, 
+where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable 
+production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
 
-As an ML developer or data scientist, you typically want to write code in your preferred local development environment (IDE) or web notebook, and then run the same code on a larger cluster using scale-out containers or functions.
-When you determine that the code is ready, you or someone else need to transfer the code to an automated ML workflow (for example, using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)).
-This pipeline should be secure and include capabilities such as logging and monitoring, as well as allow adjustments to relevant components and easy redeployment.
+MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and 
+simple "local" semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, 
+data movement, scaling, versioning, parameterization, output tracking, CI/CD integration, deployment to production, monitoring, and more. 
 
-After you develop your model and feature engineering logic you need to deploy those into production pipelines 
-with real-time feature engineering, online model serving, API and data integrations, model and data quality 
-monitoring, no intrusive upgrades and so on. 
+Those easily developed data or ML "functions" can then be published or loaded from a hub and used later to form offline or real-time 
+production pipelines with minimal engineering efforts.
 
-However, the implementation is challenging: various environments ("runtimes") use different configurations, parameters, and data sources.
-In addition, multiple frameworks and platforms are used to focus on different stages of the development life cycle.
-This leads to constant development and DevOps/MLOps work.
+<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="800"/></p><br>
 
-Furthermore, as your project scales, you need greater computation power or GPUs, and you need to access large-scale data sets.
-This cannot work on laptops.
-You need a way to seamlessly run your code on a remote cluster and automatically scale it out.
 
-<a id="why-mlrun"></a>
-## Why MLRun?
+## MLRun deployment
 
-When running ML experiments, you should ideally be able to record and version your code, configuration, outputs, and associated inputs (lineage), so you can easily reproduce and explain your results.
-The fact that you probably need to use different types of storage (such as files and AWS S3 buckets) and various databases, further complicates the implementation.
+MLRun has two main components, the service and the client (SDK):
 
-Once the development is complete, it's time to serve models online or build real-time pipelines without having to refactor or 
-re-implement the logic, or call an army of developers to help.
+- The MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
+- The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
-Wouldn't it be great if you could write the code once, using your preferred development environment and simple "local" semantics, and then run it as-is on different platforms?
-Imagine having a layer that automates the build process, execution, data movement, scaling, versioning, parameterization, outputs tracking, deployment to production, monitoring, and more.
-A world of easily developed, published, or consumed data or ML "functions" that can be used to form complex and large-scale offline or real-time ML pipelines.
+<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
-In addition, imagine a marketplace of ML functions that includes both open-source templates and your internally developed functions, to support code for reuse across projects and companies and thus further accelerate your work.
 
-<b>This is the goal of MLRun &mdash; simplify & accelerate time to production.</b>
+## MLRun: an integrated and open approach
 
-## Architecture 
+Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
+they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams 
+collaborate using the same set of tools, practices, APIs, metadata, and version control.
 
-<img src="_static/images/mlrun-architecture.png" alt="mlrun-architecture" width="800"/>
+MLRun provides an open architecture that supports your existing development tools, services, and practices through an open API/SDK and pluggable architecture. 
 
-MLRun is composed of the following layers:
+<b>MLRun simplifies & accelerates the time to production !</b>
 
-- **Feature and Artifact Store** – 
-    handles the ingestion, processing, metadata, and storage of data and features across multiple repositories and technologies.
-- **Elastic Serverless Runtimes** –
-    converts simple code to scalable and managed microservices with workload-specific runtime engines (such as Kubernetes jobs, Nuclio, Dask, Spark, and Horovod).
-- **ML Pipeline Automation** –
-    automates data preparation, model training and testing, deployment of real-time production pipelines, and end-to-end monitoring.
-- **Central Management** –
-    provides a unified portal for managing the entire MLOps workflow.
-    The portal includes a UI, a CLI, and an SDK, which are accessible from anywhere.
+<img src="_static/images/pipeline.png" alt="pipeline"/>
 
-<a id="basic-components"></a>
-## Basic Components
+<br><br>
 
-MLRun has the following main components that are used throughout the system:
+While each component in MLRun is independent, the integration provides much greater value and simplicity. For example:
+- The training jobs obtain features from the feature store and update the feature store with metadata, which will be used in the serving or monitoring.
+- The real-time pipeline enriches incoming events with features stored in the feature store. It can also use feature metadata (policies, statistics, schema, etc.) to impute missing data or validate data quality.
+- The monitoring layer collects real-time inputs and outputs from the real-time pipeline and compares them with the features data/metadata from the feature store or model metadata generated by the training layer. Then, it writes all the fresh production data back to the feature store so it can be used for various tasks such as data analysis, model retraining (on fresh data), and model improvements.
 
-- <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
-    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration.
+When one of the components detailed above is updated, it immediately impacts the feature generation, the model serving pipeline, and the monitoring. MLRun applies versioning to each component, as well as versioning and rolling upgrades across components.
 
-- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment).
-
-- <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function.
-    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts).
-
-- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) that are produced or consumed by functions, runs, and workflows.
-
-- <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/).
-  or MLRun [Real-time serving pipelines](./serving/serving-graphs.md)

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 """init
 
 Revision ID: 11f8dd2dc9fe
@@ -189,7 +203,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["artifacts.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["artifacts.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_artifacts_labels_uc"),
     )
@@ -207,7 +224,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["obj_id"], ["artifacts.id"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["artifacts.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", "obj_id", name="_artifacts_tags_uc"),
     )
@@ -225,7 +245,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["functions.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["functions.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_functions_labels_uc"),
     )
@@ -248,8 +271,14 @@ def upgrade():
             sa.String(255, collation=SQLCollationUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["functions.id"],),
-        sa.ForeignKeyConstraint(["obj_name"], ["functions.name"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["functions.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"],
+            ["functions.name"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", "obj_name", name="_functions_tags_uc"),
     )
@@ -257,8 +286,14 @@ def upgrade():
         "project_users",
         sa.Column("project_id", sa.Integer(), nullable=True),
         sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"],),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"],),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+        ),
     )
     op.create_table(
         "runs_labels",
@@ -274,7 +309,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["runs.id"],),
+        sa.ForeignKeyConstraint(
+            ["parent"],
+            ["runs.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_runs_labels_uc"),
     )
@@ -292,7 +330,10 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["obj_id"], ["runs.id"],),
+        sa.ForeignKeyConstraint(
+            ["obj_id"],
+            ["runs.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", "obj_id", name="_runs_tags_uc"),
     )

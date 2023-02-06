@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 from subprocess import run
 
+import kubernetes.client
+
+import mlrun.errors
 from mlrun.config import config
 
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from .base import RuntimeClassMode
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
 
@@ -52,6 +55,9 @@ class RemoteSparkSpec(KubeResourceSpec):
         priority_class_name=None,
         disable_auto_mount=False,
         pythonpath=None,
+        tolerations=None,
+        preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -77,6 +83,9 @@ class RemoteSparkSpec(KubeResourceSpec):
             priority_class_name=priority_class_name,
             disable_auto_mount=disable_auto_mount,
             pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.provider = provider
 
@@ -102,7 +111,6 @@ class RemoteSparkRuntime(KubejobRuntime):
         sj.deploy()
         get_run_db().delete_function(name=sj.metadata.name)
 
-    @property
     def is_deployed(self):
         if (
             not self.spec.build.source
@@ -110,7 +118,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             and not self.spec.build.extra
         ):
             return True
-        return super().is_deployed
+        return super().is_deployed()
 
     def _run(self, runobj: RunObject, execution):
         self.spec.image = self.spec.image or self.default_image
@@ -139,6 +147,18 @@ class RemoteSparkRuntime(KubejobRuntime):
                 )
             )
 
+    def with_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        With security context is not supported for spark runtime.
+        Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
+        If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
+        """
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "with_security_context is not supported with remote spark"
+        )
+
     @property
     def _resolve_default_base_image(self):
         if (
@@ -158,8 +178,21 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
+        show_on_failure: bool = False,
     ):
-        """deploy function, build container with dependencies"""
+        """deploy function, build container with dependencies
+
+        :param watch:      wait for the deploy to complete (and print build logs)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param skip_deployed: skip the build if we already have an image for the function
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+                              e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
@@ -169,10 +202,15 @@ class RemoteSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            show_on_failure=show_on_failure,
         )
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
+    kind = "remote-spark"
+    class_modes = {RuntimeClassMode.run: "remote-spark"}
+
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
         return True
@@ -180,10 +218,6 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["remote-spark"]
 
 
 def igz_spark_pre_hook():

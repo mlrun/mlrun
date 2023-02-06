@@ -1,62 +1,42 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import collections
+import datetime
 import json
 import os
-from collections import defaultdict
-from os import environ
-from typing import Any, Dict, List, Optional, Set, Union
+import typing
 
 import pandas as pd
-import v3io
 
 # Constants
-from storey import Event
-from v3io.dataplane import RaiseForStatus
+import storey
+import v3io
+import v3io.dataplane
 
-import mlrun.feature_store as fs
-from mlrun.config import config
-from mlrun.datastore.targets import ParquetTarget
-from mlrun.feature_store.steps import MapClass
-from mlrun.utils import logger
-from mlrun.utils.model_monitoring import (
-    create_model_endpoint_id,
-    parse_model_endpoint_store_prefix,
+import mlrun.config
+import mlrun.datastore.targets
+import mlrun.feature_store.steps
+import mlrun.utils
+import mlrun.utils.model_monitoring
+import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.constants import (
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
 )
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-
-ISO_8061_UTC = "%Y-%m-%d %H:%M:%S.%f%z"
-FUNCTION_URI = "function_uri"
-MODEL = "model"
-VERSION = "version"
-VERSIONED_MODEL = "versioned_model"
-MODEL_CLASS = "model_class"
-TIMESTAMP = "timestamp"
-ENDPOINT_ID = "endpoint_id"
-REQUEST_ID = "request_id"
-LABELS = "labels"
-UNPACKED_LABELS = "unpacked_labels"
-LATENCY_AVG_5M = "latency_avg_5m"
-LATENCY_AVG_1H = "latency_avg_1h"
-PREDICTIONS_PER_SECOND = "predictions_per_second"
-PREDICTIONS_COUNT_5M = "predictions_count_5m"
-PREDICTIONS_COUNT_1H = "predictions_count_1h"
-FIRST_REQUEST = "first_request"
-LAST_REQUEST = "last_request"
-ERROR_COUNT = "error_count"
-ENTITIES = "entities"
-FEATURE_NAMES = "feature_names"
-LABEL_COLUMNS = "label_columns"
-LATENCY = "latency"
-RECORD_TYPE = "record_type"
-FEATURES = "features"
-PREDICTION = "prediction"
-PREDICTIONS = "predictions"
-NAMED_FEATURES = "named_features"
-NAMED_PREDICTIONS = "named_predictions"
-BASE_METRICS = "base_metrics"
-CUSTOM_METRICS = "custom_metrics"
-ENDPOINT_FEATURES = "endpoint_features"
-METRICS = "metrics"
-BATCH_TIMESTAMP = "batch_timestamp"
-TIME_FORMAT: str = "%Y-%m-%d %H:%M:%S.%f"  # ISO 8061
+from mlrun.utils import logger
 
 
 # Stream processing code
@@ -69,13 +49,13 @@ class EventStreamProcessor:
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
-        aggregate_count_windows: Optional[List[str]] = None,
+        aggregate_count_windows: typing.Optional[typing.List[str]] = None,
         aggregate_count_period: str = "30s",
-        aggregate_avg_windows: Optional[List[str]] = None,
+        aggregate_avg_windows: typing.Optional[typing.List[str]] = None,
         aggregate_avg_period: str = "30s",
-        v3io_access_key: Optional[str] = None,
-        v3io_framesd: Optional[str] = None,
-        v3io_api: Optional[str] = None,
+        v3io_access_key: typing.Optional[str] = None,
+        v3io_framesd: typing.Optional[str] = None,
+        v3io_api: typing.Optional[str] = None,
         model_monitoring_access_key: str = None,
     ):
         self.project = project
@@ -89,29 +69,40 @@ class EventStreamProcessor:
         self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
         self.aggregate_avg_period = aggregate_avg_period
 
-        self.v3io_framesd = v3io_framesd or config.v3io_framesd
-        self.v3io_api = v3io_api or config.v3io_api
+        self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
             or os.environ.get("MODEL_MONITORING_ACCESS_KEY")
             or self.v3io_access_key
         )
+        self.storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
 
-        template = config.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
 
         kv_path = template.format(project=project, kind="endpoints")
-        _, self.kv_container, self.kv_path = parse_model_endpoint_store_prefix(kv_path)
+        (
+            _,
+            self.kv_container,
+            self.kv_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = template.format(project=project, kind="events")
-        _, self.tsdb_container, self.tsdb_path = parse_model_endpoint_store_prefix(
-            tsdb_path
-        )
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
 
-        self.parquet_path = config.model_endpoint_monitoring.store_prefixes.user_space.format(
-            project=project, kind="parquet"
+        self.parquet_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                project=project, kind="parquet"
+            )
         )
 
         logger.info(
@@ -119,8 +110,8 @@ class EventStreamProcessor:
             parquet_batching_max_events=self.parquet_batching_max_events,
             v3io_access_key=self.v3io_access_key,
             model_monitoring_access_key=self.model_monitoring_access_key,
-            default_store_prefix=config.model_endpoint_monitoring.store_prefixes.default,
-            user_space_store_prefix=config.model_endpoint_monitoring.store_prefixes.user_space,
+            default_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default,
+            user_space_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space,
             v3io_api=self.v3io_api,
             v3io_framesd=self.v3io_framesd,
             kv_container=self.kv_container,
@@ -130,299 +121,492 @@ class EventStreamProcessor:
             parquet_path=self.parquet_path,
         )
 
-    def create_feature_set(self):
-        feature_set = fs.FeatureSet(
-            "monitoring", entities=[ENDPOINT_ID], timestamp_key=TIMESTAMP
-        )
-        feature_set.graph.to(
-            "ProcessEndpointEvent",
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            v3io_access_key=self.v3io_access_key,
-            full_event=True,
-        ).to("storey.Filter", "filter_none", _fn="(event is not None)").to(
-            "storey.FlatMap", "flatten_events", _fn="(event)"
-        ).to(
-            "MapFeatureNames",
-            name="MapFeatureNames",
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            access_key=self.v3io_access_key,
-            infer_columns_from_data=True,
-        )
-        # kv and tsdb branch
-        feature_set.add_aggregation(
-            ENDPOINT_ID,
-            ["count"],
-            self.aggregate_count_windows,
-            self.aggregate_count_period,
-            name=PREDICTIONS,
-            after="MapFeatureNames",
-            step_name="Aggregates",
-        )
-        feature_set.add_aggregation(
-            LATENCY, ["avg"], self.aggregate_avg_windows, self.aggregate_avg_period,
-        )
-        feature_set.graph.add_step(
-            "storey.steps.SampleWindow",
-            name="sample",
-            after="Aggregates",
-            window_size=self.sample_window,
-            key=ENDPOINT_ID,
-        )
-        # kv
-        feature_set.graph.add_step(
-            "ProcessBeforeKV", name="ProcessBeforeKV", after="sample"
-        )
-        feature_set.graph.add_step(
-            "WriteToKV",
-            name="WriteToKV",
-            after="ProcessBeforeKV",
-            container=self.kv_container,
-            table=self.kv_path,
-        )
-        feature_set.graph.add_step(
-            "InferSchema",
-            name="InferSchema",
-            after="WriteToKV",
-            v3io_access_key=self.v3io_access_key,
-            v3io_framesd=self.v3io_framesd,
-            container=self.kv_container,
-            table=self.kv_path,
-        )
-        # tsdb
-        feature_set.graph.add_step(
-            "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
+    def apply_monitoring_serving_graph(self, fn):
+        """
+        Apply monitoring serving graph to a given serving function. The following serving graph includes about 20 steps
+        of different operations that are executed on the events from the model server. Each event has
+        metadata (function_uri, timestamp, class, etc.) but also inputs and predictions from the model server.
+        Throughout the serving graph, the results are written to 3 different databases:
+        1. KV (steps 7-9): Stores metadata and stats about the average latency and the amount of predictions over time
+           per endpoint. for example the amount of predictions of endpoint x in the last 5 min. This data is used by
+           the monitoring dashboards in grafana. Please note that the KV table, which can be found under
+           v3io:///users/pipelines/project-name/model-endpoints/endpoints/ also contains data on the model endpoint
+            from other processes, such as current_stats that is being calculated by the monitoring batch job
+            process.
+        2. TSDB (steps 12-18): Stores live data of different key metric dictionaries in tsdb target. Results can be
+           found under v3io:///users/pipelines/project-name/model-endpoints/events/. At the moment, this part supports
+           3 different key metric dictionaries: base_metrics (average latency and predictions over time),
+           endpoint_features (Prediction and feature names and values), and custom_metrics (user-defined metrics).
+           This data is also being used by the monitoring dashboards in grafana.
+        3. Parquet (steps 19-20): This Parquet file includes the required data for the model monitoring batch job
+           that run every hour by default. The parquet target can be found under
+           v3io:///projects/{project}/model-endpoints/.
+
+        :param fn: A serving function.
+        """
+
+        graph = fn.set_topology("flow")
+
+        # Step 1 - Process endpoint event: splitting into sub-events and validate event data
+        def apply_process_endpoint_event():
+            graph.add_step(
+                "ProcessEndpointEvent",
+                kv_container=self.kv_container,
+                kv_path=self.kv_path,
+                v3io_access_key=self.v3io_access_key,
+                full_event=True,
+                project=self.project,
+            )
+
+        apply_process_endpoint_event()
+
+        # Steps 2,3 - Applying Storey operations of filtering and flatten
+        def apply_storey_filter_and_flatmap():
+            # Remove none values from each event
+            graph.add_step(
+                "storey.Filter",
+                "filter_none",
+                _fn="(event is not None)",
+                after="ProcessEndpointEvent",
+            )
+
+            # flatten the events
+            graph.add_step(
+                "storey.FlatMap", "flatten_events", _fn="(event)", after="filter_none"
+            )
+
+        apply_storey_filter_and_flatmap()
+
+        # Step 4 - Validating feature names and map each feature to its value
+        def apply_map_feature_names():
+            graph.add_step(
+                "MapFeatureNames",
+                name="MapFeatureNames",
+                kv_container=self.kv_container,
+                kv_path=self.kv_path,
+                access_key=self.v3io_access_key,
+                infer_columns_from_data=True,
+                after="flatten_events",
+            )
+
+        apply_map_feature_names()
+
+        # Step 5 - Calculate number of predictions and average latency
+        def apply_storey_aggregations():
+            # Step 5.1 - Calculate number of predictions for each window (5 min and 1 hour by default)
+            graph.add_step(
+                class_name="storey.AggregateByKey",
+                aggregates=[
+                    {
+                        "name": EventFieldType.PREDICTIONS,
+                        "column": EventFieldType.ENDPOINT_ID,
+                        "operations": ["count"],
+                        "windows": self.aggregate_count_windows,
+                        "period": self.aggregate_count_period,
+                    }
+                ],
+                name=EventFieldType.PREDICTIONS,
+                after="MapFeatureNames",
+                step_name="Aggregates",
+                table=".",
+                v3io_access_key=self.v3io_access_key,
+            )
+            # Step 5.2 - Calculate average latency time for each window (5 min and 1 hour by default)
+            graph.add_step(
+                class_name="storey.AggregateByKey",
+                aggregates=[
+                    {
+                        "name": EventFieldType.LATENCY,
+                        "column": EventFieldType.LATENCY,
+                        "operations": ["avg"],
+                        "windows": self.aggregate_avg_windows,
+                        "period": self.aggregate_avg_period,
+                    }
+                ],
+                name=EventFieldType.LATENCY,
+                after=EventFieldType.PREDICTIONS,
+                table=".",
+                v3io_access_key=self.v3io_access_key,
+            )
+
+        apply_storey_aggregations()
+
+        # Step 6 - Emits the event in window size of events based on sample_window size (10 by default)
+        def apply_storey_sample_window():
+            graph.add_step(
+                "storey.steps.SampleWindow",
+                name="sample",
+                after=EventFieldType.LATENCY,
+                window_size=self.sample_window,
+                key=EventFieldType.ENDPOINT_ID,
+                v3io_access_key=self.v3io_access_key,
+            )
+
+        apply_storey_sample_window()
+
+        # Steps 7-9 - KV branch
+        # Step 7 - Filter relevant keys from the event before writing the data into KV
+        def apply_process_before_kv():
+            graph.add_step("ProcessBeforeKV", name="ProcessBeforeKV", after="sample")
+
+        apply_process_before_kv()
+
+        # Step 8 - Write the filtered event to KV table. At this point, the serving graph updates the stats
+        # about average latency and the amount of predictions over time
+        def apply_write_to_kv():
+            graph.add_step(
+                "WriteToKV",
+                name="WriteToKV",
+                after="ProcessBeforeKV",
+                container=self.kv_container,
+                table=self.kv_path,
+                v3io_access_key=self.v3io_access_key,
+            )
+
+        apply_write_to_kv()
+
+        # Step 9 - Apply infer_schema on the KB table for generating schema file
+        # which will be used by Grafana monitoring dashboards
+        def apply_infer_schema():
+            graph.add_step(
+                "InferSchema",
+                name="InferSchema",
+                after="WriteToKV",
+                v3io_access_key=self.v3io_access_key,
+                v3io_framesd=self.v3io_framesd,
+                container=self.kv_container,
+                table=self.kv_path,
+            )
+
+        apply_infer_schema()
+
+        # Steps 11-18 - TSDB branch
+        # Step 11 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
+        # stats and details about the events
+        def apply_process_before_tsdb():
+            graph.add_step(
+                "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
+            )
+
+        apply_process_before_tsdb()
+
+        # Steps 12-18: - Unpacked keys from each dictionary and write to TSDB target
+        def apply_filter_and_unpacked_keys(name, keys):
+            graph.add_step(
+                "FilterAndUnpackKeys",
+                name=name,
+                after="ProcessBeforeTSDB",
+                keys=[keys],
+            )
+
+        def apply_tsdb_target(name, after):
+            graph.add_step(
+                "storey.TSDBTarget",
+                name=name,
+                after=after,
+                path=self.tsdb_path,
+                rate="10/m",
+                time_col=EventFieldType.TIMESTAMP,
+                container=self.tsdb_container,
+                access_key=self.v3io_access_key,
+                v3io_frames=self.v3io_framesd,
+                infer_columns_from_data=True,
+                index_cols=[
+                    EventFieldType.ENDPOINT_ID,
+                    EventFieldType.RECORD_TYPE,
+                ],
+                max_events=self.tsdb_batching_max_events,
+                flush_after_seconds=self.tsdb_batching_timeout_secs,
+                key=EventFieldType.ENDPOINT_ID,
+            )
+
+        # Steps 12-13 - unpacked base_metrics dictionary
+        apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys1",
-            after="ProcessBeforeTSDB",
-            keys=[BASE_METRICS],
+            keys=EventKeyMetrics.BASE_METRICS,
         )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb1",
-            after="FilterAndUnpackKeys1",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
+        apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
+
+        # Steps 14-15 - unpacked endpoint_features dictionary
+        apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys2",
-            after="ProcessBeforeTSDB",
-            keys=[ENDPOINT_FEATURES],
+            keys=EventKeyMetrics.ENDPOINT_FEATURES,
         )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb2",
-            after="FilterAndUnpackKeys2",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
-        )
-        feature_set.graph.add_step(
-            "FilterAndUnpackKeys",
+        apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
+
+        # Steps 16-18 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
+        apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys3",
-            after="ProcessBeforeTSDB",
-            keys=[CUSTOM_METRICS],
-        )
-        feature_set.graph.add_step(
-            "storey.Filter",
-            "FilterNotNone",
-            after="FilterAndUnpackKeys3",
-            _fn="(event is not None)",
-        )
-        feature_set.graph.add_step(
-            "storey.TSDBTarget",
-            name="tsdb3",
-            after="FilterNotNone",
-            path=self.tsdb_path,
-            rate="10/m",
-            time_col=TIMESTAMP,
-            container=self.tsdb_container,
-            access_key=self.v3io_access_key,
-            v3io_frames=self.v3io_framesd,
-            index_cols=[ENDPOINT_ID, RECORD_TYPE],
-            max_events=self.tsdb_batching_max_events,
-            timeout_secs=self.tsdb_batching_timeout_secs,
-            key=ENDPOINT_ID,
+            keys=EventKeyMetrics.CUSTOM_METRICS,
         )
 
-        # parquet branch
-        feature_set.graph.add_step(
-            "ProcessBeforeParquet",
-            name="ProcessBeforeParquet",
-            after="MapFeatureNames",
-            _fn="(event)",
-        )
-        storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
-        )
+        def apply_storey_filter():
+            graph.add_step(
+                "storey.Filter",
+                "FilterNotNone",
+                after="FilterAndUnpackKeys3",
+                _fn="(event is not None)",
+            )
 
-        pq_target = ParquetTarget(
-            path=self.parquet_path,
-            after_step="ProcessBeforeParquet",
-            key_bucketing_number=0,
-            time_partitioning_granularity="hour",
-            max_events=self.parquet_batching_max_events,
-            flush_after_seconds=self.parquet_batching_timeout_secs,
-            storage_options=storage_options,
-            attributes={"infer_columns_from_data": True},
-        )
+        apply_storey_filter()
+        apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-        feature_set.set_targets(
-            targets=[pq_target],
-            with_defaults=False,
-            default_final_step="ProcessBeforeParquet",
-        )
-        return feature_set
+        # Steps 19-20 - Parquet branch
+        # Step 19 - Filter and validate different keys before writing the data to Parquet target
+        def apply_process_before_parquet():
+            graph.add_step(
+                "ProcessBeforeParquet",
+                name="ProcessBeforeParquet",
+                after="MapFeatureNames",
+                _fn="(event)",
+            )
+
+        apply_process_before_parquet()
+
+        # Step 20 - Write the Parquet target file, partitioned by key (endpoint_id) and time.
+        def apply_parquet_target():
+            graph.add_step(
+                "storey.ParquetTarget",
+                name="ParquetTarget",
+                after="ProcessBeforeParquet",
+                graph_shape="cylinder",
+                path=self.parquet_path,
+                storage_options=self.storage_options,
+                max_events=self.parquet_batching_max_events,
+                flush_after_seconds=self.parquet_batching_timeout_secs,
+                attributes={"infer_columns_from_data": True},
+                index_cols=[EventFieldType.ENDPOINT_ID],
+                key_bucketing_number=0,
+                time_partitioning_granularity="hour",
+                partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+            )
+
+        apply_parquet_target()
 
 
-class ProcessBeforeKV(MapClass):
+class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
+        """
+        Filter relevant keys from the event before writing the data to KV table (in WriteToKV step). Note that in KV
+        we only keep metadata (function_uri, model_class, etc.) and stats about the average latency and the number
+        of predictions (per 5min and 1hour).
+
+        :returns: A filtered event as a dictionary which will be written to KV table in the next step.
+        """
         super().__init__(**kwargs)
 
     def do(self, event):
-        # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
+        # Compute prediction per second
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        )
         # Filter relevant keys
         e = {
             k: event[k]
             for k in [
-                FUNCTION_URI,
-                MODEL,
-                MODEL_CLASS,
-                TIMESTAMP,
-                ENDPOINT_ID,
-                LABELS,
-                UNPACKED_LABELS,
-                LATENCY_AVG_5M,
-                LATENCY_AVG_1H,
-                PREDICTIONS_PER_SECOND,
-                PREDICTIONS_COUNT_5M,
-                PREDICTIONS_COUNT_1H,
-                FIRST_REQUEST,
-                LAST_REQUEST,
-                ERROR_COUNT,
+                EventFieldType.FUNCTION_URI,
+                EventFieldType.MODEL,
+                EventFieldType.MODEL_CLASS,
+                EventFieldType.TIMESTAMP,
+                EventFieldType.ENDPOINT_ID,
+                EventFieldType.LABELS,
+                EventFieldType.UNPACKED_LABELS,
+                EventLiveStats.LATENCY_AVG_5M,
+                EventLiveStats.LATENCY_AVG_1H,
+                EventLiveStats.PREDICTIONS_PER_SECOND,
+                EventLiveStats.PREDICTIONS_COUNT_5M,
+                EventLiveStats.PREDICTIONS_COUNT_1H,
+                EventFieldType.FIRST_REQUEST,
+                EventFieldType.LAST_REQUEST,
+                EventFieldType.ERROR_COUNT,
             ]
         }
         # Unpack labels dictionary
-        e = {**e, **e.pop(UNPACKED_LABELS, {})}
+        e = {
+            **e,
+            **e.pop(EventFieldType.UNPACKED_LABELS, {}),
+        }
         # Write labels to kv as json string to be presentable later
-        e[LABELS] = json.dumps(e[LABELS])
+        e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
         return e
 
 
-class ProcessBeforeTSDB(MapClass):
+class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
+        """
+        Process the data before writing to TSDB. This step creates a dictionary that includes 3 different dictionaries
+        that each one of them contains important details and stats about the events:
+        1. base_metrics: stats about the average latency and the amount of predictions over time. It is based on
+           storey.AggregateByKey which was executed in step 5.
+        2. endpoint_features: feature names and values along with the prediction names and value.
+        3. custom_metric (opt): optional metrics provided by the user.
+
+        :returns: Dictionary of 2-3 dictionaries that contains stats and details about the events.
+
+        """
         super().__init__(**kwargs)
 
     def do(self, event):
-        # compute prediction per second
-        event[PREDICTIONS_PER_SECOND] = float(event[PREDICTIONS_COUNT_5M]) / 300
-        base_fields = [TIMESTAMP, ENDPOINT_ID]
+        # Compute prediction per second
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        )
+        base_fields = [
+            EventFieldType.TIMESTAMP,
+            EventFieldType.ENDPOINT_ID,
+        ]
 
+        # Getting event timestamp and endpoint_id
         base_event = {k: event[k] for k in base_fields}
-        base_event[TIMESTAMP] = pd.to_datetime(
-            base_event[TIMESTAMP], format=TIME_FORMAT
+        base_event[EventFieldType.TIMESTAMP] = pd.to_datetime(
+            base_event[EventFieldType.TIMESTAMP],
+            format=EventFieldType.TIME_FORMAT,
         )
 
+        # base_metrics includes the stats about the average latency and the amount of predictions over time
         base_metrics = {
-            RECORD_TYPE: BASE_METRICS,
-            PREDICTIONS_PER_SECOND: event[PREDICTIONS_PER_SECOND],
-            PREDICTIONS_COUNT_5M: event[PREDICTIONS_COUNT_5M],
-            PREDICTIONS_COUNT_1H: event[PREDICTIONS_COUNT_1H],
-            LATENCY_AVG_5M: event[LATENCY_AVG_5M],
-            LATENCY_AVG_1H: event[LATENCY_AVG_1H],
+            EventFieldType.RECORD_TYPE: EventKeyMetrics.BASE_METRICS,
+            EventLiveStats.PREDICTIONS_PER_SECOND: event[
+                EventLiveStats.PREDICTIONS_PER_SECOND
+            ],
+            EventLiveStats.PREDICTIONS_COUNT_5M: event[
+                EventLiveStats.PREDICTIONS_COUNT_5M
+            ],
+            EventLiveStats.PREDICTIONS_COUNT_1H: event[
+                EventLiveStats.PREDICTIONS_COUNT_1H
+            ],
+            EventLiveStats.LATENCY_AVG_5M: event[EventLiveStats.LATENCY_AVG_5M],
+            EventLiveStats.LATENCY_AVG_1H: event[EventLiveStats.LATENCY_AVG_1H],
             **base_event,
         }
 
+        # endpoint_features includes the event values of each feature and prediction
         endpoint_features = {
-            RECORD_TYPE: ENDPOINT_FEATURES,
-            **event[NAMED_PREDICTIONS],
-            **event[NAMED_FEATURES],
+            EventFieldType.RECORD_TYPE: EventKeyMetrics.ENDPOINT_FEATURES,
+            **event[EventFieldType.NAMED_PREDICTIONS],
+            **event[EventFieldType.NAMED_FEATURES],
             **base_event,
         }
+        # Create a dictionary that includes both base_metrics and endpoint_features
+        processed = {
+            EventKeyMetrics.BASE_METRICS: base_metrics,
+            EventKeyMetrics.ENDPOINT_FEATURES: endpoint_features,
+        }
 
-        processed = {BASE_METRICS: base_metrics, ENDPOINT_FEATURES: endpoint_features}
-
-        if event[METRICS]:
-            processed[CUSTOM_METRICS] = {
-                RECORD_TYPE: CUSTOM_METRICS,
-                **event[METRICS],
+        # If metrics provided, add another dictionary if custom_metrics values
+        if event[EventFieldType.METRICS]:
+            processed[EventKeyMetrics.CUSTOM_METRICS] = {
+                EventFieldType.RECORD_TYPE: EventKeyMetrics.CUSTOM_METRICS,
+                **event[EventFieldType.METRICS],
                 **base_event,
             }
 
         return processed
 
 
-class ProcessBeforeParquet(MapClass):
+class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
+        """
+        Process the data before writing to Parquet file. In this step, unnecessary keys will be removed while possible
+        missing keys values will be set to None.
+
+        :returns: Event dictionary with filtered data for the Parquet target.
+
+        """
         super().__init__(**kwargs)
 
     def do(self, event):
         logger.info("ProcessBeforeParquet1", event=event)
-        for key in [UNPACKED_LABELS, FEATURES]:
+        # Remove the following keys from the event
+        for key in [
+            EventFieldType.UNPACKED_LABELS,
+            EventFieldType.FEATURES,
+            EventFieldType.NAMED_FEATURES,
+        ]:
             event.pop(key, None)
+
+        # Split entities dictionary to separate dictionaries within the event
         value = event.get("entities")
         if value is not None:
             event = {**value, **event}
-        for key in [LABELS, METRICS, ENTITIES]:
+
+        # Validate that the following keys exist
+        for key in [
+            EventFieldType.LABELS,
+            EventFieldType.METRICS,
+            EventFieldType.ENTITIES,
+        ]:
             if not event.get(key):
                 event[key] = None
         logger.info("ProcessBeforeParquet2", event=event)
         return event
 
 
-class ProcessEndpointEvent(MapClass):
-    def __init__(self, kv_container: str, kv_path: str, v3io_access_key: str, **kwargs):
+class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
+    def __init__(
+        self,
+        kv_container: str,
+        kv_path: str,
+        v3io_access_key: str,
+        **kwargs,
+    ):
+        """
+        Process event or batch of events as part of the first step of the monitoring serving graph. It includes
+        Adding important details to the event such as endpoint_id, handling errors coming from the stream, Validation
+        of event data such as inputs and outputs, and splitting model event into sub-events.
+
+        :param kv_container:    Name of the container that will be used to retrieve the endpoint id. For model
+                                endpoints it is usually 'users'.
+        :param kv_path:         KV table path that will be used to retrieve the endpoint id. For model endpoints
+                                it is usually pipelines/project-name/model-endpoints/endpoints/
+        :param v3io_access_key: Access key with permission to read from a KV table.
+        :param project:         Project name.
+
+
+        :returns: A Storey event object which is the basic unit of data in Storey. Note that the next steps of
+                  the monitoring serving graph are based on Storey operations.
+
+        """
         super().__init__(**kwargs)
         self.kv_container: str = kv_container
         self.kv_path: str = kv_path
         self.v3io_access_key: str = v3io_access_key
-        self.first_request: Dict[str, str] = dict()
-        self.last_request: Dict[str, str] = dict()
-        self.error_count: Dict[str, int] = defaultdict(int)
-        self.endpoints: Set[str] = set()
+
+        # First and last requests timestamps (value) of each endpoint (key)
+        self.first_request: typing.Dict[str, str] = dict()
+        self.last_request: typing.Dict[str, str] = dict()
+
+        # Number of errors (value) per endpoint (key)
+        self.error_count: typing.Dict[str, int] = collections.defaultdict(int)
+
+        # Set of endpoints in the current events
+        self.endpoints: typing.Set[str] = set()
 
     def do(self, full_event):
         event = full_event.body
 
-        # code that calculates the endppint id. should be
-        function_uri = event.get(FUNCTION_URI)
-        if not is_not_none(function_uri, [FUNCTION_URI]):
+        # Getting model version and function uri from event
+        # and use them for retrieving the endpoint_id
+        function_uri = event.get(EventFieldType.FUNCTION_URI)
+        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
             return None
 
-        model = event.get(MODEL)
-        if not is_not_none(model, [MODEL]):
+        model = event.get(EventFieldType.MODEL)
+        if not is_not_none(model, [EventFieldType.MODEL]):
             return None
 
-        version = event.get(VERSION)
+        version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = create_model_endpoint_id(
-            function_uri=function_uri, versioned_model=versioned_model,
+        endpoint_id = mlrun.utils.model_monitoring.create_model_endpoint_id(
+            function_uri=function_uri,
+            versioned_model=versioned_model,
         )
+
         endpoint_id = str(endpoint_id)
 
-        event[VERSIONED_MODEL] = versioned_model
-        event[ENDPOINT_ID] = endpoint_id
+        event[EventFieldType.VERSIONED_MODEL] = versioned_model
+        event[EventFieldType.ENDPOINT_ID] = endpoint_id
 
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
@@ -442,31 +626,60 @@ class ProcessEndpointEvent(MapClass):
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
 
-        if not self.is_valid(endpoint_id, is_not_none, timestamp, ["when"],):
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            timestamp,
+            ["when"],
+        ):
             return None
 
         if endpoint_id not in self.first_request:
             self.first_request[endpoint_id] = timestamp
         self.last_request[endpoint_id] = timestamp
 
-        if not self.is_valid(endpoint_id, is_not_none, request_id, ["request", "id"],):
-            return None
-        if not self.is_valid(endpoint_id, is_not_none, latency, ["microsec"],):
-            return None
         if not self.is_valid(
-            endpoint_id, is_not_none, features, ["request", "inputs"],
+            endpoint_id,
+            is_not_none,
+            request_id,
+            ["request", "id"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id, is_not_none, predictions, ["resp", "outputs"],
+            endpoint_id,
+            is_not_none,
+            latency,
+            ["microsec"],
+        ):
+            return None
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            features,
+            ["request", "inputs"],
+        ):
+            return None
+        if not self.is_valid(
+            endpoint_id,
+            is_not_none,
+            predictions,
+            ["resp", "outputs"],
         ):
             return None
 
-        unpacked_labels = {f"_{k}": v for k, v in event.get(LABELS, {}).items()}
+        # Get labels from event (if exist)
+        unpacked_labels = {
+            f"_{k}": v for k, v in event.get(EventFieldType.LABELS, {}).items()
+        }
 
-        # Separate each model invocation into sub events
+        # Adjust timestamp format
+        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
+
+        # Separate each model invocation into sub events that will be stored as dictionary
+        # in list of events. This list will be used as the body for the storey event.
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
+            # Validate that inputs are based on numeric values
             if not self.is_valid(
                 endpoint_id,
                 self.is_list_of_numerics,
@@ -480,30 +693,36 @@ class ProcessEndpointEvent(MapClass):
 
             events.append(
                 {
-                    FUNCTION_URI: function_uri,
-                    MODEL: versioned_model,
-                    MODEL_CLASS: model_class,
-                    TIMESTAMP: timestamp,
-                    ENDPOINT_ID: endpoint_id,
-                    REQUEST_ID: request_id,
-                    LATENCY: latency,
-                    FEATURES: feature,
-                    PREDICTION: prediction,
-                    FIRST_REQUEST: self.first_request[endpoint_id],
-                    LAST_REQUEST: self.last_request[endpoint_id],
-                    ERROR_COUNT: self.error_count[endpoint_id],
-                    LABELS: event.get(LABELS, {}),
-                    METRICS: event.get(METRICS, {}),
-                    ENTITIES: event.get("request", {}).get(ENTITIES, {}),
-                    UNPACKED_LABELS: unpacked_labels,
+                    EventFieldType.FUNCTION_URI: function_uri,
+                    EventFieldType.MODEL: versioned_model,
+                    EventFieldType.MODEL_CLASS: model_class,
+                    EventFieldType.TIMESTAMP: timestamp,
+                    EventFieldType.ENDPOINT_ID: endpoint_id,
+                    EventFieldType.REQUEST_ID: request_id,
+                    EventFieldType.LATENCY: latency,
+                    EventFieldType.FEATURES: feature,
+                    EventFieldType.PREDICTION: prediction,
+                    EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
+                    EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
+                    EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
+                    EventFieldType.ENTITIES: event.get("request", {}).get(
+                        EventFieldType.ENTITIES, {}
+                    ),
+                    EventFieldType.UNPACKED_LABELS: unpacked_labels,
                 }
             )
 
-        storey_event = Event(body=events, key=endpoint_id, time=timestamp)
+        # Create a storey event object with list of events, based on endpoint_id which will be used
+        # in the upcoming steps
+        storey_event = storey.Event(body=events, key=endpoint_id)
         return storey_event
 
     def is_list_of_numerics(
-        self, field: List[Union[int, float, dict, list]], dict_path: List[str]
+        self,
+        field: typing.List[typing.Union[int, float, dict, list]],
+        dict_path: typing.List[str],
     ):
         if all(isinstance(x, int) or isinstance(x, float) for x in field):
             return True
@@ -523,17 +742,25 @@ class ProcessEndpointEvent(MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.v3io_access_key,
             )
+
+            # If model endpoint found, validate first_request and error_count values
             if endpoint_record:
-                first_request = endpoint_record.get(FIRST_REQUEST)
+                first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
                 if first_request:
                     self.first_request[endpoint_id] = first_request
-                error_count = endpoint_record.get(ERROR_COUNT)
+                error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
                 if error_count:
                     self.error_count[endpoint_id] = error_count
+
+            # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
 
     def is_valid(
-        self, endpoint_id: str, validation_function, field: Any, dict_path: List[str]
+        self,
+        endpoint_id: str,
+        validation_function,
+        field: typing.Any,
+        dict_path: typing.List[str],
     ):
         if validation_function(field, dict_path):
             return True
@@ -548,32 +775,7 @@ class ProcessEndpointEvent(MapClass):
         return False
 
 
-def enrich_even_details(event) -> Optional[dict]:
-    function_uri = event.get(FUNCTION_URI)
-
-    if not is_not_none(function_uri, [FUNCTION_URI]):
-        return None
-
-    model = event.get(MODEL)
-    if not is_not_none(model, [MODEL]):
-        return None
-
-    version = event.get(VERSION)
-    versioned_model = f"{model}:{version}" if version else f"{model}:latest"
-
-    endpoint_id = create_model_endpoint_id(
-        function_uri=function_uri, versioned_model=versioned_model,
-    )
-
-    endpoint_id = str(endpoint_id)
-
-    event[VERSIONED_MODEL] = versioned_model
-    event[ENDPOINT_ID] = endpoint_id
-
-    return event
-
-
-def is_not_none(field: Any, dict_path: List[str]):
+def is_not_none(field: typing.Any, dict_path: typing.List[str]):
     if field is not None:
         return True
     logger.error(
@@ -582,16 +784,27 @@ def is_not_none(field: Any, dict_path: List[str]):
     return False
 
 
-class FilterAndUnpackKeys(MapClass):
+class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
     def __init__(self, keys, **kwargs):
+        """
+        Create unpacked event dictionary based on provided key metrics (base_metrics, endpoint_features,
+        or custom_metric). Please note that the next step of the TSDB target requires an unpacked dictionary.
+
+        :param keys: list of key metrics.
+
+        :returns: An unpacked dictionary of event filtered by the provided key metrics.
+        """
         super().__init__(**kwargs)
         self.keys = keys
 
     def do(self, event):
+        # Keep only the relevant dictionary based on the provided keys
         new_event = {}
         for key in self.keys:
             if key in event:
                 new_event[key] = event[key]
+
+        # Create unpacked dictionary
         unpacked = {}
         for key in new_event.keys():
             if key in self.keys:
@@ -601,7 +814,7 @@ class FilterAndUnpackKeys(MapClass):
         return unpacked if unpacked else None
 
 
-class MapFeatureNames(MapClass):
+class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,
         kv_container: str,
@@ -610,29 +823,55 @@ class MapFeatureNames(MapClass):
         infer_columns_from_data: bool = False,
         **kwargs,
     ):
+        """
+        Validating feature names and label columns and map each feature to its value. In the end of this step,
+        the event should have key-value pairs of (feature name: feature value).
+
+        :param kv_container:            Name of the container that will be used to retrieve the endpoint id. For model
+                                        endpoints it is usually 'users'.
+        :param kv_path:                 KV table path that will be used to retrieve the endpoint id. For model endpoints
+                                        it is usually pipelines/project-name/model-endpoints/endpoints/
+        :param v3io_access_key:         Access key with permission to read from a KV table.
+        :param infer_columns_from_data: If true and features or labels names were not found, then try to
+                                        retrieve them from data that was stored in the previous events of
+                                        the current process. This data can be found under self.feature_names and
+                                        self.label_columns.
+
+
+        :returns: A single event as a dictionary that includes metadata (endpoint_id, model_class, etc.) and also
+                  feature names and values (as well as the prediction results).
+        """
         super().__init__(**kwargs)
         self.kv_container = kv_container
         self.kv_path = kv_path
         self.access_key = access_key
         self._infer_columns_from_data = infer_columns_from_data
+
+        # Dictionaries that will be used in case features names
+        # and labels columns were not found in the current event
         self.feature_names = {}
         self.label_columns = {}
 
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
-            if len(self.feature_names[endpoint_id]) >= len(event[FEATURES]):
+            if len(self.feature_names[endpoint_id]) >= len(
+                event[EventFieldType.FEATURES]
+            ):
                 return self.feature_names[endpoint_id]
         return None
 
     def _infer_label_columns_from_data(self, event):
         for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) >= len(event[PREDICTION]):
+            if len(self.label_columns[endpoint_id]) >= len(
+                event[EventFieldType.PREDICTION]
+            ):
                 return self.label_columns[endpoint_id]
         return None
 
-    def do(self, event: Dict):
-        endpoint_id = event[ENDPOINT_ID]
+    def do(self, event: typing.Dict):
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
+        # Get feature names and label columns
         if endpoint_id not in self.feature_names:
             endpoint_record = get_endpoint_record(
                 kv_container=self.kv_container,
@@ -640,12 +879,14 @@ class MapFeatureNames(MapClass):
                 endpoint_id=endpoint_id,
                 access_key=self.access_key,
             )
-            feature_names = endpoint_record.get(FEATURE_NAMES)
+            feature_names = endpoint_record.get(EventFieldType.FEATURE_NAMES)
             feature_names = json.loads(feature_names) if feature_names else None
 
-            label_columns = endpoint_record.get(LABEL_COLUMNS)
+            label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
             label_columns = json.loads(label_columns) if label_columns else None
 
+            # Ff feature names were not found,
+            # try to retrieve them from the previous events of the current process
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
 
@@ -654,16 +895,23 @@ class MapFeatureNames(MapClass):
                     "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                feature_names = [f"f{i}" for i, _ in enumerate(event[FEATURES])]
-                get_v3io_client().kv.update(
+                feature_names = [
+                    f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])
+                ]
+
+                # Update the endpoint record with the generated features
+                mlrun.utils.v3io_clients.get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
-                    key=event[ENDPOINT_ID],
-                    attributes={FEATURE_NAMES: json.dumps(feature_names)},
-                    raise_for_status=RaiseForStatus.always,
+                    key=event[EventFieldType.ENDPOINT_ID],
+                    attributes={
+                        EventFieldType.FEATURE_NAMES: json.dumps(feature_names)
+                    },
+                    raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
 
+            # Similar process with label columns
             if not label_columns and self._infer_columns_from_data:
                 label_columns = self._infer_label_columns_from_data(event)
 
@@ -672,14 +920,18 @@ class MapFeatureNames(MapClass):
                     "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                label_columns = [f"p{i}" for i, _ in enumerate(event[PREDICTION])]
-                get_v3io_client().kv.update(
+                label_columns = [
+                    f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])
+                ]
+                mlrun.utils.v3io_clients.get_v3io_client().kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
                     access_key=self.access_key,
-                    key=event[ENDPOINT_ID],
-                    attributes={LABEL_COLUMNS: json.dumps(label_columns)},
-                    raise_for_status=RaiseForStatus.always,
+                    key=event[EventFieldType.ENDPOINT_ID],
+                    attributes={
+                        EventFieldType.LABEL_COLUMNS: json.dumps(label_columns)
+                    },
+                    raise_for_status=v3io.dataplane.RaiseForStatus.always,
                 )
 
             self.label_columns[endpoint_id] = label_columns
@@ -692,38 +944,87 @@ class MapFeatureNames(MapClass):
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
+        # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
-        features = event[FEATURES]
-        event[NAMED_FEATURES] = {
-            name: feature for name, feature in zip(feature_names, features)
-        }
+        feature_values = event[EventFieldType.FEATURES]
+        self._map_dictionary_values(
+            event=event,
+            named_iters=feature_names,
+            values_iters=feature_values,
+            mapping_dictionary=EventFieldType.NAMED_FEATURES,
+        )
 
-        label_columns = self.label_columns[endpoint_id]
-        prediction = event[PREDICTION]
-        event[NAMED_PREDICTIONS] = {
-            name: prediction for name, prediction in zip(label_columns, prediction)
-        }
+        # Add label_name:value pairs along with a mapping dictionary of all of these pairs
+        label_names = self.label_columns[endpoint_id]
+        label_values = event[EventFieldType.PREDICTION]
+        self._map_dictionary_values(
+            event=event,
+            named_iters=label_names,
+            values_iters=label_values,
+            mapping_dictionary=EventFieldType.NAMED_PREDICTIONS,
+        )
+
         logger.info("Mapped event", event=event)
         return event
 
+    @staticmethod
+    def _map_dictionary_values(
+        event: typing.Dict,
+        named_iters: typing.List,
+        values_iters: typing.List,
+        mapping_dictionary: str,
+    ):
+        """Adding name-value pairs to event dictionary based on two provided lists of names and values. These pairs
+        will be used mainly for the Parquet target file. In addition, this function creates a new mapping dictionary of
+        these pairs which will be unpacked in ProcessBeforeTSDB step
 
-class WriteToKV(MapClass):
-    def __init__(self, container: str, table: str, **kwargs):
+        :param event:               A dictionary that includes details about the current event such as endpoint_id
+                                    and input names and values.
+        :param named_iters:         List of names to match to the list of values.
+        :param values_iters:        List of values to match to the list of names.
+        :param mapping_dictionary:  Name of the new dictionary that will be stored in the current event. The new
+                                    dictionary includes name-value pairs based on the provided named_iters and
+                                    values_iters lists.
+
+        """
+        event[mapping_dictionary] = {}
+        for name, value in zip(named_iters, values_iters):
+            event[name] = value
+            event[mapping_dictionary][name] = value
+
+
+class WriteToKV(mlrun.feature_store.steps.MapClass):
+    def __init__(self, container: str, table: str, v3io_access_key: str, **kwargs):
+        """
+        Writes the event to KV table. Note that the event at this point includes metadata and stats about the
+        average latency and the amount of predictions over time. This data will be used in the monitoring dashboards
+        such as "Model Monitoring - Performance" which can be found in Grafana.
+
+        :param kv_container:            Name of the container that will be used to retrieve the endpoint id. For model
+                                        endpoints it is usually 'users'.
+        :param table:                   KV table path that will be used to retrieve the endpoint id. For model endpoints
+                                        it is usually pipelines/project-name/model-endpoints/endpoints/.
+        :param v3io_access_key:         Access key with permission to read from a KV table.
+
+        :returns: Event as a dictionary (without any changes) for the next step (InferSchema).
+        """
         super().__init__(**kwargs)
         self.container = container
         self.table = table
+        self.v3io_access_key = v3io_access_key
 
-    def do(self, event: Dict):
-        get_v3io_client().kv.update(
+    def do(self, event: typing.Dict):
+        mlrun.utils.v3io_clients.get_v3io_client().kv.update(
             container=self.container,
             table_path=self.table,
-            key=event[ENDPOINT_ID],
+            key=event[EventFieldType.ENDPOINT_ID],
             attributes=event,
+            access_key=self.v3io_access_key,
         )
         return event
 
 
-class InferSchema(MapClass):
+class InferSchema(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,
         v3io_access_key: str,
@@ -732,6 +1033,18 @@ class InferSchema(MapClass):
         table: str,
         **kwargs,
     ):
+        """
+        Apply infer_schema on the kv table which generates the schema file.
+        Grafana monitoring dashboards use this schema to query the relevant stats.
+
+        :param v3io_access_key:         Access key with permission to a KV table.
+        :v3io_framesd:                  path to v3io frames.
+        :param container:               Name of the container that will be used to retrieve the endpoint id. For model
+                                        endpoints it is usually 'users'.
+        :param table:                   KV table path that will be used to retrieve the endpoint id. For model endpoints
+                                        it is usually pipelines/project-name/model-endpoints/endpoints/.
+
+        """
         super().__init__(**kwargs)
         self.container = container
         self.v3io_access_key = v3io_access_key
@@ -739,24 +1052,22 @@ class InferSchema(MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: Dict):
+    def do(self, event: typing.Dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)
-            get_frames_client(
+            # Apply infer_schema on the kv table for generating the schema file
+            mlrun.utils.v3io_clients.get_frames_client(
                 token=self.v3io_access_key,
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")
-            logger.info(
-                "Found new keys, inferred schema", table=self.table, event=event
-            )
         return event
 
 
 def get_endpoint_record(
     kv_container: str, kv_path: str, endpoint_id: str, access_key: str
-) -> Optional[dict]:
+) -> typing.Optional[dict]:
     logger.info(
         "Grabbing endpoint data",
         container=kv_container,
@@ -765,7 +1076,7 @@ def get_endpoint_record(
     )
     try:
         endpoint_record = (
-            get_v3io_client()
+            mlrun.utils.v3io_clients.get_v3io_client()
             .kv.get(
                 container=kv_container,
                 table_path=kv_path,

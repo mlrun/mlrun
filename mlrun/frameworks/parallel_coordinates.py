@@ -1,5 +1,19 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import datetime
-import warnings
+import os
 from typing import List, Union
 
 import numpy as np
@@ -8,10 +22,7 @@ from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 import mlrun
-from mlrun.utils import flatten
-
-warnings.simplefilter(action="ignore", category=FutureWarning)
-
+from mlrun.utils import filter_warnings, flatten
 
 max_table_rows = 50
 
@@ -25,7 +36,11 @@ def _gen_dropdown_buttons(output_cols) -> list:
         return [name == col for name in output_cols]
 
     buttons = [
-        dict(label=col, method="update", args=[{"visible": gen_bool_list(col)}],)
+        dict(
+            label=col,
+            method="update",
+            args=[{"visible": gen_bool_list(col)}],
+        )
         for col in output_cols
     ]
 
@@ -87,6 +102,7 @@ def _get_column_names(df: pd.DataFrame):
     return params, outputs
 
 
+@filter_warnings("ignore", FutureWarning)
 def gen_pcp_plot(
     source_df: pd.DataFrame,
     index_col: str,
@@ -188,6 +204,9 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
         html_table = runs_list.show(False, short=True)
 
     if filename:
+        dir = os.path.dirname(filename)
+        if dir:
+            os.makedirs(dir, exist_ok=True)
         with open(filename, "w") as fp:
             if runs_list:
                 # add runs table after the plot
@@ -217,6 +236,7 @@ def _runs_list_to_df(runs_list, extend_iterations=False):
     return runs_df
 
 
+@filter_warnings("ignore", FutureWarning)
 def compare_run_objects(
     runs_list: Union[mlrun.model.RunObject, List[mlrun.model.RunObject]],
     hide_identical: bool = True,
@@ -266,6 +286,7 @@ def compare_run_objects(
     return _show_and_export_html(plot_as_html, show, filename, runs_list=runs_list)
 
 
+@filter_warnings("ignore", FutureWarning)
 def compare_db_runs(
     project_name=None,
     run_name=None,

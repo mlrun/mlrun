@@ -30,7 +30,7 @@ class InMemoryStore(DataStore):
     def url(self):
         return "memory://"
 
-    def _secret(self, key):
+    def _get_parent_secret(self, key):
         return None
 
     def _get_item(self, key):
@@ -53,7 +53,7 @@ class InMemoryStore(DataStore):
             self._items[key] = fp.read()
 
     def stat(self, key):
-        return FileStats(size=len(self._get_item(key)))
+        return FileStats(size=len(self._get_item(key)), modified=0)
 
     def listdir(self, key):
         return []

@@ -26,6 +26,7 @@ from uuid import uuid4
 import deepdiff
 import pytest
 
+import mlrun.artifacts.base
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
@@ -89,8 +90,6 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
-            "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.11",
             "--tag",
             docker_tag,
             ".",
@@ -189,6 +188,9 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
     db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
@@ -200,6 +202,9 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = "p18", "3i920"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
     run_as_dict = RunObject().to_dict()
     run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
@@ -230,12 +235,14 @@ def test_run(create_server):
 def test_runs(create_server):
     server: Server = create_server()
     db = server.conn
+    prj = "p180"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
 
     runs = db.list_runs()
     assert not runs, "found runs in new db"
     count = 7
 
-    prj = "p180"
     run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f"uid_{i}"
@@ -292,6 +299,9 @@ def test_set_get_function(create_server):
 
     func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
 
@@ -306,13 +316,20 @@ def test_list_functions(create_server):
     db: HTTPRunDB = server.conn
 
     proj = "p4"
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"func{i}"
         func = {"fid": i}
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
-    db.store_function({}, "f2", "p7", tag=uuid4().hex)
+    proj_p7 = "p7"
+    proj_p7_obj = mlrun.new_project(proj_p7, save=False)
+    db.create_project(proj_p7_obj)
+
+    db.store_function({}, "f2", proj_p7, tag=uuid4().hex)
 
     functions = db.list_functions(project=proj)
     for function in functions:
@@ -394,6 +411,9 @@ def test_feature_sets(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -455,6 +475,31 @@ def test_feature_sets(create_server):
     assert len(entities) == count
 
 
+def test_remove_labels_from_feature_set(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
+    feature_set = _create_feature_set("feature-set-test")
+    db.create_feature_set(feature_set, project=project, versioned=True)
+
+    feature_sets = db.list_feature_sets(project=project)
+    assert len(feature_sets) == 1, "bad number of feature sets"
+    assert len(feature_sets[0].metadata.labels) == 2, "bad number of labels"
+    assert (
+        feature_sets[0].metadata.labels == feature_set["metadata"]["labels"]
+    ), "labels were not set correctly"
+
+    feature_set = feature_sets[0]
+    feature_set.metadata.labels = {}
+    db.store_feature_set(feature_set.to_dict(), project=project)
+    feature_sets = db.list_feature_sets(project=project, tag="latest")
+    assert feature_sets[0].metadata.labels is None, "labels were not removed correctly"
+
+
 def _create_feature_vector(name):
     return {
         "kind": "FeatureVector",
@@ -475,11 +520,90 @@ def _create_feature_vector(name):
     }
 
 
+def test_tagging_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    add_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=add_tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+    _assert_artifacts(db, proj_obj.name, add_tag, 1)
+
+
+def test_replacing_artifact_tags(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    new_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag, replace=True)
+
+    _assert_artifacts(db, proj_obj.name, tag, 0)
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+
+
+def test_delete_artifact_tags(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    new_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag)
+
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.delete_artifacts_tags(logged_artifact, proj_obj.name, tag_name=tag)
+
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+    _assert_artifacts(db, proj_obj.name, tag, 0)
+
+
+def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
+    proj_obj = mlrun.new_project(project)
+
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+        tag=tag,
+    )
+    return proj_obj, logged_artifact
+
+
+def _assert_artifacts(db, project: str, tag: str, expected_count: int):
+    artifacts = db.list_artifacts(project=project, tag=tag)
+    assert (
+        len(artifacts) == expected_count
+    ), "bad list results - wrong number of artifacts"
+
+
+def _configure_run_db_server(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    mlrun.mlconf.dbpath = server.url
+    mlrun.db._run_db = db
+    mlrun.db._last_db_url = server.url
+
+    return server, db
+
+
 def test_feature_vectors(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -551,7 +675,9 @@ def test_project_file_db_roundtrip(create_server):
     labels = {"key": "value"}
     annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels, annotations=annotations,
+        project_name,
+        labels=labels,
+        annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

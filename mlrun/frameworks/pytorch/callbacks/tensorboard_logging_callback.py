@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime
 from typing import Callable, Dict, List, Tuple, Union
 
@@ -11,9 +25,9 @@ from torch.utils.tensorboard.summary import hparams
 
 import mlrun
 
-from ..._common import TrackableType
 from ..._dl_common.loggers import TensorboardLogger
-from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
+from ..utils import PyTorchTypes
+from .logging_callback import LoggingCallback
 
 
 class _MLRunSummaryWriter(SummaryWriter):
@@ -78,7 +92,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
-                                      to be slower. Defaulted to 'epoch'.
+                                      to be slower. Default: 'epoch'.
         """
         super(_PyTorchTensorboardLogger, self).__init__(
             statistics_functions=statistics_functions,
@@ -109,7 +123,8 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param input_sample: An input sample for writing the model.
         """
         self._summary_writer.add_graph(
-            model=model, input_to_model=input_sample,
+            model=model,
+            input_to_model=input_sample,
         )
 
     def write_parameters_table_to_tensorboard(self):
@@ -159,7 +174,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step: The iteration / epoch the text belongs to.
         """
         self._summary_writer.add_text(
-            tag=tag, text_string=text, global_step=step,
+            tag=tag,
+            text_string=text,
+            global_step=step,
         )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -171,7 +188,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:  The iteration / epoch the value belongs to.
         """
         self._summary_writer.add_scalar(
-            tag=name, scalar_value=value, global_step=step,
+            tag=name,
+            scalar_value=value,
+            global_step=step,
         )
 
     def _write_weight_histogram_to_tensorboard(
@@ -185,7 +204,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:   The iteration / epoch the weight's histogram state belongs to.
         """
         self._summary_writer.add_histogram(
-            tag=name, values=weight, global_step=step,
+            tag=name,
+            values=weight,
+            global_step=step,
         )
 
     def _write_weight_image_to_tensorboard(
@@ -233,10 +254,14 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -256,7 +281,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         epoch, the weights names should be passed here. Note that each name given will
                                         be searched as 'if <NAME> in <WEIGHT_NAME>' so a simple module name will be
                                         enough to catch his weights. A boolean value can be passed to track all weights.
-                                        Defaulted to False.
+                                        Default: False.
         :param statistics_functions:    A list of statistics functions to calculate at the end of each epoch on the
                                         tracked weights. Only relevant if weights are being tracked. The functions in
                                         the list must accept one Parameter (or Tensor) and return a float (or float
@@ -290,7 +315,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         to tensorboard. Can be passed as a string equal to 'epoch' for per epoch and
                                         'batch' for per single batch, or as an integer specifying per how many
                                         iterations to update. Notice that writing to tensorboard too frequently may
-                                        cause the training to be slower. Defaulted to 'epoch'.
+                                        cause the training to be slower. Default: 'epoch'.
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
 
@@ -356,7 +381,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -448,7 +473,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         super(TensorboardLoggingCallback, self).on_run_end()
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the

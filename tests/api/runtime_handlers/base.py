@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 import unittest.mock
 from datetime import datetime, timezone
@@ -32,6 +46,7 @@ class TestRuntimeHandlerBase:
 
         self.project = "test-project"
         self.run_uid = "test_run_uid"
+        self.kind = "job"
 
         mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
@@ -51,6 +66,9 @@ class TestRuntimeHandlerBase:
                 "project": self.project,
                 "name": "some-run-name",
                 "uid": self.run_uid,
+                "labels": {
+                    "kind": self.kind,
+                },
             },
         }
         mlrun.api.crud.Runs().store_run(
@@ -166,7 +184,8 @@ class TestRuntimeHandlerBase:
         resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
-            get_k8s().resolve_namespace(), label_selector=label_selector,
+            get_k8s().resolve_namespace(),
+            label_selector=label_selector,
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -178,7 +197,8 @@ class TestRuntimeHandlerBase:
             )
         if expected_services:
             get_k8s().v1api.list_namespaced_service.assert_called_once_with(
-                get_k8s().resolve_namespace(), label_selector=label_selector,
+                get_k8s().resolve_namespace(),
+                label_selector=label_selector,
             )
         assertion_func(
             self,
@@ -252,9 +272,10 @@ class TestRuntimeHandlerBase:
                 "pod", pod_dict, resources, "pod_resources", group_by_field_extractor
             )
         for index, service in enumerate(expected_services):
+            service_dict = service.to_dict()
             self._assert_resource_in_response_resources(
                 "service",
-                service,
+                service_dict,
                 resources,
                 "service_resources",
                 group_by_field_extractor,
@@ -289,7 +310,9 @@ class TestRuntimeHandlerBase:
                 )
                 assert (
                     deepdiff.DeepDiff(
-                        resource.status, expected_resource["status"], ignore_order=True,
+                        resource.status,
+                        expected_resource["status"],
+                        ignore_order=True,
                     )
                     == {}
                 )
@@ -344,7 +367,12 @@ class TestRuntimeHandlerBase:
         expected_pod_names: List[str], expected_pod_namespace: str = None
     ):
         calls = [
-            unittest.mock.call(expected_pod_name, expected_pod_namespace)
+            unittest.mock.call(
+                expected_pod_name,
+                expected_pod_namespace,
+                grace_period_seconds=0,
+                propagation_policy="Background",
+            )
             for expected_pod_name in expected_pod_names
         ]
         if not expected_pod_names:
@@ -465,7 +493,7 @@ class TestRuntimeHandlerBase:
         )
 
     @staticmethod
-    def _assert_run_logs(
+    async def _assert_run_logs(
         db: Session,
         project: str,
         uid: str,
@@ -474,10 +502,14 @@ class TestRuntimeHandlerBase:
     ):
         if logger_pod_name is not None:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+                name=logger_pod_name,
+                namespace=get_k8s().resolve_namespace(),
             )
-        _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
-        assert log == expected_log.encode()
+        _, logs = await crud.Logs().get_logs(
+            db, project, uid, source=LogSources.PERSISTENCY
+        )
+        async for log_line in logs:
+            assert log_line == expected_log.encode()
 
     @staticmethod
     def _assert_run_reached_state(

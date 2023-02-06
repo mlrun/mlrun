@@ -1,8 +1,23 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
+import mlrun.api.utils.helpers
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.utils.model_monitoring import EndpointType, create_model_endpoint_id
 
@@ -21,6 +36,11 @@ class ModelEndpointMetadata(BaseModel):
         extra = Extra.allow
 
 
+class ModelMonitoringMode(mlrun.api.utils.helpers.StrEnum):
+    enabled = "enabled"
+    disabled = "disabled"
+
+
 class ModelEndpointSpec(ObjectSpec):
     function_uri: Optional[str]  # <project_name>/<function_name>:<tag>
     model: Optional[str]  # <model_name>:<version>
@@ -32,6 +52,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
+    monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
 
 
 class Metric(BaseModel):
@@ -98,6 +119,7 @@ class ModelEndpointStatus(ObjectStatus):
     children: Optional[List[str]]
     children_uids: Optional[List[str]]
     endpoint_type: Optional[EndpointType]
+    monitoring_feature_set_uri: Optional[str]
 
     class Config:
         extra = Extra.allow
@@ -116,7 +138,8 @@ class ModelEndpoint(BaseModel):
         super().__init__(**data)
         if self.metadata.uid is None:
             uid = create_model_endpoint_id(
-                function_uri=self.spec.function_uri, versioned_model=self.spec.model,
+                function_uri=self.spec.function_uri,
+                versioned_model=self.spec.model,
             )
             self.metadata.uid = str(uid)
 

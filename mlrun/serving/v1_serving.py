@@ -24,6 +24,7 @@ from urllib.request import urlopen
 import nuclio
 
 import mlrun
+from mlrun.errors import err_to_str
 from mlrun.platforms.iguazio import OutputStream
 from mlrun.runtimes import RemoteRuntime
 
@@ -174,7 +175,11 @@ def nuclio_serving_handler(context, event):
         actions = "|".join(context.router.keys())
         models = "|".join(context.models.keys())
         body = f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
-        return context.Response(body=body, content_type="text/plain", status_code=404,)
+        return context.Response(
+            body=body,
+            content_type="text/plain",
+            status_code=404,
+        )
 
     return route(context, model_name, event)
 
@@ -241,7 +246,7 @@ class HTTPHandler:
                 parsed_event["instances"].append(sample)
                 parsed_event["content_type"] = event.content_type
             else:
-                raise Exception(f"Unrecognized request format: {exc}")
+                raise Exception("Unrecognized request format") from exc
 
         return parsed_event
 
@@ -335,7 +340,7 @@ class ExplainHandler(HTTPHandler):
             body = json.loads(event.body)
         except json.decoder.JSONDecodeError as exc:
             return context.Response(
-                body=f"Unrecognized request format: {exc}",
+                body=f"Unrecognized request format: {err_to_str(exc)}",
                 content_type="text/plain",
                 status_code=400,
             )

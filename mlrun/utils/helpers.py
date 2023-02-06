@@ -20,23 +20,25 @@ import re
 import sys
 import time
 import typing
+import warnings
 from datetime import datetime, timezone
 from importlib import import_module
-from os import environ, path
+from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
-import requests
+import pandas
+import semver
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
-from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
+from mlrun.errors import err_to_str
 
 from ..config import config
 from .logger import create_logger
@@ -46,6 +48,10 @@ _missing = object()
 
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
+
+LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
+DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
+DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
 class StorePrefix:
@@ -78,11 +84,24 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
+    if is_legacy_artifact(item):
+        db_key = item.get("db_key")
         project_str = project or item.get("project")
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
-    return item.get("target_path")
+        tree = item.get("tree")
+    else:
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
+
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and db_key:
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+
+    return (
+        item.get("target_path")
+        if is_legacy_artifact(item)
+        else item["spec"].get("target_path")
+    )
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -119,13 +138,6 @@ class run_keys:
 def verify_field_regex(
     field_name, field_value, patterns, raise_on_failure: bool = True
 ) -> bool:
-    logger.debug(
-        "Validating field against patterns",
-        field_name=field_name,
-        field_value=field_value,
-        pattern=patterns,
-    )
-
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -142,6 +154,38 @@ def verify_field_regex(
             else:
                 return False
     return True
+
+
+def validate_tag_name(
+    tag_name: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    """
+    This function is used to validate a tag name for invalid characters using field regex.
+    if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
+    otherwise, it returns False
+    """
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        tag_name,
+        mlrun.utils.regex.tag_name,
+        raise_on_failure=raise_on_failure,
+    )
+
+
+def get_regex_list_as_string(regex_list: List) -> str:
+    """
+    This function is used to combine a list of regex strings into a single regex,
+    with and condition between them.
+    """
+    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
+def tag_name_regex_as_string() -> str:
+    return get_regex_list_as_string(mlrun.utils.regex.tag_name)
+
+
+def is_yaml_path(url):
+    return url.endswith(".yaml") or url.endswith(".yml")
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -218,7 +262,13 @@ def normalize_name(name):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
-    name = name.replace("_", "-")
+    if "_" in name:
+        warnings.warn(
+            "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
+            "Replacing underscores with dashes.",
+            FutureWarning,
+        )
+        name = name.replace("_", "-")
     return name.lower()
 
 
@@ -418,11 +468,11 @@ yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
-def dict_to_yaml(struct):
+def dict_to_yaml(struct) -> str:
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as exc:
-        raise ValueError(f"error: data result cannot be serialized to YAML, {exc}")
+        raise ValueError("error: data result cannot be serialized to YAML") from exc
     return data
 
 
@@ -443,23 +493,6 @@ class MyEncoder(json.JSONEncoder):
 
 def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
-
-
-def uxjoin(base, local_path, key="", iter=None, is_dir=False):
-    if is_dir and (not local_path or local_path in [".", "./"]):
-        local_path = ""
-    elif not local_path:
-        local_path = key
-
-    if iter:
-        local_path = path.join(str(iter), local_path).replace("\\", "/")
-
-    if base and not base.endswith("/"):
-        base += "/"
-    base_str = base or ""
-    if local_path.startswith("./"):
-        local_path = local_path[len("./") :]
-    return f"{base_str}{local_path}"
 
 
 def parse_versioned_object_uri(uri, default_project=""):
@@ -611,13 +644,19 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     )
 
 
-def enrich_image_url(image_url: str, client_version: str = None) -> str:
+def enrich_image_url(
+    image_url: str, client_version: str = None, client_python_version: str = None
+) -> str:
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()
-    tag = config.images_tag or client_version or server_version
+    mlrun_version = config.images_tag or client_version or server_version
+    tag = mlrun_version
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version, python_version=client_python_version
+    )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -640,6 +679,38 @@ def enrich_image_url(image_url: str, client_version: str = None) -> str:
         image_url = f"{registry}{image_url}"
 
     return image_url
+
+
+def resolve_image_tag_suffix(
+    mlrun_version: str = None, python_version: str = None
+) -> str:
+    """
+    resolves what suffix should be appended to the image tag
+    :param mlrun_version: the mlrun version
+    :param python_version: the requested python version
+    :return: the suffix to append to the image tag
+    """
+    if not python_version or not mlrun_version:
+        return ""
+
+    # if the mlrun version is 0.0.0-<unstable>/<commit hash> then it's a dev version, therefore we can't check if the
+    # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
+    # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
+    if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
+        if python_version.startswith("3.7"):
+            return "-py37"
+        return ""
+
+    # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
+    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
+    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
+    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    # using semver (x.y.z-X) to include rc versions as well
+    if semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
+        return "-py37"
+    return ""
 
 
 def get_docker_repository_or_default(repository: str) -> str:
@@ -669,61 +740,6 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
         )
 
 
-def pr_comment(
-    message: str,
-    repo: str = None,
-    issue: int = None,
-    token=None,
-    server=None,
-    gitlab=False,
-):
-    """push comment message to Git system PR/issue
-
-    :param message:  test message
-    :param repo:     repo name (org/repo)
-    :param issue:    pull-request/issue number
-    :param token:    git system security token
-    :param server:   url of the git system
-    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
-    """
-    if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
-        gitlab = True
-    token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
-
-    if gitlab:
-        server = server or "gitlab.com"
-        headers = {"PRIVATE-TOKEN": token}
-        repo = repo or environ.get("CI_PROJECT_ID")
-        # auto detect GitLab pr id from the environment
-        issue = issue or environ.get("CI_MERGE_REQUEST_IID")
-        repo = repo.replace("/", "%2F")
-        url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
-    else:
-        server = server or "api.github.com"
-        repo = repo or environ.get("GITHUB_REPOSITORY")
-        # auto detect pr number if not specified, in github the pr id is identified as an issue id
-        # we try and read the pr (issue) id from the github actions event file/object
-        if not issue and "GITHUB_EVENT_PATH" in environ:
-            with open(environ["GITHUB_EVENT_PATH"]) as fp:
-                data = fp.read()
-                event = json.loads(data)
-                if "issue" not in event:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"issue not found in github actions event\ndata={data}"
-                    )
-                issue = event["issue"].get("number")
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {token}",
-        }
-        url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-    resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
-    if not resp.ok:
-        errmsg = f"bad pr comment resp!!\n{resp.text}"
-        raise IOError(errmsg)
-    return resp.json()["id"]
-
-
 def fill_object_hash(object_dict, uid_property_name, tag=""):
     # remove tag, hash, date from calculation
     object_dict.setdefault("metadata", {})
@@ -748,12 +764,6 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
 
 def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
-
-
-class FatalFailureException(Exception):
-    def __init__(self, original_exception: Exception, *args: object) -> None:
-        super().__init__(*args)
-        self.original_exception = original_exception
 
 
 def create_linear_backoff(base=2, coefficient=2, stop_value=120):
@@ -810,7 +820,7 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
 
         # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
         # risking going behind max_int
-        next_value = scale_factor * (base ** exponent)
+        next_value = scale_factor * (base**exponent)
         if next_value < max_value:
             exponent += 1
             yield next_value
@@ -842,15 +852,22 @@ def retry_until_successful(
     if isinstance(backoff, int) or isinstance(backoff, float):
         backoff = create_linear_backoff(base=backoff, coefficient=0)
 
+    first_interval = next(backoff)
+    if timeout and timeout <= first_interval:
+        logger.warning(
+            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f" Set timeout to be higher than backoff."
+        )
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
-        next_interval = next(backoff)
+        next_interval = first_interval or next(backoff)
+        first_interval = None
         try:
             result = _function(*args, **kwargs)
             return result
 
-        except FatalFailureException as exc:
-            logger.debug("Fatal failure exception raised. Not retrying")
+        except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
             last_exception = exc
@@ -859,7 +876,8 @@ def retry_until_successful(
             if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds."
+                        f" exc: {err_to_str(exc)}"
                     )
 
                 time.sleep(next_interval)
@@ -899,199 +917,14 @@ def get_workflow_url(project, id=None):
     return url
 
 
-class RunNotifications:
-    def __init__(self, with_ipython=True, with_slack=False, secrets=None):
-        self._hooks = []
-        self._html = ""
-        self._with_print = False
-        self._secrets = secrets or {}
-        self.with_ipython = with_ipython
-        if with_slack and "SLACK_WEBHOOK" in environ:
-            self.slack()
-        self.print(skip_ipython=True)
-
-    def push_start_message(
-        self, project, commit_id=None, id=None, has_workflow_url=False
-    ):
-        message = f"Pipeline started in project {project}"
-        if id:
-            message += f" id={id}"
-        commit_id = (
-            commit_id or environ.get("GITHUB_SHA") or environ.get("CI_COMMIT_SHA")
-        )
-        if commit_id:
-            message += f", commit={commit_id}"
-        if has_workflow_url:
-            url = get_workflow_url(project, id)
-        else:
-            url = get_ui_url(project)
-        html = ""
-        if url:
-            html = (
-                message
-                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
-            )
-            message = message + f", check progress in {url}"
-        self.push(message, html=html)
-
-    def push_run_results(self, runs, push_all=False, state=None):
-        """push a structured table with run results to notification targets
-
-        :param runs:  list if run objects (RunObject)
-        :param push_all: push all notifications (including already notified runs)
-        :param state: final run state
-        """
-        had_errors = 0
-        runs_list = []
-        for r in runs:
-            notified = getattr(r, "_notified", False)
-            if not notified or push_all:
-                if r.status.state == "error":
-                    had_errors += 1
-                runs_list.append(r.to_dict())
-                r._notified = True
-
-        text = "pipeline run finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-        self.push(text, runs_list)
-
-    def push(self, message, runs=None, html=None):
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
-        self._html = None
-        for h in self._hooks:
-            try:
-                h(message, runs, html)
-            except Exception as exc:
-                logger.warning(f"failed to push notification, {exc}")
-        if self.with_ipython and is_ipython:
-            import IPython
-
-            IPython.display.display(
-                IPython.display.HTML(self._get_html(html or message, runs))
-            )
-
-    def _get_html(self, message, runs):
-        if self._html:
-            return self._html
-        if not runs:
-            return message
-
-        html = "<h2>Run Results</h2>" + message
-        html += "<br>click the hyper links below to see detailed results<br>"
-        html += runs.show(display=False, short=True)
-        self._html = html
-        return html
-
-    def print(self, skip_ipython=None):
-        def _print(message, runs, html=None):
-            if not runs:
-                print(message)
-                return
-
-            table = []
-            for r in runs:
-                state = r["status"].get("state", "")
-                if state == "error":
-                    result = r["status"].get("error", "")
-                else:
-                    result = dict_to_str(r["status"].get("results", {}))
-
-                table.append(
-                    [
-                        state,
-                        r["metadata"]["name"],
-                        ".." + r["metadata"]["uid"][-6:],
-                        result,
-                    ]
-                )
-            print(
-                message
-                + "\n"
-                + tabulate(table, headers=["status", "name", "uid", "results"])
-            )
-
-        if not self._with_print and not (
-            skip_ipython and self.with_ipython and is_ipython
-        ):
-            self._hooks.append(_print)
-            self._with_print = True
-        return self
-
-    def slack(self, webhook=""):
-        emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
-        webhook = (
-            webhook
-            or environ.get("SLACK_WEBHOOK")
-            or self._secrets.get("SLACK_WEBHOOK")
-        )
-        if not webhook:
-            raise ValueError("Slack webhook is not set")
-
-        def row(text):
-            return {"type": "mrkdwn", "text": text}
-
-        def _slack(message, runs, html=None):
-            fields = [row("*Runs*"), row("*Results*")]
-            for r in runs or []:
-                meta = r["metadata"]
-                url = get_ui_url(meta.get("project"), meta.get("uid"))
-                if url:
-                    line = f'<{url}|*{meta.get("name")}*>'
-                else:
-                    line = meta.get("name")
-                state = r["status"].get("state", "")
-                line = f'{emoji.get(state, ":question:")}  {line}'
-
-                fields.append(row(line))
-                if state == "error":
-                    error_status = r["status"].get("error", "")
-                    result = f"*{error_status}*"
-                else:
-                    result = dict_to_str(r["status"].get("results", {}), ", ")
-                fields.append(row(result or "None"))
-
-            data = {
-                "blocks": [
-                    {"type": "section", "text": {"type": "mrkdwn", "text": message}}
-                ]
-            }
-
-            if runs:
-                for i in range(0, len(fields), 8):
-                    data["blocks"].append(
-                        {"type": "section", "fields": fields[i : i + 8]}
-                    )
-            response = requests.post(
-                webhook,
-                data=json.dumps(data),
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-
-        self._hooks.append(_slack)
-        return self
-
-    def git_comment(
-        self, git_repo=None, git_issue=None, token=None, server=None, gitlab=False
-    ):
-        def _comment(message, runs, html=None):
-            pr_comment(
-                self._get_html(html or message, runs),
-                git_repo,
-                git_issue,
-                token=token
-                or self._secrets.get("GIT_TOKEN")
-                or self._secrets.get("GITHUB_TOKEN"),
-                server=server,
-                gitlab=gitlab,
-            )
-
-        self._hooks.append(_comment)
-        return self
+def are_strings_in_exception_chain_messages(
+    exception: Exception, strings_list=typing.List[str]
+) -> bool:
+    while exception is not None:
+        if any([string in str(exception) for string in strings_list]):
+            return True
+        exception = exception.__cause__
+    return False
 
 
 def create_class(pkg_class: str):
@@ -1161,7 +994,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found, {exc}")
+        raise ImportError(f"Failed to import {class_name}") from exc
     return class_object
 
 
@@ -1183,8 +1016,8 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found, {exc}"
-        )
+            f"state/function init failed, handler {function} not found"
+        ) from exc
     return function_object
 
 
@@ -1213,7 +1046,9 @@ def get_handler_extended(
     try:
         instance = class_object(**class_args)
     except TypeError as exc:
-        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
+        raise TypeError(
+            f"failed to init class {class_path}\n args={class_args}"
+        ) from exc
 
     if not hasattr(instance, handler_path):
         raise ValueError(
@@ -1246,6 +1081,11 @@ def calculate_local_file_hash(filename):
         for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
+
+
+def calculate_dataframe_hash(dataframe: pandas.DataFrame):
+    # https://stackoverflow.com/questions/49883236/how-to-generate-a-hash-or-checksum-value-on-python-dataframe-created-from-a-fix/62754084#62754084
+    return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
 def fill_artifact_path_template(artifact_path, project):
@@ -1300,3 +1140,66 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
         return timestamp
 
     return Timestamp(time_str)
+
+
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
+
+
+def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
+    """artifact can be dict or Artifact object"""
+    if is_legacy_artifact(artifact):
+        return artifact.get(key, default)
+    elif key == "kind":
+        return artifact.get(key, default)
+    else:
+        for block in ["metadata", "spec", "status"]:
+            block_obj = artifact.get(block, {})
+            if block_obj and key in block_obj:
+                return block_obj.get(key, default)
+
+        if raise_on_missing:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"artifact {artifact} is missing metadata/spec/status"
+            )
+        return default
+
+
+def set_paths(pythonpath=""):
+    """update the sys path"""
+    if not pythonpath:
+        return
+    paths = pythonpath.split(":")
+    for p in paths:
+        abspath = path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)
+
+
+def is_relative_path(path):
+    if not path:
+        return False
+    return not (path.startswith("/") or ":\\" in path or "://" in path)
+
+
+def as_number(field_name, field_value):
+    if isinstance(field_value, str) and not field_value.isnumeric():
+        raise ValueError(f"{field_name} must be numeric (str/int types)")
+    return int(field_value)
+
+
+def filter_warnings(action, category):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+
+            # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
+            with warnings.catch_warnings():
+                warnings.simplefilter(action, category)
+                return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

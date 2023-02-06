@@ -1,15 +1,28 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import unittest.mock
 
-import deepdiff
 import pandas as pd
 import pytest
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
-from mlrun.feature_store.api import infer_from_static_df
+from mlrun.feature_store.api import _infer_from_static_df
 from tests.conftest import tests_root_directory
 
 this_dir = f"{tests_root_directory}/feature-store/"
@@ -38,8 +51,8 @@ def test_infer_from_df():
     key = "patient_id"
     df = pd.read_csv(this_dir + "testdata.csv")
     df.set_index(key, inplace=True)
-    featureset = fs.FeatureSet("testdata")
-    infer_from_static_df(df, featureset, options=InferOptions.all())
+    featureset = fstore.FeatureSet("testdata")
+    _infer_from_static_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
 
     # test entity infer
@@ -77,33 +90,12 @@ def test_infer_from_df():
         "mean",
         "std",
         "min",
+        "25%",
+        "50%",
+        "75%",
         "max",
         "hist",
     ], "wrong stats result"
-
-
-def test_backwards_compatibility_step_vs_state():
-    quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-    agg_step = quotes_set.add_aggregation("ask", ["sum", "max"], "1h", "10m")
-    agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
-    quotes_set.set_targets(
-        targets=[ParquetTarget("parquet1", after_state="somemap1")],
-        with_defaults=False,
-    )
-
-    feature_set_dict = quotes_set.to_dict()
-    # Make sure we're backwards compatible
-    feature_set_dict["spec"]["graph"]["states"] = feature_set_dict["spec"]["graph"].pop(
-        "steps"
-    )
-    feature_set_dict["spec"]["targets"][0]["after_state"] = feature_set_dict["spec"][
-        "targets"
-    ][0].pop("after_step")
-
-    from_dict_feature_set = fs.FeatureSet.from_dict(feature_set_dict)
-    assert (
-        deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict()) == {}
-    )
 
 
 def test_target_no_time_column():
@@ -127,14 +119,14 @@ def test_check_permissions():
             "string": ["ab", "cd", "ef"],
         }
     )
-    data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+    data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")])
 
     mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunAccessDeniedError("")
     )
 
     try:
-        fs.preview(
+        fstore.preview(
             data_set1,
             data,
             entity_columns=[Entity("string")],
@@ -145,27 +137,29 @@ def test_check_permissions():
         pass
 
     try:
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        fstore.ingest(data_set1, data, infer_options=fstore.InferOptions.default())
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     features = ["fs1.*"]
-    feature_vector = fs.FeatureVector("test", features)
+    feature_vector = fstore.FeatureVector("test", features)
     try:
-        fs.get_offline_features(feature_vector, entity_timestamp_column="time_stamp")
+        fstore.get_offline_features(
+            feature_vector, entity_timestamp_column="time_stamp"
+        )
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
-        fs.get_online_feature_service(feature_vector)
+        fstore.get_online_feature_service(feature_vector)
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
-        fs.deploy_ingestion_service(featureset=data_set1)
+        fstore.deploy_ingestion_service(featureset=data_set1)
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
@@ -179,6 +173,6 @@ def test_check_permissions():
 
 def test_check_timestamp_key_is_entity():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        fs.FeatureSet(
+        fstore.FeatureSet(
             "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
         )

@@ -1,17 +1,39 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Union
 
 import pandas as pd
+from deprecated import deprecated
 from sklearn.model_selection import train_test_split
 
 from ..datastore import DataItem
 
+# TODO: remove mlutils in 1.5.0
 
+
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def get_sample(
     src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None
 ):
     """generate data sample to be split (candidate for mlrun)
 
-    Returns features matrix and header (x), and labels (y)
+    Return features matrix and header (x), and labels (y)
     :param src:    data artifact
     :param sample: sample size from data source, use negative
                    integers to sample randomly, positive to
@@ -47,6 +69,11 @@ def _get_label_from_raw(raw, label):
     return raw.pop(label)
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def get_splits(
     raw,
     labels,
@@ -87,6 +114,11 @@ def get_splits(
         raise Exception("n_ways must be in the range [2,3]")
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def save_test_set(
     context,
     data: dict,

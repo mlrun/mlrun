@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import ast
 import http
 import json
@@ -15,10 +29,13 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 
-class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
+class Pipelines(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -30,9 +47,9 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
-        if project != "*" and (page_token or page_size or sort_by or filter_):
+        if project != "*" and (page_token or page_size or sort_by):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, sorting, or custom filter"
+                "Filtering by project can not be used together with pagination, or sorting"
             )
         if format_ == mlrun.api.schemas.PipelinesFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
@@ -50,9 +67,13 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         if project != "*":
             run_dicts = []
             while page_token is not None:
+                # kfp doesn't allow us to pass both a page_token and the filter. When we have a token from previous
+                # call, we will strip out the filter and use the token to continue (the token contains the details of
+                # the filter that was used to create it)
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
+                    filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
                 page_token = response.next_page_token
@@ -110,7 +131,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
 
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {exc}"
+                f"Failed getting kfp run: {err_to_str(exc)}"
             ) from exc
 
         return run
@@ -165,9 +186,11 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             logger.warning(
                 "Failed creating pipeline",
                 traceback=traceback.format_exc(),
-                exc=str(exc),
+                exc=err_to_str(exc),
             )
-            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {exc}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Failed creating pipeline: {err_to_str(exc)}"
+            )
         finally:
             pipeline_file.close()
 

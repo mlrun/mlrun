@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import logging
 from copy import copy
 from enum import Enum
 from typing import List, Union
@@ -176,12 +177,12 @@ class FeatureVector(ModelObj):
             df = fstore.get_offline_features(vector).to_dataframe()
 
             # return an online/real-time feature service
-            svc = fs.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
         :param features:       list of feature to collect to this vector.
-                               format [<project>/]<feature_set>.<feature_name or *> [as <alias>]
+                                Format [<project>/]<feature_set>.<feature_name or `*`> [as <alias>]
         :param label_feature:  feature name to be used as label data
         :param description:    text description of the vector
         :param with_indexes:   whether to keep the entity and timestamp columns in the response
@@ -245,7 +246,25 @@ class FeatureVector(ModelObj):
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
+            feature_aliases = self.get_feature_aliases()
+            for old_name, new_name in feature_aliases.items():
+                if old_name in self.status.stats:
+                    self.status.stats[new_name] = self.status.stats[old_name]
+                    del self.status.stats[old_name]
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_feature_aliases(self):
+        feature_aliases = {}
+        for feature in self.spec.features:
+            column_names = feature.split(" as ")
+            # split 'feature_set.old_name as new_name'
+            if len(column_names) == 2:
+                old_name_with_feature_set, new_name = column_names
+                # split 'feature_set.old_name'
+                feature_set, old_name = column_names[0].split(".")
+                if new_name != old_name:
+                    feature_aliases[old_name] = new_name
+        return feature_aliases
 
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
@@ -290,17 +309,25 @@ class FeatureVector(ModelObj):
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
+        label_column_name = None
+        label_column_fset = None
         if offline and self.spec.label_feature:
             features.append(self.spec.label_feature)
-            _, name, alias = parse_feature_string(self.spec.label_feature)
-            self.status.label_column = alias or name
+            feature_set, name, _ = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = name
+            label_column_name = name
+            label_column_fset = feature_set
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
-                raise mlrun.errors.MLRunInvalidArgumentError(
+                logging.log(
+                    logging.WARN,
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set.name [as alias])"
+                    " you need to use another alias (feature-set.name [as alias])"
+                    f" by default it changed to be {alias}_{feature_set_full_name}",
                 )
+                alias = f"{alias}_{feature_set_full_name}"
+
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
             feature_set_fields[feature_set_full_name].append((name, alias))
@@ -318,7 +345,9 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if field != feature_set_object.spec.timestamp_key:
+                    if field != feature_set_object.spec.timestamp_key and not (
+                        feature_set == label_column_fset and field == label_column_name
+                    ):
                         if alias:
                             add_feature(
                                 field,
@@ -340,14 +369,13 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, alias in fields:
-                field_name = alias or name
+            for name, _ in fields:
                 if name in feature_set.status.stats and update_stats:
-                    self.status.stats[field_name] = feature_set.status.stats[name]
+                    self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    self.status.features[field_name] = feature
+                    self.status.features[name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
@@ -423,11 +451,11 @@ class OnlineVectorService:
         example::
 
             # accept list of dict, return list of dict
-            svc = fs.get_online_feature_service(vector)
+            svc = fstore.get_online_feature_service(vector)
             resp = svc.get([{"name": "joe"}, {"name": "mike"}])
 
             # accept list of list, return list of list
-            svc = fs.get_online_feature_service(vector, as_list=True)
+            svc = fstore.get_online_feature_service(vector, as_list=True)
             resp = svc.get([["joe"], ["mike"]])
 
         :param entity_rows:  list of list/dict with input entity data/rows
@@ -464,6 +492,12 @@ class OnlineVectorService:
 
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
+
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -473,7 +507,6 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -491,7 +524,7 @@ class OnlineVectorService:
             if as_list and data:
                 data = [
                     data.get(key, None)
-                    for key in self.vector.status.features.keys()
+                    for key in requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)
@@ -527,7 +560,7 @@ class OfflineVectorResponse:
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        return self.to_csv(target_path, **kw)
+        return self._merger.to_csv(target_path, **kw)
 
 
 class FixedWindowType(Enum):
@@ -538,7 +571,7 @@ class FixedWindowType(Enum):
         try:
             from storey import FixedWindowType as QueryByKeyFixedWindowType
         except ImportError as exc:
-            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+            raise ImportError("storey not installed, use pip install storey") from exc
         if self == FixedWindowType.LastClosedWindow:
             return QueryByKeyFixedWindowType.LastClosedWindow
         elif self == FixedWindowType.CurrentOpenWindow:

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from abc import ABC
 from typing import Dict, List, Union
 
@@ -6,8 +20,8 @@ from mlrun.artifacts import Artifact
 from mlrun.datastore import is_store_uri
 from mlrun.features import Feature
 
-from .._common import ExtraDataType, ModelHandler, ModelType, PathType
-from .utils import DatasetType, YColumnsType, to_dataframe
+from .._common import ModelHandler
+from .utils import MLTypes, MLUtils
 
 
 class MLModelHandler(ModelHandler, ABC):
@@ -17,12 +31,16 @@ class MLModelHandler(ModelHandler, ABC):
 
     def __init__(
         self,
-        model: ModelType = None,
-        model_path: PathType = None,
+        model: MLTypes.ModelType = None,
+        model_path: MLTypes.PathType = None,
         model_name: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], PathType] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], PathType] = None,
-        custom_objects_directory: PathType = None,
+        modules_map: Union[
+            Dict[str, Union[None, str, List[str]]], MLTypes.PathType
+        ] = None,
+        custom_objects_map: Union[
+            Dict[str, Union[str, List[str]]], MLTypes.PathType
+        ] = None,
+        custom_objects_directory: MLTypes.PathType = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
@@ -75,14 +93,14 @@ class MLModelHandler(ModelHandler, ABC):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.PKL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.PKL'.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.
         """
         # Setup additional properties for logging a ml model into a ModelArtifact:
         self._algorithm = None  # type: str
-        self._sample_set = None  # type: DatasetType
-        self._y_columns = None  # type: YColumnsType
+        self._sample_set = None  # type: MLTypes.DatasetType
+        self._target_columns = None  # type: MLTypes.TargetColumnsNamesType
         self._feature_vector = None  # type: str
         self._feature_weights = None  # type: List[float]
 
@@ -108,7 +126,7 @@ class MLModelHandler(ModelHandler, ABC):
         return self._algorithm
 
     @property
-    def sample_set(self) -> DatasetType:
+    def sample_set(self) -> MLTypes.DatasetType:
         """
         Get the sample dataset set in this handler.
 
@@ -117,13 +135,13 @@ class MLModelHandler(ModelHandler, ABC):
         return self._sample_set
 
     @property
-    def y_columns(self) -> YColumnsType:
+    def target_columns(self) -> MLTypes.TargetColumnsNamesType:
         """
-        Get the sample dataset y columns set in this handler.
+        Get the sample dataset target columns set in this handler.
 
-        :return: The handler's sample dataset y columns.
+        :return: The handler's sample dataset target columns names.
         """
-        return self._y_columns
+        return self._target_columns
 
     @property
     def feature_vector(self) -> str:
@@ -151,7 +169,9 @@ class MLModelHandler(ModelHandler, ABC):
         """
         self._algorithm = algorithm
 
-    def set_sample_set(self, sample_set: Union[DatasetType, mlrun.DataItem, str]):
+    def set_sample_set(
+        self, sample_set: Union[MLTypes.DatasetType, mlrun.DataItem, str]
+    ):
         """
         Set the sample set this model will be logged with. The sample set will be casted to a pd.DataFrame. Can be sent
         as a DataItem and as a store object string.
@@ -174,15 +194,15 @@ class MLModelHandler(ModelHandler, ABC):
             sample_set = sample_set.as_df()
 
         # Set the sample set casting it to a DataFrame:
-        self._sample_set = to_dataframe(sample_set)
+        self._sample_set = MLUtils.to_dataframe(dataset=sample_set)
 
-    def set_y_columns(self, y_columns: YColumnsType):
+    def set_target_columns(self, target_columns: MLTypes.TargetColumnsNamesType):
         """
         Set the ground truth column names of the sample set this model will be logged with.
 
-        :param y_columns: The ground truth (y) columns to set.
+        :param target_columns: The ground truth (y) columns names to set.
         """
-        self._y_columns = y_columns
+        self._target_columns = target_columns
 
     def set_feature_vector(self, feature_vector: str):
         """
@@ -210,10 +230,10 @@ class MLModelHandler(ModelHandler, ABC):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, ExtraDataType] = None,
+        extra_data: Dict[str, MLTypes.ExtraDataType] = None,
         algorithm: str = None,
-        sample_set: DatasetType = None,
-        y_columns: YColumnsType = None,
+        sample_set: MLTypes.DatasetType = None,
+        target_columns: MLTypes.TargetColumnsNamesType = None,
         feature_vector: str = None,
         feature_weights: List[float] = None,
     ):
@@ -235,7 +255,7 @@ class MLModelHandler(ModelHandler, ABC):
         :param algorithm:       The algorithm of this model. If None it will be read as the model's class name.
         :param sample_set:      Sample set to use for getting the model's inputs, outputs and base stats for model
                                 monitoring. Do not pass both sample set and inputs / outputs.
-        :param y_columns:       The ground truth (y) labels names.
+        :param target_columns:  The ground truth (y) labels names.
         :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: List of feature weights, one per input column.
 
@@ -251,8 +271,8 @@ class MLModelHandler(ModelHandler, ABC):
         # Update the sample set:
         if sample_set is not None:
             self.set_sample_set(sample_set=sample_set)
-        if y_columns is not None:
-            self.set_y_columns(y_columns=y_columns)
+        if target_columns is not None:
+            self.set_target_columns(target_columns=target_columns)
 
         # Update the feature parameters:
         if feature_vector is not None:
@@ -272,7 +292,7 @@ class MLModelHandler(ModelHandler, ABC):
             extra_data=extra_data,
             algorithm=self._algorithm,
             sample_set=self._sample_set,
-            y_columns=self._y_columns,
+            target_columns=self._target_columns,
             feature_vector=self._feature_vector,
             feature_weights=self._feature_weights,
         )
@@ -285,7 +305,7 @@ class MLModelHandler(ModelHandler, ABC):
         outputs: List[Feature] = None,
         metrics: Dict[str, Union[int, float]] = None,
         artifacts: Dict[str, Artifact] = None,
-        extra_data: Dict[str, ExtraDataType] = None,
+        extra_data: Dict[str, MLTypes.ExtraDataType] = None,
         feature_vector: str = None,
         feature_weights: List[float] = None,
     ):

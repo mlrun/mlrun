@@ -1,16 +1,29 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
-import xgboost as xgb
 
 import mlrun
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler
 from .mlrun_interface import XGBModelMLRunInterface
-from .utils import DatasetType
+from .utils import XGBoostTypes
 
 
 class XGBoostModelHandler(MLModelHandler):
@@ -31,7 +44,7 @@ class XGBoostModelHandler(MLModelHandler):
 
     def __init__(
         self,
-        model: xgb.XGBModel = None,
+        model: XGBoostTypes.ModelType = None,
         model_path: str = None,
         model_name: str = None,
         modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
@@ -90,7 +103,7 @@ class XGBoostModelHandler(MLModelHandler):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.PKL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.PKL'.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.
         """
@@ -145,7 +158,7 @@ class XGBoostModelHandler(MLModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -175,7 +188,7 @@ class XGBoostModelHandler(MLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_sample: DatasetType = None,
+        input_sample: XGBoostTypes = None,
         log: bool = None,
     ):
         """
@@ -185,10 +198,10 @@ class XGBoostModelHandler(MLModelHandler):
         :param model_name:          The name to give to the converted ONNX model. If not given the default name will be
                                     the stored model name with the suffix '_onnx'.
         :param optimize:            Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                    Defaulted to True.
+                                    Default: True.
         :param input_sample:        An inputs sample with the names and data types of the inputs of the model.
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                    handler has a MLRun context set. Defaulted to None.
+                                    handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

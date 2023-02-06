@@ -1,15 +1,26 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import mlrun.api.schemas
 import mlrun.utils.singleton
-from mlrun.api.utils.clients import nuclio
-from mlrun.config import config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
-from mlrun.utils import logger
+from mlrun.config import Config, config, default_config
+from mlrun.runtimes.utils import resolve_mpijob_crd_version, resolve_nuclio_version
 
 
-class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
-    def __init__(self):
-        self._cached_nuclio_version = None
-
+class ClientSpec(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def get_client_spec(self):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
@@ -24,9 +35,16 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
             kfp_image=config.kfp_image,
+            kfp_url=config.resolve_kfp_url(),
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
-            nuclio_version=self._resolve_nuclio_version(),
+            nuclio_version=resolve_nuclio_version(),
+            spark_operator_version=config.spark_operator_version,
+            calculate_artifact_hash=config.artifacts.calculate_hash,
+            generate_artifact_target_path_from_artifact_hash=config.artifacts.generate_target_path_from_artifact_hash,
+            redis_url=config.redis.url,
+            redis_type=config.redis.type,
+            sql_url=config.sql.url,
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default
@@ -53,15 +71,34 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
             ),
-            spark_operator_version=self._get_config_value_if_not_default(
-                "spark_operator_version"
-            ),
             default_tensorboard_logs_path=self._get_config_value_if_not_default(
                 "default_tensorboard_logs_path"
             ),
+            default_function_pod_resources=self._get_config_value_if_not_default(
+                "default_function_pod_resources"
+            ),
+            preemptible_nodes_node_selector=self._get_config_value_if_not_default(
+                "preemptible_nodes.node_selector"
+            ),
+            preemptible_nodes_tolerations=self._get_config_value_if_not_default(
+                "preemptible_nodes.tolerations"
+            ),
+            default_preemption_mode=self._get_config_value_if_not_default(
+                "function_defaults.preemption_mode"
+            ),
+            force_run_local=self._get_config_value_if_not_default("force_run_local"),
+            function=self._get_config_value_if_not_default("function"),
+            # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
+            ce_mode=config.ce.mode,
+            ce=config.ce.to_dict(),
+            logs=self._get_config_value_if_not_default("httpdb.logs"),
+            feature_store_data_prefixes=self._get_config_value_if_not_default(
+                "feature_store.data_prefixes"
+            ),
         )
 
-    def _get_config_value_if_not_default(self, config_key):
+    @staticmethod
+    def _get_config_value_if_not_default(config_key):
         config_key_parts = config_key.split(".")
         current_config_value = config
         current_default_config_value = default_config
@@ -70,27 +107,10 @@ class ClientSpec(metaclass=mlrun.utils.singleton.Singleton,):
             current_default_config_value = current_default_config_value.get(
                 config_key_part, ""
             )
+        # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
+        if isinstance(current_config_value, Config):
+            current_config_value = current_config_value.to_dict()
         if current_config_value == current_default_config_value:
             return None
         else:
             return current_config_value
-
-    # if nuclio version specified on mlrun config set it likewise,
-    # if not specified, get it from nuclio api client
-    # since this is a heavy operation (sending requests to API), and it's unlikely that the version
-    # will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-    def _resolve_nuclio_version(self):
-        if not self._cached_nuclio_version:
-
-            # config override everything
-            nuclio_version = config.nuclio_version
-            if not nuclio_version and config.nuclio_dashboard_url:
-                try:
-                    nuclio_client = nuclio.Client()
-                    nuclio_version = nuclio_client.get_dashboard_version()
-                except Exception as exc:
-                    logger.warning("Failed to resolve nuclio version", exc=str(exc))
-
-            self._cached_nuclio_version = nuclio_version
-
-        return self._cached_nuclio_version

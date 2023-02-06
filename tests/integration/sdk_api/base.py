@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import os
 import pathlib
@@ -74,6 +88,10 @@ class TestMLRunIntegration:
             / "assets"
         )
 
+    @property
+    def base_url(self):
+        return mlrun.config.config.dbpath + "/api/v1/"
+
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")
         self._test_env.update(env)
@@ -100,9 +118,14 @@ class TestMLRunIntegration:
     def _run_db(self):
         self._logger.debug("Starting DataBase")
         self._run_command(
-            "make", args=["run-test-db"], cwd=TestMLRunIntegration.root_path,
+            "make",
+            args=["run-test-db"],
+            cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
         self.db_container_id = output.strip()
 
         self._logger.debug("Started DataBase", container_id=self.db_container_id)
@@ -112,14 +135,23 @@ class TestMLRunIntegration:
     def _run_api(self):
         self._logger.debug("Starting API")
         self._run_command(
-            "make",
+            # already compiled schemas in run-test-db
+            "MLRUN_SKIP_COMPILE_SCHEMAS=true make",
             args=["run-api"],
             env=self._extend_current_env(
-                {"MLRUN_VERSION": "test-integration", "MLRUN_HTTPDB__DSN": self.db_dsn}
+                {
+                    "MLRUN_VERSION": "test-integration",
+                    "MLRUN_HTTPDB__DSN": self.db_dsn,
+                    # integration tests run in docker, and do no support sidecars for log collection
+                    "MLRUN__LOG_COLLECTOR__MODE": "legacy",
+                }
             ),
             cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command("docker", args=["ps", "--last", "1", "-q"],)
+        output = self._run_command(
+            "docker",
+            args=["ps", "--last", "1", "-q"],
+        )
         self.api_container_id = output.strip()
         # retrieve container bind port + host
         output = self._run_command(
@@ -155,7 +187,8 @@ class TestMLRunIntegration:
                 "docker", args=["rm", "--force", self.db_container_id]
             )
             self._logger.debug(
-                "Removed Database container", out=out,
+                "Removed Database container",
+                out=out,
             )
 
     def _ensure_database_liveness(self, retry_interval=2, timeout=30):

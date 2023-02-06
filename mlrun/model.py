@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import pathlib
 import re
 import time
 import warnings
@@ -20,12 +21,20 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from os import environ
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .config import config
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target
+from .utils import (
+    dict_to_json,
+    dict_to_yaml,
+    get_artifact_target,
+    is_legacy_artifact,
+    logger,
+)
+
+# Changing {run_id} will break and will not be backward compatible.
+RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 
 class ModelObj:
@@ -76,9 +85,15 @@ class ModelObj:
             fields = list(inspect.signature(cls.__init__).parameters.keys())
         new_obj = cls()
         if struct:
-            for key, val in struct.items():
-                if key in fields and key not in deprecated_fields:
-                    setattr(new_obj, key, val)
+            # we are looping over the fields to save the same order and behavior in which the class
+            # initialize the attributes
+            for field in fields:
+                # we want to set the field only if the field exists in struct
+                if field in struct:
+                    field_val = struct.get(field, None)
+                    if field not in deprecated_fields:
+                        setattr(new_obj, field, field_val)
+
             for deprecated_field, new_field in deprecated_fields.items():
                 field_value = struct.get(new_field) or struct.get(deprecated_field)
                 if field_value:
@@ -86,7 +101,7 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self):
+    def to_yaml(self) -> str:
         """convert the object to yaml"""
         return dict_to_yaml(self.to_dict())
 
@@ -154,7 +169,12 @@ class ObjectDict:
 
         new_obj = cls(classes_map, default_kind)
         for name, child in children.items():
-            child_obj = new_obj._get_child_object(child, name)
+            obj_name = name
+            if hasattr(child, "name") and child.name is not None:
+                obj_name = child.name
+            elif isinstance(child, dict) and "name" in child:
+                obj_name = child["name"]
+            child_obj = new_obj._get_child_object(child, obj_name)
             new_obj._children[name] = child_obj
 
         return new_obj
@@ -257,9 +277,11 @@ class ObjectList:
 
 class Credentials(ModelObj):
     generate_access_key = "$generate"
+    secret_reference_prefix = "$ref:"
 
     def __init__(
-        self, access_key=None,
+        self,
+        access_key=None,
     ):
         self.access_key = access_key
 
@@ -282,7 +304,7 @@ class BaseMetadata(ModelObj):
         self.tag = tag
         self.hash = hash
         self.namespace = namespace
-        self.project = project or config.default_project
+        self.project = project or ""
         self.labels = labels or {}
         self.categories = categories or []
         self.annotations = annotations or {}
@@ -334,6 +356,25 @@ class ImageBuilder(ModelObj):
         self.with_mlrun = with_mlrun  #: with_mlrun
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
+
+    @property
+    def source(self):
+        return self._source
+
+    @source.setter
+    def source(self, source):
+        if source and not (
+            source.startswith("git://")
+            # lenient check for file extension because we support many file types locally and remotely
+            or pathlib.Path(source).suffix
+            or source in [".", "./"]
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must be a compressed (tar.gz / zip) file, a git repo, "
+                "a file path or in the project's context (.)"
+            )
+
+        self._source = source
 
 
 class RunMetadata(ModelObj):
@@ -737,8 +778,7 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self._artifact(key)
@@ -758,19 +798,18 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                outputs[a["key"]] = get_artifact_target(a, self.metadata.project)
+                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
+                outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 
     def artifact(self, key) -> "mlrun.DataItem":
         """return artifact DataItem by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         artifact = self._artifact(key)
         if artifact:
             uri = get_artifact_target(artifact, self.metadata.project)
@@ -778,11 +817,26 @@ class RunObject(RunTemplate):
                 return mlrun.get_dataitem(uri)
         return None
 
+    def _outputs_wait_for_completion(
+        self,
+        show_logs=False,
+    ):
+        """
+        Wait for the run to complete fetching the run outputs.
+        When running a function with watch=False, and passing the outputs to another function,
+        the outputs will not be available until the run is completed.
+        :param show_logs: default False, avoid spamming unwanted logs of the run when the user asks for outputs
+        """
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion(
+                show_logs=show_logs,
+            )
+
     def _artifact(self, key):
         """return artifact DataItem by key"""
         if self.status.artifacts:
             for a in self.status.artifacts:
-                if a["key"] == key:
+                if a["metadata"]["key"] == key:
                     return a
         return None
 
@@ -815,7 +869,7 @@ class RunObject(RunTemplate):
         db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
-    def logs(self, watch=True, db=None):
+    def logs(self, watch=True, db=None, offset=0):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
@@ -823,23 +877,66 @@ class RunObject(RunTemplate):
             print("DB is not configured, cannot show logs")
             return None
 
+        new_offset = 0
         if db.kind == "http":
-            state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
+            state, new_offset = db.watch_log(
+                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+            )
         else:
-            state, text = db.get_log(self.metadata.uid, self.metadata.project)
+            state, text = db.get_log(
+                self.metadata.uid, self.metadata.project, offset=offset
+            )
             if text:
                 print(text.decode())
 
         if state:
             print(f"final state: {state}")
-        return state
+        return state, new_offset
 
-    def wait_for_completion(self, sleep=3, timeout=0, raise_on_failure=True):
-        """wait for async run to complete"""
+    def wait_for_completion(
+        self,
+        sleep=3,
+        timeout=0,
+        raise_on_failure=True,
+        show_logs=None,
+        logs_interval=None,
+    ):
+        """
+        Wait for remote run to complete.
+        Default behavior is to wait until reached terminal state or timeout passed, if timeout is 0 then wait forever
+        It pulls the run status from the db every sleep seconds.
+        If show_logs is not False and logs_interval is not None, it will print the logs when run reached terminal state
+        If show_logs is not False and logs_interval is defined, it will print the logs every logs_interval seconds
+        if show_logs is False it will not print the logs, will still pull the run state until it reaches terminal state
+        """
+        # TODO: rename sleep to pull_state_interval
         total_time = 0
+        offset = 0
+        last_pull_log_time = None
+        logs_enabled = show_logs is not False
+        state = self.state()
+        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+            logger.info(
+                f"run {self.metadata.name} is not completed yet, waiting for it to complete",
+                current_state=state,
+            )
         while True:
             state = self.state()
+            if (
+                logs_enabled
+                and logs_interval
+                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
+                and (
+                    last_pull_log_time is None
+                    or (datetime.now() - last_pull_log_time).seconds > logs_interval
+                )
+            ):
+                last_pull_log_time = datetime.now()
+                state, offset = self.logs(watch=False, offset=offset)
+
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                if logs_enabled and logs_interval:
+                    self.logs(watch=False, offset=offset)
                 break
             time.sleep(sleep)
             total_time += sleep
@@ -847,11 +944,14 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
-        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+        if logs_enabled and not logs_interval:
             self.logs(watch=False)
+
+        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )
+
         return state
 
     @staticmethod
@@ -925,8 +1025,7 @@ def NewTask(
     secrets=None,
     base=None,
 ):
-    """Creates a new task - see new_task
-    """
+    """Creates a new task - see new_task"""
     warnings.warn(
         "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
         # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
@@ -1018,6 +1117,66 @@ def new_task(
     return run
 
 
+class TargetPathObject:
+    """Class configuring the target path
+    This class will take consideration of a few parameters to create the correct end result path:
+
+    - :run_id: if run_id is provided target will be considered as run_id mode which require to
+        contain a {run_id} place holder in the path.
+    - :is_single_file: if true then run_id must be the directory containing the output file
+        or generated before the file name (run_id/output.file).
+    - :base_path: if contains the place holder for run_id, run_id must not be None.
+        if run_id passed and place holder doesn't exist the place holder will
+        be generated in the correct place.
+    """
+
+    def __init__(
+        self,
+        base_path=None,
+        run_id=None,
+        is_single_file=False,
+    ):
+        self.run_id = run_id
+        self.full_path_template = base_path
+        if run_id is not None:
+            if RUN_ID_PLACE_HOLDER not in self.full_path_template:
+                if not is_single_file:
+                    if self.full_path_template[-1] != "/":
+                        self.full_path_template = self.full_path_template + "/"
+                    self.full_path_template = (
+                        self.full_path_template + RUN_ID_PLACE_HOLDER + "/"
+                    )
+                else:
+                    dir_name_end = len(self.full_path_template)
+                    if self.full_path_template[-1] != "/":
+                        dir_name_end = self.full_path_template.rfind("/") + 1
+                    updated_path = (
+                        self.full_path_template[:dir_name_end]
+                        + RUN_ID_PLACE_HOLDER
+                        + "/"
+                        + self.full_path_template[dir_name_end:]
+                    )
+                    self.full_path_template = updated_path
+            else:
+                if self.full_path_template[-1] != "/":
+                    if self.full_path_template.endswith(RUN_ID_PLACE_HOLDER):
+                        self.full_path_template = self.full_path_template + "/"
+        else:
+            if RUN_ID_PLACE_HOLDER in self.full_path_template:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Error when trying to create TargetPathObject with place holder '{run_id}' but no value."
+                )
+
+    def get_templated_path(self):
+        return self.full_path_template
+
+    def get_absolute_path(self):
+        if self.run_id:
+            return self.full_path_template.format(run_id=self.run_id)
+        else:
+            return self.full_path_template
+
+
 class DataSource(ModelObj):
     """online or offline data source spec"""
 
@@ -1083,6 +1242,8 @@ class DataTargetBase(ModelObj):
         "max_events",
         "flush_after_seconds",
         "storage_options",
+        "run_id",
+        "schema",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1091,6 +1252,13 @@ class DataTargetBase(ModelObj):
         return super().from_dict(
             struct, fields=fields, deprecated_fields={"after_state": "after_step"}
         )
+
+    def get_path(self):
+        if self.path:
+            is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+            return TargetPathObject(self.path, self.run_id, is_single_file)
+        else:
+            return None
 
     def __init__(
         self,
@@ -1107,6 +1275,7 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         after_state=None,
         storage_options: Dict[str, str] = None,
+        schema: Dict[str, Any] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1129,6 +1298,8 @@ class DataTargetBase(ModelObj):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.run_id = None
+        self.schema = schema
 
 
 class FeatureSetProducer(ModelObj):
@@ -1155,10 +1326,19 @@ class DataTarget(DataTargetBase):
         "updated",
         "size",
         "last_written",
+        "run_id",
+        "partitioned",
+        "key_bucketing_number",
+        "partition_cols",
+        "time_partitioning_granularity",
     ]
 
     def __init__(
-        self, kind: str = None, name: str = "", path=None, online=None,
+        self,
+        kind: str = None,
+        name: str = "",
+        path=None,
+        online=None,
     ):
         super().__init__(kind, name, path)
         self.status = ""

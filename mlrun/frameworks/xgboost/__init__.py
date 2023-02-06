@@ -1,27 +1,32 @@
-import warnings
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Dict, List, Union
 
 import xgboost as xgb
 
 import mlrun
 
-from .._common import ExtraDataType, get_plans
-from .._ml_common import (
-    Metric,
-    MetricEntry,
-    MetricsLibrary,
-    MLArtifactsLibrary,
-    MLPlan,
-    PickleModelServer,
-    get_metrics,
-)
+from .._ml_common import MLArtifactsLibrary, MLPlan, PickleModelServer
+from ..sklearn import Metric, MetricsLibrary
 from .mlrun_interface import XGBModelMLRunInterface
 from .model_handler import XGBoostModelHandler
-from .utils import DatasetType
+from .utils import XGBoostTypes, XGBoostUtils
 
-# Placeholders as the SciKit-Learn API is commonly used among all of the ML frameworks:
+# Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 XGBoostArtifactsLibrary = MLArtifactsLibrary
-XGBoostMetricsLibrary = MetricsLibrary
 XGBoostModelServer = PickleModelServer
 
 
@@ -35,16 +40,20 @@ def apply_mlrun(
     custom_objects_directory: str = None,
     context: mlrun.MLClientCtx = None,
     artifacts: Union[List[MLPlan], List[str], Dict[str, dict]] = None,
-    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
-    x_test: DatasetType = None,
-    y_test: DatasetType = None,
-    sample_set: Union[DatasetType, mlrun.DataItem, str] = None,
+    metrics: Union[
+        List[Metric],
+        List[XGBoostTypes.MetricEntryType],
+        Dict[str, XGBoostTypes.MetricEntryType],
+    ] = None,
+    x_test: XGBoostTypes.DatasetType = None,
+    y_test: XGBoostTypes.DatasetType = None,
+    sample_set: Union[XGBoostTypes.DatasetType, mlrun.DataItem, str] = None,
     y_columns: Union[List[str], List[int]] = None,
     feature_vector: str = None,
     feature_weights: List[float] = None,
     labels: Dict[str, Union[str, int, float]] = None,
     parameters: Dict[str, Union[str, int, float]] = None,
-    extra_data: Dict[str, ExtraDataType] = None,
+    extra_data: Dict[str, XGBoostTypes.ExtraDataType] = None,
     auto_log: bool = True,
     **kwargs
 ) -> XGBoostModelHandler:
@@ -52,7 +61,7 @@ def apply_mlrun(
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
     :param model:                    The model to wrap. Can be loaded from the model path given as well.
-    :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
+    :param model_name:               The model name to use for storing the model artifact. Default: "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update). If model is not provided, it will be loaded from this path.
@@ -61,21 +70,29 @@ def apply_mlrun(
                                      modules will be imported globally. If multiple objects needed to be imported
                                      from the same module a list can be given. The map can be passed as a path to a
                                      json file as well. For example:
-                                     {
-                                         "module1": None,  # => import module1
-                                         "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                         "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "module1": None,  # import module1
+                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                         }
+
                                      If the model path given is of a store object, the modules map will be read from
                                      the logged modules map artifact of the model.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
                                      a path to a python file and its value is the custom object name to import from it.
                                      If multiple objects needed to be imported from the same py file a list can be
                                      given. The map can be passed as a path to a json file as well. For example:
-                                     {
-                                         "/.../custom_model.py": "MyModel",
-                                         "/.../custom_objects.py": ["object1", "object2"]
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "/.../custom_model.py": "MyModel",
+                                             "/.../custom_objects.py": ["object1", "object2"]
+                                         }
+
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning
                                      each py file will be read from 'custom_objects_directory/<MAP VALUE>'. If the model
                                      path given is of a store object, the custom objects map will be read from the
@@ -106,26 +123,12 @@ def apply_mlrun(
     :param labels:                   Labels to log with the model.
     :param parameters:               Parameters to log with the model.
     :param extra_data:               Extra data to log with the model.
-    :param auto_log:                 Whether or not to apply MLRun's auto logging on the model. Auto logging will add
-                                     the default artifacts and metrics to the lists of artifacts and metrics. Defaulted
-                                     to True.
+    :param auto_log:                 Whether to apply MLRun's auto logging on the model. Auto logging will add the
+                                     default artifacts and metrics to the lists of artifacts and metrics. Default:
+                                     True.
 
     :return: The model handler initialized with the provided model.
     """
-    if "X_test" in kwargs:
-        warnings.warn(
-            "The attribute 'X_test' was changed to 'x_test' and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-        x_test = kwargs["X_test"]
-    if "X_train" in kwargs or "y_train" in kwargs:
-        warnings.warn(
-            "The attributes 'X_train' and 'y_train' are no longer required and will be removed next version.",
-            # TODO: Remove in mlrun 1.0.0
-            PendingDeprecationWarning,
-        )
-
     # Get the default context:
     if context is None:
         context = mlrun.get_or_create_ctx(XGBModelMLRunInterface.DEFAULT_CONTEXT_NAME)
@@ -155,7 +158,7 @@ def apply_mlrun(
     if sample_set is not None:
         handler.set_sample_set(sample_set=sample_set)
     if y_columns is not None:
-        handler.set_y_columns(y_columns=y_columns)
+        handler.set_target_columns(target_columns=y_columns)
     if feature_vector is not None:
         handler.set_feature_vector(feature_vector=feature_vector)
     if feature_weights is not None:
@@ -170,22 +173,17 @@ def apply_mlrun(
     # Add MLRun's interface to the model:
     XGBModelMLRunInterface.add_interface(obj=model)
 
-    # Set the handler to the model:
-    model.set_model_handler(model_handler=handler)
-
     # Configure the logger:
-    model.configure_logger(
+    model.configure_logging(
         context=context,
-        plans=get_plans(
-            artifacts_library=XGBoostArtifactsLibrary,
+        plans=XGBoostArtifactsLibrary.get_plans(
             artifacts=artifacts,
             context=context,
             include_default=auto_log,
             model=model,
             y=y_test,
         ),
-        metrics=get_metrics(
-            metrics_library=XGBoostMetricsLibrary,
+        metrics=MetricsLibrary.get_metrics(
             metrics=metrics,
             context=context,
             include_default=auto_log,
@@ -194,6 +192,7 @@ def apply_mlrun(
         ),
         x_test=x_test,
         y_test=y_test,
+        model_handler=handler,
     )
 
     return handler

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import shutil
 import zipfile
@@ -10,12 +24,12 @@ from tensorflow import keras
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.data_types import ValueType
 from mlrun.features import Feature
 
 from .._common import without_mlrun_interface
 from .._dl_common import DLModelHandler
 from .mlrun_interface import TFKerasMLRunInterface
+from .utils import TFKerasUtils
 
 
 class TFKerasModelHandler(DLModelHandler):
@@ -80,7 +94,7 @@ class TFKerasModelHandler(DLModelHandler):
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -115,10 +129,10 @@ class TFKerasModelHandler(DLModelHandler):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param save_traces:              Whether or not to use functions saving (only available for the 'SavedModel'
-                                         format) for loading the model later without the custom objects dictionary. Only
-                                         from tensorflow version >= 2.4.0. Using this setting will increase the model
-                                         saving size.
+        :param save_traces:              Whether to use functions saving (only available for the 'SavedModel' format)
+                                         for loading the model later without the custom objects dictionary. Only from
+                                         tensorflow version >= 2.4.0. Using this setting will increase the model saving
+                                         size.
 
         :raise MLRunInvalidArgumentError: In case the input was incorrect:
                                           * Model format is unrecognized.
@@ -203,7 +217,7 @@ class TFKerasModelHandler(DLModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -317,14 +331,14 @@ class TFKerasModelHandler(DLModelHandler):
         :param model_name:      The name to give to the converted ONNX model. If not given the default name will be the
                                 stored model name with the suffix '_onnx'.
         :param optimize:        Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                Defaulted to True.
+                                Default: True.
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
-                                named with the model name given. Defaulted to None (not saving).
+                                named with the model name given. Default: None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                handler has a MLRun context set. Defaulted to None.
+                                handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 
@@ -352,7 +366,7 @@ class TFKerasModelHandler(DLModelHandler):
                 input_signature = [
                     tf.TensorSpec(
                         shape=input_feature.dims,
-                        dtype=self.convert_value_type_to_tf_dtype(
+                        dtype=TFKerasUtils.convert_value_type_to_tf_dtype(
                             value_type=input_feature.value_type
                         ),
                     )
@@ -440,89 +454,6 @@ class TFKerasModelHandler(DLModelHandler):
 
         # Set the outputs:
         self.set_outputs(from_sample=output_signature)
-
-    @staticmethod
-    def convert_value_type_to_tf_dtype(
-        value_type: str,
-    ) -> tf.DType:  # TODO: Move to utils
-        """
-        Get the 'tensorflow.DType' equivalent to the given MLRun value type.
-
-        :param value_type: The MLRun value type to convert to tensorflow data type.
-
-        :return: The 'tensorflow.DType' equivalent to the given MLRun data type.
-
-        :raise MLRunInvalidArgumentError: If tensorflow is not supporting the given data type.
-        """
-        # Initialize the mlrun to tensorflow data type conversion map:
-        conversion_map = {
-            ValueType.BOOL: tf.bool,
-            ValueType.INT8: tf.int8,
-            ValueType.INT16: tf.int16,
-            ValueType.INT32: tf.int32,
-            ValueType.INT64: tf.int64,
-            ValueType.UINT8: tf.uint8,
-            ValueType.UINT16: tf.uint16,
-            ValueType.UINT32: tf.uint32,
-            ValueType.UINT64: tf.uint64,
-            ValueType.BFLOAT16: tf.bfloat16,
-            ValueType.FLOAT16: tf.float16,
-            ValueType.FLOAT: tf.float32,
-            ValueType.DOUBLE: tf.float64,
-        }
-
-        # Convert and return:
-        if value_type in conversion_map:
-            return conversion_map[value_type]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The ValueType given is not supported in tensorflow: '{value_type}'."
-        )
-
-    @staticmethod
-    def convert_tf_dtype_to_value_type(
-        tf_dtype: tf.DType,
-    ) -> str:  # TODO: Move to utils
-        """
-        Convert the given tensorflow data type to MLRun data type. All of the CUDA supported data types are supported.
-        For more information regarding tensorflow data types,
-        visit: https://www.tensorflow.org/api_docs/python/tf/dtypes
-
-        :param tf_dtype: The tensorflow data type to convert to MLRun's data type. Expected to be a 'tensorflow.dtype'
-                         or 'str'.
-
-        :return: The MLRun value type converted from the given data type.
-
-        :raise MLRunInvalidArgumentError: If the tensorflow data type is not supported by MLRun.
-        """
-        # Initialize the tensorflow to mlrun data type conversion map:
-        conversion_map = {
-            tf.bool.name: ValueType.BOOL,
-            tf.int8.name: ValueType.INT8,
-            tf.int16.name: ValueType.INT16,
-            tf.int32.name: ValueType.INT32,
-            tf.int64.name: ValueType.INT64,
-            tf.uint8.name: ValueType.UINT8,
-            tf.uint16.name: ValueType.UINT16,
-            tf.uint32.name: ValueType.UINT32,
-            tf.uint64.name: ValueType.UINT64,
-            tf.bfloat16.name: ValueType.BFLOAT16,
-            tf.half.name: ValueType.FLOAT16,
-            tf.float16.name: ValueType.FLOAT16,
-            tf.float32.name: ValueType.FLOAT,
-            tf.double.name: ValueType.DOUBLE,
-            tf.float64.name: ValueType.DOUBLE,
-        }
-
-        # Parse the given tensorflow data type to string:
-        if isinstance(tf_dtype, tf.DType):
-            tf_dtype = tf_dtype.name
-
-        # Convert and return:
-        if tf_dtype in conversion_map:
-            return conversion_map[tf_dtype]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun value type is not supporting the given tensorflow data type: '{tf_dtype}'."
-        )
 
     def _collect_files_from_store_object(self):
         """
@@ -627,14 +558,14 @@ class TFKerasModelHandler(DLModelHandler):
         elif isinstance(sample, tf.TensorSpec):
             return Feature(
                 name=sample.name,
-                value_type=TFKerasModelHandler.convert_tf_dtype_to_value_type(
+                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(
                     tf_dtype=sample.dtype
                 ),
                 dims=list(sample.shape),
             )
         elif isinstance(sample, tf.Tensor):
             return Feature(
-                value_type=TFKerasModelHandler.convert_tf_dtype_to_value_type(
+                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(
                     tf_dtype=sample.dtype
                 ),
                 dims=list(sample.shape),

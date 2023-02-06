@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import collections
 import datetime
@@ -63,24 +77,14 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
-        # In follower mode the store of the projects objects themselves is just a dict in the follower member class
-        # therefore two methods here (existence check + deletion) need to happen on the store itself (and not the db
-        # like the rest of the actions) so enabling to overriding this store with this arg..
-        # I felt like defining another layer and interface only for these two methods is an overkill, so although it's a
-        # bit ugly I feel like it's fine
-        projects_store_override=None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
-        projects_store = (
-            projects_store_override or mlrun.api.utils.singletons.db.get_db()
-        )
         if (
             deletion_strategy.is_restricted()
             or deletion_strategy == mlrun.api.schemas.DeletionStrategy.check
         ):
-            if not projects_store.is_project_exists(
-                session, name, leader_session=auth_info.session
+            if not mlrun.api.utils.singletons.db.get_db().is_project_exists(
+                session, name
             ):
                 return
             mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
@@ -95,7 +99,9 @@ class Projects(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
             )
-        projects_store.delete_project(session, name, deletion_strategy)
+        mlrun.api.utils.singletons.db.get_db().delete_project(
+            session, name, deletion_strategy
+        )
 
     def _verify_project_has_no_external_resources(self, project: str):
         # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
@@ -106,13 +112,20 @@ class Projects(
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
-        if mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project):
+        if (
+            mlrun.mlconf.is_api_running_on_k8s()
+            and mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+                project
+            )
+        ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"
             )
 
     def delete_project_resources(
-        self, session: sqlalchemy.orm.Session, name: str,
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         mlrun.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -121,7 +134,9 @@ class Projects(
 
         # delete runtime resources
         mlrun.api.crud.RuntimeResources().delete_runtime_resources(
-            session, label_selector=f"mlrun/project={name}", force=True,
+            session,
+            label_selector=f"mlrun/project={name}",
+            force=True,
         )
 
         mlrun.api.crud.Logs().delete_logs(name)
@@ -135,7 +150,8 @@ class Projects(
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
         # delete project secrets - passing None will delete all secrets
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
+        if mlrun.mlconf.is_api_running_on_k8s():
+            mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -270,7 +286,9 @@ class Projects(
             self._cache["project_resources_counters"]["ttl"] = ttl_time
         return self._cache["project_resources_counters"]["result"]
 
-    async def _calculate_pipelines_counters(self,) -> typing.Dict[str, int]:
+    async def _calculate_pipelines_counters(
+        self,
+    ) -> typing.Dict[str, int]:
         def _list_pipelines(session):
             return mlrun.api.crud.Pipelines().list_pipelines(
                 session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
@@ -281,7 +299,8 @@ class Projects(
             return project_to_running_pipelines_count
 
         _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.db.session.run_function_with_new_db_session, _list_pipelines,
+            mlrun.api.db.session.run_function_with_new_db_session,
+            _list_pipelines,
         )
 
         for pipeline in pipelines:

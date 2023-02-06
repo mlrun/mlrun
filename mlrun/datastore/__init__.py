@@ -21,15 +21,19 @@ __all__ = [
     "CSVTarget",
     "NoSqlTarget",
     "StreamTarget",
+    "KafkaTarget",
     "CSVSource",
     "ParquetSource",
     "BigQuerySource",
     "HttpSource",
     "StreamSource",
     "KafkaSource",
+    "RedisStore",
 ]
 
-from ..platforms.iguazio import OutputStream, parse_v3io_path
+import mlrun.datastore.wasbfs
+
+from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_path
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
@@ -49,6 +53,7 @@ from .store_resources import (
     parse_store_uri,
 )
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
+from .utils import parse_kafka_url
 
 store_manager = StoreManager()
 
@@ -75,10 +80,17 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
 
-    if "://" not in stream_path:
+    if stream_path.startswith("kafka://") or "kafka_bootstrap_servers" in kwargs:
+        topic, bootstrap_servers = parse_kafka_url(
+            stream_path, kwargs.get("kafka_bootstrap_servers")
+        )
+        return KafkaOutputStream(
+            topic, bootstrap_servers, kwargs.get("kafka_producer_options")
+        )
+    elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):
-        endpoint, stream_path = parse_v3io_path(stream_path)
+        endpoint, stream_path = parse_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)

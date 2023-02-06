@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import datetime
 import os
@@ -13,37 +27,35 @@ import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
 import mlrun.api.schemas
+import mlrun.api.utils.db.alembic
+import mlrun.api.utils.db.backup
+import mlrun.api.utils.db.mysql
+import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
-from mlrun.utils import logger
-
-from .utils.db.alembic import AlembicUtil
-from .utils.db.backup import DBBackupUtil
-from .utils.db.mysql import MySQLUtil
-from .utils.db.sqlite_migration import SQLiteMigrationUtil
+from mlrun.errors import err_to_str
+from mlrun.utils import is_legacy_artifact, logger
 
 
 def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
-    MySQLUtil.wait_for_db_liveness(logger)
+    logger.info("Initializing DB data")
+    mlrun.api.utils.db.mysql.MySQLUtil.wait_for_db_liveness(logger)
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = SQLiteMigrationUtil()
+        sqlite_migration_util = (
+            mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
+        )
     alembic_util = _create_alembic_util()
     (
         is_migration_needed,
         is_migration_from_scratch,
         is_backup_needed,
     ) = _resolve_needed_operations(alembic_util, sqlite_migration_util, from_scratch)
-
-    if is_backup_needed:
-        logger.info("DB Backup is needed, backing up...")
-        db_backup = DBBackupUtil()
-        db_backup.backup_database()
 
     if (
         not is_migration_from_scratch
@@ -54,6 +66,11 @@ def init_data(
         logger.info("Migration is needed, changing API state", state=state)
         config.httpdb.state = state
         return
+
+    if is_backup_needed:
+        logger.info("DB Backup is needed, backing up...")
+        db_backup = mlrun.api.utils.db.backup.DBBackupUtil()
+        db_backup.backup_database()
 
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
@@ -94,8 +111,10 @@ latest_data_version = 2
 
 
 def _resolve_needed_operations(
-    alembic_util: AlembicUtil,
-    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+    alembic_util: mlrun.api.utils.db.alembic.AlembicUtil,
+    sqlite_migration_util: typing.Optional[
+        mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil
+    ],
     force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
     is_database_migration_needed = False
@@ -103,9 +122,11 @@ def _resolve_needed_operations(
         is_database_migration_needed = (
             sqlite_migration_util.is_database_migration_needed()
         )
+    # the util checks whether the target DB has data, when database migration needed, it obviously does not have data
+    # but in that case it's not really a migration from scratch
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
-    )
+    ) and not is_database_migration_needed
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
@@ -134,20 +155,22 @@ def _resolve_needed_operations(
     return is_migration_needed, is_migration_from_scratch, is_backup_needed
 
 
-def _create_alembic_util() -> AlembicUtil:
+def _create_alembic_util() -> mlrun.api.utils.db.alembic.AlembicUtil:
     alembic_config_file_name = "alembic.ini"
-    if MySQLUtil.get_mysql_dsn_data():
+    if mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data():
         alembic_config_file_name = "alembic_mysql.ini"
 
     # run schema migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
     alembic_config_path = dir_path / alembic_config_file_name
 
-    alembic_util = AlembicUtil(alembic_config_path, _is_latest_data_version())
+    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(
+        alembic_config_path, _is_latest_data_version()
+    )
     return alembic_util
 
 
-def _perform_schema_migrations(alembic_util: AlembicUtil):
+def _perform_schema_migrations(alembic_util: mlrun.api.utils.db.alembic.AlembicUtil):
     logger.info("Performing schema migration")
     alembic_util.init_alembic()
 
@@ -165,7 +188,9 @@ def _is_latest_data_version():
 
 
 def _perform_database_migration(
-    sqlite_migration_util: typing.Optional[SQLiteMigrationUtil],
+    sqlite_migration_util: typing.Optional[
+        mlrun.api.utils.db.sqlite_migration.SQLiteMigrationUtil
+    ],
 ):
     if sqlite_migration_util:
         logger.info("Performing database migration")
@@ -198,7 +223,8 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
 
 
 def _fix_datasets_large_previews(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session,
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
 ):
     logger.info("Fixing datasets large previews")
     # get all artifacts
@@ -210,7 +236,13 @@ def _fix_datasets_large_previews(
                 artifact_dict
                 and artifact_dict.get("kind") == mlrun.artifacts.DatasetArtifact.kind
             ):
-                header = artifact_dict.get("header", [])
+                is_legacy = is_legacy_artifact(artifact_dict)
+
+                header = (
+                    artifact_dict.get("header", [])
+                    if is_legacy
+                    else artifact_dict.get("spec", {}).get("header", [])
+                )
                 if header and len(header) > mlrun.artifacts.dataset.max_preview_columns:
                     logger.debug(
                         "Found dataset artifact with more than allowed columns in preview fields. Fixing",
@@ -221,9 +253,14 @@ def _fix_datasets_large_previews(
                     ]
 
                     # align preview
-                    if artifact_dict.get("preview"):
+                    preview = (
+                        artifact_dict.get("preview")
+                        if is_legacy
+                        else artifact_dict.get("status", {}).get("preview")
+                    )
+                    if preview:
                         new_preview = []
-                        for preview_row in artifact_dict["preview"]:
+                        for preview_row in preview:
                             # sanity
                             if (
                                 len(preview_row)
@@ -240,25 +277,44 @@ def _fix_datasets_large_previews(
                                 ]
                             )
 
-                        artifact_dict["preview"] = new_preview
+                        if is_legacy:
+                            artifact_dict["preview"] = new_preview
+                        else:
+                            artifact_dict["status"]["preview"] = new_preview
 
                     # align stats
                     for column_to_remove in columns_to_remove:
-                        if column_to_remove in artifact_dict.get("stats", {}):
-                            del artifact_dict["stats"][column_to_remove]
+                        artifact_stats = (
+                            artifact_dict.get("stats", {})
+                            if is_legacy
+                            else artifact_dict.get("status").get("stats", {})
+                        )
+                        if column_to_remove in artifact_stats:
+                            del artifact_stats[column_to_remove]
 
                     # align schema
-                    if artifact_dict.get("schema", {}).get("fields"):
+                    schema_dict = (
+                        artifact_dict.get("schema", {})
+                        if is_legacy
+                        else artifact_dict.get("spec").get("schema", {})
+                    )
+                    if schema_dict.get("fields"):
                         new_schema_fields = []
-                        for field in artifact_dict["schema"]["fields"]:
+                        for field in schema_dict["fields"]:
                             if field.get("name") not in columns_to_remove:
                                 new_schema_fields.append(field)
-                        artifact_dict["schema"]["fields"] = new_schema_fields
+                        schema_dict["fields"] = new_schema_fields
 
                     # lastly, align headers
-                    artifact_dict["header"] = header[
-                        : mlrun.artifacts.dataset.max_preview_columns
-                    ]
+                    if is_legacy:
+                        artifact_dict["header"] = header[
+                            : mlrun.artifacts.dataset.max_preview_columns
+                        ]
+                    else:
+                        artifact_dict["spec"]["header"] = header[
+                            : mlrun.artifacts.dataset.max_preview_columns
+                        ]
+
                     logger.debug(
                         "Fixed dataset artifact preview fields. Storing",
                         artifact=artifact_dict,
@@ -273,7 +329,8 @@ def _fix_datasets_large_previews(
                     )
         except Exception as exc:
             logger.warning(
-                "Failed fixing dataset artifact large preview. Continuing", exc=exc,
+                "Failed fixing dataset artifact large preview. Continuing",
+                exc=exc,
             )
 
 
@@ -405,7 +462,7 @@ def _align_runs_table(
             )
         db._update_run_updated_time(run, run_dict, updated)
         run.struct = run_dict
-        db._upsert(db_session, run, ignore=True)
+        db._upsert(db_session, [run], ignore=True)
 
 
 def _perform_version_1_data_migrations(
@@ -472,7 +529,8 @@ def _add_data_version(
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
         data_version = _resolve_current_data_version(db, db_session)
         logger.info(
-            "No data version, setting data version", data_version=data_version,
+            "No data version, setting data version",
+            data_version=data_version,
         )
         db.create_data_version(db_session, data_version)
 
@@ -512,7 +570,7 @@ def _resolve_current_data_version(
         ):
             logger.info(
                 "Data version table does not exist, assuming prior version",
-                exc=exc,
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition

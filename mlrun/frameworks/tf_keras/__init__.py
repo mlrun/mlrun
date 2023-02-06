@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Any, Dict, List, Union
 
@@ -9,6 +23,7 @@ from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler
 from .model_server import TFKerasModelServer
+from .utils import TFKerasTypes, TFKerasUtils
 
 
 def apply_mlrun(
@@ -39,7 +54,7 @@ def apply_mlrun(
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update). If model is not provided, it will be loaded from this path.
     :param model_format:                The format to use for saving and loading the model. Should be passed as a
-                                        member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+                                        member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
     :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
                                         format) for loading the model later without the custom objects dictionary. Only
                                         from tensorflow version >= 2.4.0. Using this setting will increase the model
@@ -49,11 +64,15 @@ def apply_mlrun(
                                         modules will be imported globally. If multiple objects needed to be imported
                                         from the same module a list can be given. The map can be passed as a path to a
                                         json file as well. For example:
-                                        {
-                                            "module1": None,  # => import module1
-                                            "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                            "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "module1": None,  # import module1
+                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                            }
+
                                         If the model path given is of a store object, the modules map will be read from
                                         the logged modules map artifact of the model.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -61,10 +80,14 @@ def apply_mlrun(
                                         from it. If multiple objects needed to be imported from the same py file a list
                                         can be given. The map can be passed as a path to a json file as well. For
                                         example:
-                                        {
-                                            "/.../custom_optimizer.py": "optimizer",
-                                            "/.../custom_layers.py": ["layer1", "layer2"]
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "/.../custom_optimizer.py": "optimizer",
+                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                            }
+
                                         All the paths will be accessed from the given 'custom_objects_directory',
                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                         If the model path given is of a store object, the custom objects map will be
@@ -78,7 +101,7 @@ def apply_mlrun(
                                         objects files will be read from the logged custom object artifact of the model.
     :param context:                     MLRun context to work with. If no context is given it will be retrieved via
                                         'mlrun.get_or_create_ctx(None)'
-    :param auto_log:                    Whether or not to apply MLRun's auto logging on the model. Defaulted to True.
+    :param auto_log:                    Whether or not to apply MLRun's auto logging on the model. Default: True.
     :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
                                         this will be the output for the event logs of tensorboard. If not given, the
                                         'tensorboard_dir' parameter will be tried to be taken from the provided context.
@@ -91,7 +114,7 @@ def apply_mlrun(
     :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                         the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                         'context' and 'auto_log' parameters are already given here.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default:
                                         None, meaning it will be read from context if available and if not - False.
 
     :return: The model with MLRun's interface.

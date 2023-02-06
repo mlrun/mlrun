@@ -1,13 +1,27 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Callable, Dict, List, Tuple, Type, Union
 
 import mlrun
 from mlrun.artifacts import get_model
 
-from .._common import ModelHandler, ModelType
+from .._common import CommonTypes, ModelHandler
 
 
-def get_framework_by_instance(model: ModelType) -> str:
+def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its instance.
 
@@ -103,7 +117,7 @@ def get_framework_by_instance(model: ModelType) -> str:
     )
 
 
-def get_framework_by_class_name(model: ModelType) -> str:
+def get_framework_by_class_name(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its class name.
 
@@ -247,7 +261,7 @@ class AutoMLRun:
 
     @staticmethod
     def _get_framework(
-        model: ModelType = None, model_path: str = None
+        model: CommonTypes.ModelType = None, model_path: str = None
     ) -> Union[Tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
@@ -323,11 +337,15 @@ class AutoMLRun:
                                          modules will be imported globally. If multiple objects needed to be imported
                                          from the same module a list can be given. The map can be passed as a path to a
                                          json file as well. For example:
-                                         {
-                                             "module1": None,  # => import module1
-                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                         }
+
+                                         .. code-block:: python
+
+                                             {
+                                                 "module1": None,  # import module1
+                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                             }
+
                                          If the model path given is of a store object, the modules map will be read from
                                          the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
@@ -335,10 +353,14 @@ class AutoMLRun:
                                          from it. If multiple objects needed to be imported from the same py file a list
                                          can be given. The map can be passed as a path to a json file as well. For
                                          example:
-                                         {
-                                             "/.../custom_model.py": "MyModel",
-                                             "/.../custom_objects.py": ["object1", "object2"]
-                                         }
+
+                                         .. code-block:: python
+
+                                             {
+                                                 "/.../custom_model.py": "MyModel",
+                                                 "/.../custom_objects.py": ["object1", "object2"]
+                                             }
+
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                          If the model path given is of a store object, the custom objects map will be
@@ -354,7 +376,7 @@ class AutoMLRun:
         :param context:                  A MLRun context.
         :param framework:                The model's framework. It must be provided for local paths or urls. If None,
                                          AutoMLRun will assume the model path is of a store uri model artifact and try
-                                         to get the framework from it. Defaulted to None.
+                                         to get the framework from it. Default: None.
         :param kwargs:                   Additional parameters for the specific framework's ModelHandler class.
 
         :return: The model inside a MLRun model handler.
@@ -389,7 +411,7 @@ class AutoMLRun:
 
     @staticmethod
     def apply_mlrun(
-        model: ModelType = None,
+        model: CommonTypes.ModelType = None,
         model_name: str = None,
         tag: str = "",
         model_path: str = None,
@@ -416,11 +438,15 @@ class AutoMLRun:
                                          modules will be imported globally. If multiple objects needed to be imported
                                          from the same module a list can be given. The map can be passed as a path to a
                                          json file as well. For example:
-                                         {
-                                             "module1": None,  # => import module1
-                                             "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                             "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                         }
+
+                                         .. code-block:: python
+
+                                             {
+                                                 "module1": None,  # import module1
+                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                             }
+
                                          If the model path given is of a store object, the modules map will be read from
                                          the logged modules map artifact of the model.
         :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
@@ -428,10 +454,14 @@ class AutoMLRun:
                                          from it. If multiple objects needed to be imported from the same py file a list
                                          can be given. The map can be passed as a path to a json file as well. For
                                          example:
-                                         {
-                                             "/.../custom_model.py": "MyModel",
-                                             "/.../custom_objects.py": ["object1", "object2"]
-                                         }
+
+                                         .. code-block:: python
+
+                                             {
+                                                 "/.../custom_model.py": "MyModel",
+                                                 "/.../custom_objects.py": ["object1", "object2"]
+                                             }
+
                                          All the paths will be accessed from the given 'custom_objects_directory',
                                          meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                          If the model path given is of a store object, the custom objects map will be
@@ -448,7 +478,7 @@ class AutoMLRun:
         :param auto_log:                 Whether to enable auto-logging capabilities of MLRun or not. Auto logging will
                                          add default artifacts and metrics besides the one you can pass here.
         :param framework:                The model's framework. If None, AutoMLRun will try to figure out the framework.
-                                         From the provided model or model path. Defaulted to None.
+                                         From the provided model or model path. Default: None.
         :param kwargs:                   Additional parameters for the specific framework's 'apply_mlrun' function like
                                          metrics, callbacks and more (read the docs of the required framework to know
                                          more).

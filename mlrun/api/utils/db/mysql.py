@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import re
 import typing
@@ -28,9 +42,13 @@ class MySQLUtil(object):
         logger.debug("Waiting for database liveness")
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if not mysql_dsn_data:
-            logger.warn(
-                f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming sqlite and skipping liveness verification"
-            )
+            dsn = MySQLUtil.get_dsn()
+            if "sqlite" in dsn:
+                logger.debug("SQLite DB is used, liveness check not needed")
+            else:
+                logger.warn(
+                    f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming live and skipping liveness verification"
+                )
             return
 
         tmp_connection = mlrun.utils.retry_until_successful(

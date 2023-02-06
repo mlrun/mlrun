@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -27,6 +41,10 @@ def infer_schema_from_df(
             entities[name].value_type = value_type
         else:
             entities[name] = {"name": name, "value_type": value_type}
+
+    # remove index column if no name provided
+    if not df.index.name and df.index.is_numeric():
+        df = df.reset_index().drop("index", axis=1)
 
     schema = pyarrow.Schema.from_pandas(df)
     index_type = None
@@ -85,24 +103,21 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
         df = df.sample(sample_size)
 
     num_bins = num_bins or default_num_bins
-    if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
+    if InferOptions.get_common_options(options, InferOptions.Index) and df.index.names:
         df = df.reset_index()
-    for col, values in df.describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    ).items():
+    for col, values in df.describe(include="all", datetime_is_numeric=True).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if stat != "50%":
-                if isinstance(val, (float, np.floating, np.float64)):
-                    stats_dict[stat] = float(val)
-                elif isinstance(val, (int, np.integer, np.int64)):
-                    # boolean values are considered subclass of int
-                    if isinstance(val, bool):
-                        stats_dict[stat] = bool(val)
-                    else:
-                        stats_dict[stat] = int(val)
+            if isinstance(val, (float, np.floating, np.float64)):
+                stats_dict[stat] = float(val)
+            elif isinstance(val, (int, np.integer, np.int64)):
+                # boolean values are considered subclass of int
+                if isinstance(val, bool):
+                    stats_dict[stat] = bool(val)
                 else:
-                    stats_dict[stat] = str(val)
+                    stats_dict[stat] = int(val)
+            else:
+                stats_dict[stat] = str(val)
 
         if InferOptions.get_common_options(
             options, InferOptions.Histogram

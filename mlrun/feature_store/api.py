@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
+import warnings
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -24,11 +26,13 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
-    get_default_prefix_for_target,
+    BaseStoreTarget,
+    get_default_prefix_for_source,
     get_default_targets,
     get_target_driver,
     kind_to_driver,
     validate_target_list,
+    validate_target_paths_for_engine,
 )
 from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
@@ -90,12 +94,15 @@ def get_offline_features(
     target: DataTargetBase = None,
     run_config: RunConfig = None,
     drop_columns: List[str] = None,
-    start_time: Union[str, pd.Timestamp] = None,
-    end_time: Union[str, pd.Timestamp] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
+    query: str = None,
+    join_type: str = "inner",
+    spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -108,7 +115,7 @@ def get_offline_features(
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
-
+    Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
 
         features = [
@@ -119,7 +126,7 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time"
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -137,10 +144,22 @@ def get_offline_features(
         entity_timestamp_column must be passed when using time filtering.
     :param end_time:        datetime, high limit of time needed to be filtered. Optional.
         entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns (default False)
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
+    :param query:           The query string used to filter rows
+    :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
+    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
+                                    Supported retrieval engines: "dask", "local"
+                                    This parameter is in use when entity_timestamp_column and
+                                    feature_vector.spec.timestamp_field are None, if one of them
+                                    isn't none we're preforming as_of join.
+                                    Possible values :
+                                    * left: use only keys from left frame (SQL: left outer join)
+                                    * right: use only keys from right frame (SQL: right outer join)
+                                    * outer: use union of keys from both frames (SQL: full outer join)
+                                    * inner: use intersection of keys from both frames (SQL: inner join).
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -152,15 +171,24 @@ def get_offline_features(
     entity_timestamp_column = (
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
-    if run_config:
+
+    merger_engine = get_merger(engine)
+
+    if run_config and not run_config.local:
         return run_merge_job(
             feature_vector,
             target,
+            merger_engine,
+            engine,
+            engine_args,
+            spark_service,
             entity_rows,
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,
+            query=query,
+            join_type=join_type,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -172,7 +200,6 @@ def get_offline_features(
     if start_time and not end_time:
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()
-    merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
@@ -183,6 +210,8 @@ def get_offline_features(
         end_time=end_time,
         with_indexes=with_indexes,
         update_stats=update_stats,
+        query=query,
+        join_type=join_type,
     )
 
 
@@ -196,9 +225,12 @@ def get_online_feature_service(
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-    There are two ways to use the function
-    1. As context manager
-        example::
+    :**usage**:
+        There are two ways to use the function:
+
+        1. As context manager
+
+            Example::
 
                 with get_online_feature_service(vector_uri) as svc:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
@@ -206,51 +238,55 @@ def get_online_feature_service(
                     resp = svc.get([{"ticker": "AAPL"}], as_list=True)
                     print(resp)
 
-            example with imputing::
+            Example with imputing::
 
                 with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
 
-    2. as simple function, note that in that option you need to close the session.
-        example::
+        2. as simple function, note that in that option you need to close the session.
 
-            svc = get_online_feature_service(vector_uri)
-            try:
-                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-                print(resp)
-                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-                print(resp)
+            Example::
 
-            finally:
-                svc.close()
+                svc = get_online_feature_service(vector_uri)
+                try:
+                    resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                    print(resp)
+                    resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                    print(resp)
 
+                finally:
+                    svc.close()
 
-        example with imputing::
+            Example with imputing::
 
-            svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-            try:
-                resp = svc.get([{"id": "C123487"}])
-            except Exception as e:
-                handling exception...
-            finally:
-                svc.close()
-
+                svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+                try:
+                    resp = svc.get([{"id": "C123487"}])
+                except Exception as e:
+                    handling exception...
+                finally:
+                    svc.close()
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
-                              permissions
+                            permissions
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
-                              value indicate which value will be used in case the feature is NaN/empty, the replaced
-                              value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
-                              values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+                            value indicate which value will be used in case the feature is NaN/empty, the replaced
+                            value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
+                            values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param update_stats:      update features statistics from the requested feature sets on the vector. Default: False.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )
@@ -260,7 +296,29 @@ def get_online_feature_service(
     service.initialize()
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
+
     return service
+
+
+def _rename_source_dataframe_columns(df):
+    rename_mapping = {}
+    column_set = set(df.columns)
+    for column in df.columns:
+        if isinstance(column, str):
+            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            if rename_to != column:
+                if rename_to in column_set:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f'column "{column}" cannot be renamed to "{rename_to}" because such a column already exists'
+                    )
+                rename_mapping[column] = rename_to
+                column_set.add(rename_to)
+    if rename_mapping:
+        logger.warn(
+            f"the following dataframe columns have been renamed due to unsupported characters: {rename_mapping}"
+        )
+        df = df.rename(rename_mapping, axis=1)
+    return df
 
 
 def ingest(
@@ -274,7 +332,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> pd.DataFrame:
+) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -317,9 +375,12 @@ def ingest(
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
-                                    False for scheduled ingest - does not delete the target)
-
+                          False for scheduled ingest - does not delete the target)
+    :return:              if return_df is True, a dataframe will be returned based on the graph
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     if featureset:
         if isinstance(featureset, str):
             # need to strip store prefix from the uri
@@ -344,10 +405,11 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in with RunConfig"
+                "DataFrame source is illegal in conjunction with run_config"
             )
         # remote job execution
         verify_feature_set_permissions(
@@ -358,9 +420,10 @@ def ingest(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
-        return run_ingestion_job(
-            name, featureset, run_config, source.schedule, spark_context
-        )
+        schedule = source.schedule
+        if schedule == "mock":
+            schedule = None
+        return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
@@ -391,29 +454,41 @@ def ingest(
         filter_time_string = ""
         if source.schedule:
             featureset.reload(update_spec=False)
-            min_time = datetime.max
-            for target in featureset.status.targets:
-                if target.last_written:
-                    cur_last_written = datetime.fromisoformat(target.last_written)
-                    if cur_last_written < min_time:
-                        min_time = cur_last_written
-            if min_time != datetime.max:
-                source.start_time = min_time
-                time_zone = min_time.tzinfo
-                source.end_time = datetime.now(tz=time_zone)
-                filter_time_string = (
-                    f"Source.start_time for the job is{str(source.start_time)}. "
-                    f"Source.end_time is {str(source.end_time)}"
-                )
 
+    if isinstance(source, DataSource) and source.schedule:
+        min_time = datetime.max
+        for target in featureset.status.targets:
+            if target.last_written:
+                cur_last_written = target.last_written
+                if isinstance(cur_last_written, str):
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                if cur_last_written < min_time:
+                    min_time = cur_last_written
+        if min_time != datetime.max:
+            source.start_time = min_time
+            time_zone = min_time.tzinfo
+            source.end_time = datetime.now(tz=time_zone)
+            filter_time_string = (
+                f"Source.start_time for the job is{str(source.start_time)}. "
+                f"Source.end_time is {str(source.end_time)}"
+            )
+
+    if mlrun_context:
         mlrun_context.logger.info(
             f"starting ingestion task to {featureset.uri}.{filter_time_string}"
         )
         return_df = False
 
+    if featureset.spec.passthrough:
+        featureset.spec.source = source
+        featureset.spec.validate_no_processing_for_passthrough()
+
     namespace = namespace or get_caller_globals()
 
-    purge_targets = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
+
+    validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -422,13 +497,23 @@ def ingest(
             overwrite = True
 
     if overwrite:
-        validate_target_list(targets=purge_targets)
+        validate_target_list(targets=targets_to_ingest)
         purge_target_names = [
-            t if isinstance(t, str) else t.name for t in purge_targets
+            t if isinstance(t, str) else t.name for t in targets_to_ingest
         ]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
+
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
     else:
-        for target in purge_targets:
+        featureset.update_targets_for_ingest(
+            targets=targets_to_ingest,
+            overwrite=overwrite,
+        )
+
+        for target in targets_to_ingest:
             if not kind_to_driver[target.kind].support_append:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{target.kind} target does not support overwrite=False ingestion"
@@ -443,20 +528,26 @@ def ingest(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
     if featureset.spec.engine == "spark":
-        if isinstance(source, pd.DataFrame) and run_config is not None:
+        import pyspark.sql
+
+        if (
+            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+            and run_config is not None
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when ingesting with spark"
+                "DataFrame source is illegal when ingesting with remote spark or spark operator"
             )
         # use local spark session to ingest
         return _ingest_with_spark(
             spark_context,
             featureset,
             source,
-            targets,
+            targets_to_ingest,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
+            return_df=return_df,
         )
 
     if isinstance(source, str):
@@ -467,24 +558,31 @@ def ingest(
     )
     if schema_options:
         preview(
-            featureset, source, options=schema_options, namespace=namespace,
+            featureset,
+            source,
+            options=schema_options,
+            namespace=namespace,
         )
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
-    return_df = return_df or infer_stats != InferOptions.Null
+    # Check if dataframe is already calculated (for feature set graph):
+    calculate_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
-    targets = targets or featureset.spec.targets or get_default_targets()
     df = init_featureset_graph(
-        source, featureset, namespace, targets=targets, return_df=return_df,
+        source,
+        featureset,
+        namespace,
+        targets=targets_to_ingest,
+        return_df=calculate_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
     ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
         infer_stats += InferOptions.Index
 
-    infer_from_static_df(df, featureset, options=infer_stats)
+    _infer_from_static_df(df, featureset, options=infer_stats)
 
     if isinstance(source, DataSource):
         for target in featureset.status.targets:
@@ -498,8 +596,8 @@ def ingest(
                 target.last_written = source.start_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
-
-    return df
+    if return_df:
+        return df
 
 
 def preview(
@@ -529,15 +627,29 @@ def preview(
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  timestamp column name
+    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    # preview reads the source as a pandas df, which is not fully compatible with spark
+    if featureset.spec.engine == "spark":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "preview with spark engine is not supported"
+        )
+
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
+        warnings.warn(
+            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
+            # TODO: Remove this API in 1.4.0
+            PendingDeprecationWarning,
+        )
         featureset.spec.timestamp_key = timestamp_key
+        for step in featureset.graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
@@ -546,6 +658,8 @@ def preview(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -558,7 +672,7 @@ def preview(
             )
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
-            infer_from_static_df(
+            _infer_from_static_df(
                 source,
                 featureset,
                 entity_columns,
@@ -577,7 +691,7 @@ def preview(
             rows_limit=rows_limit,
         )
 
-    df = infer_from_static_df(
+    df = _infer_from_static_df(
         source, featureset, entity_columns, options, sample_size=sample_size
     )
     featureset.save()
@@ -624,7 +738,7 @@ def deploy_ingestion_service(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fs.deploy_ingestion_service(my_set, source, run_config=config)
+        fstore.deploy_ingestion_service(my_set, source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -644,13 +758,18 @@ def deploy_ingestion_service(
 
     run_config = run_config.copy() if run_config else RunConfig()
     if isinstance(source, StreamSource) and not source.path:
-        source.path = get_default_prefix_for_target(source.kind).format(
+        source.path = get_default_prefix_for_source(source.kind).format(
             project=featureset.metadata.project,
             kind=source.kind,
             name=featureset.metadata.name,
         )
+
+    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = copy.deepcopy(targets_to_ingest)
+    featureset.update_targets_for_ingest(targets_to_ingest)
+
     source, run_config.parameters = set_task_params(
-        featureset, source, targets, run_config.parameters
+        featureset, source, targets_to_ingest, run_config.parameters
     )
 
     name = normalize_name(name or f"{featureset.metadata.name}-ingest")
@@ -685,17 +804,20 @@ def deploy_ingestion_service(
 def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    source: BaseSourceDriver = None,
+    targets: List[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
     overwrite=None,
+    return_df=None,
 ):
+    created_spark_context = False
     try:
+        import pyspark.sql
+
         if spark is None or spark is True:
             # create spark context
-            from pyspark.sql import SparkSession
 
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
@@ -704,26 +826,33 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = SparkSession.builder.appName(session_name).getOrCreate()
+            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            created_spark_context = True
+
+        timestamp_key = featureset.spec.timestamp_key
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
+        elif isinstance(source, pyspark.sql.DataFrame):
+            df = source
         else:
-            df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df)
+            df = source.to_spark_df(spark, time_field=timestamp_key)
+            df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
-        infer_from_static_df(df, featureset, options=infer_options)
+        _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
-        timestamp_key = featureset.spec.timestamp_key
-        if not targets:
-            if not featureset.spec.targets:
-                featureset.set_targets()
-            targets = featureset.spec.targets
-            targets = [get_target_driver(target, featureset) for target in targets]
+        targets = targets or featureset.spec.targets
 
-        for target in targets or []:
+        targets_to_ingest = copy.deepcopy(targets)
+        featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
+
+        for target in targets_to_ingest or []:
+            if type(target) is DataTargetBase:
+                target = get_target_driver(target, featureset)
+            if featureset.spec.passthrough and target.is_offline:
+                continue
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -738,6 +867,8 @@ def _ingest_with_spark(
             logger.info(
                 f"writing to target {target.name}, spark options {spark_options}"
             )
+
+            df_to_write = df
 
             # If partitioning by time, add the necessary columns
             if timestamp_key and "partitionBy" in spark_options:
@@ -758,15 +889,25 @@ def _ingest_with_spark(
                     "minute": minute,
                     "second": second,
                 }
-                timestamp_col = df[timestamp_key]
+                timestamp_col = df_to_write[timestamp_key]
                 for partition in spark_options["partitionBy"]:
-                    if partition not in df.columns and partition in time_unit_to_op:
+                    if (
+                        partition not in df_to_write.columns
+                        and partition in time_unit_to_op
+                    ):
                         op = time_unit_to_op[partition]
-                        df = df.withColumn(partition, op(timestamp_col))
+                        df_to_write = df_to_write.withColumn(
+                            partition, op(timestamp_col)
+                        )
+            df_to_write = target.prepare_spark_df(df_to_write, key_columns)
             if overwrite:
-                df.write.mode("overwrite").save(**spark_options)
+                df_to_write.write.mode("overwrite").save(**spark_options)
             else:
-                df.write.mode("append").save(**spark_options)
+                # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
+                # we would like to avoid that
+                df_to_write.persist()
+                if df_to_write.count() > 0:
+                    df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 
@@ -776,13 +917,18 @@ def _ingest_with_spark(
                 # if max_time is None(no data), next scheduled run should be with same start_time
                 max_time = source.start_time
             for target in featureset.status.targets:
-                featureset.status.update_last_written_for_target(target.path, max_time)
+                featureset.status.update_last_written_for_target(
+                    target.get_path().get_absolute_path(), max_time
+                )
 
         _post_ingestion(mlrun_context, featureset, spark)
     finally:
-        if spark:
+        if created_spark_context:
             spark.stop()
-    return df
+            # We shouldn't return a dataframe that depends on a stopped context
+            df = None
+    if return_df:
+        return df
 
 
 def _post_ingestion(context, featureset, spark=None):
@@ -793,7 +939,7 @@ def _post_ingestion(context, featureset, spark=None):
         context.log_result("featureset", featureset.uri)
 
 
-def infer_from_static_df(
+def _infer_from_static_df(
     df,
     featureset,
     entity_columns=None,
@@ -869,7 +1015,8 @@ def get_feature_vector(uri, project=None):
 
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -891,7 +1038,8 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
-    """ Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+    """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

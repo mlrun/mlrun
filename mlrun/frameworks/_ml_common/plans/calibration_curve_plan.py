@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict
 
 import plotly.graph_objects as go
@@ -5,9 +19,8 @@ from sklearn.calibration import calibration_curve
 
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType
+from ..utils import MLTypes
 
 
 class CalibrationCurvePlan(MLPlotPlan):
@@ -19,7 +32,10 @@ class CalibrationCurvePlan(MLPlotPlan):
     _ARTIFACT_NAME = "calibration-curve"
 
     def __init__(
-        self, normalize: bool = False, n_bins: int = 5, strategy: str = "uniform",
+        self,
+        normalize: bool = False,
+        n_bins: int = 5,
+        strategy: str = "uniform",
     ):
         """
         Initialize a calibration curve plan with the given configuration.
@@ -31,7 +47,7 @@ class CalibrationCurvePlan(MLPlotPlan):
                           proper probability.
         :param n_bins:    Number of bins to discretize the [0, 1] interval.
         :param strategy:  Strategy used to define the widths of the bins. Can be on of {‘uniform’, ‘quantile’}.
-                          Defaulted to "uniform".
+                          Default: "uniform".
         """
         # Store the parameters:
         self._normalize = normalize
@@ -56,10 +72,10 @@ class CalibrationCurvePlan(MLPlotPlan):
 
     def produce(
         self,
-        y: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y: MLTypes.DatasetType,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
         **kwargs
     ) -> Dict[str, Artifact]:
         """
@@ -120,7 +136,8 @@ class CalibrationCurvePlan(MLPlotPlan):
 
         # Creating the artifact:
         self._artifacts[self._ARTIFACT_NAME] = PlotlyArtifact(
-            key=self._ARTIFACT_NAME, figure=fig,
+            key=self._ARTIFACT_NAME,
+            figure=fig,
         )
 
         return self._artifacts

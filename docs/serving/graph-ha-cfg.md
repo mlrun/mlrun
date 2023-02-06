@@ -1,9 +1,16 @@
+(graph-ha-cfg)=
 # Serving graph high availability configuration
 
 This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:
 <img src="../_static/images/graph-flow.png" alt="graph-flow" width="600"/>
 
-As explained in [MLRun Serving Graphs](./serving-graph.md), the serving graph is based on Nuclio functions. 
+As explained in {ref}`serving-graph`, the serving graph is based on Nuclio functions. 
+
+**In this section**
+- [Using Nuclio with stream triggers](#using-Nuclio-with-stream-triggers)
+- [Consumer function configuration](#consumer-function-configuration)
+- [Remote function retry mechanism](#remote-function-retry-mechanism)
+- [Configuration considerations](#configuration-considerations)
  
 ## Using Nuclio with stream triggers
 
@@ -28,9 +35,9 @@ A consumer function is essentially a Nuclio function with a stream trigger. As p
 When the consumer function is part of a graph then the consumer function’s number of replicas is derived from the number of shards and is 
 therefore nonconfigurable. The same applies to the number of workers in each replica, which is set to 1 and is not configurable.  
 
-The consumer function has one buffer per worker holding the incoming events that were received by the worker and are waiting to be 
+The consumer function has one buffer per worker, measured in number of messages, holding the incoming events that were received by the worker and are waiting to be 
 processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 
-configurable and is key to the overall configuration.
+configurable and is key to the overall configuration. 
 
 The buffer should be as small as possible. There is a trade-off between the buffer size and the latency. A larger buffer has lower latency 
 but increases the recovery time after a failure, due to the high number of records that need to be reprocessed. </br>
@@ -38,7 +45,7 @@ To set the buffer size:
 
 `function.spec.parameters["source_args"] = {"buffer_size": 1}`
 
-The default `buffer_size` is 8.
+The default `buffer_size` is 8 (messages).
 
 ## Remote function retry mechanism 
 
@@ -102,10 +109,10 @@ and parameters that provide high availability, using a non-default configuration
 Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
 entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
       
-See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger) and an [example](../runtimes/function.html#RemoteRuntime.add_v3io_stream_trigger).
+See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
 
 For example:  
-- If a graph includes: consumer -> remote r1 -> remote r2
-   - The window should be the sum of: consumer’s buffer size + MIF to r1 + MIF to r2. 
-- If a graph includes: calling to remote r1 and r2 in parallel
-   - The window should be set to: consumer’s buffer size + max (MIF to r1, MIF to r2).
+- If a graph includes: consumer -> remote r1 -> remote r2:
+   - The window should be the sum of: consumer’s `buffer_size` + `max_in_flight` to r1 + `max_in_flight` to r2. 
+- If a graph includes: calling to remote r1 and r2 in parallel:
+   - The window should be set to: consumer’s `buffer_size` + max (`max_in_flight` to r1, `max_in_flight` to r2).

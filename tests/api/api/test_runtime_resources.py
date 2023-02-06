@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import typing
 import unittest.mock
@@ -34,11 +48,15 @@ def test_list_runtimes_resources_opa_filtering(
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client, grouped_by_project_runtime_resources_output, [project_3],
+        client,
+        grouped_by_project_runtime_resources_output,
+        [project_3],
     )
 
     _mock_opa_filter_and_assert_list_response(
-        client, grouped_by_project_runtime_resources_output, [project_2],
+        client,
+        grouped_by_project_runtime_resources_output,
+        [project_2],
     )
 
 
@@ -60,7 +78,7 @@ def test_list_runtimes_resources_group_by_job(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -86,7 +104,14 @@ def test_list_runtimes_resources_group_by_job(
             ][mlrun.runtimes.RuntimeKinds.mpijob].dict()
         },
     }
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtimes_resources_no_group_by(
@@ -107,10 +132,12 @@ def test_list_runtimes_resources_no_group_by(
         return_value=grouped_by_project_runtime_resources_output
     )
     # allow all
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
-    response = client.get("projects/*/runtime-resources",)
+    response = client.get(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     expected_body = [
         mlrun.api.schemas.KindRuntimeResources(
@@ -147,7 +174,14 @@ def test_list_runtimes_resources_no_group_by(
             ),
         ).dict(),
     ]
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtime_resources_no_resources(
@@ -157,10 +191,12 @@ def test_list_runtime_resources_no_resources(
         return_value={}
     )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=[]
     )
-    response = client.get("projects/*/runtime-resources",)
+    response = client.get(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     assert body == []
     response = client.get(
@@ -191,7 +227,14 @@ def test_list_runtime_resources_no_resources(
         kind=mlrun.runtimes.RuntimeKinds.job,
         resources=mlrun.api.schemas.RuntimeResources(),
     ).dict()
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_list_runtime_resources_filter_by_kind(
@@ -216,7 +259,7 @@ def test_list_runtime_resources_filter_by_kind(
             grouped_by_project_runtime_resources_output,
         )
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     response = client.get(
@@ -237,13 +280,27 @@ def test_list_runtime_resources_filter_by_kind(
         ),
     ).dict()
     expected_body = [expected_runtime_resources]
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # test legacy endpoint
     response = client.get(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}")
     body = response.json()
     expected_body = expected_runtime_resources
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_delete_runtime_resources_nothing_allowed(
@@ -264,10 +321,10 @@ def test_delete_runtime_resources_nothing_allowed(
         return_value=grouped_by_project_runtime_resources_output
     )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=[]
     )
-    _assert_empty_responses_in_delete_endpoints(client)
+    _assert_forbidden_responses_in_delete_endpoints(client)
 
 
 def test_delete_runtime_resources_no_resources(
@@ -278,7 +335,7 @@ def test_delete_runtime_resources_no_resources(
     )
 
     # allow all
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _assert_empty_responses_in_delete_endpoints(client)
@@ -303,22 +360,24 @@ def test_delete_runtime_resources_opa_filtering(
     )
 
     allowed_projects = [project_1, project_2]
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources(
         mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
     )
-    response = client.delete("projects/*/runtime-resources",)
-    body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output
+    response = client.delete(
+        "projects/*/runtime-resources",
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # if at least one project isn't allowed, the response should be forbidden
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     # legacy endpoint
-    response = client.delete("runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+    response = client.delete(
+        "runtimes",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
@@ -336,7 +395,7 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     )
 
     allowed_projects = []
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=allowed_projects
     )
     # no projects are allowed, but there is a non project runtime resource (the legacy builder pod)
@@ -344,16 +403,18 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     _mock_runtime_handlers_delete_resources(
         mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
     )
-    response = client.delete("projects/*/runtime-resources",)
-    body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        [""], grouped_by_project_runtime_resources_output
+    response = client.delete(
+        "projects/*/runtime-resources",
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+
+    # if at least one project isn't allowed, the response should be forbidden
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     # legacy endpoint
-    response = client.delete("runtimes",)
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+    response = client.delete(
+        "runtimes",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def test_delete_runtime_resources_with_kind(
@@ -371,27 +432,41 @@ def test_delete_runtime_resources_with_kind(
     ) = _generate_grouped_by_project_runtime_resources_output()
 
     kind = mlrun.runtimes.RuntimeKinds.job
-    grouped_by_project_runtime_resources_output = _filter_kind_from_grouped_by_project_runtime_resources_output(
-        kind, grouped_by_project_runtime_resources_output
+    grouped_by_project_runtime_resources_output = (
+        _filter_kind_from_grouped_by_project_runtime_resources_output(
+            kind, grouped_by_project_runtime_resources_output
+        )
     )
     mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
         return_value=grouped_by_project_runtime_resources_output
     )
 
     allowed_projects = [project_1, project_3]
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources([kind], allowed_projects)
-    response = client.delete("projects/*/runtime-resources", params={"kind": kind},)
+    response = client.delete(
+        "projects/*/runtime-resources",
+        params={"kind": kind},
+    )
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         allowed_projects, kind, grouped_by_project_runtime_resources_output
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete(f"runtimes/{kind}",)
+    response = client.delete(
+        f"runtimes/{kind}",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
@@ -423,26 +498,37 @@ def test_delete_runtime_resources_with_object_id(
     )
 
     # allow all
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         side_effect=lambda _, resources, *args, **kwargs: resources
     )
     _mock_runtime_handlers_delete_resources([kind], [project_1])
     response = client.delete(
-        "projects/*/runtime-resources", params={"kind": kind, "object-id": object_id},
+        "projects/*/runtime-resources",
+        params={"kind": kind, "object-id": object_id},
     )
     body = response.json()
     expected_body = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         [project_1], kind, grouped_by_project_runtime_resources_output, structured=False
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
     # legacy endpoint
-    response = client.delete(f"runtimes/{kind}/{object_id}",)
+    response = client.delete(
+        f"runtimes/{kind}/{object_id}",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def _mock_runtime_handlers_delete_resources(
-    kinds: typing.List[str], allowed_projects: typing.List[str],
+    kinds: typing.List[str],
+    allowed_projects: typing.List[str],
 ):
     def _assert_delete_resources_label_selector(
         db,
@@ -467,19 +553,52 @@ def _mock_runtime_handlers_delete_resources(
 
 
 def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
-    response = client.delete("projects/*/runtime-resources",)
+    response = client.delete(
+        "projects/*/runtime-resources",
+    )
     body = response.json()
     assert body == {}
 
     # legacy endpoints
-    response = client.delete("runtimes",)
+    response = client.delete(
+        "runtimes",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-    response = client.delete(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",)
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-    response = client.delete(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",)
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
+    )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def _assert_forbidden_responses_in_delete_endpoints(
+    client: fastapi.testclient.TestClient,
+):
+    response = client.delete(
+        "projects/*/runtime-resources",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    # legacy endpoints
+    response = client.delete(
+        "runtimes",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
@@ -627,7 +746,7 @@ def _mock_opa_filter_and_assert_list_response(
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     opa_filter_response,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
+    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
         return_value=opa_filter_response
     )
     response = client.get(
@@ -635,10 +754,19 @@ def _mock_opa_filter_and_assert_list_response(
         params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        opa_filter_response, grouped_by_project_runtime_resources_output
+    expected_body = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            opa_filter_response, grouped_by_project_runtime_resources_output
+        )
     )
-    assert deepdiff.DeepDiff(body, expected_body, ignore_order=True,) == {}
+    assert (
+        deepdiff.DeepDiff(
+            body,
+            expected_body,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
@@ -647,8 +775,10 @@ def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):
-    filtered_output = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output, structured
+    filtered_output = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            allowed_projects, grouped_by_project_runtime_resources_output, structured
+        )
     )
     return _filter_kind_from_grouped_by_project_runtime_resources_output(
         filter_kind, filtered_output

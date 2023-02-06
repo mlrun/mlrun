@@ -1,9 +1,23 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
+import mlrun.api.utils.helpers
 from mlrun.api.schemas.auth import Credentials
 from mlrun.api.schemas.object import LabelRecord
 
@@ -11,7 +25,7 @@ from mlrun.api.schemas.object import LabelRecord
 class ScheduleCronTrigger(BaseModel):
     """
     See this link for help
-    https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+    https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     """
 
     year: Optional[Union[int, str]]
@@ -58,7 +72,7 @@ class ScheduleCronTrigger(BaseModel):
         )
 
 
-class ScheduleKinds(str, Enum):
+class ScheduleKinds(mlrun.api.utils.helpers.StrEnum):
     job = "job"
     pipeline = "pipeline"
 
@@ -100,6 +114,7 @@ class ScheduleRecord(ScheduleInput):
     last_run_uri: Optional[str]
     state: Optional[str]
     labels: Optional[List[LabelRecord]]
+    next_run_time: Optional[datetime]
 
     class Config:
         orm_mode = True

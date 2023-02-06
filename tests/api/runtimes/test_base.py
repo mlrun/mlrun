@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -17,9 +31,9 @@ class TestBaseRunTime(TestRuntimeBase):
     def test_run_with_invalid_inputs(self, db: Session, client: TestClient, inputs):
         runtime = BaseRuntime()
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-            self._execute_run(runtime, inputs=inputs)
+            self.execute_function(runtime, inputs=inputs)
 
     def test_run_with_valid_inputs(self, db: Session, client: TestClient):
         inputs = {"input1": "mlrun"}
         runtime = BaseRuntime()
-        self._execute_run(runtime, inputs=inputs)
+        self.execute_function(runtime, inputs=inputs)

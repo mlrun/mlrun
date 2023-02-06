@@ -20,7 +20,10 @@ from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(
-    vector, feature_set_fields, feature_set_objects, fixed_window_type,
+    vector,
+    feature_set_fields,
+    feature_set_objects,
+    fixed_window_type,
 ):
     graph = vector.spec.graph.copy()
     start_states, default_final_state, responders = graph.check_and_process_graph(
@@ -39,7 +42,7 @@ def _build_feature_vector_graph(
             f"query-{name}",
             features=column_names,
             table=featureset.uri,
-            key=entity_list,
+            key_field=entity_list,
             aliases=aliases,
             fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
         )

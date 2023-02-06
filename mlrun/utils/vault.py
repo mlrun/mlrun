@@ -259,8 +259,8 @@ def init_project_vault_configuration(project):
 
     namespace = mlconf.namespace
     k8s = get_k8s_helper(silent=True)
-    service_account_name = mlconf.secret_stores.vault.project_service_account_name.format(
-        project=project
+    service_account_name = (
+        mlconf.secret_stores.vault.project_service_account_name.format(project=project)
     )
 
     secret_name = k8s.get_project_vault_secret_name(

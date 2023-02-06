@@ -1,34 +1,28 @@
 (datastore)=
-# Data Stores & Data Items
+# Data stores
 
-One of the biggest challenge in distributed systems is handling data given the 
-different access methods, APIs, and authentication mechanisms across types and providers.
+A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-MLRun provides 3 main abstractions to access structured and unstructured data:
-* **Data Store** - defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.)
-* **Data Item** - represent a data item or collection of such (file, dir, table, etc.)
-* **Artifact** - Metadata describing one or more data items. [see Artifacts](./artifacts.md).
+**In this section**
+- [Shared data stores](#shared-data-stores)
+- [Storage credentials and parameters](#storage-credentials-and-parameters)
+   
+## Shared data stores
 
-Working with the abstractions enable us to securely access different data sources through a single API, 
-many continuance methods (e.g. to/from DataFrame, get, download, list, ..), automated data movement and versioning.     
+MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
+Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
+* **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file`
+* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file`
+* **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
+* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
+* **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
+* **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
+* **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
+* **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
-## Shared Data Stores
-
-MLRun supports multiple data sources (more can easily added by extending the `DataStore` class)
-data sources a referred to using the schema prefix (e.g. `s3://my-bucket/path`), the currently supported schemas and their urls:
-* **files** - local/shared file paths, format: `/file-dir/path/to/file`
-* **http, https** - read data from HTTP sources (read-only), format: `https://host/path/to/file`
-* **s3** - S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
-* **v3io, v3ios** - Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
-* **az** - Azure Blob Store, format: `az://<bucket>/path/to/file`
-* **gs, gcs** - Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
-* **store** - MLRun versioned artifacts [(see Artifacts)](./artifacts.md), format: `store://artifacts/<project>/<artifact-name>[:tag]`
-* **memory** - in memory data registry for passing data within the same process, format `memory://key`, 
-  use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
-
-### Storage credentials and parameters
-Data stores may require connection credentials, those can be provided through environment variables 
-or project/job context secrets. The exact credentials depend on the type of the data store, and are listed in
+## Storage credentials and parameters
+Data stores might require connection credentials. These can be provided through environment variables 
+or project/job context secrets. The exact credentials depend on the type of the data store and are listed in
 the following table. Each parameter specified can be provided as an environment variable, or as a project-secret that
 has the same key as the name of the parameter.
 
@@ -39,7 +33,7 @@ variables to the MLRun runtime itself, assigning secrets to it, or placing the v
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
-Refer to [Working with secrets](../secrets.md) for details on secret handling in MLRun.
+Refer to [Working with secrets](../secrets.html) for details on secret handling in MLRun.
 ```
 
 For example, running a function locally:
@@ -73,92 +67,51 @@ remote_run = func.run(name='aws_test', inputs={'source_url': source_url})
 
 The following sections list the credentials and configuration parameters applicable to each storage type.
 
-#### v3io
-When running in an Iguazio system, MLRun will automatically configure executed functions to use `v3io` storage, and will
-pass the needed parameters (such as access-key) for authentication. Refer to the 
-[auto-mount](Function_storage_auto_mount) section for more details on this process.
+### v3io
+When running in an Iguazio system, MLRun automatically configures executed functions to use `v3io` storage, and passes 
+the needed parameters (such as access-key) for authentication. Refer to the 
+[auto-mount](../runtimes/function-storage.html) section for more details on this process.
 
-In some cases, v3io configuration needs to be overridden. The following parameters may be configured:
+In some cases, the v3io configuration needs to be overridden. The following parameters can be configured:
 
-* `V3IO_API` - URL pointing to the v3io web-API service.
-* `V3IO_ACCESS_KEY` - access key used to authenticate with the web API.
-* `V3IO_USERNAME` - the user-name authenticating with v3io. While not strictly required when using an access-key to 
-authenticate, it is used in several use-cases, such as resolving paths to home-directory.
+* `V3IO_API` &mdash; URL pointing to the v3io web-API service.
+* `V3IO_ACCESS_KEY` &mdash; access key used to authenticate with the web API.
+* `V3IO_USERNAME` &mdash; the user-name authenticating with v3io. While not strictly required when using an access-key to 
+authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
 
-#### S3
-* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
+### S3
+* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
   parameters
-* `S3_ENDPOINT_URL` - the S3 endpoint to use. If not specified, will default to AWS. For example, to access 
+* `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
   a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
+  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
+  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
+* `AWS_PROFILE` &mdash; name of credentials profile from a local AWS credentials file. 
+  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
+  file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
+  example)
 
-#### Azure blob storage
-Azure blob storage can utilize several methods of authentication, each require a different set of parameters as listed
+### Azure Blob storage
+The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed
 here:
 
 | Authentication method | Parameters |
 |-----------------------|------------|
 | [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
 | [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
 
-#### Google cloud storage
-* `GOOGLE_APPLICATION_CREDENTIALS` - path to the application credentials to use (in the form of a JSON file). This can
+```{note}
+The `AZURE_STORAGE_CONNECTION_STRING` configuration uses the `BlobServiceClient` to access objects. This has
+limited functionality and cannot be used to access Azure Datalake storage objects. In this case use one of the other 
+authentication methods that use the `fsspec` mechanism. 
+```
+
+### Google cloud storage
+* `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can
 be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
-* `GCP_CREDENTIALS` - when the credentials file cannot be mounted to the pod, this environment variable may contain
-the contents of this file. If configured in the function pod, MLRun will dump its contents to a temporary file 
-and point `GOOGLE_APPLICATION_CREDENTIALS` at it.
-
-## DataItem Object
-
-When we run jobs or pipelines we pass data using the {py:class}`~mlrun.datastore.DataItem` objects, think of them as smart 
-data pointers which abstract away the data store specific behavior.
-
-Example function:
-
-```python
-def prep_data(context, source_url: mlrun.DataItem, label_column='label'):
-    # Convert the DataItem to a Pandas DataFrame
-    df = source_url.as_df()
-    df = df.drop(label_column, axis=1).dropna()
-    context.log_dataset('cleaned_data', df=df, index=False, format='csv')
-```
-
-Running our function:
-
-```python
-prep_data_run = data_prep_func.run(name='prep_data',
-                                   handler=prep_data,
-                                   inputs={'source_url': source_url},
-                                   params={'label_column': 'userid'})
-```
-
-Note that in order to call our function with an `input` we used the `inputs` dictionary attribute and in order to pass
-a simple parameter we used the `params` dictionary attribute. the input value is the specific item uri 
-(per data store schema) as explained above.
-
-Reading the data results from our run:
-we can easily get a run output artifact as a `DataItem` (allowing us to view/use the artifact) using:
-
-```python
-# read the data locally as a Dataframe
-prep_data_run.artifact('cleaned_data').as_df()
-```
-
-The {py:class}`~mlrun.datastore.DataItem` support multiple convenience methods such as:
-* **get()**, **put()** - to read/write data
-* **download()**, **upload()** - to download/upload files
-* **as_df()** - to convert the data to a DataFrame object
-* **local** - to get a local file link to the data (will be downloaded locally if needed)
-* **listdir()**, **stat** - file system like methods
-* **meta** - access to the artifact metadata (in case of an artifact uri)
-* **show()** - will visualize the data in Jupyter (as image, html, etc.)
-
-Check the **{py:class}`~mlrun.datastore.DataItem`** class documentation for details
-
-In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_dataitem` or 
-{py:func}`~mlrun.run.get_object` (returns the `DataItem.get()`), for example:
-
-    df = mlrun.get_dataitem('s3://demo-data/mydata.csv').as_df()
-    print(mlrun.get_object('https://my-site/data.json'))
-
+* `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this environment variable may contain
+the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
+and points `GOOGLE_APPLICATION_CREDENTIALS` at it.

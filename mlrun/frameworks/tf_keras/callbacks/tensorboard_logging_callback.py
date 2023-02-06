@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime
 from typing import Callable, Dict, List, Union
 
@@ -12,8 +26,8 @@ from tensorflow.python.ops import summary_ops_v2
 
 import mlrun
 
-from ..._common import TrackableType
 from ..._dl_common.loggers import TensorboardLogger
+from ..utils import TFKerasTypes
 from .logging_callback import LoggingCallback
 
 
@@ -51,7 +65,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
-                                      to be slower. Defaulted to 'epoch'.
+                                      to be slower. Default: 'epoch'.
         """
         super(_TFKerasTensorboardLogger, self).__init__(
             statistics_functions=statistics_functions,
@@ -164,7 +178,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.text(
-                name=tag, data=text, step=step,
+                name=tag,
+                data=text,
+                step=step,
             )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -177,7 +193,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.scalar(
-                name=name, data=value, step=step,
+                name=name,
+                data=value,
+                step=step,
             )
 
     def _write_weight_histogram_to_tensorboard(
@@ -192,7 +210,9 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         """
         with self._file_writer.as_default():
             tf.summary.histogram(
-                name=name, data=weight, step=step,
+                name=name,
+                data=weight,
+                step=step,
             )
 
     def _write_weight_image_to_tensorboard(
@@ -240,10 +260,10 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TrackableType]]
+            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, List[Union[str, int]]]
+            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -267,7 +287,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         epoch, the weights names should be passed here. Note that each name given will
                                         be searched as 'if <NAME> in <WEIGHT_NAME>' so a simple module name will be
                                         enough to catch his weights. A boolean value can be passed to track all weights.
-                                        Defaulted to False.
+                                        Default: False.
         :param statistics_functions:    A list of statistics functions to calculate at the end of each epoch on the
                                         tracked weights. Only relevant if weights are being tracked. The functions in
                                         the list must accept one Parameter (or Tensor) and return a float (or float
@@ -298,7 +318,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         to tensorboard. Can be passed as a string equal to 'epoch' for per epoch and
                                         'batch' for per single batch, or as an integer specifying per how many
                                         iterations to update. Notice that writing to tensorboard too frequently may
-                                        cause the training to be slower. Defaulted to 'epoch'.
+                                        cause the training to be slower. Default: 'epoch'.
         :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
                                         trying to track common static and dynamic hyperparameters such as learning rate.
 

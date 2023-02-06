@@ -1,13 +1,28 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import datetime
-import enum
 import typing
 
 import pydantic
 
+import mlrun.api.utils.helpers
+
 from .object import ObjectKind, ObjectStatus
 
 
-class ProjectsFormat(str, enum.Enum):
+class ProjectsFormat(mlrun.api.utils.helpers.StrEnum):
     full = "full"
     name_only = "name_only"
     # internal - allowed only in follower mode, only for the leader for upgrade purposes
@@ -24,13 +39,13 @@ class ProjectMetadata(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
-class ProjectDesiredState(str, enum.Enum):
+class ProjectDesiredState(mlrun.api.utils.helpers.StrEnum):
     online = "online"
     offline = "offline"
     archived = "archived"
 
 
-class ProjectState(str, enum.Enum):
+class ProjectState(mlrun.api.utils.helpers.StrEnum):
     unknown = "unknown"
     creating = "creating"
     deleting = "deleting"
@@ -79,7 +94,7 @@ class Project(pydantic.BaseModel):
 
 class ProjectOwner(pydantic.BaseModel):
     username: str
-    session: str
+    access_key: str
 
 
 class ProjectSummary(pydantic.BaseModel):

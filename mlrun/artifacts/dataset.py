@@ -13,18 +13,20 @@
 # limitations under the License.
 import os
 import pathlib
+import warnings
 from io import StringIO
 from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 from pandas.io.json import build_table_schema
 
 import mlrun
 import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact
+from .base import Artifact, ArtifactSpec, LegacyArtifact
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -33,8 +35,380 @@ ddf_sample_pct = 0.2
 max_ddf_size = 1
 
 
+class TableArtifactSpec(ArtifactSpec):
+    _dict_fields = ArtifactSpec._dict_fields + ["schema", "header"]
+
+    def __init__(self):
+        super().__init__()
+        self.schema = None
+        self.header = None
+
+
 class TableArtifact(Artifact):
-    _dict_fields = Artifact._dict_fields + ["schema", "header"]
+    kind = "table"
+
+    def __init__(
+        self,
+        key=None,
+        body=None,
+        df=None,
+        viewer=None,
+        visible=False,
+        inline=False,
+        format=None,
+        header=None,
+        schema=None,
+    ):
+
+        if key:
+            key_suffix = pathlib.Path(key).suffix
+            if not format and key_suffix:
+                format = key_suffix[1:]
+        super().__init__(key, body, viewer=viewer, is_inline=inline, format=format)
+
+        if df is not None:
+            self._is_df = True
+            self.spec.header = df.reset_index().columns.values.tolist()
+            self.spec.format = "csv"  # todo other formats
+            # if visible and not key_suffix:
+            #     key += '.csv'
+            self.spec._body = df
+        else:
+            self._is_df = False
+            self.spec.header = header
+
+        self.spec.schema = schema
+        if not viewer:
+            viewer = "table" if visible else None
+        self.spec.viewer = viewer
+
+    @property
+    def spec(self) -> TableArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", TableArtifactSpec)
+
+    def get_body(self):
+        if not self._is_df:
+            return self.spec.get_body()
+        csv_buffer = StringIO()
+        self.spec.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        return csv_buffer.getvalue()
+
+
+class DatasetArtifactSpec(ArtifactSpec):
+    _dict_fields = ArtifactSpec._dict_fields + [
+        "schema",
+        "header",
+        "length",
+        "column_metadata",
+        "features",
+        "partition_keys",
+        "timestamp_key",
+        "label_column",
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.schema = None
+        self.header = None
+        self.length = None
+        self.column_metadata = None
+        self.features = None
+        self.partition_keys = None
+        self.timestamp_key = None
+        self.label_column = None
+
+
+class DatasetArtifact(Artifact):
+    kind = "dataset"
+    # List of all the supported saving formats of a DataFrame:
+    SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
+
+    def __init__(
+        self,
+        key: str = None,
+        df=None,
+        preview: int = None,
+        format: str = "",  # TODO: should be changed to 'fmt'.
+        stats: bool = None,
+        target_path: str = None,
+        extra_data: dict = None,
+        column_metadata: dict = None,
+        ignore_preview_limits: bool = False,
+        label_column: str = None,
+        **kwargs,
+    ):
+
+        format = (format or "").lower()
+        super().__init__(key, None, format=format, target_path=target_path)
+        if format and format not in self.SUPPORTED_FORMATS:
+            raise ValueError(
+                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
+            )
+
+        if format == "pq":
+            format = "parquet"
+        self.format = format
+        self.status.stats = None
+        self.extra_data = extra_data or {}
+        self.column_metadata = column_metadata or {}
+        self.spec.label_column = label_column
+
+        if df is not None:
+            if hasattr(df, "dask"):
+                # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
+                if (df.memory_usage(deep=True).sum().compute() / 1e9) < max_ddf_size:
+                    df = df.compute()
+            self.update_preview_fields_from_df(
+                self, df, stats, preview, ignore_preview_limits
+            )
+
+        self._df = df
+        self._kw = kwargs
+
+    @property
+    def spec(self) -> DatasetArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", DatasetArtifactSpec)
+
+    def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
+        if not self.spec.target_path:
+            if self.spec.src_path:
+                (
+                    self.metadata.hash,
+                    self.spec.target_path,
+                ) = self.resolve_file_target_hash_path(
+                    self.spec.src_path, artifact_path=artifact_path
+                )
+            else:
+                (
+                    self.metadata.hash,
+                    self.spec.target_path,
+                ) = self.resolve_dataframe_target_hash_path(
+                    self._df, artifact_path=artifact_path
+                )
+
+        suffix = pathlib.Path(self.spec.target_path).suffix
+        format = self.spec.format
+        if not format:
+            if suffix and suffix in [".csv", ".parquet", ".pq"]:
+                format = "csv" if suffix == ".csv" else "parquet"
+            else:
+                format = "parquet"
+        if not suffix and not self.spec.target_path.startswith("memory://"):
+            self.spec.target_path = self.spec.target_path + "." + format
+
+        self.spec.size, self.metadata.hash = upload_dataframe(
+            self._df,
+            self.spec.target_path,
+            format=format,
+            src_path=self.spec.src_path,
+            **self._kw,
+        )
+
+    def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
+        if not artifact_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to resolve body target hash path, artifact_path is not defined"
+            )
+        dataframe_hash = mlrun.utils.helpers.calculate_dataframe_hash(dataframe)
+        suffix = self._resolve_suffix()
+        artifact_path = (
+            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        )
+        target_path = f"{artifact_path}{dataframe_hash}{suffix}"
+        return dataframe_hash, target_path
+
+    @property
+    def df(self) -> pd.DataFrame:
+        """
+        Get the dataset in this artifact.
+
+        :return: The dataset as a DataFrame.
+        """
+        return self._df
+
+    @staticmethod
+    def is_format_supported(fmt: str) -> bool:
+        """
+        Check whether the given dataset format is supported by the DatasetArtifact.
+
+        :param fmt: The format string to check.
+
+        :return: True if the format is supported and False if not.
+        """
+        return fmt in DatasetArtifact.SUPPORTED_FORMATS
+
+    @staticmethod
+    def update_preview_fields_from_df(
+        artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
+    ):
+        preview_rows_length = preview_rows_length or default_preview_rows_length
+        if hasattr(df, "dask"):
+            artifact.spec.length = df.shape[0].compute()
+            preview_df = df.sample(frac=ddf_sample_pct).compute()
+        else:
+            artifact.spec.length = df.shape[0]
+            preview_df = df
+
+        if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
+            preview_df = df.head(preview_rows_length)
+        preview_df = preview_df.reset_index()
+        if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
+            preview_df = preview_df.iloc[:, :max_preview_columns]
+        artifact.spec.header = preview_df.columns.values.tolist()
+        artifact.status.preview = preview_df.values.tolist()
+        artifact.spec.schema = build_table_schema(preview_df)
+
+        # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
+        if stats or (
+            stats is None
+            and (
+                artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
+            )
+            or ignore_preview_limits
+        ):
+            artifact.status.stats = get_df_stats(df)
+
+    @property
+    def column_metadata(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.column_metadata instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.column_metadata
+
+    @column_metadata.setter
+    def column_metadata(self, column_metadata):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.column_metadata instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.column_metadata = column_metadata
+
+    @property
+    def schema(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.schema instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.schema
+
+    @schema.setter
+    def schema(self, schema):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.schema instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.schema = schema
+
+    @property
+    def header(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.header instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.header
+
+    @header.setter
+    def header(self, header):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.header instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.header = header
+
+    @property
+    def preview(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the status, use artifact.status.preview instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.status.preview
+
+    @preview.setter
+    def preview(self, preview):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the status, use artifact.status.preview instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.status.preview = preview
+
+    @property
+    def stats(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the status, use artifact.status.stats instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.status.stats
+
+    @stats.setter
+    def stats(self, stats):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the status, use artifact.status.stats instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.status.stats = stats
+
+
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
+    category=FutureWarning,
+)
+class LegacyTableArtifact(LegacyArtifact):
+    _dict_fields = LegacyArtifact._dict_fields + ["schema", "header"]
     kind = "table"
 
     def __init__(
@@ -80,11 +454,17 @@ class TableArtifact(Artifact):
         return csv_buffer.getvalue()
 
 
-class DatasetArtifact(Artifact):
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyDatasetArtifact' will be removed in 1.5.0, use 'DatasetArtifact' instead",
+    category=FutureWarning,
+)
+class LegacyDatasetArtifact(LegacyArtifact):
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
 
-    _dict_fields = Artifact._dict_fields + [
+    _dict_fields = LegacyArtifact._dict_fields + [
         "schema",
         "header",
         "length",
@@ -279,32 +659,32 @@ def update_dataset_meta(
         )
 
     if header:
-        artifact_spec.header = header
+        artifact_spec.spec.header = header
     if stats:
-        artifact_spec.stats = stats
+        artifact_spec.status.stats = stats
     if schema:
-        artifact_spec.schema = schema
+        artifact_spec.spec.schema = schema
     if preview:
-        artifact_spec.preview = preview
+        artifact_spec.status.preview = preview
     if column_metadata:
-        artifact_spec.column_metadata = column_metadata
+        artifact_spec.spec.column_metadata = column_metadata
     if labels:
         for key, val in labels.items():
-            artifact_spec.labels[key] = val
+            artifact_spec.metadata.labels[key] = val
 
     if extra_data:
-        artifact_spec.extra_data = artifact_spec.extra_data or {}
+        artifact_spec.spec.extra_data = artifact_spec.spec.extra_data or {}
         for key, item in extra_data.items():
             if hasattr(item, "target_path"):
-                item = item.target_path
-            artifact_spec.extra_data[key] = item
+                item = item.spec.target_path
+            artifact_spec.spec.extra_data[key] = item
 
     mlrun.get_run_db().store_artifact(
-        artifact_spec.db_key,
+        artifact_spec.spec.db_key,
         artifact_spec.to_dict(),
-        artifact_spec.tree,
-        iter=artifact_spec.iter,
-        project=artifact_spec.project,
+        artifact_spec.metadata.tree,
+        iter=artifact_spec.metadata.iter,
+        project=artifact_spec.metadata.project,
     )
 
 
@@ -330,4 +710,4 @@ def upload_dataframe(
         size = target_class(path=target_path).write_dataframe(df, **kw)
         return size, None
 
-    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")
+    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yet")

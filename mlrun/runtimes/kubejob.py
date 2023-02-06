@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
-import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -24,10 +24,11 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
 from ..db import RunDBError
+from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError
+from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import AsyncLogWriter
 
@@ -38,9 +39,8 @@ class KubejobRuntime(KubeResource):
 
     _is_remote = True
 
-    @property
     def is_deployed(self):
-        """check if the function is deployed (have a valid container)"""
+        """check if the function is deployed (has a valid container)"""
         if self.spec.image:
             return True
 
@@ -57,19 +57,41 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
-    def with_source_archive(self, source, pythonpath=None, pull_at_runtime=True):
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True
+    ):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:     valid path to git, zip, or tar file, e.g.
                            git://github.com/mlrun/something.git
                            http://some/url/file.zip
-        :param pythonpath: python search path relative to the archive root or absolute (e.g. './subdir')
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
-        self.spec.build.load_source_on_run = pull_at_runtime
+        if source.endswith(".zip") and not pull_at_runtime:
+            logger.warn(
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
+            )
+
         self.spec.build.source = source
-        if pythonpath:
-            self.spec.pythonpath = pythonpath
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
+        self.spec.build.load_source_on_run = pull_at_runtime
+        if (
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
+        ):
+            # if we load source from repo and dont need a full build use the base_image as the image
+            self.spec.image = self.spec.build.base_image
+        elif not pull_at_runtime:
+            # clear the image so build will not be skipped
+            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
+            self.spec.image = ""
 
     def build_config(
         self,
@@ -82,6 +104,9 @@ class KubejobRuntime(KubeResource):
         load_source_on_run=None,
         with_mlrun=None,
         auto_build=None,
+        requirements=None,
+        overwrite=False,
+        verify_base_image=True,
     ):
         """specify builder configuration for the deploy operation
 
@@ -96,20 +121,32 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
+        :param requirements: requirements.txt file to install or list of packages to install
+        :param overwrite:  overwrite existing build configuration
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        :param verify_base_image: verify the base image is set
         """
         if image:
             self.spec.build.image = image
+        if base_image:
+            self.spec.build.base_image = base_image
+        # if overwrite and requirements or commands passed, clear the existing commands
+        # (requirements are added to the commands parameter)
+        if (requirements or commands) and overwrite:
+            self.spec.build.commands = None
+        if requirements:
+            self.with_requirements(
+                requirements, overwrite=False, verify_base_image=False
+            )
         if commands:
-            if not isinstance(commands, list):
-                raise ValueError("commands must be a string list")
-            self.spec.build.commands = self.spec.build.commands or []
-            self.spec.build.commands += commands
+            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret:
             self.spec.build.secret = secret
-        if base_image:
-            self.spec.build.base_image = base_image
         if source:
             self.spec.build.source = source
         if load_source_on_run:
@@ -119,6 +156,9 @@ class KubejobRuntime(KubeResource):
         if auto_build:
             self.spec.build.auto_build = auto_build
 
+        if verify_base_image:
+            self.verify_base_image()
+
     def deploy(
         self,
         watch=True,
@@ -127,6 +167,7 @@ class KubejobRuntime(KubeResource):
         is_kfp=False,
         mlrun_version_specifier=None,
         builder_env: dict = None,
+        show_on_failure: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -136,11 +177,13 @@ class KubejobRuntime(KubeResource):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:  show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
 
         build = self.spec.build
+
         if with_mlrun is None:
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun
@@ -156,6 +199,10 @@ class KubejobRuntime(KubeResource):
                 "with_mlrun=False to skip if its already in the image"
             )
         self.status.state = ""
+        if build.base_image:
+            # clear the image so build will not be skipped
+            self.spec.image = ""
+
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:
@@ -172,13 +219,16 @@ class KubejobRuntime(KubeResource):
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
+            self.spec.build.base_image = self.spec.build.base_image or get_in(
+                data, "data.spec.build.base_image"
+            )
             ready = data.get("ready", False)
             if not ready:
                 logger.info(
                     f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
                 )
             if watch and not ready:
-                state = self._build_watch(watch)
+                state = self._build_watch(watch, show_on_failure=show_on_failure)
                 ready = state == "ready"
                 self.status.state = state
         else:
@@ -197,7 +247,7 @@ class KubejobRuntime(KubeResource):
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
-    def _build_watch(self, watch=True, logs=True):
+    def _build_watch(self, watch=True, logs=True, show_on_failure=False):
         db = self._get_db()
         offset = 0
         try:
@@ -205,16 +255,27 @@ class KubejobRuntime(KubeResource):
         except RunDBError:
             raise ValueError("function or build process not found")
 
-        if text:
-            print(text)
+        def print_log(text):
+            if text and (not show_on_failure or self.status.state == "error"):
+                print(text, end="")
+
+        print_log(text)
+        offset += len(text)
         if watch:
             while self.status.state in ["pending", "running"]:
-                offset += len(text)
                 time.sleep(2)
-                text, _ = db.get_builder_status(self, offset, logs=logs)
-                if text:
-                    print(text, end="")
+                if show_on_failure:
+                    text = ""
+                    db.get_builder_status(self, 0, logs=False)
+                    if self.status.state == "error":
+                        # re-read the full log on failure
+                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                else:
+                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                print_log(text)
+                offset += len(text)
 
+        print()
         return self.status.state
 
     def builder_status(self, watch=True, logs=True):
@@ -281,34 +342,34 @@ class KubejobRuntime(KubeResource):
         k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_project_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj
-            )
-        else:
-            self._add_project_k8s_secrets_to_spec(None, runobj)
+        self._add_secrets_to_spec_before_running(runobj)
+        workdir = self.spec.workdir
+        if workdir:
+            if self.spec.build.source and self.spec.build.load_source_on_run:
+                # workdir will be set AFTER the clone
+                workdir = None
+            elif not workdir.startswith("/"):
+                # relative path mapped to real path in the job pod
+                workdir = os.path.join("/mlrun", workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version")
+                client_version=runobj.metadata.labels.get("mlrun/client_version"),
+                client_python_version=runobj.metadata.labels.get(
+                    "mlrun/client_python_version"
+                ),
             ),
             self,
             extra_env,
             command,
             args,
-            self.spec.workdir,
+            workdir,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = k8s.create_pod(pod)
         except ApiException as exc:
-            raise RunError(str(exc))
+            raise RunError(err_to_str(exc))
 
         if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)
@@ -348,6 +409,9 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
+    kind = "job"
+    class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
+
     @staticmethod
     def _expect_pods_without_uid() -> bool:
         """
@@ -363,7 +427,3 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["build", "job"]

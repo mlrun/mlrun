@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 import sqlalchemy.dialects.mysql
 from sqlalchemy import (
+    BOOLEAN,
     JSON,
     Column,
     ForeignKey,
@@ -206,12 +207,41 @@ with warnings.catch_warnings():
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        # requested logs column indicates whether logs were requested for this run
+        # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
+        # False - logs were not requested for this run
+        # True - logs were requested for this run
+        requested_logs = Column(BOOLEAN, default=False, index=True)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
+
+    class BackgroundTask(Base, BaseModel):
+        __tablename__ = "background_tasks"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_background_tasks_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        timeout = Column(Integer)
 
     class Schedule(Base, BaseModel):
         __tablename__ = "schedules_v2"
@@ -236,6 +266,7 @@ with warnings.catch_warnings():
         struct = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
+        next_run_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"

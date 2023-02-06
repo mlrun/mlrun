@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Any, Dict, List, Tuple, Union
 
@@ -7,11 +21,12 @@ from torch.utils.data import DataLoader
 
 import mlrun
 
-from .callbacks import Callback, MetricFunctionType, MetricValueType
+from .callbacks import Callback
 from .callbacks_handler import CallbacksHandler
 from .mlrun_interface import PyTorchMLRunInterface
 from .model_handler import PyTorchModelHandler
 from .model_server import PyTorchModelServer
+from .utils import PyTorchTypes, PyTorchUtils
 
 
 def train(
@@ -20,7 +35,7 @@ def train(
     loss_function: Module,
     optimizer: Optimizer,
     validation_set: DataLoader = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     scheduler=None,
     scheduler_step_frequency: Union[int, float, str] = "epoch",
     epochs: int = 1,
@@ -55,20 +70,20 @@ def train(
     :param scheduler_step_frequency:    The frequency in which to step the given scheduler. Can be equal to one of the
                                         strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                         every batch), or an integer that specify per how many iterations to step or a
-                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Default:
                                         'epoch'.
-    :param epochs:                      Amount of epochs to perform. Defaulted to a single epoch.
+    :param epochs:                      Amount of epochs to perform. Default: a single epoch.
     :param training_iterations:         Amount of iterations (batches) to perform on each epoch's training. If 'None'
                                         the entire training set will be used.
     :param validation_iterations:       Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                         the entire validation set will be used.
     :param callbacks_list:              The callbacks to use on this run.
-    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Default:
                                         True.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default:
                                         False.
-    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted
-                                        to True. IF True, the custom objects are not optional.
+    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Default:
+                                        True. IF True, the custom objects are not optional.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
                                         class name will be used.
     :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
@@ -76,11 +91,15 @@ def train(
                                         modules will be imported globally. If multiple objects needed to be imported
                                         from the same module a list can be given. The map can be passed as a path to a
                                         json file as well. For example:
-                                        {
-                                           "module1": None,  # => import module1
-                                           "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                           "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "module1": None,  # import module1
+                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                            }
+
                                         If the model path given is of a store object, the modules map will be read from
                                         the logged modules map artifact of the model.
     :param custom_objects_map:          A dictionary of all the custom objects required for loading the model. Each key
@@ -88,10 +107,14 @@ def train(
                                         from it. If multiple objects needed to be imported from the same py file a list
                                         can be given. The map can be passed as a path to a json file as well. For
                                         example:
-                                        {
-                                            "/.../custom_optimizer.py": "optimizer",
-                                            "/.../custom_layers.py": ["layer1", "layer2"]
-                                        }
+
+                                        .. code-block:: python
+
+                                            {
+                                                "/.../custom_optimizer.py": "optimizer",
+                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                            }
+
                                         All the paths will be accessed from the given 'custom_objects_directory',
                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
                                         If the model path given is of a store object, the custom objects map will be
@@ -182,7 +205,7 @@ def evaluate(
     dataset: DataLoader,
     model: Module = None,
     loss_function: Module = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     iterations: int = None,
     callbacks_list: List[Callback] = None,
     use_cuda: bool = True,
@@ -194,7 +217,7 @@ def evaluate(
     custom_objects_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
-) -> Tuple[PyTorchModelHandler, List[MetricValueType]]:
+) -> Tuple[PyTorchModelHandler, List[PyTorchTypes.MetricValueType]]:
     """
     Use MLRun's PyTorch interface to evaluate the model with the given parameters. For more information and further
     options regarding the auto logging, see 'PyTorchMLRunInterface' documentation. Notice for auto-logging: In order to
@@ -210,10 +233,10 @@ def evaluate(
     :param iterations:               Amount of iterations (batches) to perform on the dataset. If 'None' the entire
                                      dataset will be used.
     :param callbacks_list:           The callbacks to use on this run.
-    :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
-    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default: True.
+    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Default:
                                      False.
-    :param auto_log:                 Whether or not to apply auto-logging to MLRun. Defaulted to True.
+    :param auto_log:                 Whether or not to apply auto-logging to MLRun. Default: True.
     :param model_name:               The model name to use for storing the model artifact. If not given, the model's
                                      class name will be used.
     :param modules_map:              A dictionary of all the modules required for loading the model. Each key is a path
@@ -221,21 +244,29 @@ def evaluate(
                                      will be imported globally. If multiple objects needed to be imported from the same
                                      module a list can be given. The map can be passed as a path to a json file as well.
                                      For example:
-                                     {
-                                         "module1": None,  # => import module1
-                                         "module2": ["func1", "func2"],  # => from module2 import func1, func2
-                                         "module3.sub_module": "func3",  # => from module3.sub_module import func3
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "module1": None,  # import module1
+                                             "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                             "module3.sub_module": "func3",  # from module3.sub_module import func3
+                                         }
+
                                      If the model path given is of a store object, the modules map will be read from
                                      the logged modules map artifact of the model.
     :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key is
                                      a path to a python file and its value is the custom object name to import from it.
                                      If multiple objects needed to be imported from the same py file a list can be
                                      given. The map can be passed as a path to a json file as well. For example:
-                                     {
-                                         "/.../custom_optimizer.py": "optimizer",
-                                         "/.../custom_layers.py": ["layer1", "layer2"]
-                                     }
+
+                                     .. code-block:: python
+
+                                         {
+                                             "/.../custom_optimizer.py": "optimizer",
+                                             "/.../custom_layers.py": ["layer1", "layer2"]
+                                         }
+
                                      All the paths will be accessed from the given 'custom_objects_directory', meaning
                                      each py file will be read from 'custom_objects_directory/<MAP VALUE>'. If the model
                                      path given is of a store object, the custom objects map will be read from the

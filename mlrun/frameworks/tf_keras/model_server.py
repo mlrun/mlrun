@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -17,8 +31,8 @@ class TFKerasModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx,
-        name: str,
+        context: mlrun.MLClientCtx = None,
+        name: str = None,
         model: keras.Model = None,
         model_path: str = None,
         model_name: str = None,
@@ -33,7 +47,7 @@ class TFKerasModelServer(V2ModelServer):
         """
         Initialize a serving class for a tf.keras model.
 
-        :param context:                  The mlrun context to work with.
+        :param context:                  For internal use (passed in init).
         :param name:                     The model name to be served.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory to load it from. The model files must start with
@@ -84,8 +98,8 @@ class TFKerasModelServer(V2ModelServer):
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
         :param model_format:             The format used to save the model. One of the members of the
-                                         TFKerasModelHandler.ModelFormats class. Defaulted to SavedModel.
-        :param to_list:                  Whether to return a list instead of a numpy.ndarray. Defaulted to False.
+                                         TFKerasModelHandler.ModelFormats class. Default: SavedModel.
+        :param to_list:                  Whether to return a list instead of a numpy.ndarray. Default: False.
         :param protocol:                 -
         :param class_args:               -
         """
@@ -98,25 +112,36 @@ class TFKerasModelServer(V2ModelServer):
             **class_args,
         )
 
-        # Set up a model handler:
-        self._model_handler = TFKerasModelHandler(
-            model=model,
-            model_path=model_path,
-            model_name=model_name,
-            modules_map=modules_map,
-            custom_objects_map=custom_objects_map,
-            custom_objects_directory=custom_objects_directory,
-            model_format=model_format,
-            context=self.context,
-        )
+        # Store the model handler attributes:
+        self.model_name = model_name
+        self.modules_map = modules_map
+        self.custom_objects_map = custom_objects_map
+        self.custom_objects_directory = custom_objects_directory
+        self.model_format = model_format
 
         # Store additional configurations:
-        self._to_list = to_list
+        self.to_list = to_list
+
+        # Set up a model handler:
+        self._model_handler: TFKerasModelHandler = None
 
     def load(self):
         """
         Use the model handler to load the model.
         """
+        # Initialize the model handler:
+        self._model_handler = TFKerasModelHandler(
+            model=self.model,
+            model_path=self.model_path,
+            model_name=self.model_name,
+            modules_map=self.modules_map,
+            custom_objects_map=self.custom_objects_map,
+            custom_objects_directory=self.custom_objects_directory,
+            model_format=self.model_format,
+            context=self.context,
+        )
+
+        # Load the model:
         if self._model_handler.model is None:
             self._model_handler.load()
         self.model = self._model_handler.model
@@ -138,7 +163,7 @@ class TFKerasModelServer(V2ModelServer):
         prediction = self.model.predict(inputs)
 
         # Return as list if required:
-        return prediction if not self._to_list else prediction.tolist()
+        return prediction if not self.to_list else prediction.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

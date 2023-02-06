@@ -1,5 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import time
 import unittest.mock
+import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 
@@ -8,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 import mlrun.runtimes.constants
 from mlrun.api.db.sqldb.models import Run
@@ -112,7 +128,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_1_update_time,
     )
     run.struct = run_1
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     between_run_1_and_2 = datetime.now(timezone.utc)
 
@@ -138,7 +154,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         updated=run_2_update_time,
     )
     run.struct = run_2
-    get_db()._upsert(db, run, ignore=True)
+    get_db()._upsert(db, [run], ignore=True)
 
     # all start time range
     assert_time_range_request(client, [run_1_uid, run_2_uid])
@@ -149,7 +165,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=run_2_update_time.isoformat(),
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], start_time_from=run_1_start_time.isoformat(),
+        client,
+        [run_1_uid, run_2_uid],
+        start_time_from=run_1_start_time.isoformat(),
     )
 
     # all last update time range
@@ -160,10 +178,14 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         last_update_time_to=run_2_update_time,
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], last_update_time_from=run_1_update_time,
+        client,
+        [run_1_uid, run_2_uid],
+        last_update_time_from=run_1_update_time,
     )
     assert_time_range_request(
-        client, [run_1_uid, run_2_uid], last_update_time_to=run_2_update_time,
+        client,
+        [run_1_uid, run_2_uid],
+        last_update_time_to=run_2_update_time,
     )
 
     # catch only first
@@ -174,7 +196,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
-        client, [run_1_uid], start_time_to=between_run_1_and_2,
+        client,
+        [run_1_uid],
+        start_time_to=between_run_1_and_2,
     )
     assert_time_range_request(
         client,
@@ -191,7 +215,9 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         start_time_to=run_2_update_time,
     )
     assert_time_range_request(
-        client, [run_2_uid], last_update_time_from=run_2_start_time,
+        client,
+        [run_2_uid],
+        last_update_time_from=run_2_start_time,
     )
 
 
@@ -215,10 +241,18 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                     mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)
 
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
-    runs = _list_and_assert_objects(client, {"project": "*"}, 81,)
+    runs = _list_and_assert_objects(
+        client,
+        {"project": "*"},
+        81,
+    )
 
     # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
-    runs = _list_and_assert_objects(client, {"project": projects[0], "iter": False}, 9,)
+    runs = _list_and_assert_objects(
+        client,
+        {"project": projects[0], "iter": False},
+        9,
+    )
 
     # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
@@ -263,12 +297,155 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         15,
     )
 
+    # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 5,
+            "max-partitions": 2,
+        },
+        10,
+    )
+    for run in runs:
+        # Partitions are ordered from latest updated to oldest, which means that 3,2 must be here.
+        assert run["metadata"]["name"] in ["run-name-2", "run-name-3"]
+
+    # Complex query, with partitioning and filtering over iter==0
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": projects[0],
+            "iter": False,
+            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.api.schemas.SortField.updated,
+            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "rows-per-partition": 2,
+            "max-partitions": 1,
+        },
+        2,
+    )
+
+    for run in runs:
+        assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
+
     # Some negative testing - no sort by field
     response = client.get("/api/runs?partition-by=name")
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get("/api/runs?partition-by=key&partition-sort-by=name")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+
+
+def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
+    # Create runs
+    number_of_runs = 50
+    project = "my_project"
+    for counter in range(number_of_runs):
+        uid = f"uid_{counter}"
+        name = f"run_{counter}"
+        run = {
+            "metadata": {
+                "name": name,
+                "uid": uid,
+                "project": project,
+            },
+        }
+        mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": project,
+            "uid": "uid_1",
+        },
+        1,
+    )
+    assert runs[0]["metadata"]["uid"] == "uid_1"
+
+    uid_list = ["uid_12", "uid_29", "uid_xx", "uid_3"]
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": project,
+            "uid": uid_list,
+        },
+        # One fictive uid
+        len(uid_list) - 1,
+    )
+
+    expected_uids = set(uid_list)
+    for run in runs:
+        assert run["metadata"]["uid"] in expected_uids
+        expected_uids.remove(run["metadata"]["uid"])
+
+
+def test_delete_runs_with_permissions(db: Session, client: TestClient):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.AsyncMock()
+    )
+
+    # delete runs from specific project
+    project = "some-project"
+    _store_run(db, uid="some-uid", project=project)
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.OK.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 0
+
+    # delete runs from all projects
+    second_project = "some-project2"
+    _store_run(db, uid=None, project=project)
+    _store_run(db, uid=None, project=second_project)
+    all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    assert len(all_runs) == 2
+    response = client.delete("/api/runs?project=*")
+    assert response.status_code == HTTPStatus.OK.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    assert len(runs) == 0
+
+
+def test_delete_runs_without_permissions(db: Session, client: TestClient):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
+    )
+
+    # try delete runs with no permission to project (project doesn't contain any runs)
+    project = "some-project"
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 0
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+
+    # try delete runs with no permission to project (project contains runs)
+    _store_run(db, uid="some-uid", project=project)
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+
+    # try delete runs from all projects with no permissions
+    response = client.delete("/api/runs?project=*")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+
+
+def _store_run(db, uid, project="some-project"):
+    run_with_nan_float = {
+        "metadata": {"name": "run-name"},
+        "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
+    }
+    if not uid:
+        uid = str(uuid.uuid4())
+    return mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
 
 
 def _list_and_assert_objects(client: TestClient, params, expected_number_of_runs: int):

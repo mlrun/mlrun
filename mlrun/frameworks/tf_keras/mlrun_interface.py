@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import importlib
 import os
 from abc import ABC
@@ -18,8 +32,9 @@ from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 
-from .._common import MLRunInterface, RestorationInformation
+from .._common import MLRunInterface
 from .callbacks import LoggingCallback
+from .utils import TFKerasTypes
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
@@ -62,18 +77,20 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
     @classmethod
     def add_interface(
-        cls, obj: keras.Model, restoration_information: RestorationInformation = None,
+        cls,
+        obj: keras.Model,
+        restoration: TFKerasTypes.MLRunInterfaceRestorationType = None,
     ):
         """
-        Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
-        features.
+        Enrich the object with this interface properties, methods and functions, so it will have this TensorFlow.Keras
+        MLRun's features.
 
         :param obj:                     The object to enrich his interface.
-        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
+        :param restoration: Restoration information tuple as returned from 'remove_interface' in order to
                                         add the interface in a certain state.
         """
         super(TFKerasMLRunInterface, cls).add_interface(
-            obj=obj, restoration_information=restoration_information
+            obj=obj, restoration=restoration
         )
 
     def mlrun_compile(self, *args, **kwargs):
@@ -171,7 +188,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
 
         # Call the pre evaluate method:
         (callbacks, steps) = self._pre_evaluate(
-            callbacks=kwargs["callbacks"], steps=kwargs["steps"],
+            callbacks=kwargs["callbacks"],
+            steps=kwargs["steps"],
         )
 
         # Assign parameters:
@@ -343,7 +361,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         return callbacks, verbose, steps_per_epoch, validation_steps
 
     def _pre_evaluate(
-        self, callbacks: List[Callback], steps: Union[int, None],
+        self,
+        callbacks: List[Callback],
+        steps: Union[int, None],
     ) -> Tuple[List[Callback], Union[int, None]]:
         """
         Method to call before calling 'evaluate' to setup the run and inputs for using horovod.

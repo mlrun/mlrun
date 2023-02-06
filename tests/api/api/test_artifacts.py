@@ -118,7 +118,14 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
     project_artifacts_path = f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}"
 
     resp = client.get(project_artifacts_path)
-    assert len(resp.json()["artifacts"]) == 2
+    assert (
+        deepdiff.DeepDiff(
+            [artifact["tag"] for artifact in resp.json()["artifacts"]],
+            ["latest", "latest", TAG, TAG],
+            ignore_order=True,
+        )
+        == {}
+    )
 
     resp = client.delete(project_artifacts_path)
     assert resp.status_code == HTTPStatus.OK.value
@@ -157,7 +164,14 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     ]:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
-        assert len(resp.json()["artifacts"]) == 2
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", "latest", TAG, TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
 
 
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
@@ -179,7 +193,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-        assert len(artifacts) == 1
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert not is_legacy_artifact(artifacts[0])
 
     # request legacy format
@@ -191,7 +212,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-        assert len(artifacts) == 1
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert is_legacy_artifact(artifacts[0])
 
     # explicitly request full format
@@ -203,7 +231,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-        assert len(artifacts) == 1
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert not is_legacy_artifact(artifacts[0])
 
 
@@ -272,18 +307,26 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
             "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
-    # list all artifacts
-    resp = client.get(LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"))
-    assert resp.status_code == HTTPStatus.OK.value
 
-    # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
-    artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 3
+    # ensure default flow (no tag) and flow where tag is '*' produce all tags
+    for artifacts_path in [
+        API_ARTIFACTS_PATH.format(project=PROJECT),
+        LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"),
+    ]:
 
-    tags = []
-    for artifact in artifacts:
-        assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]
-        tags.append(artifact["metadata"]["tag"])
+        # list all artifacts
+        resp = client.get(artifacts_path)
+        assert resp.status_code == HTTPStatus.OK.value
 
-    # verify that the artifacts returned contains different tags
-    assert (deepdiff.DeepDiff(tags, [tag, new_tag, "latest"], ignore_order=True)) == {}
+        # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
+        artifacts = resp.json()["artifacts"]
+        assert len(artifacts) == 3
+
+        # verify that the artifacts returned contains different tags
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["metadata"]["tag"] for artifact in artifacts],
+                [tag, new_tag, "latest"],
+                ignore_order=True,
+            )
+        ) == {}

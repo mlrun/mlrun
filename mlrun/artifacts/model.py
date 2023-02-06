@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
-import warnings
 from os import path
 from typing import List
 
@@ -168,222 +167,78 @@ class ModelArtifact(Artifact):
 
     @property
     def inputs(self) -> List[Feature]:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inputs instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         """input feature list"""
         return self.spec.inputs
 
     @inputs.setter
     def inputs(self, inputs: List[Feature]):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inputs instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         """input feature list"""
         self.spec.inputs = inputs
 
     @property
     def outputs(self) -> List[Feature]:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.outputs instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         """input feature list"""
         return self.spec.outputs
 
     @outputs.setter
     def outputs(self, outputs: List[Feature]):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.outputs instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         """input feature list"""
         self.spec.outputs = outputs
 
     @property
     def model_file(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.model_file instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.model_file
 
     @model_file.setter
     def model_file(self, model_file):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.model_file instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.model_file = model_file
 
     @property
     def parameters(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.parameters instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.parameters
 
     @parameters.setter
     def parameters(self, parameters):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.parameters instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.parameters = parameters
 
     @property
     def metrics(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.metrics instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.metrics
 
     @metrics.setter
     def metrics(self, metrics):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.metrics instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.metrics = metrics
 
     @property
     def feature_stats(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.feature_stats
 
     @feature_stats.setter
     def feature_stats(self, feature_stats):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.feature_stats = feature_stats
 
     @property
     def feature_vector(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_vector instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.feature_vector
 
     @feature_vector.setter
     def feature_vector(self, feature_vector):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_vector instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.feature_vector = feature_vector
 
     @property
     def feature_weights(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.feature_weights
 
     @feature_weights.setter
     def feature_weights(self, feature_weights):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.feature_weights = feature_weights
 
     @property
     def model_target_file(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.model_target_file
 
     @model_target_file.setter
     def model_target_file(self, model_target_file):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.model_target_file = model_target_file
 
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):

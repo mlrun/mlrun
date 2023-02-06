@@ -795,8 +795,9 @@ class SQLDB(DBInterface):
 
             artifact_struct = artifact.struct
 
-            if tag:
-                # tag was given by the user, so we will set the tag in the artifact struct
+            if ids == "*" or tag:
+                # either in default flow where we get all tags or tag was given by the user -
+                # so we will set the tags in the artifact struct
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
                     session, artifact_struct, artifact.id, tag
                 )

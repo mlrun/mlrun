@@ -272,18 +272,26 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
             "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
-    # list all artifacts
-    resp = client.get(LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"))
-    assert resp.status_code == HTTPStatus.OK.value
 
-    # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
-    artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 3
+    for artifacts_path in [
+        API_ARTIFACTS_PATH.format(project=PROJECT),
+        LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"),
+    ]:
 
-    tags = []
-    for artifact in artifacts:
-        assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]
-        tags.append(artifact["metadata"]["tag"])
+        # list all artifacts
+        resp = client.get(artifacts_path)
+        assert resp.status_code == HTTPStatus.OK.value
 
-    # verify that the artifacts returned contains different tags
-    assert (deepdiff.DeepDiff(tags, [tag, new_tag, "latest"], ignore_order=True)) == {}
+        # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
+        artifacts = resp.json()["artifacts"]
+        assert len(artifacts) == 3
+
+        tags = []
+        for artifact in artifacts:
+            assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]
+            tags.append(artifact["metadata"]["tag"])
+
+        # verify that the artifacts returned contains different tags
+        assert (
+            deepdiff.DeepDiff(tags, [tag, new_tag, "latest"], ignore_order=True)
+        ) == {}

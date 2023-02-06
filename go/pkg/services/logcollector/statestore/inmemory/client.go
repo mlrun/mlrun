@@ -37,10 +37,11 @@ func (s *Store) Initialize(ctx context.Context) error {
 }
 
 // AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runId, selector string) error {
+func (s *Store) AddLogItem(ctx context.Context, runId, selector, project string) error {
 	logItem := statestore.LogItem{
 		RunUID:        runId,
 		LabelSelector: selector,
+		Project:       project,
 	}
 	s.inProgress.Store(runId, logItem)
 	return nil

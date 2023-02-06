@@ -107,8 +107,9 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	runId := "some-run-id"
 	labelSelector := "app=test"
+	project := "some-project"
 
-	err := suite.stateStore.AddLogItem(suite.ctx, runId, labelSelector)
+	err := suite.stateStore.AddLogItem(suite.ctx, runId, labelSelector, project)
 	suite.Require().NoError(err, "Failed to add item to in progress")
 
 	// write state to file

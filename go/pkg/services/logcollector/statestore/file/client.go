@@ -70,10 +70,11 @@ func (s *Store) Initialize(ctx context.Context) error {
 }
 
 // AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runUID, selector string) error {
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
 	logItem := statestore.LogItem{
 		RunUID:        runUID,
 		LabelSelector: selector,
+		Project:       project,
 	}
 
 	if existingItem, exists := s.state.InProgress.Load(runUID); exists {

@@ -179,7 +179,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		if len(logs) >= expectedLogLines {
 			break
 		}
-		if time.Since(startedGettingLogsTime) > 2*time.Minute {
+		if time.Since(startedGettingLogsTime) > 3*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
 

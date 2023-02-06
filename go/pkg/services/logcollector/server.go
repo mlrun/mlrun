@@ -217,7 +217,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	pod := pods.Items[0]
 
 	// write log item in progress to state store
-	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
+	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success:      false,
@@ -238,7 +238,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	<-startedStreamingGoroutine
 
 	// add log item to in-memory state, so we can monitor it
-	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
+	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success:      false,
@@ -724,8 +724,9 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 
 					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-						RunUID:   runUID,
-						Selector: logItem.LabelSelector,
+						RunUID:      runUID,
+						Selector:    logItem.LabelSelector,
+						ProjectName: logItem.Project,
 					}); err != nil {
 
 						// we don't fail here, as there might be other items to start log for, just log it

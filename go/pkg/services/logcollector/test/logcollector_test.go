@@ -92,9 +92,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		"30s",   /* monitoringInterval */
 		"chief", /* clusterizationRole */
 		suite.kubeClientSet,
-		30, /* logCollectionBufferPoolSize */
-		30, /* getLogsBufferSizeBytes */
-		suite.bufferSizeBytes)
+		30,                    /* logCollectionBufferPoolSize */
+		30,                    /* getLogsBufferSizeBytes */
+		suite.bufferSizeBytes, /* logCollectionBufferSizeBytes */
+		suite.bufferSizeBytes) /* getLogsBufferSizeBytes */
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test

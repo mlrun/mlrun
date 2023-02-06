@@ -117,9 +117,15 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
 
     project_artifacts_path = f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}"
 
-    # should return 2 tags for each artifact ('latest' and TAG)
     resp = client.get(project_artifacts_path)
-    assert len(resp.json()["artifacts"]) == 4
+    assert (
+        deepdiff.DeepDiff(
+            [artifact["tag"] for artifact in resp.json()["artifacts"]],
+            ["latest", "latest", TAG, TAG],
+            ignore_order=True,
+        )
+        == {}
+    )
 
     resp = client.delete(project_artifacts_path)
     assert resp.status_code == HTTPStatus.OK.value
@@ -159,8 +165,14 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
 
-        # should return 2 tags for each artifact ('latest' and TAG)
-        assert len(resp.json()["artifacts"]) == 4
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", "latest", TAG, TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
 
 
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
@@ -183,8 +195,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
 
         artifacts = resp.json()["artifacts"]
 
-        # should return 2 tags ('latest' and TAG)
-        assert len(artifacts) == 2
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert not is_legacy_artifact(artifacts[0])
 
     # request legacy format
@@ -197,8 +215,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
 
         artifacts = resp.json()["artifacts"]
 
-        # should return 2 tags ('latest' and TAG)
-        assert len(artifacts) == 2
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert is_legacy_artifact(artifacts[0])
 
     # explicitly request full format
@@ -211,8 +235,14 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
 
         artifacts = resp.json()["artifacts"]
 
-        # should return 2 tags ('latest' and TAG)
-        assert len(artifacts) == 2
+        assert (
+            deepdiff.DeepDiff(
+                [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],
+                ["latest", TAG],
+                ignore_order=True,
+            )
+            == {}
+        )
         assert not is_legacy_artifact(artifacts[0])
 
 

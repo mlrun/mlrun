@@ -454,7 +454,7 @@ class FileDB(DBInterface):
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, session, project, category):
+    def list_artifact_tags(self, session, project, category=None):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 
     def create_schedule(

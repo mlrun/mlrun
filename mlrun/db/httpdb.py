@@ -1400,7 +1400,9 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
+        # TODO: deprecated, remove in 1.6.0
         ttl=None,
+        cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
 
@@ -1413,14 +1415,16 @@ class HTTPRunDB(RunDBInterface):
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
         :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
-                    and all its resources are deleted)
+                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
+        :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                            workflow and all its resources are deleted)
         """
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_meta(artifact_path, cleanup_ttl or ttl, ops)
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
             )

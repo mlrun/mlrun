@@ -615,7 +615,7 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_meta(artifact_path=None, ttl=None, *args):
+def new_pipe_meta(artifact_path=None, cleanup_ttl=None, *args):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -627,9 +627,9 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
         return task
 
     conf = PipelineConf()
-    ttl = ttl or int(config.kfp_ttl)
-    if ttl:
-        conf.set_ttl_seconds_after_finished(ttl)
+    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
+    if cleanup_ttl:
+        conf.set_ttl_seconds_after_finished(cleanup_ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
     for op in args:

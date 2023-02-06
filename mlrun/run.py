@@ -924,8 +924,10 @@ def run_pipeline(
     artifact_path=None,
     ops=None,
     url=None,
+    # TODO: deprecated, remove in 1.6.0
     ttl=None,
     remote: bool = True,
+    cleanup_ttl=None,
 ):
     """remote KubeFlow pipeline execution
 
@@ -941,8 +943,11 @@ def run_pipeline(
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                       workflow and all its resources are deleted)
+                       workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param remote:     read kfp data from mlrun service (default=True)
+    :param cleanup_ttl:
+                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted)
 
     :returns: kubeflow pipeline id
     """
@@ -976,7 +981,7 @@ def run_pipeline(
             namespace=namespace,
             ops=ops,
             artifact_path=artifact_path,
-            ttl=ttl,
+            cleanup_ttl=cleanup_ttl or ttl,
         )
 
     else:

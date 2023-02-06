@@ -561,11 +561,11 @@ class ServingRuntime(RemoteRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            self._add_project_k8s_secrets_to_spec(
+            self._add_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), project=self.metadata.project
             )
         else:
-            self._add_project_k8s_secrets_to_spec(None, project=self.metadata.project)
+            self._add_k8s_secrets_to_spec(None, project=self.metadata.project)
 
     def deploy(
         self,

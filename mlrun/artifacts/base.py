@@ -20,6 +20,7 @@ import warnings
 import zipfile
 
 import yaml
+from deprecated import deprecated
 
 import mlrun
 import mlrun.errors
@@ -967,6 +968,12 @@ class LinkArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyArtifact' will be removed in 1.5.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class LegacyArtifact(ModelObj):
 
     _dict_fields = [
@@ -1128,6 +1135,12 @@ class LegacyArtifact(ModelObj):
         return generate_target_path(self, artifact_path, producer)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyDirArtifact' will be removed in 1.5.0, use 'DirArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
         "key",
@@ -1158,6 +1171,12 @@ class LegacyDirArtifact(LegacyArtifact):
             store_manager.object(url=target).upload(file_path)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyLinkArtifact' will be removed in 1.5.0, use 'LinkArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyLinkArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + [
         "link_iteration",

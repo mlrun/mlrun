@@ -274,6 +274,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
@@ -300,6 +301,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 
@@ -444,7 +446,10 @@ class AbstractSparkRuntime(KubejobRuntime):
             job,
             "spec.image",
             self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version")
+                client_version=runobj.metadata.labels.get("mlrun/client_version"),
+                client_python_version=runobj.metadata.labels.get(
+                    "mlrun/client_python_version"
+                ),
             ),
         )
 
@@ -672,19 +677,26 @@ with ctx:
                 "file://" + config.spark_history_server_path
             )
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_limits & with_executor_limits"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
-    def with_requests(self, mem=None, cpu=None):
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'"
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
     def with_node_selection(
@@ -818,6 +830,9 @@ with ctx:
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
+    class_modes = {
+        "run": "spark",
+    }
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
@@ -881,10 +896,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["spark"]
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

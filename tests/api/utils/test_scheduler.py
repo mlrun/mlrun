@@ -1257,7 +1257,8 @@ async def test_schedule_job_concurrency_limit(
     )
     if schedule.next_run_time is None:
         # next run time may be none if the job was completed (i.e. end date was reached)
-        assert after_sleep_timestamp >= now_plus_5_seconds
+        # scrub the microseconds to reduce noise
+        assert after_sleep_timestamp >= now_plus_5_seconds.replace(microsecond=0)
 
     else:
         # scrub the microseconds to reduce noise
@@ -1285,9 +1286,11 @@ async def test_schedule_job_next_run_time(
     While the 1st run is still running, manually invoke the schedule (should fail due to concurrency limit)
     and check that the next run time is updated.
     """
-    now_plus_4_seconds = datetime.now() + timedelta(seconds=4)
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", end_date=now_plus_4_seconds
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
@@ -1311,7 +1314,7 @@ async def test_schedule_job_next_run_time(
         concurrency_limit=1,
     )
 
-    while datetime.now() < now_plus_4_seconds:
+    while datetime.now(timezone.utc) < now_plus_5_seconds:
         runs = get_db().list_runs(db, project=project_name)
         if len(runs) == 1:
             break

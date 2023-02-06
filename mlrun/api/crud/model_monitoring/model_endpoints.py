@@ -17,7 +17,6 @@
 import os
 import typing
 
-import nuclio.utils
 import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.functions
@@ -589,14 +588,17 @@ class ModelEndpoints:
         try:
             # validate that the model monitoring stream has not yet been deployed
             mlrun.runtimes.function.get_nuclio_deploy_status(
-                name="model-monitoring-stream", project=project, tag=""
+                name="model-monitoring-stream",
+                project=project,
+                tag="",
+                auth_info=auth_info,
             )
             logger.info(
                 "Detected model monitoring stream processing function already deployed",
                 project=project,
             )
             return
-        except nuclio.utils.DeployError:
+        except mlrun.errors.MLRunNotFoundError:
             logger.info(
                 "Deploying model monitoring stream processing function", project=project
             )
@@ -697,7 +699,7 @@ class ModelEndpoints:
         )
 
         # Add job schedule policy (every hour by default)
-        mlrun.api.api.utils._submit_run(
+        mlrun.api.api.utils.submit_run_sync(
             db_session=db_session, auth_info=auth_info, data=data
         )
 

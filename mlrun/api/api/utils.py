@@ -186,7 +186,7 @@ def _generate_function_and_task_from_submit_run_body(
 
 async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
-        _submit_run, db_session, auth_info, data
+        submit_run_sync, db_session, auth_info, data
     )
     return response
 
@@ -651,7 +651,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
 
 
-def _submit_run(
+def submit_run_sync(
     db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
@@ -663,6 +663,7 @@ def _submit_run(
     """
     run_uid = None
     project = None
+    response = None
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data

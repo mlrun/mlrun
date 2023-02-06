@@ -34,6 +34,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    resolve_image_tag_suffix,
     str_to_timestamp,
     validate_tag_name,
     verify_field_regex,
@@ -224,10 +225,6 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
     "tag_name,expected",
     [
         (
-            "tag_name",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
             "tag_with_char!@#",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
@@ -246,6 +243,7 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
         ("tagname2.0", does_not_raise()),
         ("tag-name", does_not_raise()),
         ("tag-NAME", does_not_raise()),
+        ("tag_name", does_not_raise()),
     ],
 )
 def test_validate_tag_name(tag_name, expected):
@@ -427,6 +425,51 @@ def test_enrich_image():
             "expected_output": "some/image",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.0",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0-py37",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:1.2.0",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.2.0",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
@@ -443,8 +486,48 @@ def test_enrich_image():
         image = case["image"]
         expected_output = case["expected_output"]
         client_version = case.get("client_version")
-        output = enrich_image_url(image, client_version)
+        client_python_version = case.get("client_python_version")
+        output = enrich_image_url(image, client_version, client_python_version)
         assert output == expected_output
+
+
+@pytest.mark.parametrize(
+    "mlrun_version,python_version,expected",
+    [
+        ("1.3.0", "3.7.13", "-py37"),
+        ("1.3.0", "3.9.13", ""),
+        ("1.3.0", None, ""),
+        ("1.3.0", "3.8.13", ""),
+        ("1.3.0", "3.9.0", ""),
+        ("1.2.0", "3.7.0", ""),
+        ("1.2.0", "3.8.0", ""),
+        ("1.3.0-rc12", "3.7.13", "-py37"),
+        ("1.3.0-rc12", "3.9.13", ""),
+        ("1.3.0-rc12", None, ""),
+        ("1.3.0-rc12", "3.8.13", ""),
+        ("1.3.1", "3.7.13", "-py37"),
+        ("1.3.1", "3.9.13", ""),
+        ("1.3.1", None, ""),
+        ("1.3.1", "3.8.13", ""),
+        ("1.3.1-rc12", "3.7.13", "-py37"),
+        ("1.3.1-rc12", "3.9.13", ""),
+        # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
+        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
+        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
+        # defining a version)
+        ("0.0.0-unstable", "3.7.13", "-py37"),
+        ("0.0.0-unstable", "3.9.13", ""),
+        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        # we can remove them
+        ("1.4.0", "3.9.13", ""),
+        ("1.4.0", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.9.13", ""),
+    ],
+)
+def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
+    assert resolve_image_tag_suffix(mlrun_version, python_version) == expected
 
 
 def test_get_parsed_docker_registry():

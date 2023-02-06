@@ -36,7 +36,14 @@ from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
+from ..utils import (
+    datetime_to_iso,
+    dict_to_json,
+    logger,
+    new_pipe_meta,
+    normalize_name,
+    version,
+)
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -102,6 +109,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
+        self.python_version = str(version.Version().get_python_version())
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -154,6 +162,9 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
+        :param stream: If True, the response will be streamed, otherwise it will be read into memory
+        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
+           and returned as a string
 
         :return: Python HTTP response object
         """
@@ -187,7 +198,10 @@ class HTTPRunDB(RunDBInterface):
             "headers", {}
         ):
             kw["headers"].update(
-                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+                {
+                    mlrun.api.schemas.HeaderNames.client_version: self.client_version,
+                    mlrun.api.schemas.HeaderNames.python_version: self.python_version,
+                }
             )
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
@@ -321,6 +335,7 @@ class HTTPRunDB(RunDBInterface):
             # allow client to set the default partial WA for lack of support of per-target auxiliary options
             config.redis.type = config.redis.type or server_cfg.get("redis_type")
 
+            config.sql.url = config.sql.url or server_cfg.get("sql_url")
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -690,7 +705,7 @@ class HTTPRunDB(RunDBInterface):
         name=None,
         project=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -706,12 +721,15 @@ class HTTPRunDB(RunDBInterface):
             latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts('results', tag='*', project='iris')
+            # Show artifacts with label filters - both uploaded and of binary type
+            result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -725,10 +743,14 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
 
+        labels = labels or []
+        if isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "iter": iter,
             "best-iteration": best_iteration,
             "kind": kind,
@@ -1220,7 +1242,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             params = {
-                "name": func.metadata.name,
+                "name": normalize_name(func.metadata.name),
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),

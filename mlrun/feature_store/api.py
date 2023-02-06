@@ -101,6 +101,7 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
+    join_type: str = "inner",
     spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
@@ -149,6 +150,16 @@ def get_offline_features(
     :param engine_args:     kwargs for the processing engine
     :param query:           The query string used to filter rows
     :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
+    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
+                                    Supported retrieval engines: "dask", "local"
+                                    This parameter is in use when entity_timestamp_column and
+                                    feature_vector.spec.timestamp_field are None, if one of them
+                                    isn't none we're preforming as_of join.
+                                    Possible values :
+                                    * left: use only keys from left frame (SQL: left outer join)
+                                    * right: use only keys from right frame (SQL: right outer join)
+                                    * outer: use union of keys from both frames (SQL: full outer join)
+                                    * inner: use intersection of keys from both frames (SQL: inner join).
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -177,6 +188,7 @@ def get_offline_features(
             drop_columns=drop_columns,
             with_indexes=with_indexes,
             query=query,
+            join_type=join_type,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -199,6 +211,7 @@ def get_offline_features(
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,
+        join_type=join_type,
     )
 
 
@@ -444,7 +457,7 @@ def ingest(
 
     if isinstance(source, DataSource) and source.schedule:
         min_time = datetime.max
-        for target in targets or featureset.status.targets:
+        for target in featureset.status.targets:
             if target.last_written:
                 cur_last_written = target.last_written
                 if isinstance(cur_last_written, str):
@@ -465,6 +478,10 @@ def ingest(
             f"starting ingestion task to {featureset.uri}.{filter_time_string}"
         )
         return_df = False
+
+    if featureset.spec.passthrough:
+        featureset.spec.source = source
+        featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
 
@@ -641,6 +658,8 @@ def preview(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -832,6 +851,8 @@ def _ingest_with_spark(
         for target in targets_to_ingest or []:
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
+            if featureset.spec.passthrough and target.is_offline:
+                continue
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -878,7 +899,7 @@ def _ingest_with_spark(
                         df_to_write = df_to_write.withColumn(
                             partition, op(timestamp_col)
                         )
-            df_to_write = target.prepare_spark_df(df_to_write)
+            df_to_write = target.prepare_spark_df(df_to_write, key_columns)
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:

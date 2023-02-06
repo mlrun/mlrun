@@ -272,12 +272,12 @@ class Imputer(StepToDict, MLRunStep):
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)
-        self.mapping = mapping
+        self.mapping = mapping or {}
         self.method = method
         self.default_value = default_value
 
-    def _impute(self, feature: str, value):
-        if value is None:
+    def _impute(self, feature: str, value: Any):
+        if pd.isna(value):
             return self.mapping.get(feature, self.default_value)
         return value
 
@@ -610,7 +610,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         description="feature set",
                                         engine="pandas",
                                         )
-            # Pre-processing grpah steps
+            # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
             df_pandas = fstore.ingest(feature_set, data)
 

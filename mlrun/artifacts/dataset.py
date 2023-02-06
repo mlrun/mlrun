@@ -19,6 +19,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 from pandas.io.json import build_table_schema
 
 import mlrun
@@ -400,6 +401,12 @@ class DatasetArtifact(Artifact):
         self.status.stats = stats
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyTableArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + ["schema", "header"]
     kind = "table"
@@ -447,6 +454,12 @@ class LegacyTableArtifact(LegacyArtifact):
         return csv_buffer.getvalue()
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyDatasetArtifact' will be removed in 1.5.0, use 'DatasetArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyDatasetArtifact(LegacyArtifact):
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]

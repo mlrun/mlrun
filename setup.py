@@ -94,7 +94,11 @@ extras_require = {
         # >=2.4.2 to force having a security fix done in 2.4.2
         "bokeh~=2.4, >=2.4.2",
     ],
-    "plotly": ["plotly~=5.4"],
+    # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+    # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+    "plotly": ["plotly~=5.4, <5.12.0"],
+    # used to generate visualization nuclio/serving graph steps
+    "graphviz": ["graphviz~=0.20.0"],
     # google-cloud is mainly used for QA, that is why we are not including it in complete
     "google-cloud": [
         # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
@@ -162,6 +166,7 @@ setup(
         "mlrun.api.utils.auth",
         "mlrun.api.utils.auth.providers",
         "mlrun.api.utils.clients",
+        "mlrun.api.utils.clients.protocols",
         "mlrun.api.utils.db",
         "mlrun.api.utils.projects",
         "mlrun.api.utils.projects.remotes",

@@ -142,6 +142,51 @@ def test_local_handler():
     verify_state(result)
 
 
+@pytest.mark.parametrize(
+    "kind,watch,expected_watch_count",
+    [
+        ("", True, 0),
+        ("", True, 0),
+        ("local", False, 0),
+        ("local", False, 0),
+        ("dask", True, 0),
+        ("dask", False, 0),
+        ("job", True, 1),
+        ("job", False, 0),
+    ],
+)
+def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
+    mlrun.RunObject.logs = Mock()
+    spec = tag_test(base_spec, "test_is_watchable")
+    func = new_function(
+        command=f"{examples_path}/handler.py",
+        kind=kind,
+    )
+
+    if kind == "dask":
+
+        # don't start dask cluster
+        func.spec.remote = False
+    elif kind == "job":
+
+        # mark as deployed
+        func.spec.image = "some-image"
+
+    result = func.run(
+        spec,
+        handler="my_func",
+        watch=watch,
+    )
+
+    # rundb_mock mocks the job submission when kind is job
+    # therefore, if we watch we get an empty result as the run was not created (it is mocked)
+    # else, the state will not be 'completed'
+    if kind != "job":
+        verify_state(result)
+
+    assert mlrun.RunObject.logs.call_count == expected_watch_count
+
+
 def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
@@ -162,6 +207,10 @@ def test_local_context():
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["status"]["state"] == "running", "run status not updated in db"
+
     with context:
         context.log_artifact("xx", body="123", local_path="a.txt")
         context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
@@ -172,9 +221,8 @@ def test_local_context():
 
     assert context._state == "completed", "task did not complete"
 
-    db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["status"]["state"] == "completed", "run status not updated in db"
+    assert run["status"]["state"] == "running", "run status was updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
     ), "artifact not updated in db"

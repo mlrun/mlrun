@@ -6,7 +6,7 @@ Feature vectors are used as an input for models, allowing you to define the feat
 {ref}`datasets <retrieve-offline-data>` created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
-It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.
+It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time-related errors.
 
 **In this section**
 
@@ -44,7 +44,7 @@ fv = fstore.FeatureVector(name=feature_vector_name,
                           description=feature_vector_description)
 
 # Save the feature vector in the MLRun DB
-# so it will could be referenced by the `store://`
+# so it can be referenced by the `store://`
 # and show in the UI
 fv.save()
 ```
@@ -53,7 +53,7 @@ After saving the feature vector, it appears in the UI:
 
 <img src="../_static/images/feature-store-vector-line.png" alt="feature-store-vector-line" width="800"/>
 
-You can also view some metadata about the feature vector, including all the features, their types, a preview and statistics:
+You can also view some metadata about the feature vector, including all the features, their types, a preview, and statistics:
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
@@ -64,7 +64,7 @@ After a feature vector is saved, it can be used to create both offline (static) 
 ### Creating an offline feature vector
 
 Use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` function to produce a `dataset` from the feature vector.
-It creates the dataset (asynchronously if possible), saves it to the requested target, and returns a {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
+It creates the dataset (asynchronously if possible), saves it to the requested target, and returns an {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
 Due to the async nature of this action, the response object contains an `fv_response.status` indicator that, once completed, could be directly turned into a `dataframe`, `parquet` or a `csv`.
 
 `get_offline_features` expects to receive:
@@ -115,6 +115,9 @@ run = fn.run(task)
 ```
 
 You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
+
+You can use `get_offline_features` for a feature vector whose data is not ingested. See 
+[Create a feature set without ingesting its data](..feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
 ### Creating an online feature vector
 

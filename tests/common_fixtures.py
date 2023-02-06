@@ -45,6 +45,7 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
+from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
@@ -94,6 +95,9 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
+
+    # TODO: update this to "sidecar" once the default mode is changed
+    mlrun.config.config.log_collector.mode = "legacy"
 
 
 @pytest.fixture
@@ -187,12 +191,15 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifact = None
+        self._runs = {}
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -200,13 +207,17 @@ class RunDBMock:
         return "1234-1234-1234-1234"
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._run = {
-            uid: {
-                "struct": struct,
-                "projct": project,
-                "iter": iter,
-            }
+        self._runs[uid] = {
+            "struct": struct,
+            "project": project,
+            "iter": iter,
         }
+
+    def read_run(self, uid, project, iter=0):
+        return self._runs.get(uid, {})
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifact = artifact
 
     def get_function(self, function, project, tag):
         return {
@@ -274,6 +285,17 @@ class RunDBMock:
         verbose=False,
     ):
         return "ready", last_log_timestamp
+
+    def update_run(self, updates: dict, uid, project="", iter=0):
+        state = self._function.get("state", {})
+        update_in(state, "status.state", updates)
+        update_in(state, "status.results", updates)
+        update_in(state, "status.start_time", updates)
+        update_in(state, "status.last_update", updates)
+        update_in(state, "status.error", updates)
+        update_in(state, "status.commit", updates)
+        update_in(state, "status.iterations", updates)
+        self._function["state"] = state
 
     def assert_no_mount_or_creds_configured(self):
         env_list = self._function["spec"]["env"]

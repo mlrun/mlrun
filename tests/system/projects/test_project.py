@@ -109,7 +109,10 @@ class TestProject(TestMLRunSystem):
             "echo 2222",
         ]
         self.project.set_function(
-            "assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
         )
         self.project.build_function(
             func_name, base_image="mlrun/mlrun", commands=commands
@@ -597,6 +600,20 @@ class TestProject(TestMLRunSystem):
         assert fn.spec.image, "image path got cleared"
         assert run_result.output("score")
 
+        # Use project default image to run function, don't specify image when calling set_function
+        project.set_default_image(fn.spec.image)
+        project.set_function(
+            "./sentiment.py",
+            "scores4",
+            kind="job",
+            handler="handler",
+        )
+        enriched_fn = project.get_function("scores4", enrich=True)
+        assert enriched_fn.spec.image == fn.spec.image
+        project.run_function("scores4", params={"text": "good evening"})
+        assert fn.status.state == "ready"
+        assert run_result.output("score")
+
     def test_set_secrets(self):
         name = "set-secrets"
         self.custom_project_names_to_delete.append(name)
@@ -700,7 +717,7 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         warning_message = (
-            "[warning] timeout ({}) should be higher than backoff (10)."
+            "[warning] timeout ({}) must be higher than backoff (10)."
             " Set timeout to be higher than backoff."
         )
         expected_warning_log = warning_message.format(bad_timeout)

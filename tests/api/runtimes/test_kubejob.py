@@ -363,6 +363,44 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
+    def test_run_with_global_secrets(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        project_secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
+        project_secrets = {key: "some-secret-value" for key in project_secret_keys}
+        # secret1 is included both in the global secrets and the project secrets, it should have the value from the
+        # project-secret (this is the logic in get_expected_env_variables_from_secrets)
+        global_secret_keys = [
+            "global_secret1",
+            "global_secret2",
+            "mlrun.global_secret3",
+            "secret1",
+        ]
+        global_secrets = {key: "some-global-secret-value" for key in global_secret_keys}
+        global_secret_name = "global-secret-1"
+
+        k8s_secrets_mock.store_project_secrets(self.project, project_secrets)
+        k8s_secrets_mock.store_secret(global_secret_name, global_secrets)
+
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
+            global_secret_name
+        )
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = None
+
+        expected_env_from_secrets = (
+            k8s_secrets_mock.get_expected_env_variables_from_secrets(
+                self.project, include_internal=False, global_secret=global_secret_name
+            )
+        )
+
+        self._assert_pod_creation_config(
+            expected_env_from_secrets=expected_env_from_secrets,
+        )
+
     def test_run_with_vault_secrets(self, db: Session, client: TestClient):
         self._mock_vault_functionality()
         runtime = self._generate_runtime()

@@ -686,17 +686,17 @@ with ctx:
         patch: bool = False,
     ):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_limits & with_executor_limits"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
     def with_requests(self, mem=None, cpu=None, patch: bool = False):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'"
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
     def with_node_selection(

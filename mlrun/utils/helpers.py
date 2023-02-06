@@ -1189,3 +1189,17 @@ def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"{field_name} must be numeric (str/int types)")
     return int(field_value)
+
+
+def filter_warnings(action, category):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+
+            # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
+            with warnings.catch_warnings():
+                warnings.simplefilter(action, category)
+                return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

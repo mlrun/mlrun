@@ -15,11 +15,19 @@
 from typing import Union
 
 import pandas as pd
+from deprecated import deprecated
 from sklearn.model_selection import train_test_split
 
 from ..datastore import DataItem
 
+# TODO: remove mlutils in 1.5.0
 
+
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def get_sample(
     src: Union[DataItem, pd.core.frame.DataFrame], sample: int, label: str, reader=None
 ):
@@ -61,6 +69,11 @@ def _get_label_from_raw(raw, label):
     return raw.pop(label)
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def get_splits(
     raw,
     labels,
@@ -101,6 +114,11 @@ def get_splits(
         raise Exception("n_ways must be in the range [2,3]")
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
+)
 def save_test_set(
     context,
     data: dict,

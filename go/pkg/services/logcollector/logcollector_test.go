@@ -81,6 +81,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		&suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
+		bufferSizeBytes,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
@@ -236,7 +237,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
-func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
+func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
 	podName := "my-pod"

@@ -71,7 +71,7 @@ class ReleaseNotesGenerator:
             "Nick Brown": "ihs-nick",
             "Tom Tankilevitch": "tankilevitch",
             "Adam": "quaark",
-            "Alon Maor": "AlonMaor14",
+            "Alon Maor": "alonmr",
             "TomerShor": "TomerShor",
             "Assaf Ben-Amitai": "assaf758",
             "Yael Genish": "yaelgen",

@@ -43,17 +43,18 @@ import (
 
 type Server struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace               string
-	baseDir                 string
-	kubeClientSet           kubernetes.Interface
-	stateStore              statestore.StateStore
-	inMemoryState           statestore.StateStore
-	logCollectionBufferPool bufferpool.Pool
-	getLogsBufferPool       bufferpool.Pool
-	readLogWaitTime         time.Duration
-	monitoringInterval      time.Duration
-	bufferSizeBytes         int
-	isChief                 bool
+	namespace                    string
+	baseDir                      string
+	kubeClientSet                kubernetes.Interface
+	stateStore                   statestore.StateStore
+	inMemoryState                statestore.StateStore
+	logCollectionBufferPool      bufferpool.Pool
+	getLogsBufferPool            bufferpool.Pool
+	logCollectionBufferSizeBytes int
+	getLogsBufferSizeBytes       int
+	readLogWaitTime              time.Duration
+	monitoringInterval           time.Duration
+	isChief                      bool
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -67,7 +68,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	kubeClientSet kubernetes.Interface,
 	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
-	bufferSizeBytes int) (*Server, error) {
+	logCollectionBufferSizeBytes,
+	getLogsBufferSizeBytes int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -109,23 +111,29 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to ensure base dir exists")
 	}
 
+	// ensure log collection buffer size is not bigger than the default, because of the gRPC message size limit
+	if getLogsBufferSizeBytes > common.DefaultGetLogsBufferSize {
+		getLogsBufferSizeBytes = common.DefaultGetLogsBufferSize
+	}
+
 	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
 	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, bufferSizeBytes)
 	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, bufferSizeBytes)
 
 	return &Server{
-		AbstractMlrunGRPCServer: abstractServer,
-		namespace:               namespace,
-		baseDir:                 baseDir,
-		stateStore:              stateStore,
-		inMemoryState:           inMemoryState,
-		kubeClientSet:           kubeClientSet,
-		readLogWaitTime:         readLogTimeoutDuration,
-		monitoringInterval:      monitoringIntervalDuration,
-		logCollectionBufferPool: logCollectionBufferPool,
-		getLogsBufferPool:       getLogsBufferPool,
-		bufferSizeBytes:         bufferSizeBytes,
-		isChief:                 clusterizationRole == "chief",
+		AbstractMlrunGRPCServer:      abstractServer,
+		namespace:                    namespace,
+		baseDir:                      baseDir,
+		stateStore:                   stateStore,
+		inMemoryState:                inMemoryState,
+		kubeClientSet:                kubeClientSet,
+		readLogWaitTime:              readLogTimeoutDuration,
+		monitoringInterval:           monitoringIntervalDuration,
+		logCollectionBufferPool:      logCollectionBufferPool,
+		getLogsBufferPool:            getLogsBufferPool,
+		logCollectionBufferSizeBytes: logCollectionBufferSizeBytes,
+		getLogsBufferSizeBytes:       getLogsBufferSizeBytes,
+		isChief:                      clusterizationRole == "chief",
 	}, nil
 }
 
@@ -625,7 +633,7 @@ func (s *Server) validateOffsetAndSize(offset, size, fileSize int64) (int64, int
 
 	// if size is negative, zero, or bigger than fileSize, read the whole file or the allowed size
 	if size <= 0 || size > fileSize {
-		size = int64(math.Min(float64(fileSize), float64(s.bufferSizeBytes)))
+		size = int64(math.Min(float64(fileSize), float64(s.getLogsBufferSizeBytes)))
 	}
 
 	// if size is bigger than what's left to read, only read the rest of the file
@@ -727,7 +735,7 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool
 // getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
 func (s *Server) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
 
-	chunkSize := int64(s.bufferSizeBytes)
+	chunkSize := int64(s.getLogsBufferSizeBytes)
 
 	// if the request size is smaller than the buffer size, use the request size
 	if requestSize > 0 && requestSize < chunkSize {

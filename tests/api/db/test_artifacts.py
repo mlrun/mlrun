@@ -421,7 +421,8 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     )
 
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_1_key)
-    assert len(artifacts) == 1
+    # Should return 2 tags ('latest' and artifact_1_tag)
+    assert len(artifacts) == 2
     artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
     assert len(artifacts) == 1
     artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag_2)
@@ -434,11 +435,29 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     # Negative test - wrong tag, no deletions
     db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_1_tag)
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
-    assert len(artifacts) == 1
 
+    # Should return 3 tags ('latest' and artifact_2_tag and artifact_2_tag_2)
+    assert len(artifacts) == 3
+    assert (
+        deepdiff.DeepDiff(
+            [artifact["metadata"]["tag"] for artifact in artifacts],
+            ["latest", artifact_2_tag, artifact_2_tag_2],
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    tags = db.list_artifact_tags(db_session, project)
+    assert len(tags) == 3
+
+    # Delete the artifact object (should delete all tags of the same artifact object)
     db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_2_tag_2)
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
     assert len(artifacts) == 0
+
+    # Assert all tags were deleted
+    tags = db.list_artifact_tags(db_session, project)
+    assert len(tags) == 0
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

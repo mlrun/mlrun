@@ -282,122 +282,44 @@ class DatasetArtifact(Artifact):
 
     @property
     def column_metadata(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
+        """dict of metadata per column"""
         return self.spec.column_metadata
 
     @column_metadata.setter
     def column_metadata(self, column_metadata):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
+        """dict of metadata per column"""
         self.spec.column_metadata = column_metadata
 
     @property
     def schema(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.schema instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.schema
 
     @schema.setter
     def schema(self, schema):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.schema instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.schema = schema
 
     @property
     def header(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.header instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.header
 
     @header.setter
     def header(self, header):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.header instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.header = header
 
     @property
     def preview(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.preview instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.status.preview
 
     @preview.setter
     def preview(self, preview):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.preview instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.status.preview = preview
 
     @property
     def stats(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.status.stats
 
     @stats.setter
     def stats(self, stats):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.status.stats = stats
 
 

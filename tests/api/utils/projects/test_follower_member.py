@@ -17,6 +17,7 @@ import typing
 import unittest.mock
 
 import deepdiff
+import kfp
 import pytest
 import sqlalchemy.orm
 
@@ -410,6 +411,41 @@ async def test_list_project_summaries(
         )
         == {}
     )
+
+
+@pytest.mark.asyncio
+async def test_list_project_summaries_fails_to_list_pipeline_runs(
+    kfp_client_mock: kfp.Client,
+    db: sqlalchemy.orm.Session,
+    projects_follower: mlrun.api.utils.projects.follower.Member,
+    nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
+):
+    project_name = "project-name"
+    _generate_project(name=project_name)
+    mlrun.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
+        return_value=mlrun.api.schemas.ProjectsOutput(projects=[project_name])
+    )
+    mlrun.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunNotFoundError("not found")
+    )
+
+    mlrun.api.utils.singletons.db.get_db().get_project_resources_counters = (
+        unittest.mock.AsyncMock(
+            return_value=(
+                {project_name: 1},
+                {project_name: 2},
+                {project_name: 3},
+                {project_name: 4},
+                {project_name: 5},
+                {project_name: 6},
+            )
+        )
+    )
+    project_summaries = await projects_follower.list_project_summaries(db)
+    assert len(project_summaries.project_summaries) == 1
+    assert project_summaries.project_summaries[0].name == project_name
+    assert project_summaries.project_summaries[0].pipelines_running_count == -1
+    assert project_summaries.project_summaries[0].files_count == 1
 
 
 def test_list_project_leader_format(

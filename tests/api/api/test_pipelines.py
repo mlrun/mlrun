@@ -21,24 +21,12 @@ import deepdiff
 import fastapi.testclient
 import kfp
 import kfp_server_api.models
-import pytest
 import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import tests.conftest
-
-
-@pytest.fixture
-def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(return_value=True)
-    )
-    kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
-    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    return kfp_client_mock
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(

@@ -228,9 +228,10 @@ class Projects(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
-                    pipelines_running_count=project_to_running_pipelines_count.get(
-                        project, 0
-                    ),
+                    # project_to_running_pipelines_count is a defaultdict so it will return None if using dict.get()
+                    # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
+                    pipelines_running_count=project_to_running_pipelines_count[project]
+                    or 0,
                 )
             )
         return project_summaries
@@ -286,22 +287,32 @@ class Projects(
             self._cache["project_resources_counters"]["ttl"] = ttl_time
         return self._cache["project_resources_counters"]["result"]
 
+    @staticmethod
+    def _list_pipelines(session):
+        return mlrun.api.crud.Pipelines().list_pipelines(
+            session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
+        )
+
     async def _calculate_pipelines_counters(
         self,
     ) -> typing.Dict[str, int]:
-        def _list_pipelines(session):
-            return mlrun.api.crud.Pipelines().list_pipelines(
-                session, "*", format_=mlrun.api.schemas.PipelinesFormat.metadata_only
-            )
-
-        project_to_running_pipelines_count = collections.defaultdict(int)
+        project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
         if not mlrun.mlconf.resolve_kfp_url():
+            # If KFP is not configured, return dict with 0 counters (no running pipelines)
             return project_to_running_pipelines_count
 
-        _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.db.session.run_function_with_new_db_session,
-            _list_pipelines,
-        )
+        try:
+            _, _, pipelines = await fastapi.concurrency.run_in_threadpool(
+                mlrun.api.db.session.run_function_with_new_db_session,
+                self._list_pipelines,
+            )
+        except Exception as exc:
+            # If list pipelines failed, set counters to -1 (unknown) to indicate that we failed to get the information
+            logger.warning(
+                "Failed to list pipelines. Pipelines counters will be set to -1",
+                exc=str(exc),
+            )
+            return collections.defaultdict(lambda: -1)
 
         for pipeline in pipelines:
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():

@@ -615,7 +615,7 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_meta(artifact_path=None, cleanup_ttl=None, *args):
+def new_pipe_meta(artifact_path=None, ttl=None, *args, **kwargs):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -627,7 +627,18 @@ def new_pipe_meta(artifact_path=None, cleanup_ttl=None, *args):
         return task
 
     conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
+
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead (in kwargs)",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
+
+    # Putting the cleanup_ttl in the kwargs of the method, as we cannot deprecate the ttl argument
+    # while it's a positional argument
+    cleanup_ttl = kwargs.get("cleanup_ttl", None) or ttl or int(config.kfp_ttl)
     if cleanup_ttl:
         conf.set_ttl_seconds_after_finished(cleanup_ttl)
     if artifact_path:

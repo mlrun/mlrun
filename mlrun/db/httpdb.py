@@ -1422,17 +1422,17 @@ class HTTPRunDB(RunDBInterface):
 
         if ttl:
             warnings.warn(
-                "ttl is deprecated, please use cleanup_ttl instead",
+                "'ttl' is deprecated, use 'cleanup_ttl' instead",
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
-                PendingDeprecationWarning,
+                FutureWarning,
             )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(artifact_path, cleanup_ttl or ttl, ops)
+            conf = new_pipe_meta(artifact_path, None, ops, cleanup_ttl=cleanup_ttl or ttl)
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
             )

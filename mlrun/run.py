@@ -955,10 +955,10 @@ def run_pipeline(
 
     if ttl:
         warnings.warn(
-            "ttl is deprecated, please use cleanup_ttl instead",
+            "'ttl' is deprecated, use 'cleanup_ttl' instead",
             "This will be removed in 1.5.0",
             # TODO: Remove this in 1.5.0
-            PendingDeprecationWarning,
+            FutureWarning,
         )
 
     artifact_path = artifact_path or mlconf.artifact_path
@@ -1001,7 +1001,7 @@ def run_pipeline(
                 experiment.id, run, pipeline, params=arguments
             )
         else:
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_meta(artifact_path, None, ops, cleanup_ttl=ttl)
             run_result = client.create_run_from_pipeline_func(
                 pipeline,
                 arguments,

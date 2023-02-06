@@ -133,7 +133,7 @@ class BaseMerger(abc.ABC):
                 self.vector.save()
         if self.vector.spec.with_indexes:
             self.vector.spec.entity_fields = [
-                Feature(name=feature, value_type=str(self._result_df[feature][0].dtype))
+                Feature(name=feature, value_type=str(type(self._result_df[feature][0])))
                 for feature in self._index_columns
             ]
             self.vector.save()
@@ -273,8 +273,6 @@ class BaseMerger(abc.ABC):
         if not self._drop_indexes and entity_timestamp_column:
             self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
 
-        self._result_df = self.drop_columns_from_result() or self._result_df
-
         df_temp = (
             self.rename_columns_and_select(
                 self._result_df, self._alias, all_columns=[entity_timestamp_column] + list(self._alias.keys())
@@ -282,7 +280,11 @@ class BaseMerger(abc.ABC):
         )
         self._result_df = df_temp if df_temp is not None else self._result_df
         del df_temp
-        # inplace
+
+        df_temp = self.drop_columns_from_result()
+        self._result_df = df_temp if df_temp is not None else self._result_df
+        del df_temp
+
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]

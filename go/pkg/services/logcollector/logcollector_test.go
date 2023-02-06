@@ -395,6 +395,55 @@ func (suite *LogCollectorTestSuite) TestHasLogs() {
 	suite.Require().True(hasLogsResponse.HasLogs, "Expected run to have logs")
 }
 
+func (suite *LogCollectorTestSuite) TestStopLog() {
+	var err error
+
+	logItemsNum := 10
+	var runUIDs []string
+
+	// add log item to the server's state
+	for i := 0; i < logItemsNum; i++ {
+		runUID := uuid.New().String()
+		runUIDs = append(runUIDs, runUID)
+		selector := fmt.Sprintf("run=%s", runUID)
+		err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector)
+		suite.Require().NoError(err, "Failed to add log item to state store")
+	}
+
+	// write state
+	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	suite.Require().NoError(err, "Failed to write state")
+
+	// verify all items are in progress
+	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	suite.Require().NoError(err, "Failed to get items in progress")
+
+	suite.Require().Equal(logItemsNum,
+		common.SyncMapLength(logItemsInProgress),
+		"Expected items to be in progress")
+
+	// stop log
+	request := &log_collector.StopLogRequest{
+		RunUIDs: runUIDs,
+	}
+
+	response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to stop log")
+	suite.logger.DebugWith("Stop log response", "response", response)
+
+	// write state again
+	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	suite.Require().NoError(err, "Failed to write state")
+
+	// verify no items in progress
+	logItemsInProgress, err = suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	suite.Require().NoError(err, "Failed to get items in progress")
+
+	suite.Require().Equal(0,
+		common.SyncMapLength(logItemsInProgress),
+		"Expected no items in progress")
+}
+
 func TestLogCollectorTestSuite(t *testing.T) {
 	suite.Run(t, new(LogCollectorTestSuite))
 }

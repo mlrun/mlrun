@@ -34,6 +34,7 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
 	protologcollector "github.com/mlrun/mlrun/proto/build/log_collector"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"github.com/oxtoacart/bpool"
@@ -372,6 +373,28 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 		Success: true,
 		HasLogs: true,
 	}, nil
+}
+
+// StopLog stops streaming logs for a given run id by removing it from the persistent state.
+// This will prevent the monitoring loop from starting logging again for this run id
+func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*empty.Empty, error) {
+
+	s.Logger.DebugWithCtx(ctx, "Received Stop Log request", "runUIDs", request.RunUIDs)
+
+	for _, runUID := range request.RunUIDs {
+
+		// remove item from persistent state
+		if err := s.stateStore.RemoveLogItem(runUID); err != nil {
+			return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from persistent state for run id %s", runUID)
+		}
+
+		// remove item from in-memory state
+		if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
+			return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from in memory state for run id %s", runUID)
+		}
+	}
+
+	return &empty.Empty{}, nil
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
-import warnings
 from os import path
 from typing import List
 

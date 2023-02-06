@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import pathlib
-import warnings
 from io import StringIO
 from typing import Optional, Tuple
 

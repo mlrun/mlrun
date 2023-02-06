@@ -1919,6 +1919,14 @@ class MlrunProject(ModelObj):
         :returns: run id
         """
 
+        if ttl:
+            warnings.warn(
+                "ttl is deprecated, please use cleanup_ttl instead",
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                PendingDeprecationWarning,
+            )
+
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():

@@ -78,6 +78,14 @@ class WorkflowSpec(mlrun.model.ModelObj):
         override: bool = None,
         cleanup_ttl: int = None,
     ):
+        if ttl:
+            warnings.warn(
+                "ttl is deprecated, please use cleanup_ttl instead",
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                PendingDeprecationWarning,
+            )
+
         self.engine = engine
         self.code = code
         self.path = path
@@ -1012,6 +1020,14 @@ def load_and_run(
     :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                                 workflow and all its resources are deleted)
     """
+    if ttl:
+        warnings.warn(
+            "ttl is deprecated, please use cleanup_ttl instead",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            PendingDeprecationWarning,
+        )
+
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",

@@ -22,6 +22,7 @@ import socket
 import tempfile
 import time
 import uuid
+import warnings
 from base64 import b64decode
 from collections import OrderedDict
 from copy import deepcopy
@@ -951,6 +952,14 @@ def run_pipeline(
 
     :returns: kubeflow pipeline id
     """
+
+    if ttl:
+        warnings.warn(
+            "ttl is deprecated, please use cleanup_ttl instead",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            PendingDeprecationWarning,
+        )
 
     artifact_path = artifact_path or mlconf.artifact_path
     project = project or mlconf.default_project

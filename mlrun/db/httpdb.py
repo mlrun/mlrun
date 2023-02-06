@@ -1420,6 +1420,14 @@ class HTTPRunDB(RunDBInterface):
                             workflow and all its resources are deleted)
         """
 
+        if ttl:
+            warnings.warn(
+                "ttl is deprecated, please use cleanup_ttl instead",
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                PendingDeprecationWarning,
+            )
+
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:

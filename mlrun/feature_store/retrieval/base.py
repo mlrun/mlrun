@@ -13,9 +13,12 @@
 # limitations under the License.
 #
 import abc
+import typing
+from datetime import datetime
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
+from mlrun.feature_store.feature_set import FeatureSet
 from mlrun.feature_store.feature_vector import Feature
 
 from ...utils import logger
@@ -168,7 +171,7 @@ class BaseMerger(abc.ABC):
         query=None,
         order_by=None,
     ):
-        self.create_engine_env()
+        self._create_engine_env()
 
         feature_sets = []
         dfs = []
@@ -196,7 +199,7 @@ class BaseMerger(abc.ABC):
                     self._append_drop_column(column)
             column_names += node.data["save_cols"]
 
-            df = self.get_engine_df(
+            df = self._get_engine_df(
                 feature_set,
                 name,
                 column_names,
@@ -222,10 +225,8 @@ class BaseMerger(abc.ABC):
                 if column not in node.data["save_cols"]
             }
             fs_entities = list(feature_set.spec.entities.keys())
-            df_temp = self.rename_columns_and_select(
-                df,
-                rename_col_dict,
-                all_columns=list(set(column_names + fs_entities)),
+            df_temp = self._rename_columns_and_select(
+                df, rename_col_dict, columns=list(set(column_names + fs_entities))
             )
 
             df = df_temp if df_temp is not None else df
@@ -289,13 +290,13 @@ class BaseMerger(abc.ABC):
                     )
                 )
 
-        df_temp = self.rename_columns_and_select(
-            self._result_df, self._alias, all_columns=all_columns
+        df_temp = self._rename_columns_and_select(
+            self._result_df, self._alias, columns=all_columns
         )
         self._result_df = df_temp if df_temp is not None else self._result_df
         del df_temp
 
-        df_temp = self.drop_columns_from_result()
+        df_temp = self._drop_columns_from_result()
         self._result_df = df_temp if df_temp is not None else self._result_df
         del df_temp
 
@@ -305,7 +306,7 @@ class BaseMerger(abc.ABC):
             )
         # filter joined data frame by the query param
         if query:
-            self.filter(query)
+            self._filter(query)
 
         if order_by:
             if isinstance(order_by, str):
@@ -321,7 +322,7 @@ class BaseMerger(abc.ABC):
                     f"self._result_df contains {self._result_df.columns} "
                     f"columns and can't order by {order_by}"
                 )
-            self.orderBy(order_by_active)
+            self._order_by(order_by_active)
 
         self._write_to_target()
         return OfflineVectorResponse(self)
@@ -630,31 +631,73 @@ class BaseMerger(abc.ABC):
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 
-    def create_engine_env(self):
+    def _create_engine_env(self):
+        """
+        initialize engine env if needed
+        """
         raise NotImplementedError
 
     def _reset_index(self, _result_df):
         raise NotImplementedError
 
-    def get_engine_df(
+    def _get_engine_df(
         self,
-        feature_set,
-        feature_set_name,
-        column_names,
-        start_time,
-        end_time,
-        entity_timestamp_column,
+        feature_set: FeatureSet,
+        feature_set_name: typing.List[str],
+        column_names: typing.List[str] = None,
+        start_time: typing.Union[str, datetime] = None,
+        end_time: typing.Union[str, datetime] = None,
+        entity_timestamp_column: str = None,
     ):
+        """
+        Return the feature_set data frame according to the args
+
+        :param feature_set:             current feature_set to extract from the data frame
+        :param feature_set_name:        the name of the current feature_set
+        :param column_names:            list of columns to select (if not all)
+        :param start_time:              filter by start time
+        :param end_time:                filter by end time
+        :param entity_timestamp_column: specify the time column name in the file
+
+        :return: Data frame of the current engine
+        """
         raise NotImplementedError
 
-    def rename_columns_and_select(self, df, rename_col_dict, all_columns):
+    def _rename_columns_and_select(
+        self,
+        df,
+        rename_col_dict: typing.Dict[str, str],
+        columns: typing.List[str] = None,
+    ):
+        """
+        rename the columns of the df according to rename_col_dict, and select only `columns` if it is not none
+
+        :param df:              the data frame to change
+        :param rename_col_dict: the renaming dictionary - {<current_column_name>: <new_column_name>, ...}
+        :param columns:         list of columns to select (if not all)
+
+        :return: the data frame after the transformation or None if the transformation were preformed inplace
+        """
         raise NotImplementedError
 
-    def drop_columns_from_result(self):
+    def _drop_columns_from_result(self):
+        """
+        drop `self._drop_columns` from `self._result_df`
+        """
         raise NotImplementedError
 
-    def filter(self, query):
+    def _filter(self, query: str):
+        """
+        filter `self._result_df` by `query`
+
+        :param query: The query string used to filter rows
+        """
         raise NotImplementedError
 
-    def orderBy(self, order_by_active):
+    def _order_by(self, order_by_active: typing.List[str]):
+        """
+        Order by `order_by_active` along all axis.
+
+        :param order_by_active: list of names to sort by.
+        """
         raise NotImplementedError

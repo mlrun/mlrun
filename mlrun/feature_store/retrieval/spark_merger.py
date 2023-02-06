@@ -132,9 +132,9 @@ class SparkFeatureMerger(BaseMerger):
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
-        ).filter(col("_rank") == 1)
+        )._filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")._order_by(
             col(entity_timestamp_column)
         )
 
@@ -205,21 +205,21 @@ class SparkFeatureMerger(BaseMerger):
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")
 
-    def create_engine_env(self):
+    def _create_engine_env(self):
         if self.spark is None:
             # create spark context
             self.spark = SparkSession.builder.appName(
                 f"vector-merger-{self.vector.metadata.name}"
             ).getOrCreate()
 
-    def get_engine_df(
+    def _get_engine_df(
         self,
         feature_set,
         feature_set_name,
-        column_names,
-        start_time,
-        end_time,
-        entity_timestamp_column,
+        column_names=None,
+        start_time=None,
+        end_time=None,
+        entity_timestamp_column=None,
     ):
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
@@ -267,21 +267,21 @@ class SparkFeatureMerger(BaseMerger):
             self.spark, named_view=self.named_view, time_field=timestamp_key
         )
 
-    def rename_columns_and_select(self, df, rename_col_dict, all_columns=None):
+    def _rename_columns_and_select(self, df, rename_col_dict, columns):
         return df.select(
             [
                 col(name).alias(rename_col_dict.get(name, name))
-                for name in all_columns or rename_col_dict.keys()
+                for name in columns or rename_col_dict.keys()
             ]
         )
 
-    def drop_columns_from_result(self):
+    def _drop_columns_from_result(self):
         self._result_df = self._result_df.drop(*self._drop_columns)
 
-    def filter(self, query):
-        self._result_df = self._result_df.filter(query)
+    def _filter(self, query):
+        self._result_df = self._result_df._filter(query)
 
-    def orderBy(self, order_by_active):
-        self._result_df = self._result_df.orderBy(
+    def _order_by(self, order_by_active):
+        self._result_df = self._result_df._order_by(
             *[col(col_name).asc_nulls_last() for col_name in order_by_active]
         )

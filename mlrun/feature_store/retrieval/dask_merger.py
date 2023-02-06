@@ -121,7 +121,7 @@ class DaskFeatureMerger(BaseMerger):
         self._set_indexes(df)
         return df
 
-    def create_engine_env(self):
+    def _create_engine_env(self):
         if "index" not in self._index_columns:
             self._append_drop_column("index")
 
@@ -133,14 +133,14 @@ class DaskFeatureMerger(BaseMerger):
             else:
                 self.client = Client()
 
-    def get_engine_df(
+    def _get_engine_df(
         self,
         feature_set,
         feature_set_name,
-        column_names,
-        start_time,
-        end_time,
-        entity_timestamp_column,
+        column_names=None,
+        start_time=None,
+        end_time=None,
+        entity_timestamp_column=None,
     ):
         df = feature_set.to_dataframe(
             columns=column_names,
@@ -153,18 +153,18 @@ class DaskFeatureMerger(BaseMerger):
 
         return self._reset_index(df).persist()
 
-    def rename_columns_and_select(self, df, rename_col_dict, all_columns):
+    def _rename_columns_and_select(self, df, rename_col_dict, columns):
         return df.rename(
             columns=rename_col_dict,
         )
 
-    def drop_columns_from_result(self):
+    def _drop_columns_from_result(self):
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"
         )
 
-    def filter(self, query):
+    def _filter(self, query):
         self._result_df = self._result_df.query(query)
 
-    def orderBy(self, order_by_active):
+    def _order_by(self, order_by_active):
         self._result_df.sort_values(by=order_by_active)

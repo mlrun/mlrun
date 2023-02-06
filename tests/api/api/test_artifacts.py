@@ -164,7 +164,6 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     ]:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
-
         assert (
             deepdiff.DeepDiff(
                 [artifact["tag"] for artifact in resp.json()["artifacts"]],
@@ -194,7 +193,6 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-
         assert (
             deepdiff.DeepDiff(
                 [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],
@@ -214,7 +212,6 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-
         assert (
             deepdiff.DeepDiff(
                 [artifact["tag"] for artifact in resp.json()["artifacts"]],
@@ -234,7 +231,6 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         assert resp.status_code == HTTPStatus.OK.value
 
         artifacts = resp.json()["artifacts"]
-
         assert (
             deepdiff.DeepDiff(
                 [artifact["metadata"]["tag"] for artifact in resp.json()["artifacts"]],

@@ -16,8 +16,8 @@
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation 
-on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases 1.22 and 1.23.
+- Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. MLRun fully supports k8s releases 1.22 and 1.23. For local installation 
+on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
@@ -180,7 +180,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your client environment](remote.html) for more information.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your remote environment](https://docs.mlrun.org/en/latest/install/remote.html) for more information.
 
 ## Advanced chart configuration
 

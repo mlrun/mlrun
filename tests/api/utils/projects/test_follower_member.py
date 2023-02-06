@@ -444,7 +444,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert project_summaries.project_summaries[0].name == project_name
-    assert project_summaries.project_summaries[0].pipelines_running_count == -1
+    assert project_summaries.project_summaries[0].pipelines_running_count is None
     assert project_summaries.project_summaries[0].files_count == 1
 
 

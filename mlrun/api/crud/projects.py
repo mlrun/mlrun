@@ -230,8 +230,7 @@ class Projects(
                     runs_running_count=project_to_running_runs_count.get(project, 0),
                     # project_to_running_pipelines_count is a defaultdict so it will return None if using dict.get()
                     # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
-                    pipelines_running_count=project_to_running_pipelines_count[project]
-                    or 0,
+                    pipelines_running_count=project_to_running_pipelines_count[project],
                 )
             )
         return project_summaries
@@ -245,7 +244,7 @@ class Projects(
         typing.Dict[str, int],
         typing.Dict[str, int],
         typing.Dict[str, int],
-        typing.Dict[str, int],
+        typing.Dict[str, typing.Union[int, None]],
     ]:
         now = datetime.datetime.now()
         if (
@@ -295,7 +294,7 @@ class Projects(
 
     async def _calculate_pipelines_counters(
         self,
-    ) -> typing.Dict[str, int]:
+    ) -> typing.Dict[str, typing.Union[int, None]]:
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
         if not mlrun.mlconf.resolve_kfp_url():
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
@@ -307,12 +306,12 @@ class Projects(
                 self._list_pipelines,
             )
         except Exception as exc:
-            # If list pipelines failed, set counters to -1 (unknown) to indicate that we failed to get the information
+            # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
             logger.warning(
-                "Failed to list pipelines. Pipelines counters will be set to -1",
+                "Failed to list pipelines. Pipelines counters will be set to None",
                 exc=str(exc),
             )
-            return collections.defaultdict(lambda: -1)
+            return collections.defaultdict(lambda: None)
 
         for pipeline in pipelines:
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():

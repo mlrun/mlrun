@@ -259,6 +259,6 @@ class SparkFeatureMerger(BaseMerger):
     def _order_by(self, order_by_active):
         from pyspark.sql.functions import col
 
-        self._result_df = self._result_df.order_by(
+        self._result_df = self._result_df.orderBy(
             *[col(col_name).asc_nulls_last() for col_name in order_by_active]
         )

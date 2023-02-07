@@ -157,6 +157,7 @@ def run_spark_graph(df, featureset, namespace, spark):
 
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
+    print(namespace)
     server.init_object(namespace)
     server.context.spark = spark
     event = MockEvent(body=df)

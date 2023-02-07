@@ -1204,8 +1204,6 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        executor_type=None,
-        prediction_col_name=None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,

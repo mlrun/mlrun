@@ -159,7 +159,6 @@ class BaseMerger(abc.ABC):
         else:
             df.reset_index(drop=True, inplace=True)
 
-    @abc.abstractmethod
     def _generate_vector(
         self,
         entity_rows,
@@ -319,7 +318,7 @@ class BaseMerger(abc.ABC):
             ]
             if None in order_by_active:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"self._result_df contains {self._result_df.columns} "
+                    f"Result dataframe contains {self._result_df.columns} "
                     f"columns and can't order by {order_by}"
                 )
             self._order_by(order_by_active)
@@ -631,15 +630,17 @@ class BaseMerger(abc.ABC):
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 
+    def _reset_index(self, _result_df):
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def _create_engine_env(self):
         """
         initialize engine env if needed
         """
         raise NotImplementedError
 
-    def _reset_index(self, _result_df):
-        raise NotImplementedError
-
+    @abc.abstractmethod
     def _get_engine_df(
         self,
         feature_set: FeatureSet,
@@ -663,6 +664,7 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _rename_columns_and_select(
         self,
         df,
@@ -680,12 +682,14 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _drop_columns_from_result(self):
         """
         drop `self._drop_columns` from `self._result_df`
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _filter(self, query: str):
         """
         filter `self._result_df` by `query`
@@ -694,6 +698,7 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _order_by(self, order_by_active: typing.List[str]):
         """
         Order by `order_by_active` along all axis.

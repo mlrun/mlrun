@@ -33,28 +33,6 @@ class SparkFeatureMerger(BaseMerger):
     def to_spark_df(self, session, path):
         return session.read.load(path)
 
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-        query=None,
-        order_by=None,
-    ):
-        return super()._generate_vector(
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=start_time,
-            end_time=end_time,
-            query=query,
-            order_by=order_by,
-        )
-
     def _unpersist_df(self, df):
         df.unpersist()
 
@@ -129,9 +107,9 @@ class SparkFeatureMerger(BaseMerger):
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
-        )._filter(col("_rank") == 1)
+        ).filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")._order_by(
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").OrderBy(
             col(entity_timestamp_column)
         )
 
@@ -163,15 +141,11 @@ class SparkFeatureMerger(BaseMerger):
                 be prefixed with featureset_df name.
 
         """
-        # fs_name = featureset.metadata.name
-        join_cond = None
         if left_keys != right_keys:
-            for key_l, key_r in zip(left_keys, right_keys):
-                join_cond = (
-                    join_cond & (entity_df[key_l] == featureset_df[key_r])
-                    if join_cond
-                    else (entity_df[key_l] == featureset_df[key_r])
-                )
+            join_cond = [
+                entity_df[key_l] == featureset_df[key_r]
+                for key_l, key_r in zip(left_keys, right_keys)
+            ]
         else:
             join_cond = left_keys
 

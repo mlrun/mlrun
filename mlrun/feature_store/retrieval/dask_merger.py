@@ -31,28 +31,6 @@ class DaskFeatureMerger(BaseMerger):
         self.client = engine_args.get("dask_client")
         self._dask_cluster_uri = engine_args.get("dask_cluster_uri")
 
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-        query=None,
-        order_by=None,
-    ):
-        return super()._generate_vector(
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=start_time,
-            end_time=end_time,
-            query=query,
-            order_by=order_by,
-        )
-
     def _reset_index(self, df):
         to_drop = df.index.name is None
         df = df.reset_index(drop=to_drop)

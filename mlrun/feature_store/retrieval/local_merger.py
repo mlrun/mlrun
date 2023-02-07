@@ -25,28 +25,6 @@ class LocalFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
 
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-        query=None,
-        order_by=None,
-    ):
-        return super()._generate_vector(
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=start_time,
-            end_time=end_time,
-            query=query,
-            order_by=order_by,
-        )
-
     def _asof_join(
         self,
         entity_df,

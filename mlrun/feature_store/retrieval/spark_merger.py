@@ -109,7 +109,7 @@ class SparkFeatureMerger(BaseMerger):
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").OrderBy(
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(
             col(entity_timestamp_column)
         )
 

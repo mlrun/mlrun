@@ -240,6 +240,10 @@ class ParallelRunnerModes(str, Enum):
             ParallelRunnerModes.array,
         ]
 
+    @classmethod
+    def _missing_(cls, value):
+        return cls.thread
+
 
 class VotingTypes(str, Enum):
     """Supported voting types for VotingEnsemble"""
@@ -1204,6 +1208,8 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
+        executor_type: ParallelRunnerModes = None,
+        prediction_col_name: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
@@ -1299,13 +1305,15 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context,
-            name,
-            routes,
-            protocol,
-            url_prefix,
-            health_prefix,
-            vote_type,
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            vote_type=vote_type,
+            executor_type=executor_type,
+            prediction_col_name=prediction_col_name,
             **kwargs,
         )
 

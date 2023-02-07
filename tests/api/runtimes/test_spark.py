@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import os
 import typing
 import unittest
@@ -29,6 +30,7 @@ import mlrun.runtimes.pod
 import tests.api.runtimes.base
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
+from mlrun.feature_store.retrieval.job import _default_merger_handler
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
@@ -629,3 +631,21 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "data_stores": [],
             "handler": "merge_handler",
         }
+
+        self.name = "my-vector_merger"
+        self.project = "default"
+        self._assert_custom_object_creation_config()
+
+        expected_code = base64.b64encode(
+            _default_merger_handler.replace(
+                "{{{engine}}}", "SparkFeatureMerger"
+            ).encode("UTF-8")
+        ).decode("UTF-8")
+
+        body = self._get_custom_object_creation_body()
+        code = None
+        for envvar in body["spec"]["driver"]["env"]:
+            if envvar["name"] == "MLRUN_EXEC_CODE":
+                code = envvar["value"]
+                break
+        assert code == expected_code

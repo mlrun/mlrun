@@ -19,3 +19,14 @@ const (
 	ErrCodeNotFound int32 = iota
 	ErrCodeInternal
 )
+
+// Buffer sizes
+
+const (
+	// DefaultLogCollectionBufferSize is the default buffer size for collecting logs from pods
+	DefaultLogCollectionBufferSize int = 10 * 1024 * 1024 // 10MB
+
+	// DefaultGetLogsBufferSize is the default buffer size for reading logs
+	// gRPC has a limit of 4MB, so we set it to 3.75MB in case of overhead
+	DefaultGetLogsBufferSize int = 3.75 * 1024 * 1024 // 3.75MB
+)

@@ -14,6 +14,8 @@
 import base64
 from io import BytesIO
 
+from deprecated import deprecated
+
 import mlrun
 
 from ..utils import dict_to_json
@@ -242,6 +244,12 @@ class PlotlyArtifact(Artifact):
         return self._figure.to_html()
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyPlotArtifact' will be removed in 1.5.0, use 'PlotArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyPlotArtifact(LegacyArtifact):
     _TEMPLATE = """
 <h3 style="text-align:center">{}</h3>
@@ -283,6 +291,12 @@ class LegacyPlotArtifact(LegacyArtifact):
         return self._TEMPLATE.format(self.description or self.key, self.key, data_uri)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyChartArtifact' will be removed in 1.5.0, use 'ChartArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyChartArtifact(LegacyArtifact):
     _TEMPLATE = """
 <html>
@@ -351,6 +365,12 @@ class LegacyChartArtifact(LegacyArtifact):
         )
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyBokehArtifact' will be removed in 1.5.0, use 'BokehArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyBokehArtifact(LegacyArtifact):
     """
     Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in a html format.
@@ -401,6 +421,12 @@ class LegacyBokehArtifact(LegacyArtifact):
         return file_html(self._figure, CDN, self.key)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyPlotlyArtifact' will be removed in 1.5.0, use 'PlotlyArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyPlotlyArtifact(LegacyArtifact):
     """
     Plotly artifact is an artifact for saving Plotly generated figures. They will be stored in a html format.

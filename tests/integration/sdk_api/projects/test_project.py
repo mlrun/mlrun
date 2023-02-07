@@ -95,7 +95,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         # verify artifacts and functions were created
         project_artifacts = project.list_artifacts()
         loaded_project_artifacts = projects[0].list_artifacts()
-        assert len(project_artifacts) == len(artifact_keys)
+        assert (
+            len(project_artifacts) == len(artifact_keys) * 2
+        )  # project artifacts include "latest"
         assert len(project_artifacts) == len(loaded_project_artifacts)
         assert project_artifacts == loaded_project_artifacts
 

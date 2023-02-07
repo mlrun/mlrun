@@ -86,6 +86,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
         expected_cores: dict = None,
+        expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -114,6 +115,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
+
+        if expected_code:
+            body = self._get_custom_object_creation_body()
+            code = None
+            for envvar in body["spec"]["driver"]["env"]:
+                if envvar["name"] == "MLRUN_EXEC_CODE":
+                    code = envvar["value"]
+                    break
+            if code:
+                code = base64.b64decode(code).decode("UTF-8")
+            assert code == expected_code
 
     def _assert_volume_and_mounts(
         self,
@@ -167,7 +179,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     @staticmethod
     def _assert_requests(actual: dict, expected: dict):
         assert actual.get("coreRequest", None) == expected.get("cpu", None)
-        assert actual.get("memory", None) == expected.get("mem", None)
+        assert actual.get("memory", None) == expected.get("memory", None)
         assert actual.get("serviceAccount", None) == expected.get(
             "serviceAccount", "sparkapp"
         )
@@ -634,18 +646,19 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self.name = "my-vector_merger"
         self.project = "default"
-        self._assert_custom_object_creation_config()
 
-        expected_code = base64.b64encode(
-            _default_merger_handler.replace(
-                "{{{engine}}}", "SparkFeatureMerger"
-            ).encode("UTF-8")
-        ).decode("UTF-8")
+        expected_code = _default_merger_handler.replace(
+            "{{{engine}}}", "SparkFeatureMerger"
+        )
 
-        body = self._get_custom_object_creation_body()
-        code = None
-        for envvar in body["spec"]["driver"]["env"]:
-            if envvar["name"] == "MLRUN_EXEC_CODE":
-                code = envvar["value"]
-                break
-        assert code == expected_code
+        self._assert_custom_object_creation_config(
+            expected_driver_resources={
+                "requests": {"cpu": "1", "memory": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_executor_resources={
+                "requests": {"cpu": "1", "memory": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_code=expected_code,
+        )

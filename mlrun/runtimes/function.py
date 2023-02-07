@@ -309,19 +309,6 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def with_labels(self, labels: dict):
-        """
-        set a key/value labels for function
-        """
-        self.spec.base_spec.setdefault("metadata", {})
-        self.spec.base_spec["metadata"].setdefault("labels", {})
-        self.spec.base_spec["metadata"].setdefault("annotations", {})
-
-        for key, value in labels.items():
-            self.spec.base_spec["metadata"]["labels"][key] = str(value)
-
-        return self
-
     def add_volume(self, local, remote, name="fs", access_key="", user=""):
         raise Exception("deprecated, use .apply(mount_v3io())")
 

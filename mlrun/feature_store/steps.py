@@ -91,6 +91,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
         if not self.context:
             return
         print(featureset)
+        print(type(self.context))
         self._featureset = self.context.get_store_resource(featureset)
         for key, feature in self._featureset.spec.features.items():
             if feature.validator and (not columns or key in columns):

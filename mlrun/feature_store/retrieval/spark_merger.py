@@ -254,11 +254,11 @@ class SparkFeatureMerger(BaseMerger):
         self._result_df = self._result_df.drop(*self._drop_columns)
 
     def _filter(self, query):
-        self._result_df = self._result_df._filter(query)
+        self._result_df = self._result_df.filter(query)
 
     def _order_by(self, order_by_active):
         from pyspark.sql.functions import col
 
-        self._result_df = self._result_df._order_by(
+        self._result_df = self._result_df.order_by(
             *[col(col_name).asc_nulls_last() for col_name in order_by_active]
         )

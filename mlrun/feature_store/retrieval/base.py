@@ -271,7 +271,6 @@ class BaseMerger(abc.ABC):
         all_columns = None
         if not self._drop_indexes and entity_timestamp_column:
             if entity_timestamp_column not in self._alias.values():
-                print(1111111)
                 self._update_alias(
                     key=entity_timestamp_column, val=entity_timestamp_column
                 )
@@ -279,7 +278,6 @@ class BaseMerger(abc.ABC):
                     set([entity_timestamp_column] + list(self._alias.keys()))
                 )
             else:
-                print(22222222)
                 all_columns = list(
                     set(
                         [

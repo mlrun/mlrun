@@ -37,13 +37,13 @@ class SparkFeatureMerger(BaseMerger):
         df.unpersist()
 
     def _asof_join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df,
-        left_keys: list,
-        right_keys: list,
+            self,
+            entity_df,
+            entity_timestamp_column: str,
+            featureset,
+            featureset_df,
+            left_keys: list,
+            right_keys: list,
     ):
 
         """Perform an as of join between entity and featureset.
@@ -80,17 +80,17 @@ class SparkFeatureMerger(BaseMerger):
 
         # set join conditions
         join_cond = (
-            entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[
-                rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)
-            ]
+                entity_with_id[entity_timestamp_column]
+                >= aliased_featureset_df[
+                    rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)
+                ]
         )
 
         # join based on entities
         for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key_l]
-                == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
+                    entity_with_id[key_l]
+                    == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
             )
 
         conditional_join = entity_with_id.join(
@@ -114,13 +114,13 @@ class SparkFeatureMerger(BaseMerger):
         )
 
     def _join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df,
-        left_keys: list,
-        right_keys: list,
+            self,
+            entity_df,
+            entity_timestamp_column: str,
+            featureset,
+            featureset_df,
+            left_keys: list,
+            right_keys: list,
     ):
 
         """
@@ -186,13 +186,13 @@ class SparkFeatureMerger(BaseMerger):
             ).getOrCreate()
 
     def _get_engine_df(
-        self,
-        feature_set,
-        feature_set_name,
-        column_names=None,
-        start_time=None,
-        end_time=None,
-        entity_timestamp_column=None,
+            self,
+            feature_set,
+            feature_set_name,
+            column_names=None,
+            start_time=None,
+            end_time=None,
+            entity_timestamp_column=None,
     ):
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
@@ -214,8 +214,8 @@ class SparkFeatureMerger(BaseMerger):
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
         if (
-            entity_timestamp_column in column_names
-            or feature_set.spec.timestamp_key == entity_timestamp_column
+                entity_timestamp_column in column_names
+                or feature_set.spec.timestamp_key == entity_timestamp_column
         ):
             source = source_driver(
                 name=self.vector.metadata.name,
@@ -240,9 +240,14 @@ class SparkFeatureMerger(BaseMerger):
             self.spark, named_view=self.named_view, time_field=timestamp_key
         )
 
-    def _rename_columns_and_select(self, df, rename_col_dict, columns):
+    def _rename_columns_and_select(
+            self,
+            df,
+            rename_col_dict,
+            columns=None,
+    ):
         from pyspark.sql.functions import col
-
+        print(columns)
         return df.select(
             [
                 col(name).alias(rename_col_dict.get(name, name))

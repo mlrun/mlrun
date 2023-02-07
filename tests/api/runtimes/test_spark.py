@@ -179,7 +179,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     @staticmethod
     def _assert_requests(actual: dict, expected: dict):
         assert actual.get("coreRequest", None) == expected.get("cpu", None)
-        assert actual.get("memory", None) == expected.get("memory", None)
+        assert actual.get("memory", None) == expected.get("mem", None)
         assert actual.get("serviceAccount", None) == expected.get(
             "serviceAccount", "sparkapp"
         )
@@ -653,11 +653,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._assert_custom_object_creation_config(
             expected_driver_resources={
-                "requests": {"cpu": "1", "memory": "1G"},
+                "requests": {"cpu": "1", "mem": "1G"},
                 "limits": {"cpu": "1"},
             },
             expected_executor_resources={
-                "requests": {"cpu": "1", "memory": "1G"},
+                "requests": {"cpu": "1", "mem": "1G"},
                 "limits": {"cpu": "1"},
             },
             expected_code=expected_code,

@@ -1306,8 +1306,6 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
             url_prefix,
             health_prefix,
             vote_type,
-            executor_type,
-            prediction_col_name,
             **kwargs,
         )
 

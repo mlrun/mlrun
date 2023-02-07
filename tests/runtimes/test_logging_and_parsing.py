@@ -82,7 +82,7 @@ def test_parse_inputs_from_mlrun_function():
         returns=[
             "my_array",
             "my_df:dataset",
-            "my_dict    :dataset",
+            {"key": "my_dict", "artifact_type": "dataset"},
             "my_list:  dataset",
             "my_int",
             "my_str : result",

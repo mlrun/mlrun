@@ -179,6 +179,10 @@ source = SqlDBSource(table_name='my_table',
 
 ### Confluent Kafka data source
 
+```{admonition} Note
+Tech Preview 
+```
+
 Example:
 
 ```

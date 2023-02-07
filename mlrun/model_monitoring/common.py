@@ -32,7 +32,7 @@ class EndpointType(enum.IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
-def create_model_endpoint_id(function_uri: str, versioned_model: str):
+def create_model_endpoint_uid(function_uri: str, versioned_model: str):
     function_uri = FunctionURI.from_string(function_uri)
     versioned_model = VersionedModel.from_string(versioned_model)
 

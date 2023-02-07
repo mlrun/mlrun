@@ -598,7 +598,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = mlrun.model_monitoring.create_model_endpoint_id(
+        endpoint_id = mlrun.model_monitoring.create_model_endpoint_uid(
             function_uri=function_uri,
             versioned_model=versioned_model,
         )

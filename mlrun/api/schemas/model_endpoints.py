@@ -203,7 +203,7 @@ class ModelEndpoint(BaseModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         if self.metadata.uid is None:
-            uid = mlrun.model_monitoring.create_model_endpoint_id(
+            uid = mlrun.model_monitoring.create_model_endpoint_uid(
                 function_uri=self.spec.function_uri,
                 versioned_model=self.spec.model,
             )

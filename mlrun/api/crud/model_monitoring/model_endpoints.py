@@ -425,19 +425,13 @@ class ModelEndpoints:
 
         # If time metrics were provided, retrieve the results from the time series DB
         if metrics:
-            if model_endpoint_object.status.metrics is None:
-                model_endpoint_record.status.metrics = {}
-
-            endpoint_metrics = model_endpoint_store.get_endpoint_real_time_metrics(
-                endpoint_id=endpoint_id,
+            self._add_real_time_metrics(
+                model_endpoint_store=model_endpoint_store,
+                model_endpoint_object=model_endpoint_object,
+                metrics=metrics,
                 start=start,
                 end=end,
-                metrics=metrics,
             )
-            if endpoint_metrics:
-                model_endpoint_object.status.metrics[
-                    model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                ] = endpoint_metrics
 
         return model_endpoint_object
 
@@ -485,7 +479,7 @@ class ModelEndpoints:
         :param end:       The end time of the metrics. Can be represented by a string containing an RFC 3339 time,
                           a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where `m`
                           = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param top_level: If True will return only routers and endpoint that are NOT children of any router.
+        :param top_level: If True, return only routers and endpoints that are NOT children of any router.
         :param uids:      List of model endpoint unique ids to include in the result.
 
         :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata.
@@ -532,25 +526,63 @@ class ModelEndpoints:
 
             # If time metrics were provided, retrieve the results from the time series DB
             if metrics:
-                if endpoint_obj.status.metrics is None:
-                    endpoint_obj.status.metrics = {}
-                endpoint_metrics = endpoint_store.get_endpoint_real_time_metrics(
-                    endpoint_id=endpoint_obj.metadata.uid,
+                self._add_real_time_metrics(
+                    model_endpoint_store=endpoint_store,
+                    model_endpoint_object=endpoint_obj,
+                    metrics=metrics,
                     start=start,
                     end=end,
-                    metrics=metrics,
                 )
-
-                if endpoint_metrics:
-
-                    endpoint_obj.status.metrics[
-                        model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                    ] = endpoint_metrics
 
             # Add the `ModelEndpoint` object into the model endpoints list
             endpoint_list.endpoints.append(endpoint_obj)
 
         return endpoint_list
+
+    @staticmethod
+    def _add_real_time_metrics(
+        model_endpoint_store: mlrun.model_monitoring.stores.ModelEndpointStore,
+        model_endpoint_object: mlrun.api.schemas.ModelEndpoint,
+        metrics: typing.List[str] = None,
+        start: str = "now-1h",
+        end: str = "now",
+    ) -> mlrun.api.schemas.ModelEndpoint:
+        """Add real time metrics from the time series DB to a provided `ModelEndpoint` object. The real time metrics
+           will be stored under `ModelEndpoint.status.metrics.real_time`
+
+        :param model_endpoint_store:  `ModelEndpointStore` object that will be used for communicating with the database
+                                       and querying the required metrics.
+        :param model_endpoint_object: `ModelEndpoint` object that will be filled with the relevant
+                                       real time metrics.
+        :param metrics:                A list of metrics to return for each endpoint. There are pre-defined metrics for
+                                       model endpoints such as `predictions_per_second` and `latency_avg_5m` but also
+                                       custom metrics defined by the user. Please note that these metrics are stored in
+                                       the time series DB and the results will be appeared under
+                                       model_endpoint.spec.metrics of each endpoint.
+        :param start:                  The start time of the metrics. Can be represented by a string containing an RFC
+                                       3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                       `'now-[0-9]+[mhd]'`, where `m`= minutes, `h` = hours, and `'d'` = days), or 0
+                                       for the earliest time.
+        :param end:                    The end time of the metrics. Can be represented by a string containing an RFC
+                                       3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                       `'now-[0-9]+[mhd]'`, where `m`= minutes, `h` = hours, and `'d'` = days), or 0
+                                       for the earliest time.
+
+        """
+        if model_endpoint_object.status.metrics is None:
+            model_endpoint_object.status.metrics = {}
+
+        endpoint_metrics = model_endpoint_store.get_endpoint_real_time_metrics(
+            endpoint_id=model_endpoint_object.metadata.uid,
+            start=start,
+            end=end,
+            metrics=metrics,
+        )
+        if endpoint_metrics:
+            model_endpoint_object.status.metrics[
+                model_monitoring_constants.EventKeyMetrics.REAL_TIME
+            ] = endpoint_metrics
+        return model_endpoint_object
 
     def _convert_into_model_endpoint_object(
         self, endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False

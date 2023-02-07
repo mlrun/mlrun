@@ -17,7 +17,7 @@
 from sqlalchemy import TIMESTAMP, Boolean, Column, Integer, String, Text
 
 import mlrun.model_monitoring.constants as model_monitoring_constants
-from mlrun.api.utils.db.helpers import BaseModel
+from mlrun.utils.db import BaseModel
 
 from .base import Base
 

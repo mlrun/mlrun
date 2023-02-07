@@ -135,7 +135,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
 def get_connection_string(project: str = None):
     """Get SQL connections string from the project secret. If wasn't set, take it from the system configurations"""
     if is_running_as_api():
-        # Running on server side
+        # Running on API server side
         import mlrun.api.crud.secrets
         import mlrun.api.schemas
 
@@ -149,7 +149,7 @@ def get_connection_string(project: str = None):
             or mlrun.mlconf.model_endpoint_monitoring.connection_string
         )
     else:
-        # Running on client side
+        # Running on stream server side
         import mlrun
 
         return (

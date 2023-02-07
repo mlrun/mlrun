@@ -19,7 +19,7 @@ __all__ = [
     "ModelEndpoint",
     "ModelMonitoringMode",
     "EndpointType",
-    "create_model_endpoint_id",
+    "create_model_endpoint_uid",
     "EventFieldType",
     "EventLiveStats",
     "EventKeyMetrics",
@@ -29,7 +29,7 @@ __all__ = [
     "ModelMonitoringStoreKinds",
 ]
 
-from .common import EndpointType, ModelMonitoringMode, create_model_endpoint_id
+from .common import EndpointType, ModelMonitoringMode, create_model_endpoint_uid
 from .constants import (
     EventFieldType,
     EventKeyMetrics,

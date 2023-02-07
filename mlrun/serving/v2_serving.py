@@ -17,6 +17,7 @@ import traceback
 from typing import Dict, Union
 
 import mlrun
+import mlrun.model_monitoring
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -25,11 +26,6 @@ from mlrun.api.schemas import (
 )
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
-from mlrun.model_monitoring import (
-    EndpointType,
-    ModelMonitoringMode,
-    create_model_endpoint_id,
-)
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from .server import GraphServer
@@ -489,7 +485,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{model.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    uid = create_model_endpoint_id(
+    uid = mlrun.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -514,11 +510,13 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
                     if model.context.server.track_models
-                    else ModelMonitoringMode.disabled,
+                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
                 ),
-                status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
+                status=ModelEndpointStatus(
+                    endpoint_type=mlrun.model_monitoring.EndpointType.NODE_EP
+                ),
             )
 
             db = mlrun.get_run_db()

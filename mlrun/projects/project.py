@@ -1176,15 +1176,13 @@ class MlrunProject(ModelObj):
         # check_absolute_path is a temporary parameter to allow for backwards compatibility
         check_absolute_path: bool = False,
     ) -> typing.Tuple[str, bool]:
-        in_context = False
-
         # If the URL is for a remote location, we do not want to change it
         if not url or "://" in url:
-            return url, in_context
+            return url, False
 
         # We don't want to change the url if the project has no cntext or if it is already absolute
-        if self.spec.context and not url.startswith("/"):
-            in_context = True
+        in_context = self.spec.context and not url.startswith("/")
+        if in_context:
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_absolute_path) and not path.isfile(url):

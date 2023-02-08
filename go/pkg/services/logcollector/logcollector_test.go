@@ -234,7 +234,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	}
 
 	// verify log file content
-	suite.Require().Equal("fake logs", string(logFileContent))
+	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {

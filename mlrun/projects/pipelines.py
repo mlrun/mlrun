@@ -547,7 +547,8 @@ class _KFPRunner(_PipelineRunner):
         artifact_path = artifact_path or project.spec.artifact_path
 
         conf = new_pipe_meta(
-            artifact_path, cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl
+            artifact_path=artifact_path,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()

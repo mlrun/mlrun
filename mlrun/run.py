@@ -1001,7 +1001,7 @@ def run_pipeline(
                 experiment.id, run, pipeline, params=arguments
             )
         else:
-            conf = new_pipe_meta(artifact_path, None, ops, cleanup_ttl=ttl)
+            conf = new_pipe_meta(artifact_path=artifact_path, args=ops, cleanup_ttl=ttl)
             run_result = client.create_run_from_pipeline_func(
                 pipeline,
                 arguments,

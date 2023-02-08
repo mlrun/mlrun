@@ -93,6 +93,12 @@ def main():
     help="parameter name and value tuples, e.g. -p x=37 -p y='text'",
 )
 @click.option("--inputs", "-i", multiple=True, help="input artifact")
+@click.option(
+    "--returns",
+    "-re",
+    multiple=True,
+    help="Logging configurations for the handler's returning values",
+)
 @click.option("--outputs", "-o", multiple=True, help="output artifact/result for kfp")
 @click.option("--in-path", help="default input path/url (prefix) for artifact")
 @click.option("--out-path", help="default output path/url (prefix) for artifact")
@@ -182,11 +188,6 @@ def main():
     "--ensure-project",
     is_flag=True,
     help="ensure the project exists, if not, create project",
-)
-@click.option(
-    "--returns",
-    multiple=True,
-    help="Logging configurations for the handler's returning values",
 )
 def run(
     url,

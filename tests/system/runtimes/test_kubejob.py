@@ -266,3 +266,19 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
+
+    def test_function_handler_set_labels_and_annotations(self):
+        code_path = str(self.assets_path / "handler.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="test-func",
+            kind="job",
+            handler="set_labels_and_annotations_handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        run = function.run()
+        assert run.metadata.labels.get("label1") == "label-value1"
+        assert run.metadata.annotations.get("annotation1") == "annotation-value1"

@@ -272,13 +272,13 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         mlrun.get_or_create_project(self.project_name, self.results_path)
 
         function = mlrun.code_to_function(
-            name="set-labels-function",
+            name="test-func",
             kind="job",
-            handler="set_labels_handler",
+            handler="set_labels_and_annotations_handler",
             project=self.project_name,
             filename=code_path,
             image="mlrun/mlrun",
         )
         run = function.run()
-        assert run.metadata.labels.get("label1") == "value1"
-        assert run.metadata.annotations.get("annotation1") == "value2"
+        assert run.metadata.labels.get("label1") == "label-value1"
+        assert run.metadata.annotations.get("annotation1") == "annotation-value1"

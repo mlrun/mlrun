@@ -100,7 +100,7 @@ type StateStore interface {
 	AddLogItem(ctx context.Context, runId, selector, project string) error
 
 	// RemoveLogItem removes a log item from the state store
-	RemoveLogItem(runId string) error
+	RemoveLogItem(runId, project string) error
 
 	// WriteState writes the state to persistent storage
 	WriteState(state *State) error

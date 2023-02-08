@@ -65,6 +65,10 @@ message HasLogsResponse {
   string errorMessage = 4;
 }
 
+message ListOfString {
+  repeated string values = 1;
+}
+
 message StopLogRequest {
-  repeated string runUIDs = 1;
+  map<string, ListOfString> projectToRunUIDs = 1;
 }

@@ -380,18 +380,20 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 // This will prevent the monitoring loop from starting logging again for this run id
 func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*empty.Empty, error) {
 
-	s.Logger.DebugWithCtx(ctx, "Received Stop Log request", "runUIDs", request.RunUIDs)
+	s.Logger.DebugWithCtx(ctx, "Received Stop Log request", "ProjectToRunUIDsMap", request.ProjectToRunUIDs)
 
-	for _, runUID := range request.RunUIDs {
+	for project, runUIDs := range request.ProjectToRunUIDs {
+		for _, runUID := range runUIDs.Values {
 
-		// remove item from persistent state
-		if err := s.stateStore.RemoveLogItem(runUID); err != nil {
-			return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from persistent state for run id %s", runUID)
-		}
+			// remove item from persistent state
+			if err := s.stateStore.RemoveLogItem(runUID, project); err != nil {
+				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from persistent state for run id %s", runUID)
+			}
 
-		// remove item from in-memory state
-		if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
-			return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from in memory state for run id %s", runUID)
+			// remove item from in-memory state
+			if err := s.inMemoryState.RemoveLogItem(runUID, project); err != nil {
+				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from in memory state for run id %s", runUID)
+			}
 		}
 	}
 
@@ -414,7 +416,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		defer cancelCtxFunc()
 
 		// remove this goroutine from in-memory state
-		if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
+		if err := s.inMemoryState.RemoveLogItem(runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
 		}
 
@@ -506,7 +508,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		"podName", podName)
 
 	// remove run from state file
-	if err := s.stateStore.RemoveLogItem(runUID); err != nil {
+	if err := s.stateStore.RemoveLogItem(runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 

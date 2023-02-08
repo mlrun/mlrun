@@ -89,7 +89,7 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 }
 
 // RemoveLogItem removes a log item from the state store
-func (s *Store) RemoveLogItem(runUID string) error {
+func (s *Store) RemoveLogItem(runUID, project string) error {
 	s.state.InProgress.Delete(runUID)
 	return nil
 }

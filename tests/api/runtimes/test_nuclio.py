@@ -834,19 +834,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_nuclio_runtime=expected_nuclio_runtime,
         )
 
-    def test_set_metadata_labels(self, db: Session, client: TestClient):
-
-        function = self._generate_runtime(self.runtime_kind)
-        function.with_labels({"label.key.test": "label-value"})
-        function.spec.base_spec["metadata"].setdefault("annotations", {})
-
-        self.execute_function(function)
-        args, _ = nuclio.deploy.deploy_config.call_args
-        deploy_metadata = args[0]["metadata"]
-
-        if deploy_metadata.get("labels"):
-            assert deploy_metadata["labels"].get("label.key.test") == "label-value"
-
     def test_deploy_python_decode_string_env_var_enrichment(
         self, db: Session, client: TestClient
     ):

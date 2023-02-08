@@ -1099,7 +1099,10 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact = {"import_from": artifact, "key": key}
+            artifact = {
+                "import_from": self.get_item_absolute_path(artifact),
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:

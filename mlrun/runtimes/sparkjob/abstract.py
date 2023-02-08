@@ -42,7 +42,7 @@ from ...utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
-from ..base import RunError
+from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import get_item_name
@@ -831,7 +831,7 @@ with ctx:
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
     class_modes = {
-        "run": "spark",
+        RuntimeClassMode.run: "spark",
     }
 
     def _resolve_crd_object_status_info(

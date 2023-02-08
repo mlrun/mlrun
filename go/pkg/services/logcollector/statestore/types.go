@@ -34,6 +34,7 @@ const (
 type LogItem struct {
 	RunUID        string `json:"runId"`
 	LabelSelector string `json:"labelSelector"`
+	Project       string `json:"project"`
 }
 
 // MarshalledState is a helper struct for marshalling the state
@@ -96,7 +97,7 @@ type StateStore interface {
 	Initialize(ctx context.Context) error
 
 	// AddLogItem adds a log item to the state store
-	AddLogItem(ctx context.Context, runId, selector string) error
+	AddLogItem(ctx context.Context, runId, selector, project string) error
 
 	// RemoveLogItem removes a log item from the state store
 	RemoveLogItem(runId string) error

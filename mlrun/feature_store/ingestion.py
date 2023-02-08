@@ -155,12 +155,12 @@ def run_spark_graph(df, featureset, namespace, spark):
     if graph.engine != "sync":
         raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
     for step_dict in graph.steps.values():
-        if step_dict["class_name"] in [
+        if step_dict.class_name in [
             "mlrun.feature_store.steps.FeaturesetValidator",
             "mlrun.feature_store.steps.SetEventMetadata",
         ]:
             raise mlrun.errors.MLRunRuntimeError(
-                f"{step_dict['step_dict']} is not supported for spark engine."
+                f"{step_dict.step_dict} is not supported for spark engine."
             )
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)

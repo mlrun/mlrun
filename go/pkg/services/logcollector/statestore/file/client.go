@@ -142,7 +142,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 				errCount = 0
 				s.logger.WarnWithCtx(ctx,
 					"Failed to write state file",
-					"err", common.GetErrorStack(err, 10),
+					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 				)
 			}
 			errCount++

@@ -222,7 +222,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		return &protologcollector.StartLogResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
-			ErrorMessage: common.GetErrorStack(err, 10),
+			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, err
 	}
 
@@ -243,7 +243,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		return &protologcollector.StartLogResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
-			ErrorMessage: common.GetErrorStack(err, 10),
+			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, err
 	}
 
@@ -366,7 +366,7 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 		return &protologcollector.HasLogsResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
-			ErrorMessage: common.GetErrorStack(err, 10),
+			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, err
 	}
 
@@ -446,7 +446,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	openFlags := os.O_RDWR | os.O_APPEND
 	file, err := os.OpenFile(logFilePath, openFlags, 0644)
 	if err != nil {
-		s.Logger.ErrorWithCtx(ctx, "Failed to open file", "err", err, "logFilePath", logFilePath)
+		s.Logger.ErrorWithCtx(ctx, "Failed to open file", "err", err.Error(), "logFilePath", logFilePath)
 		return
 	}
 	defer file.Close() // nolint: errcheck
@@ -475,7 +475,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 				s.Logger.WarnWithCtx(ctx,
 					"Failed to get pod log stream, retrying",
 					"runUID", runUID,
-					"err", streamErr)
+					"err", streamErr.Error())
 			}
 			streamErrCount++
 			return true, streamErr
@@ -485,7 +485,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to get pod log stream",
 			"runUID", runUID,
-			"err", common.GetErrorStack(err, 10))
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
 		return
 	}
 	defer stream.Close() // nolint: errcheck
@@ -494,7 +494,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 		keepLogging, err = s.streamPodLogs(ctx, runUID, file, stream)
 		if err != nil {
-			s.Logger.WarnWithCtx(ctx, "An error occurred while streaming pod logs", "err", err)
+			s.Logger.WarnWithCtx(ctx,
+				"An error occurred while streaming pod logs",
+				"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
 		}
 	}
 
@@ -717,7 +719,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						s.Logger.WarnWithCtx(ctx,
 							"Failed to start log collection for log item",
 							"runUID", runUID,
-							"err", common.GetErrorStack(err, 10),
+							"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 						)
 					}
 				}
@@ -731,7 +733,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 				errCount = 0
 				s.Logger.WarnWithCtx(ctx,
 					"Failed to get log items in progress",
-					"err", common.GetErrorStack(err, 10))
+					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
 			}
 			errCount++
 		}

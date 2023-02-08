@@ -296,6 +296,8 @@ class Projects(
     async def _calculate_pipelines_counters(
         self,
     ) -> typing.Dict[str, typing.Union[int, None]]:
+        # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
+        # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
         if not mlrun.mlconf.resolve_kfp_url():
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
@@ -310,7 +312,7 @@ class Projects(
             # If list pipelines failed, set counters to None (unknown) to indicate that we failed to get the information
             logger.warning(
                 "Failed to list pipelines. Pipelines counters will be set to None",
-                exc=str(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
             return collections.defaultdict(lambda: None)
 

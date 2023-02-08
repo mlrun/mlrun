@@ -430,16 +430,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     )
 
     mlrun.api.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(
-            return_value=(
-                {project_name: 1},
-                {project_name: 2},
-                {project_name: 3},
-                {project_name: 4},
-                {project_name: 5},
-                {project_name: 6},
-            )
-        )
+        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(6)))
     )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1

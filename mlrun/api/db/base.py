@@ -527,7 +527,9 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project, category):
+    def list_artifact_tags(
+        self, session, project, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         return []
 
     def create_marketplace_source(

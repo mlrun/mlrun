@@ -23,6 +23,7 @@ import socket
 import tempfile
 import time
 import uuid
+import warnings
 from base64 import b64decode
 from collections import OrderedDict
 from copy import deepcopy
@@ -936,8 +937,10 @@ def run_pipeline(
     artifact_path=None,
     ops=None,
     url=None,
+    # TODO: deprecated, remove in 1.5.0
     ttl=None,
     remote: bool = True,
+    cleanup_ttl=None,
 ):
     """remote KubeFlow pipeline execution
 
@@ -952,11 +955,23 @@ def run_pipeline(
     :param url:        optional, url to mlrun API service
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
-    :param ttl:        pipeline ttl in secs (after that the pods will be removed)
+    :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param remote:     read kfp data from mlrun service (default=True)
+    :param cleanup_ttl:
+                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted)
 
     :returns: kubeflow pipeline id
     """
+
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
 
     artifact_path = artifact_path or mlconf.artifact_path
     project = project or mlconf.default_project
@@ -987,6 +1002,7 @@ def run_pipeline(
             namespace=namespace,
             ops=ops,
             artifact_path=artifact_path,
+            cleanup_ttl=cleanup_ttl or ttl,
         )
 
     else:
@@ -997,7 +1013,7 @@ def run_pipeline(
                 experiment.id, run, pipeline, params=arguments
             )
         else:
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_meta(artifact_path=artifact_path, args=ops, cleanup_ttl=ttl)
             run_result = client.create_run_from_pipeline_func(
                 pipeline,
                 arguments,

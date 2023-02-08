@@ -306,7 +306,9 @@ class SQLDB(RunDBInterface):
             labels,
         )
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )

@@ -974,6 +974,8 @@ class MLClientCtx(object):
                 _struct[key] = val
 
         struct = {
+            "metadata.labels": self._labels,
+            "metadata.annotations": self._annotations,
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),
@@ -1000,6 +1002,10 @@ class MLClientCtx(object):
         return dict_to_json(self.to_dict())
 
     def store_run(self):
+        """
+        store the run object in the DB - removes missing fields
+        use _update_run for coherent updates
+        """
         self._write_tmpfile()
         if self._rundb:
             self._rundb.store_run(

@@ -1870,6 +1870,7 @@ class MlrunProject(ModelObj):
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
+        # TODO: deprecated, remove in 1.5.0
         ttl: int = None,
         engine: str = None,
         local: bool = None,
@@ -1878,6 +1879,7 @@ class MlrunProject(ModelObj):
         overwrite: bool = False,
         override: bool = False,
         source: str = None,
+        cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1895,7 +1897,8 @@ class MlrunProject(ModelObj):
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
-        :param ttl:       pipeline ttl in secs (after that the pods will be removed)
+        :param ttl:       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param engine:    workflow engine running the workflow.
                           supported values are 'kfp' (default), 'local' or 'remote'.
                           for setting engine for remote running use 'remote:local' or 'remote:kfp'.
@@ -1910,8 +1913,19 @@ class MlrunProject(ModelObj):
         :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
+        :param cleanup_ttl:
+                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted)
         :returns: run id
         """
+
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead",
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -1942,7 +1956,9 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-            workflow_spec.ttl = ttl or workflow_spec.ttl
+            workflow_spec.cleanup_ttl = (
+                cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+            )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name

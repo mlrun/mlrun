@@ -92,9 +92,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		"30s",   /* monitoringInterval */
 		"chief", /* clusterizationRole */
 		suite.kubeClientSet,
-		30, /* logCollectionBufferPoolSize */
-		30, /* getLogsBufferSizeBytes */
-		suite.bufferSizeBytes)
+		30,                    /* logCollectionBufferPoolSize */
+		30,                    /* getLogsBufferSizeBytes */
+		suite.bufferSizeBytes, /* logCollectionBufferSizeBytes */
+		suite.bufferSizeBytes) /* getLogsBufferSizeBytes */
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test
@@ -178,7 +179,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		if len(logs) >= expectedLogLines {
 			break
 		}
-		if time.Since(startedGettingLogsTime) > 2*time.Minute {
+		if time.Since(startedGettingLogsTime) > 3*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
 

@@ -12,21 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package bufferpool
 
-// error codes
-const (
-	ErrCodeNotFound int32 = iota
-	ErrCodeInternal
-)
+type Pool interface {
 
-// Buffer sizes
+	// Get returns a buffer from the pool.
+	Get() []byte
 
-const (
-	// DefaultLogCollectionBufferSize is the default buffer size for collecting logs from pods
-	DefaultLogCollectionBufferSize int = 10 * 1024 * 1024 // 10MB
+	// Put returns a buffer to the pool.
+	Put([]byte)
 
-	// DefaultGetLogsBufferSize is the default buffer size for reading logs
-	// gRPC has a limit of 4MB, so we set it to 3.75MB in case of overhead
-	DefaultGetLogsBufferSize int = 3.75 * 1024 * 1024 // 3.75MB
-)
+	// NumPooled returns the number of buffers currently in the pool.
+	NumPooled() int
+
+	// PoolSize returns the maximum number of buffers in the pool.
+	PoolSize() int
+}

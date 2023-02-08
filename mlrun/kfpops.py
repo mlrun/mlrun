@@ -394,7 +394,7 @@ def mlrun_op(
     for input_param, val in inputs.items():
         cmd += ["-i", f"{input_param}={val}"]
     for logging_configuration in returns:
-        cmd += ["--returns", f"{logging_configuration}"]
+        cmd += ["--returns", json.dumps(logging_configuration)]
     for label, val in labels.items():
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:

@@ -1290,6 +1290,17 @@ def new_task(
     :param secrets:         extra secrets specs, will be injected into the runtime
                             e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
     :param base:            task instance to use as a base instead of a fresh new task instance
+    :param returns:         List of log hints - configurations for how to log the returning values from the handler's
+                            run (as artifacts or results). The list's length must be equal to the amount of returning
+                            objects. A log hint may be given as:
+
+                            * A string of the key to use to log the returning value as result or as an artifact. To
+                              specify The artifact type, it is possible to pass a string in the following structure:
+                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                              artifact type is specified, the object's default artifact type will be used.
+                            * A dictionary of configurations to use when logging. Further info per object type and
+                              artifact type can be given there. The artifact key must appear in the dictionary as
+                              "key": "the_key".
     """
 
     if base:

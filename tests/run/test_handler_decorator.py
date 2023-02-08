@@ -235,7 +235,8 @@ def test_log_directory_with_mlrun():
 )
 def log_file(path: str) -> str:
     my_file = os.path.join(path, "a.txt")
-    open(my_file, "a").close()
+    with open(my_file, "a") as f:
+        f.write("some text")
     return my_file
 
 
@@ -268,7 +269,8 @@ def test_log_file_with_mlrun():
 
     # Assertion:
     assert len(run_object.outputs) == 1  # my_file
-    assert os.path.basename(run_object.artifact("my_file").local()) == "my_file.txt"
+    with open(run_object.artifact("my_file").local(), "r") as my_file:
+        assert my_file.read() == "some text"
 
     # Clean the test outputs:
     artifact_path.cleanup()

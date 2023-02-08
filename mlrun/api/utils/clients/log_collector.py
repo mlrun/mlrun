@@ -76,11 +76,6 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
-                logger.info(
-                    "Failed to start logs",
-                    error_message=response.errorMessage,
-                    error_code=response.errorCode,
-                )
                 if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"{msg},error= {response.errorMessage}"

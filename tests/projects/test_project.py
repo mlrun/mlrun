@@ -440,6 +440,34 @@ def test_set_function_with_relative_path(context):
     )
 
 
+@pytest.mark.parametrize(
+    "artifact_path,file_exists,expectation",
+    [
+        ("handler.py", True, does_not_raise()),
+        ("handler.py", False, pytest.raises(OSError)),
+    ],
+)
+def test_set_artifact_validates_file_exists(
+    monkeypatch, artifact_path, file_exists, expectation
+):
+    artifact_key = "my-artifact"
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    monkeypatch.setattr(
+        os.path,
+        "isfile",
+        lambda path: file_exists,
+    )
+
+    with expectation:
+        project.set_artifact(
+            artifact_key,
+            artifact_path,
+        )
+        assert project.artifacts[0]["key"] == artifact_key
+        assert project.artifacts[0]["import_from"] == artifact_path
+
+
 def test_import_artifact_using_relative_path():
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

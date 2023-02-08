@@ -1100,7 +1100,7 @@ class MlrunProject(ModelObj):
         """
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
-                artifact, check_absolute_path=True
+                artifact, check_path_in_context=True
             )
             artifact = {
                 "import_from": artifact_path,
@@ -1173,9 +1173,16 @@ class MlrunProject(ModelObj):
     def get_item_absolute_path(
         self,
         url: str,
-        # check_absolute_path is a temporary parameter to allow for backwards compatibility
-        check_absolute_path: bool = False,
+        # check_path_in_context is a temporary parameter to allow for backwards compatibility
+        check_path_in_context: bool = False,
     ) -> typing.Tuple[str, bool]:
+        """
+        Get the absolute path of the artifact or function file
+        :param url:                   remote url, absolute path or relative path
+        :param check_path_in_context: if True, will check if the path exists when in the context
+                                      (temporary parameter to allow for backwards compatibility)
+        :returns:                     absolute path / url, whether the path is in the project context
+        """
         # If the URL is for a remote location, we do not want to change it
         if not url or "://" in url:
             return url, False
@@ -1185,8 +1192,8 @@ class MlrunProject(ModelObj):
         if in_context:
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
-        if (not in_context or check_absolute_path) and not path.isfile(url):
-            raise OSError(f"{url} not found")
+        if (not in_context or check_path_in_context) and not path.isfile(url):
+            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
 
         return url, in_context
 

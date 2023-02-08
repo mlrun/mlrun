@@ -429,10 +429,10 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 
 	// stop log
 	request := &log_collector.StopLogRequest{
-		ProjectToRunUIDs: map[string]*log_collector.ListOfString{},
+		ProjectToRunUIDs: map[string]*log_collector.StringArray{},
 	}
 	for project, runs := range projectToRuns {
-		request.ProjectToRunUIDs[project] = &log_collector.ListOfString{
+		request.ProjectToRunUIDs[project] = &log_collector.StringArray{
 			Values: runs,
 		}
 	}

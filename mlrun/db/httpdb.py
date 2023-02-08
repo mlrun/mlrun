@@ -1432,7 +1432,9 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(artifact_path, None, ops, cleanup_ttl=cleanup_ttl or ttl)
+            conf = new_pipe_meta(
+                artifact_path, None, ops, cleanup_ttl=cleanup_ttl or ttl
+            )
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
             )

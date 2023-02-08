@@ -55,10 +55,9 @@ func (p *SizedBytePool) Put(buf []byte) {
 	if cap(buf) < p.bufferSize {
 		return
 	}
-	select {
-	case p.bufferChan <- buf[:p.bufferSize]:
-	default:
-	}
+
+	// return the buffer to the pool
+	p.bufferChan <- buf[:p.bufferSize]
 }
 
 // NumPooled returns the number of currently queued buffers in the pool.

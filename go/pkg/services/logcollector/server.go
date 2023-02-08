@@ -447,7 +447,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 
-			// first 3 errors are not logged - they are expected if pod is not ready yet
+			// first 3 errors are not logged to prevent spamming - they are expected if pod is not ready yet
 			if streamErrCount > 3 {
 				s.Logger.WarnWithCtx(ctx,
 					"Failed to get pod log stream, retrying",
@@ -519,21 +519,19 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		return false, nil
 	}
 
-	if numBytesRead == 0 {
+	// log error if occurred
+	if err != nil {
+		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
+			"err", err.Error(),
+			"runUID", runUID)
 
-		// if error is not EOF, log it and continue
-		if err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-				"err", err.Error(),
-				"runUID", runUID)
+		// if error is not nil, and we didn't read anything - a real error occurred, so we stop logging
+		if numBytesRead != 0 {
 			return false, errors.Wrap(err, "Failed to read pod logs")
 		}
-
-		// nothing happened, continue
-		return true, nil
 	}
 
-	// sanity
+	// nothing happened, continue
 	return true, nil
 }
 

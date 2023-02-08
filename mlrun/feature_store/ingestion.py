@@ -152,6 +152,7 @@ def run_spark_graph(df, featureset, namespace, spark):
     """run spark (sync) pipeline"""
     cache = ResourceCache()
     graph = featureset.spec.graph.copy()
+    print(graph.steps)
     if graph.engine != "sync":
         raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
 

@@ -160,7 +160,7 @@ def run_spark_graph(df, featureset, namespace, spark):
             "mlrun.feature_store.steps.SetEventMetadata",
         ]:
             raise mlrun.errors.MLRunRuntimeError(
-                f"{step_dict.step_dict} is not supported for spark engine."
+                f"{step_dict.class_name} is not supported for spark engine."
             )
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)

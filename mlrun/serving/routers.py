@@ -269,7 +269,7 @@ class ParallelRun(BaseModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         extend_event=None,
-        executor_type: Union[ParallelRunnerModes, str] = None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -304,6 +304,7 @@ class ParallelRun(BaseModelRouter):
                               * array - running one by one
                               * process - running in separated process
                               * thread - running in separated threads
+                              by default `threads`
         :param extend_event:  True will add the event body to the result
         :param kwargs:        extra arguments
         """
@@ -505,7 +506,7 @@ class VotingEnsemble(ParallelRun):
         health_prefix: str = None,
         vote_type: str = None,
         weights: Dict[str, float] = None,
-        executor_type: Union[ParallelRunnerModes, str] = None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
         **kwargs,
@@ -1204,7 +1205,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        executor_type: Union[ParallelRunnerModes, str] = None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         prediction_col_name: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},

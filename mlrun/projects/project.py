@@ -1099,7 +1099,9 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact_path, _ = self.get_item_absolute_path(artifact)
+            artifact_path, _ = self.get_item_absolute_path(
+                artifact, check_absolute_path=True
+            )
             artifact = {
                 "import_from": artifact_path,
                 "key": key,
@@ -1168,17 +1170,26 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+    def get_item_absolute_path(
+        self,
+        url: str,
+        # check_absolute_path is a temporary parameter to allow for backwards compatibility
+        check_absolute_path: bool = False,
+    ) -> typing.Tuple[str, bool]:
         in_context = False
+
         # If the URL is for a remote location, we do not want to change it
-        if url and "://" not in url:
-            # We don't want to change the url if the project has no cntext or if it is already absolute
-            if self.spec.context and not url.startswith("/"):
-                in_context = True
-                url = path.normpath(path.join(self.spec.get_code_path(), url))
-                return url, in_context
-            if not path.isfile(url):
-                raise OSError(f"{url} not found")
+        if not url or "://" in url:
+            return url, in_context
+
+        # We don't want to change the url if the project has no cntext or if it is already absolute
+        if self.spec.context and not url.startswith("/"):
+            in_context = True
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
+
+        if (not in_context or check_absolute_path) and not path.isfile(url):
+            raise OSError(f"{url} not found")
+
         return url, in_context
 
     def log_artifact(

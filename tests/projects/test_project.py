@@ -456,7 +456,7 @@ def test_set_artifact_validates_file_exists(
     monkeypatch.setattr(
         os.path,
         "isfile",
-        lambda path: file_exists,
+        lambda path: path == str(assets_path() / artifact_path) and file_exists,
     )
 
     with expectation:
@@ -465,7 +465,7 @@ def test_set_artifact_validates_file_exists(
             artifact_path,
         )
         assert project.artifacts[0]["key"] == artifact_key
-        assert project.artifacts[0]["import_from"] == artifact_path
+        assert project.artifacts[0]["import_from"] == str(assets_path() / artifact_path)
 
 
 def test_import_artifact_using_relative_path():

@@ -1173,7 +1173,6 @@ class MlrunProject(ModelObj):
     def get_item_absolute_path(
         self,
         url: str,
-        # check_path_in_context is a temporary parameter to allow for backwards compatibility
         check_path_in_context: bool = False,
     ) -> typing.Tuple[str, bool]:
         """

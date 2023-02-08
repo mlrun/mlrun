@@ -240,10 +240,6 @@ class ParallelRunnerModes(str, Enum):
             ParallelRunnerModes.array,
         ]
 
-    @classmethod
-    def _missing_(cls, value):
-        return cls.thread
-
 
 class VotingTypes(str, Enum):
     """Supported voting types for VotingEnsemble"""
@@ -273,7 +269,7 @@ class ParallelRun(BaseModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         extend_event=None,
-        executor_type: ParallelRunnerModes = None,
+        executor_type: Union[ParallelRunnerModes, str] = None,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -509,7 +505,7 @@ class VotingEnsemble(ParallelRun):
         health_prefix: str = None,
         vote_type: str = None,
         weights: Dict[str, float] = None,
-        executor_type: ParallelRunnerModes = ParallelRunnerModes.thread,
+        executor_type: Union[ParallelRunnerModes, str] = None,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
         **kwargs,
@@ -1208,7 +1204,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        executor_type: ParallelRunnerModes = None,
+        executor_type: Union[ParallelRunnerModes, str] = None,
         prediction_col_name: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},

@@ -1099,10 +1099,11 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            if not path.isfile(artifact):
-                raise OSError(f"{artifact} not found")
-
-            artifact = {"import_from": artifact, "key": key}
+            artifact_path, _ = self.get_item_absolute_path(artifact)
+            artifact = {
+                "import_from": artifact_path,
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:

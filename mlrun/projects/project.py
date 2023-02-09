@@ -1186,7 +1186,7 @@ class MlrunProject(ModelObj):
         if not url or "://" in url:
             return url, False
 
-        # We don't want to change the url if the project has no cntext or if it is already absolute
+        # We don't want to change the url if the project has no context or if it is already absolute
         in_context = self.spec.context and not url.startswith("/")
         if in_context:
             url = path.normpath(path.join(self.spec.get_code_path(), url))

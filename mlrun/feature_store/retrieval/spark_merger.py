@@ -28,6 +28,7 @@ class SparkFeatureMerger(BaseMerger):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
         self.named_view = engine_args.get("named_view", False)
+        self._pandas_df = None
 
     def to_spark_df(self, session, path):
         return session.read.load(path)
@@ -247,9 +248,10 @@ class SparkFeatureMerger(BaseMerger):
 
     def get_df(self, to_pandas=True):
         if to_pandas:
-            df = self._result_df.toPandas()
-            self._set_indexes(df)
-            return df
+            if self._pandas_df is None:
+                self._pandas_df = self._result_df.toPandas()
+                self._set_indexes(self._pandas_df)
+            return self._pandas_df
 
         return self._result_df
 

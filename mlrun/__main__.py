@@ -185,7 +185,6 @@ def main():
 )
 @click.option(
     "--returns",
-    "-re",
     multiple=True,
     help="Logging configurations for the handler's returning values",
 )

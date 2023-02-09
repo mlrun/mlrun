@@ -395,7 +395,7 @@ def mlrun_op(
         cmd += ["-i", f"{input_param}={val}"]
     for log_hint in returns:
         cmd += [
-            "-re",
+            "--returns",
             json.dumps(log_hint) if isinstance(log_hint, dict) else log_hint,
         ]
     for label, val in labels.items():

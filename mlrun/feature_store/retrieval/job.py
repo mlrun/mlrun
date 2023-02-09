@@ -147,9 +147,14 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
-        return mlrun.get_dataitem(self.target_uri).as_df(
+        df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, **kwargs
         )
+        if self.vector.spec.with_indexes:
+            df.set_index(
+                list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
+            )
+        return df
 
     @property
     def target_uri(self):

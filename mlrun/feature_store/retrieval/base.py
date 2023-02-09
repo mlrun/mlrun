@@ -16,6 +16,7 @@ import abc
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
+from ...features import Feature
 
 from ...utils import logger
 
@@ -113,6 +114,7 @@ class BaseMerger(abc.ABC):
         )
 
     def _write_to_target(self):
+        self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -125,10 +127,18 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
+        if self.vector.spec.with_indexes:
+            self.vector.spec.entity_fields = [
+                Feature(name=feature, value_type=str(type(self._result_df[feature][0])))
+                for feature in self._index_columns
+            ]
+            self.vector.save()
 
     def _set_indexes(self, df):
+        print(self._index_columns)
         if self._index_columns and not self._drop_indexes:
             if df.index is None or df.index.name is None:
+                print(df.index)
                 index_columns_missing = []
                 for index in self._index_columns:
                     if index not in df.columns:

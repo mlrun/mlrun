@@ -430,10 +430,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// initialize stream and error for the while loop
 	var (
-		stream         io.ReadCloser
-		streamErr      error
-		streamErrCount = 0
-		keepLogging    = true
+		stream      io.ReadCloser
+		streamErr   error
+		keepLogging = true
 	)
 
 	// get logs from pod, and keep the stream open (follow)
@@ -443,24 +442,20 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
 	// get the log stream - retry if failed
-	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
+	if err := common.RetryUntilSuccessful(24*time.Second, 3*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 
-			// if the pod is pending, don't log the error
-			if !s.isPodPendingError(streamErr) {
-
-				// skip the first few errors to prevent spamming the logs
-				if streamErrCount > 3 {
-					s.Logger.WarnWithCtx(ctx,
-						"Failed to get pod log stream, retrying",
-						"runUID", runUID,
-						"err", streamErr)
-				}
-				streamErrCount++
+			// if the pod is pending, retry
+			if s.isPodPendingError(streamErr) {
+				return true, streamErr
 			}
-			return true, streamErr
+
+			// an error occurred, stop retrying
+			return false, streamErr
 		}
+
+		// success
 		return false, nil
 	}); err != nil {
 		s.Logger.ErrorWithCtx(ctx,

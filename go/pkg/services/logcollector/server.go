@@ -441,8 +441,8 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	}
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
-	// get the log stream - retry if failed
-	if err := common.RetryUntilSuccessful(24*time.Second, 3*time.Second, func() (bool, error) {
+	// get the log stream - if the retry times out, the monitoring loop will restart log collection for this runUID
+	if err := common.RetryUntilSuccessful(1*time.Minute, 5*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 

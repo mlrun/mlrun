@@ -16,8 +16,8 @@ import abc
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
-from ...features import Feature
 
+from ...features import Feature
 from ...utils import logger
 
 

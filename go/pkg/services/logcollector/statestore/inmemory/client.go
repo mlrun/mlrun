@@ -37,19 +37,21 @@ func (s *Store) Initialize(ctx context.Context) error {
 }
 
 // AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runId, selector, project string) error {
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
 	logItem := statestore.LogItem{
-		RunUID:        runId,
+		RunUID:        runUID,
 		LabelSelector: selector,
 		Project:       project,
 	}
-	s.inProgress.Store(runId, logItem)
+	key := statestore.GenerateKey(runUID, project)
+	s.inProgress.Store(key, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
-func (s *Store) RemoveLogItem(runId string) error {
-	s.inProgress.Delete(runId)
+func (s *Store) RemoveLogItem(runUID, project string) error {
+	key := statestore.GenerateKey(runUID, project)
+	s.inProgress.Delete(key)
 	return nil
 }
 

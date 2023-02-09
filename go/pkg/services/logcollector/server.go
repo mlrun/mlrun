@@ -171,7 +171,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		"Selector", request.Selector)
 
 	// to make start log idempotent, if log collection has already started for this run uid, return success
-	if s.isLogCollectionRunning(ctx, request.RunUID) {
+	if s.isLogCollectionRunning(ctx, request.RunUID, request.ProjectName) {
 		s.Logger.DebugWithCtx(ctx,
 			"Logs are already being collected for this run uid",
 			"runUID", request.RunUID)
@@ -391,7 +391,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		defer cancelCtxFunc()
 
 		// remove this goroutine from in-memory state
-		if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
+		if err := s.inMemoryState.RemoveLogItem(runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
 		}
 
@@ -481,7 +481,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		"podName", podName)
 
 	// remove run from state file
-	if err := s.stateStore.RemoveLogItem(runUID); err != nil {
+	if err := s.stateStore.RemoveLogItem(runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 
@@ -669,11 +669,6 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
 			logItemsInProgress.Range(func(key, value interface{}) bool {
-				runUID, ok := key.(string)
-				if !ok {
-					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
-					return true
-				}
 				logItem, ok := value.(statestore.LogItem)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
@@ -681,11 +676,11 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 				}
 
 				// check if the log streaming is already running for this runUID
-				if logCollectionStarted := s.isLogCollectionRunning(ctx, runUID); !logCollectionStarted {
+				if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
 
-					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
+					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-						RunUID:      runUID,
+						RunUID:      logItem.RunUID,
 						Selector:    logItem.LabelSelector,
 						ProjectName: logItem.Project,
 					}); err != nil {
@@ -693,7 +688,8 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						// we don't fail here, as there might be other items to start log for, just log it
 						s.Logger.WarnWithCtx(ctx,
 							"Failed to start log collection for log item",
-							"runUID", runUID,
+							"runUID", logItem.RunUID,
+							"project", logItem.Project,
 							"err", common.GetErrorStack(err, 10),
 						)
 					}
@@ -716,7 +712,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 }
 
 // isLogCollectionRunning checks if log collection is running for a given runUID
-func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool {
+func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project string) bool {
 	inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()
 	if err != nil {
 
@@ -727,7 +723,8 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool
 		return false
 	}
 
-	_, running := inMemoryInProgress.Load(runUID)
+	key := statestore.GenerateKey(runUID, project)
+	_, running := inMemoryInProgress.Load(key)
 	return running
 }
 

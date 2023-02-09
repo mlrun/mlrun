@@ -30,7 +30,7 @@ See also [Ingest data using the feature store](#ingest-data-fs)
 Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
 * **name** &mdash; The feature set name is a unique name within a project. 
-* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the entity is used as the key column.
+* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the entity or the relation is considered as the keys columns.
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
    - Spark
@@ -38,7 +38,7 @@ Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitio
    - storey. Default. (Some advanced functionalities are in the Beta state.)
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations this feature set has with other feature sets. The format of 
-the dictionary is <br>`{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
+the dictionary is <br>`{"<my_column_name>":Entity (of other featureset), ...}`
    
 Example:
 ```python
@@ -101,8 +101,10 @@ The graph steps can use built-in transformation classes, simple python classes, 
 See more details in [Feature set transformations](transformations.html).
 
 ## Simulate and debug the data pipeline with a small dataset
-During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
-This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
+During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before 
+ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
+This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source 
+data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
 The infer operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
@@ -111,9 +113,3 @@ df = fstore.preview(quotes_set, quotes)
 # print the featue statistics
 print(quotes_set.get_stats_table())
 ```
-
-
-
-
-
-

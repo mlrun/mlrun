@@ -20,7 +20,7 @@ The feature vector object holds the following information:
 - Name &mdash; the feature vector's name as will be later addressed in the store reference `store://feature_vectors/<project>/<feature-vector-name>` and the UI (after saving the vector).
 - Description &mdash; a string description of the feature vector.
 - Features &mdash; a list of features that comprise the feature vector.  
-The feature list is defined by specifying the `<feature-set>.<feature-name>` for specific features or `<feature-set>.*` for all the feature set's features.
+The feature list is defined by specifying the `<feature-set>.<feature-name>` for specific features or `<feature-set>.*` for all of the feature set's features.
 - Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification.
 
 Example of creating a feature vector:
@@ -44,7 +44,7 @@ fv = fstore.FeatureVector(name=feature_vector_name,
                           description=feature_vector_description)
 
 # Save the feature vector in the MLRun DB
-# so it will could be referenced by the `store://`
+# so it can be referenced by the `store://`
 # and show in the UI
 fv.save()
 ```
@@ -80,19 +80,27 @@ Defaults to return as a return value to the caller.
 - **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
 - **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
 - **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
+-**with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
+-**update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
+-**engine** &mdash; processing engine kind ("local", "dask", or "spark")
+-**engine_args** &mdash; kwargs for the processing engine
+-**query** &mdash; The query string used to filter rows
+-**spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
 - **relations** &mdash; (optional) Dictionary that indicates all of the relations between different feature sets. It looks like: `{"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}`. If the relation is None, and the `feature_set` 
-relations is also None, the join is done on the entity. Relevant only for Dask and storey(local) engines.<br>
-You can define relations of a feature set with the relations argument, like this:
-`{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
-- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey(local) engines. 
+   relations is also None, the join is done on the entity. Relevant only for Dask and storey(local) engines.<br>
+   You can define the relations of a feature set with the relations argument, like this:
+   `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
+- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey (local) engines. 
    - left: use only keys from left frame (SQL: left outer join)
    - right: use only keys from right frame (SQL: right outer join)
    - outer: use union of keys from both frames (SQL: full outer join)
    - inner: use intersection of keys from both frames (SQL: inner join).
 
-You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as relevant.
+You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query 
+argument on all the other features as relevant.
 
-You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. For example:
+You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. 
+For example:
 - Feature set A is a transaction feature set and one of the fields is email.
 - Feature set B is feature set with the fields email and count distinct.
 You can build a feature vector that comprises fields in feature set A and get the count distinct for the email from feature set B. 
@@ -111,7 +119,9 @@ offline_fv = fstore.get_offline_features(feature_vector_name, target=ParquetTarg
 dataset = offline_fv.to_dataframe()
 ```
 
-Once an offline feature vector is created with a static target (such as {py:class}`~mlrun.datastore.targets.ParquetTarget()`) the reference to this dataset is saved as part of the feature vector's metadata and can now be referenced directly through the store as a function input using `store://feature-vectors/{project}/{feature_vector_name}`.
+Once an offline feature vector is created with a static target (such as {py:class}`~mlrun.datastore.targets.ParquetTarget()`) the 
+reference to this dataset is saved as part of the feature vector's metadata and can now be referenced directly through the store 
+as a function input using `store://feature-vectors/{project}/{feature_vector_name}`.
 
 For example:
 
@@ -142,39 +152,38 @@ In this case, the join is performed on the common entity.
 
 ```
 employees_set_entity = fs.Entity("id")
-        employees_set = fs.FeatureSet(
-            "employees",
-            entities=[employees_set_entity],
-            relations={"department_id": departments_set_entity},
-        )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(employees_set, employees)
+employees_set = fs.FeatureSet(
+    "employees",
+    entities=[employees_set_entity],
+    relations={"department_id": departments_set_entity},
+)
+employees_set.set_targets(targets=["parquet"], with_defaults=False)
+fs.ingest(employees_set, employees)
 
-        mini_employees_set = fs.FeatureSet(
-            "mini-employees",
-            entities=[employees_set_entity],
-            relations={
-                "department_id": departments_set_entity,
-                "class_id": classes_set_entity,
-            },
-        )
-        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(mini_employees_set, employees_mini)
+mini_employees_set = fs.FeatureSet(
+    "mini-employees",
+    entities=[employees_set_entity],
+    relations={
+        "department_id": departments_set_entity,
+        "class_id": classes_set_entity,
+    },
+)
+mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+fs.ingest(mini_employees_set, employees_mini)
 
-        features = ["employees.name as n", "mini-employees.name as mini_name"]
+features = ["employees.name as n", "mini-employees.name as mini_name"]
 
-        vector_3 = fs.FeatureVector(
-            "mini-emp-vec", features, description="Employees feature vector"
-        )
-        vector_3.save()
+vector = fs.FeatureVector(
+    "mini-emp-vec", features, description="Employees feature vector"
+)
+vector.save()
 
-        resp_3 = fs.get_offline_features(
-            vector_3,
-            join_type=join_type,
-            engine_args=engine_args,
-            with_indexes=with_indexes,
-            engine=engine,
-        )
+resp = fs.get_offline_features(
+    vector,
+    join_type='outer', # one of following values: "inner" (as with current code), "outer", "right", "left"
+    engine_args=engine_args,
+    with_indexes=True,
+)
 ```
 
 **Feature sets that do not have a common entity**
@@ -206,12 +215,11 @@ vector = fs.FeatureVector(
     "employees-vec", features, description="Employees feature vector"
 )
 
-resp_1 = fs.get_offline_features(
+resp = fs.get_offline_features(
     vector,
     join_type='inner', # one of following values: "inner" (as with current code), "outer", "right", "left"
     engine_args=engine_args,
-    with_indexes=with_indexes,
-    engine=engine,
+    with_indexes=False,
 )
 ```
 
@@ -220,7 +228,8 @@ resp_1 = fs.get_offline_features(
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
-First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the feature vector to the service and receive the latest feature vector.
+First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the 
+feature vector to the service and receive the latest feature vector.
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
 

@@ -1318,7 +1318,8 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"MLRun tried to get the type hint '{type_hint}' but it can't as it is not a valid builtin Python type "
             f"(one of {', '.join(list(builtin_types.keys()))}). Pay attention using only the type as string is not "
-            f"allowed as the handler's scope is different then MLRun's."
+            f"allowed as the handler's scope is different then MLRun's. To properly give a type hint, please specify "
+            f"the full module path. For example: do not use `DataFrame`, use `pandas.DataFrame`."
         )
 
     # Import the module to receive the hinted type:
@@ -1528,7 +1529,7 @@ def handler(
                             _parse_log_hint(log_hint=log_hint) for log_hint in outputs
                         ],
                     )
-                return  # Do not return any values as the function ran via MLRun.
+                    return  # Do not return any values as the returning values were logged to MLRun.
             return func_outputs
 
         # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:

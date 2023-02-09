@@ -669,7 +669,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 0
+    assert len(run_object.outputs) == 1  # return
 
     # Clean the test outputs:
     artifact_path.cleanup()
@@ -732,7 +732,7 @@ def test_parse_inputs_from_wrapper_using_types_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 0  # return
+    assert len(run_object.outputs) == 1  # return
 
     # Clean the test outputs:
     artifact_path.cleanup()

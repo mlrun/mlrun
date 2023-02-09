@@ -631,9 +631,9 @@ class BaseRuntime(ModelObj):
         )
 
     def _create_run_object(self, runspec):
-        # TODO: Once implemented the `RunTime` handlers configurations (doc strings, params type hints and returning
+        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
         #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
-        #       the `RunObject` from the `RunTime`.
+        #       the `RunObject` from the `Runtime`.
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):

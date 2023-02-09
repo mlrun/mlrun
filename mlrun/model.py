@@ -679,13 +679,14 @@ class RunSpec(ModelObj):
                 return str(self.handler)
         return ""
 
-    def read_type_hints_from_inputs(self):
+    def extract_type_hints_from_inputs(self):
         """
-        This method stores the inputs and the type hints provided in the inputs in two separate dictionaries:
+        This method extracts the type hints from the inputs keys in the input dictionary.
 
-        * `inputs` - the inputs dictionary of parameter names as keys and paths as values.
-        * `inputs_type_hints` - a dictionary of parameter names as keys and their type hints as values. If a parameter
-          is not in the type hints dictionary, its type hint will be `mlrun.DataItem` by default.
+        As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
+        values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
+        hints dictionary - a dictionary of parameter names as keys and their type hints as values. If a parameter is
+        not in the type hints dictionary, its type hint will be `mlrun.DataItem` by default.
         """
         # Validate there are inputs to read:
         if self.inputs is None:
@@ -734,8 +735,8 @@ class RunSpec(ModelObj):
                     # Set it to the artifact key:
                     return_value = return_value["key"]
                 elif ":" in return_value:
-                    # Take only the key name:
-                    return_value, _ = RunSpec._separate_by_colon(value=return_value)
+                    # Take only the key name (returns values pattern is validated when set in the spec):
+                    return_value = return_value.replace(" ", "").split(":")[0]
                 # Collect it:
                 cleared_returns.append(return_value)
 
@@ -747,28 +748,23 @@ class RunSpec(ModelObj):
     @staticmethod
     def _separate_by_colon(value: str) -> Tuple[str, str]:
         """
-        An input key in the `inputs` dictionary parameter of a task (or `RunTime.run` method) or the docs setting of a
-        `RunTime` handler can be provided with a colon to specify its type hint in the following structure:
+        An input key in the `inputs` dictionary parameter of a task (or `Runtime.run` method) or the docs setting of a
+        `Runtime` handler can be provided with a colon to specify its type hint in the following structure:
         "<parameter_key> : <type_hint>".
-
-        Same for a returning output entry in the `returns` list parameter can be provided with a colon to specify its
-        artifact type to be logged as in the following structure:
-        "<artifact_key> : <artifact_type>".
 
         This method parses the provided value by the user.
 
-        :param value: A string entry in the inputs dictionary keys or the returns list.
+        :param value:    A string entry in the inputs dictionary keys.
 
-        :return: The value as key and type tuple.
+        :return: The value as key and type hint tuple.
 
         :raise MLRunInvalidArgumentError: If an incorrect pattern was provided.
         """
         # Validate correct pattern:
         if value.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Incorrect input / return pattern. Inputs keys can have only a single ':' in them to specify the "
-                f"desired type the input will be parsed as. The same applies for returning outputs keys - only a "
-                f"single ':' to specify the artifact type. Given: {value}"
+                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"the input will be parsed as. Given: {value}."
             )
 
         # Split into key and type:

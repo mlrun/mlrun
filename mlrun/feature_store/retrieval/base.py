@@ -135,10 +135,8 @@ class BaseMerger(abc.ABC):
             self.vector.save()
 
     def _set_indexes(self, df):
-        print(self._index_columns)
         if self._index_columns and not self._drop_indexes:
             if df.index is None or df.index.name is None:
-                print(df.index)
                 index_columns_missing = []
                 for index in self._index_columns:
                     if index not in df.columns:

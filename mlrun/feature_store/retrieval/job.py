@@ -150,7 +150,9 @@ class RemoteVectorResponse:
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, **kwargs
         )
-        index_columns_missing = [index for index in self.vector.spec.with_indexes if index not in df.columns]
+        index_columns_missing = [
+            index for index in self.vector.spec.with_indexes if index not in df.columns
+        ]
         if not index_columns_missing:
             df.set_index(
                 list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True

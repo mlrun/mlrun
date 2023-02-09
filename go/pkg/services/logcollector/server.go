@@ -430,10 +430,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// initialize stream and error for the while loop
 	var (
-		stream         io.ReadCloser
-		streamErr      error
-		streamErrCount = 0
-		keepLogging    = true
+		stream      io.ReadCloser
+		streamErr   error
+		keepLogging = true
 	)
 
 	// get logs from pod, and keep the stream open (follow)
@@ -442,21 +441,21 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	}
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
-	// get the log stream - retry if failed
-	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
+	// get the log stream - if the retry times out, the monitoring loop will restart log collection for this runUID
+	if err := common.RetryUntilSuccessful(1*time.Minute, 5*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 
-			// first 3 errors are not logged to prevent spamming - they are expected if pod is not ready yet
-			if streamErrCount > 3 {
-				s.Logger.WarnWithCtx(ctx,
-					"Failed to get pod log stream, retrying",
-					"runUID", runUID,
-					"err", streamErr)
+			// if the pod is pending, retry
+			if s.isPodPendingError(streamErr) {
+				return true, streamErr
 			}
-			streamErrCount++
-			return true, streamErr
+
+			// an error occurred, stop retrying
+			return false, streamErr
 		}
+
+		// success
 		return false, nil
 	}); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
@@ -744,4 +743,15 @@ func (s *Server) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
 	}
 
 	return chunkSize
+}
+
+// isPodPendingError checks if the error is due to a pod pending state
+func (s *Server) isPodPendingError(err error) bool {
+	errString := err.Error()
+	if strings.Contains(errString, "ContainerCreating") ||
+		strings.Contains(errString, "PodInitializing") {
+		return true
+	}
+
+	return false
 }

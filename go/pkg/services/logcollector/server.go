@@ -447,14 +447,18 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 
-			// first 3 errors are not logged to prevent spamming - they are expected if pod is not ready yet
-			if streamErrCount > 3 {
-				s.Logger.WarnWithCtx(ctx,
-					"Failed to get pod log stream, retrying",
-					"runUID", runUID,
-					"err", streamErr)
+			// if the pod is pending, don't log the error
+			if !s.isPodPendingError(streamErr) {
+
+				// skip the first few errors to prevent spamming the logs
+				if streamErrCount > 3 {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to get pod log stream, retrying",
+						"runUID", runUID,
+						"err", streamErr)
+				}
+				streamErrCount++
 			}
-			streamErrCount++
 			return true, streamErr
 		}
 		return false, nil
@@ -744,4 +748,15 @@ func (s *Server) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
 	}
 
 	return chunkSize
+}
+
+// isPodPendingError checks if the error is due to a pod pending state
+func (s *Server) isPodPendingError(err error) bool {
+	errString := err.Error()
+	if strings.Contains(errString, "ContainerCreating") ||
+		strings.Contains(errString, "PodInitializing") {
+		return true
+	}
+
+	return false
 }

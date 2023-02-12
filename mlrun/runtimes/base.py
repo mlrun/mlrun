@@ -246,7 +246,7 @@ class BaseRuntime(ModelObj):
 
     def _enrich_on_client_side(self):
         self.try_auto_mount_based_on_config()
-        self.fill_credentials()
+        self._fill_credentials()
 
     def _enrich_on_server_side(self):
         pass
@@ -295,14 +295,17 @@ class BaseRuntime(ModelObj):
     ):
         pass
 
-    def fill_credentials(self):
+    def _fill_credentials(self):
+        """
+        Fill the control path credentials from MLRUN_AUTH_SESSION otherwise set $generate so that the API will handle
+        filling of the credentials
+        """
         auth_session_env_var = (
             mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
         )
-        if auth_session_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
-            self.metadata.credentials.access_key = os.environ.get(
-                auth_session_env_var
-            ) or os.environ.get("V3IO_ACCESS_KEY")
+        self.metadata.credentials.access_key = os.environ.get(
+            auth_session_env_var
+        ) or mlrun.model.Credentials.generate_access_key
 
     def run(
         self,
@@ -611,7 +614,8 @@ class BaseRuntime(ModelObj):
             allow_empty_resources=self.spec.allow_empty_resources,
         )
 
-    def _create_run_object(self, runspec):
+    @staticmethod
+    def _create_run_object(runspec):
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):

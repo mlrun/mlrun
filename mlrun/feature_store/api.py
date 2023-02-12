@@ -840,6 +840,8 @@ def _ingest_with_spark(
             df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
+        # if isinstance(df, mlrun.errors.MLRunBaseError):
+        #     raise df
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())

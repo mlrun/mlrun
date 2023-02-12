@@ -423,8 +423,8 @@ class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
         }
         # Unpack labels dictionary
         e = {
-            **e,
             **e.pop(EventFieldType.UNPACKED_LABELS, {}),
+            **e,
         }
         # Write labels to kv as json string to be presentable later
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])

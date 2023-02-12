@@ -33,7 +33,7 @@ from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from ...execution import MLClientCtx
 from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
-from ...platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
     get_in,
     logger,
@@ -42,7 +42,7 @@ from ...utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
-from ..base import RunError
+from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import get_item_name
@@ -650,7 +650,7 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        self.apply(mount_v3io_extended(name="v3io"))
+        self.apply(mount_v3io(name="v3io"))
 
         # if we only want to mount v3io on the driver, move v3io
         # mounts from common volume mounts to driver volume mounts
@@ -831,7 +831,7 @@ with ctx:
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
     class_modes = {
-        "run": "spark",
+        RuntimeClassMode.run: "spark",
     }
 
     def _resolve_crd_object_status_info(

@@ -84,10 +84,8 @@ async def generic_error_handler(request: fastapi.Request, exc: Exception):
         # we have no specific knowledge on what was the exception and what status code fits so we simply use 500
         # This handler is mainly to put the error message in the right place in the body so the client will be able to
         # show it
-        # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-        #  version can be changed to detail=error_message
         request,
-        fastapi.HTTPException(status_code=500, detail={"reason": error_message}),
+        fastapi.HTTPException(status_code=500, detail=error_message),
     )
 
 
@@ -103,13 +101,9 @@ async def http_status_error_handler(
         status_code=status_code,
         traceback=traceback.format_exc(),
     )
-    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-    #  version can be changed to detail=error_message
     return await http_exception_handler(
         request,
-        fastapi.HTTPException(
-            status_code=status_code, detail={"reason": error_message}
-        ),
+        fastapi.HTTPException(status_code=status_code, detail=error_message),
     )
 
 

@@ -544,8 +544,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
             "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:40:00"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:40:00"),
             },
             "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
         }

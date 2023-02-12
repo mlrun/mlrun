@@ -20,7 +20,7 @@ import mlrun.errors
 from mlrun.config import config
 
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..platforms.iguazio import mount_v3io, mount_v3iod
 from .base import RuntimeClassMode
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
@@ -139,7 +139,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-            self.apply(mount_v3io_extended())
+            self.apply(mount_v3io())
             self.apply(
                 mount_v3iod(
                     namespace=config.namespace,

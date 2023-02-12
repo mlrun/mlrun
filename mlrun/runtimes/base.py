@@ -298,6 +298,7 @@ class BaseRuntime(ModelObj):
     def _fill_credentials(self):
         """
         Fill $generate so that the API will handle filling of the credentials
+        We rely on the HTTPDB to send the access key session and the API to mask that access key
         """
         self.metadata.credentials.access_key = mlrun.model.Credentials.generate_access_key
 

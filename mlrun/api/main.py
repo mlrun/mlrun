@@ -68,10 +68,6 @@ app = fastapi.FastAPI(
     default_response_class=fastapi.responses.ORJSONResponse,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
-# This is for backward compatibility, that is why we still leave it here but not include it in the schema
-# so new users won't use the old un-versioned api
-# TODO: remove when 0.9.x versions are no longer relevant
-app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
 init_middlewares(app)
 

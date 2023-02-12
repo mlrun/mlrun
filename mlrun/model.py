@@ -1007,49 +1007,6 @@ class FunctionEntrypoint(ModelObj):
         self.lineno = lineno
 
 
-# TODO: remove in 0.9.0
-def NewTask(
-    name=None,
-    project=None,
-    handler=None,
-    params=None,
-    hyper_params=None,
-    param_file=None,
-    selector=None,
-    strategy=None,
-    inputs=None,
-    outputs=None,
-    in_path=None,
-    out_path=None,
-    artifact_path=None,
-    secrets=None,
-    base=None,
-):
-    """Creates a new task - see new_task"""
-    warnings.warn(
-        "NewTask will be deprecated in 0.7.0, and will be removed in 0.9.0, use new_task instead",
-        # TODO: In 0.7.0 and replace NewTask to new_task in examples & demos
-        PendingDeprecationWarning,
-    )
-    return new_task(
-        name,
-        project,
-        handler,
-        params,
-        hyper_params,
-        param_file,
-        selector,
-        strategy,
-        inputs,
-        outputs,
-        in_path,
-        out_path,
-        artifact_path,
-        secrets,
-        base,
-    )
-
-
 def new_task(
     name=None,
     project=None,

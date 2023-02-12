@@ -107,8 +107,10 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	runId := "some-run-id"
 	labelSelector := "app=test"
+	project := "some-project"
+	key := statestore.GenerateKey(runId, project)
 
-	err := suite.stateStore.AddLogItem(suite.ctx, runId, labelSelector)
+	err := suite.stateStore.AddLogItem(suite.ctx, runId, labelSelector, project)
 	suite.Require().NoError(err, "Failed to add item to in progress")
 
 	// write state to file
@@ -121,13 +123,13 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 
 	// verify item is in progress
 	suite.Require().Equal(1, common.SyncMapLength(itemsInProgress))
-	storedItem, ok := itemsInProgress.Load(runId)
+	storedItem, ok := itemsInProgress.Load(key)
 	suite.Require().True(ok)
 	suite.Require().Equal(runId, storedItem.(statestore.LogItem).RunUID)
 	suite.Require().Equal(labelSelector, storedItem.(statestore.LogItem).LabelSelector)
 
 	// remove item from in progress
-	err = suite.stateStore.RemoveLogItem(runId)
+	err = suite.stateStore.RemoveLogItem(runId, project)
 	suite.Require().NoError(err, "Failed to remove item from in progress")
 
 	// write state to file again

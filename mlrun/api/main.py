@@ -193,9 +193,9 @@ async def _verify_log_collection_started_on_startup(
     start_logs_limit: asyncio.Semaphore,
 ):
     """
-    Verifies that log collection was started on startup for all runs which might started before the API initialization
-    or after upgrade.
-    In that case we want to make sure that all runs which are in non terminal state will have their logs collected
+    Verifies that log collection was started on startup for all runs which might have started before the API
+    initialization or after upgrade.
+    In that case we want to make sure that all runs which are in non-terminal state will have their logs collected
     with the new log collection method and runs which might have reached terminal state while the API was down will
     have their logs collected as well.
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
@@ -347,8 +347,7 @@ async def _start_log_for_run(
             logger.warning(
                 "Failed to start logs for run",
                 run_uid=run_uid,
-                exc=exc,
-                traceback=traceback.format_exc(),
+                exc=mlrun.errors.err_to_str(exc),
             )
             return None
 

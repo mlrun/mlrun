@@ -53,7 +53,7 @@ class LogCollectorClient(
         run_uid: str,
         selector: str,
         project: str = "",
-        verbose: bool = True,
+        verbose: bool = False,
         raise_on_error: bool = True,
     ) -> (bool, str):
         """
@@ -75,8 +75,6 @@ class LogCollectorClient(
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
-            if verbose:
-                logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
                 if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
                     raise mlrun.errors.MLRunNotFoundError(
@@ -85,6 +83,8 @@ class LogCollectorClient(
                 raise mlrun.errors.MLRunInternalServerError(
                     f"{msg},error= {response.errorMessage}"
                 )
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
         return response.success, response.errorMessage
 
     async def get_logs(

@@ -322,8 +322,26 @@ def verify_list_and_update_in(
     update_in(obj, key, value, append, replace)
 
 
+def _split_by_dots_with_escaping(key: str):
+    """
+    splits the key by dots, taking escaping into account so that an escaped key can contain dots
+    """
+    parts = []
+    current_key, escape = "", False
+    for char in key:
+        if char == "." and not escape:
+            parts.append(current_key)
+            current_key = ""
+        elif char == "\\":
+            escape = not escape
+        else:
+            current_key += char
+    parts.append(current_key)
+    return parts
+
+
 def update_in(obj, key, value, append=False, replace=True):
-    parts = key.split(".") if isinstance(key, str) else key
+    parts = _split_by_dots_with_escaping(key) if isinstance(key, str) else key
     for part in parts[:-1]:
         sub = obj.get(part, missing)
         if sub is missing:
@@ -615,7 +633,7 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_meta(artifact_path=None, ttl=None, *args):
+def new_pipe_meta(artifact_path=None, ttl=None, *args, **kwargs):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -627,9 +645,20 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
         return task
 
     conf = PipelineConf()
-    ttl = ttl or int(config.kfp_ttl)
+
     if ttl:
-        conf.set_ttl_seconds_after_finished(ttl)
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead (in kwargs)",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
+
+    # Putting the cleanup_ttl in the kwargs of the method, as we cannot deprecate the ttl argument
+    # while it's a positional argument
+    cleanup_ttl = kwargs.get("cleanup_ttl", None) or ttl or int(config.kfp_ttl)
+    if cleanup_ttl:
+        conf.set_ttl_seconds_after_finished(cleanup_ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
     for op in args:

@@ -191,3 +191,32 @@ class LogCollectorClient(
                     f"{msg},error= {response.errorMessage}"
                 )
         return response.hasLogs
+
+    async def stop_logs(
+        self,
+        run_uid: str,
+        project: str,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> None:
+        """
+        Stop logs streaming from the log collector service
+        :param run_uid: The run uid
+        :param project: The project name
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: None
+        """
+        request = self._log_collector_pb2.StopLogRequest(
+            runUID=run_uid, projectName=project
+        )
+        logger.debug("Stopping logs", run_uid=run_uid, project=project)
+        response = await self._call("StopLog", request)
+        if not response.success:
+            msg = f"Failed to stop logs for run {run_uid}"
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )

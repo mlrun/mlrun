@@ -794,7 +794,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             response.service_resources = service_resources
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,

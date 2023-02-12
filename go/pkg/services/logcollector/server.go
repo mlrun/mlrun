@@ -165,6 +165,14 @@ func (s *Server) RegisterRoutes(ctx context.Context) {
 // triggers `monitorPod` and `streamLogs` goroutines.
 func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.StartLogResponse, error) {
 
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring start log request",
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
+		return nil, nil
+	}
+
 	s.Logger.DebugWithCtx(ctx,
 		"Received Start Log request",
 		"RunUID", request.RunUID,

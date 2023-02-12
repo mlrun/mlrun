@@ -486,11 +486,13 @@ default_config = {
         # the time in hours in which to start log collection from.
         # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
-        "api_downtime_grace_period": 6,
+        "api_downtime_grace_period": 14400,
         "get_logs": {
             # the number of retries to get logs from the log collector
             "max_retries": 3,
         },
+        # interval for stopping log collection for runs which are in a terminal state
+        "stop_logs_interval": 3600,
     },
 }
 

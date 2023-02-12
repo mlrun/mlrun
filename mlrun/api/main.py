@@ -34,6 +34,7 @@ from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
+from mlrun.api.utils.clients import log_collector
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -218,7 +219,7 @@ async def _verify_log_collection_started_on_startup(
         states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
     )
     logger.debug(
-        "Getting all runs which are might have reached terminal state while the API was down",
+        "Getting all runs which might have reached terminal state while the API was down",
         api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
     )
     runs.extend(
@@ -227,9 +228,10 @@ async def _verify_log_collection_started_on_startup(
             db_session,
             requested_logs_modes=[None, False],
             only_uids=False,
-            last_start_time_from=datetime.datetime.now(datetime.timezone.utc)
+            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(
-                hours=int(config.log_collector.api_downtime_grace_period)
+                seconds=min(int(config.log_collector.api_downtime_grace_period),
+                            int(config.runtime_resources_deletion_grace_period))
             ),
             states=mlrun.runtimes.constants.RunStates.terminal_states(),
         )
@@ -376,6 +378,25 @@ def _start_periodic_runs_monitoring():
         )
 
 
+async def _verify_log_collection_stopped_on_startup():
+    """
+    Pull runs from DB that are in terminal state and have logs requested.
+    For each such run, call stop logs on the log collector.
+    """
+    pass
+
+
+async def _start_periodic_stop_logs():
+    await _verify_log_collection_stopped_on_startup()
+
+    interval = int(config.log_collector.stop_logs_interval)
+    if interval > 0:
+        logger.info("Starting periodic stop logs", interval=interval)
+        run_function_periodically(
+            interval, _stop_logs.__name__, False, _stop_logs
+        )
+
+
 def _start_chief_clusterization_spec_sync_loop():
     interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
     if interval > 0:
@@ -476,6 +497,42 @@ def _cleanup_runtimes():
     finally:
         close_session(db_session)
 
+
+async def _stop_logs():
+    """
+    Stop logs for runs that are in terminal state and last updated in the last hour
+    """
+    logger.debug(
+        "Getting all runs which reached terminal state in the past hour",
+    )
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    runs = await fastapi.concurrency.run_in_threadpool(
+        get_db().list_distinct_runs_uids,
+        db_session,
+        requested_logs_modes=[True],
+        only_uids=False,
+        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=3600),
+    )
+    close_session(db_session)
+
+    logger.debug(
+        "Stopping logs for runs which reached terminal state in the past hour",
+        runs_count=len(runs),
+    )
+    for run in runs:
+        try:
+            await log_collector.LogCollectorClient().stop_logs(
+                run_uid=run.uid,
+                project=run.project,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed stopping logs for run. Ignoring",
+                exc=err_to_str(exc),
+                run=run,
+            )
 
 def main():
     if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:

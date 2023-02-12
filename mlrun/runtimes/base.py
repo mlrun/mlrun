@@ -39,6 +39,7 @@ from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
+from ..api.utils.clients import log_collector
 
 from ..config import config, is_running_as_api
 from ..datastore import store_manager
@@ -1443,7 +1444,7 @@ class BaseRuntimeHandler(ABC):
                 force,
                 grace_period,
             )
-        self._delete_resources(
+        self._delete_extra_resources(
             db,
             db_session,
             namespace,
@@ -1452,6 +1453,10 @@ class BaseRuntimeHandler(ABC):
             force,
             grace_period,
         )
+
+        # ensure logs are not collected for deleted resources
+        self._stop_logs_for_deleted_resources(deleted_resources)
+
 
     def delete_runtime_object_resources(
         self,
@@ -1664,7 +1669,7 @@ class BaseRuntimeHandler(ABC):
         """
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,
@@ -2000,6 +2005,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        # TODO: don't wait for pods to be deleted, client should poll the deletion status
         self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
         return deleted_pods
 
@@ -2507,3 +2513,27 @@ class BaseRuntimeHandler(ABC):
                 )
             )
         return crd_resources
+
+    def _stop_logs_for_deleted_resources(self, deleted_resources):
+        if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+            return
+
+        for runtime_resource in deleted_resources:
+            project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
+
+            # skip or raise if we can't resolve the run uid
+            if not uid:
+                if not self._expect_pods_without_uid():
+                    logger.warning(
+                        "Could not resolve run uid from runtime resource. Skipping calling stop logs",
+                        runtime_resource=runtime_resource,
+                    )
+                    raise ValueError("Could not resolve run uid from runtime resource")
+                else:
+                    continue
+
+            # TODO: this is an async call, but we call it in a sync function
+            log_collector.LogCollectorClient().stop_logs(
+                run_uid=uid,
+                project=project,
+            )

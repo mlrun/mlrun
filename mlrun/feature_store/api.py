@@ -842,7 +842,7 @@ def _ingest_with_spark(
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 
-        if isinstance(df, Response) and df.status_code == 400:
+        if isinstance(df, Response) and df.status_code != 0:
             mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
         _infer_from_static_df(df, featureset, options=infer_options)
 

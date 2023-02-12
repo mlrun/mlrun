@@ -1282,6 +1282,8 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
 
     If the provided type hint is not a string, it will simply be returned as is.
 
+    **Notice**: This method should only run on client side as it dependent on user requirements.
+
     :param type_hint: The type hint to parse.
 
     :return: The hinted type.
@@ -1326,13 +1328,13 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     try:
         # Get the module path and the type class (If we'll wish to support inner classes, the `rsplit` won't work):
         module_path, type_hint = type_hint.rsplit(".", 1)
-        # TODO: Enabled commonly used aliases (np for numpy, pd for pandas, etc)?
         # Replace alias if needed (alias assumed to be imported already, hence we look in globals):
-        # For example, if: import A.B.C as abc
+        # For example:
+        # If in handler scope there was `import A.B.C as abc` and user gave a type hint "abc.Something" then:
+        # `module_path[0]` will be equal to "abc". Then, because it is an alis, it will appear in the globals, so we'll
+        # replace the alias with the full module name in order to import the module.
         module_path = module_path.split(".")
-        # And user gave a type hint "abc.Something" then: module_path[0] = "abc"
         if module_path[0] in globals():
-            # We will replace it with: module_path[0] = "A.B.C"
             module_path[0] = globals()[module_path[0]].__name__
         module_path = ".".join(module_path)
         # Import the module:

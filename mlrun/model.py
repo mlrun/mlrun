@@ -694,23 +694,24 @@ class RunSpec(ModelObj):
 
         # Prepare dictionaries to hold the cleared inputs and type hints:
         cleared_inputs = {}
-
-        # Clear the current parsing configurations dictionary:
-        self.inputs_type_hints.clear()
+        extracted_inputs_type_hints = {}
 
         # Clear the inputs from parsing configurations:
         for input_key, input_value in self.inputs.items():
             # Look for type hinted in input key:
             if ":" in input_key:
                 # Separate the user input by colon:
-                input_key, input_type = RunSpec._separate_by_colon(value=input_key)
+                input_key, input_type = RunSpec._separate_type_hint_from_input_key(
+                    input_key=input_key
+                )
                 # Collect the type hint:
-                self.inputs_type_hints[input_key] = input_type
+                extracted_inputs_type_hints[input_key] = input_type
             # Collect the cleared input key:
             cleared_inputs[input_key] = input_value
 
-        # Set the now configuration free inputs:
+        # Set the now configuration free inputs and extracted type hints:
         self.inputs = cleared_inputs
+        self.inputs_type_hints = extracted_inputs_type_hints
 
     @staticmethod
     def join_outputs_and_returns(
@@ -746,7 +747,7 @@ class RunSpec(ModelObj):
         return outputs
 
     @staticmethod
-    def _separate_by_colon(value: str) -> Tuple[str, str]:
+    def _separate_type_hint_from_input_key(input_key: str) -> Tuple[str, str]:
         """
         An input key in the `inputs` dictionary parameter of a task (or `Runtime.run` method) or the docs setting of a
         `Runtime` handler can be provided with a colon to specify its type hint in the following structure:
@@ -754,21 +755,21 @@ class RunSpec(ModelObj):
 
         This method parses the provided value by the user.
 
-        :param value:    A string entry in the inputs dictionary keys.
+        :param input_key: A string entry in the inputs dictionary keys.
 
         :return: The value as key and type hint tuple.
 
         :raise MLRunInvalidArgumentError: If an incorrect pattern was provided.
         """
         # Validate correct pattern:
-        if value.count(":") > 1:
+        if input_key.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
-                f"the input will be parsed as. Given: {value}."
+                f"the input will be parsed as. Given: {input_key}."
             )
 
         # Split into key and type:
-        value_key, value_type = value.replace(" ", "").split(":")
+        value_key, value_type = input_key.replace(" ", "").split(":")
 
         return value_key, value_type
 

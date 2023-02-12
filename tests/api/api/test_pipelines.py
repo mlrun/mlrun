@@ -212,30 +212,6 @@ def test_create_pipeline(
     assert response_body["id"] == "some-run-id"
 
 
-def test_create_pipeline_legacy(
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    kfp_client_mock: kfp.Client,
-) -> None:
-    pipeline_file_path = (
-        tests.conftest.tests_root_directory
-        / "api"
-        / "api"
-        / "assets"
-        / "pipelines.yaml"
-    )
-    with open(str(pipeline_file_path), "r") as file:
-        contents = file.read()
-    _mock_pipelines_creation(kfp_client_mock)
-    response = client.post(
-        "submit_pipeline",
-        data=contents,
-        headers={"content-type": "application/yaml"},
-    )
-    response_body = response.json()
-    assert response_body["id"] == "some-run-id"
-
-
 def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:
     workflow_manifest = _generate_workflow_manifest()
     workflow_manifest_with_status = _generate_workflow_manifest(with_status=True)

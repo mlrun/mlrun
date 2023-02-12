@@ -191,7 +191,7 @@ class RemoteSparkRuntime(KubejobRuntime):
                               e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:  show logs only in case of build failure
 
-        :return True if the function is ready (deployed)
+        :return True: if the function is ready (deployed)
         """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:

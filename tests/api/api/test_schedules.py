@@ -91,11 +91,7 @@ def test_list_schedules(
             "POST",
             tests.api.api.utils.compile_schedule(),
             http.HTTPStatus.NOT_FOUND.value,
-            {
-                "detail": {
-                    "reason": "MLRunNotFoundError('Project {project_name} does not exist')"
-                }
-            },
+            {"detail": "MLRunNotFoundError('Project {project_name} does not exist')"},
             False,
             False,
         ],
@@ -147,7 +143,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             "DELETE",
             None,
             http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            {"detail": {"reason": "Unknown error"}},
+            {"detail": "Unknown error"},
         ],
         # deleting schedule succeeded
         [
@@ -163,9 +159,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             tests.api.api.utils.compile_schedule(),
             http.HTTPStatus.NOT_FOUND.value,
             {
-                "detail": {
-                    "reason": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
-                }
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
             },
         ],
         # updating schedule failed for unknown reason
@@ -174,9 +168,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             tests.api.api.utils.compile_schedule(),
             http.HTTPStatus.NOT_FOUND.value,
             {
-                "detail": {
-                    "reason": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
-                }
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
             },
         ],
         # project exists, expecting to create
@@ -318,8 +310,6 @@ def _get_and_assert_single_schedule(
 
 
 def _format_expected_body(expected_body: dict, **kwargs):
-    if "detail" in expected_body and "reason" in expected_body["detail"]:
-        expected_body["detail"]["reason"] = expected_body["detail"]["reason"].format(
-            **kwargs
-        )
+    if "detail" in expected_body:
+        expected_body["detail"] = expected_body["detail"].format(**kwargs)
     return expected_body

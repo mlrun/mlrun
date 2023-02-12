@@ -220,22 +220,6 @@ def test_list_runtime_resources_no_resources(
     body = response.json()
     assert body == []
 
-    # legacy endpoint
-    response = client.get(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}")
-    body = response.json()
-    expected_body = mlrun.api.schemas.KindRuntimeResources(
-        kind=mlrun.runtimes.RuntimeKinds.job,
-        resources=mlrun.api.schemas.RuntimeResources(),
-    ).dict()
-    assert (
-        deepdiff.DeepDiff(
-            body,
-            expected_body,
-            ignore_order=True,
-        )
-        == {}
-    )
-
 
 def test_list_runtime_resources_filter_by_kind(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -280,19 +264,6 @@ def test_list_runtime_resources_filter_by_kind(
         ),
     ).dict()
     expected_body = [expected_runtime_resources]
-    assert (
-        deepdiff.DeepDiff(
-            body,
-            expected_body,
-            ignore_order=True,
-        )
-        == {}
-    )
-
-    # test legacy endpoint
-    response = client.get(f"runtimes/{mlrun.runtimes.RuntimeKinds.job}")
-    body = response.json()
-    expected_body = expected_runtime_resources
     assert (
         deepdiff.DeepDiff(
             body,
@@ -373,12 +344,6 @@ def test_delete_runtime_resources_opa_filtering(
     # if at least one project isn't allowed, the response should be forbidden
     assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
-    # legacy endpoint
-    response = client.delete(
-        "runtimes",
-    )
-    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
-
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -408,12 +373,6 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     )
 
     # if at least one project isn't allowed, the response should be forbidden
-    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
-
-    # legacy endpoint
-    response = client.delete(
-        "runtimes",
-    )
     assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
@@ -462,12 +421,6 @@ def test_delete_runtime_resources_with_kind(
         )
         == {}
     )
-
-    # legacy endpoint
-    response = client.delete(
-        f"runtimes/{kind}",
-    )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
 def test_delete_runtime_resources_with_object_id(
@@ -519,12 +472,6 @@ def test_delete_runtime_resources_with_object_id(
         == {}
     )
 
-    # legacy endpoint
-    response = client.delete(
-        f"runtimes/{kind}/{object_id}",
-    )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
-
 
 def _mock_runtime_handlers_delete_resources(
     kinds: typing.List[str],
@@ -559,44 +506,12 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
     body = response.json()
     assert body == {}
 
-    # legacy endpoints
-    response = client.delete(
-        "runtimes",
-    )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
-
-    response = client.delete(
-        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
-    )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
-
-    response = client.delete(
-        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
-    )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
-
 
 def _assert_forbidden_responses_in_delete_endpoints(
     client: fastapi.testclient.TestClient,
 ):
     response = client.delete(
         "projects/*/runtime-resources",
-    )
-    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
-
-    # legacy endpoints
-    response = client.delete(
-        "runtimes",
-    )
-    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
-
-    response = client.delete(
-        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
-    )
-    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
-
-    response = client.delete(
-        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
     )
     assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 

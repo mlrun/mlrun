@@ -934,50 +934,6 @@ class MlrunProject(ModelObj):
         self.spec.description = description
 
     @property
-    def functions(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.functions instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.spec.functions
-
-    @functions.setter
-    def functions(self, functions):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.functions instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        self.spec.functions = functions
-
-    @property
-    def workflows(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead. "
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        return self.spec.workflows
-
-    @workflows.setter
-    def workflows(self, workflows):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead. "
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        self.spec.workflows = workflows
-
-    @property
     def default_image(self) -> str:
         return self.spec.default_image
 
@@ -1049,28 +1005,6 @@ class MlrunProject(ModelObj):
         if ttl:
             workflow["ttl"] = ttl
         self.spec.set_workflow(name, workflow)
-
-    @property
-    def artifacts(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifacts instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        return self.spec.artifacts
-
-    @artifacts.setter
-    def artifacts(self, artifacts):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifacts instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        self.spec.artifacts = artifacts
 
     def set_artifact(
         self,

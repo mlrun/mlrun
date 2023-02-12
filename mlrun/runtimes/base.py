@@ -297,15 +297,9 @@ class BaseRuntime(ModelObj):
 
     def _fill_credentials(self):
         """
-        Fill the control path credentials from MLRUN_AUTH_SESSION otherwise set $generate so that the API will handle
-        filling of the credentials
+        Fill $generate so that the API will handle filling of the credentials
         """
-        auth_session_env_var = (
-            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
-        )
-        self.metadata.credentials.access_key = os.environ.get(
-            auth_session_env_var
-        ) or mlrun.model.Credentials.generate_access_key
+        self.metadata.credentials.access_key = mlrun.model.Credentials.generate_access_key
 
     def run(
         self,

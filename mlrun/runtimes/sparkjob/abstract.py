@@ -33,7 +33,7 @@ from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from ...execution import MLClientCtx
 from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
-from ...platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
     get_in,
     logger,
@@ -650,7 +650,7 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        self.apply(mount_v3io_extended(name="v3io"))
+        self.apply(mount_v3io(name="v3io"))
 
         # if we only want to mount v3io on the driver, move v3io
         # mounts from common volume mounts to driver volume mounts

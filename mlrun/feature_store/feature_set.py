@@ -985,26 +985,20 @@ class SparkAggregateByKey(StepToDict):
         return f"{num} {unit}"
 
     @staticmethod
-    def _operation_to_spark_format(op):
+    def _verify_operation(op):
         if op not in SparkAggregateByKey._supported_operations:
             error_string = (
                 f"operation {op} is unsupported. Supported operations: "
                 + ", ".join(SparkAggregateByKey._supported_operations)
             )
             raise mlrun.errors.MLRunInvalidArgumentError(error_string)
-        if op == "sqr":
-            return "sqrt"
-        elif op == "stdvar":
-            return "variance"
-        else:
-            return op
 
     def _extract_fields_from_aggregate_dict(self, aggregate):
         name = aggregate["name"]
         column = aggregate["column"]
-        operations = [
-            self._operation_to_spark_format(op) for op in aggregate["operations"]
-        ]
+        operations = aggregate["operations"]
+        for op in operations:
+            self._verify_operation(op)
         windows = aggregate["windows"]
         spark_period = (
             self._duration_to_spark_format(aggregate["period"])
@@ -1041,9 +1035,15 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        if operation == "sqr":
+                            agg = funcs.sum(funcs.expr(f"{column} * {column}"))
+                        elif operation == "stdvar":
+                            agg = funcs.variance(column)
+                        else:
+                            func = getattr(funcs, operation)
+                            agg = func(column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        agg = func(column).alias(agg_name)
+                        agg = agg.alias(agg_name)
                         aggs.append(agg)
                     window_column = funcs.window(
                         time_column, spark_window, spark_period

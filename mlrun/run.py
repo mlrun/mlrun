@@ -1331,7 +1331,7 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
         # Replace alias if needed (alias assumed to be imported already, hence we look in globals):
         # For example:
         # If in handler scope there was `import A.B.C as abc` and user gave a type hint "abc.Something" then:
-        # `module_path[0]` will be equal to "abc". Then, because it is an alis, it will appear in the globals, so we'll
+        # `module_path[0]` will be equal to "abc". Then, because it is an alias, it will appear in the globals, so we'll
         # replace the alias with the full module name in order to import the module.
         module_path = module_path.split(".")
         if module_path[0] in globals():

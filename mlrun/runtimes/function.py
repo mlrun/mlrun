@@ -389,17 +389,17 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers=8,
-        port=0,
-        host=None,
-        paths=None,
-        canary=None,
-        secret=None,
-        worker_timeout: int = None,
-        gateway_timeout: int = None,
-        trigger_name=None,
-        annotations=None,
-        extra_attributes=None,
+        workers: typing.Optional[int] = 8,
+        port: typing.Optional[int] = None,
+        host: typing.Optional[str] = None,
+        paths: typing.Optional[typing.List[str]] = None,
+        canary: typing.Optional[float] = None,
+        secret: typing.Optional[str] = None,
+        worker_timeout: typing.Optional[int] = None,
+        gateway_timeout: typing.Optional[int] = None,
+        trigger_name: typing.Optional[str] = None,
+        annotations: typing.Optional[typing.Mapping[str, str]] = None,
+        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -408,9 +408,11 @@ class RemoteRuntime(KubeResource):
         the worker_timeout.
 
         :param workers:    number of worker processes (default=8)
-        :param port:       TCP port
-        :param host:       hostname
-        :param paths:      list of sub paths
+        :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
+                           the function service is NodePort. if the function service is ClusterIP, the port
+                           is ignored.
+        :param host:       Ingress hostname
+        :param paths:      list of Ingress sub paths
         :param canary:     k8s ingress canary (% traffic value between 0 and 100)
         :param secret:     k8s secret name for SSL certificate
         :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
@@ -424,6 +426,8 @@ class RemoteRuntime(KubeResource):
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
+        if workers is None:
+            workers = 8
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -440,7 +444,7 @@ class RemoteRuntime(KubeResource):
             ] = f"{gateway_timeout}"
 
         trigger = nuclio.HttpTrigger(
-            workers,
+            workers=workers,
             port=port,
             host=host,
             paths=paths,
@@ -1204,7 +1208,6 @@ def compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
-
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():

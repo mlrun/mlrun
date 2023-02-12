@@ -407,7 +407,7 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8)
+        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
         :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
                            the function service is NodePort. if the function service is ClusterIP, the port
                            is ignored.

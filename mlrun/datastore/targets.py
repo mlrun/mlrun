@@ -269,15 +269,6 @@ def validate_target_placement(graph, final_step, targets):
             )
 
 
-def add_target_states(graph, resource, targets, to_df=False, final_state=None):
-    warnings.warn(
-        "This method is deprecated. Use add_target_steps instead",
-        # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-        PendingDeprecationWarning,
-    )
-    return add_target_steps(graph, resource, targets, to_df, final_state)
-
-
 def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     """add the target steps to the graph"""
     targets = targets or []
@@ -407,16 +398,8 @@ class BaseStoreTarget(DataTargetBase):
             time_partitioning_granularity,
             max_events,
             flush_after_seconds,
-            after_state,
             schema=schema,
         )
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
 
         self.name = name or self.kind
         self.path = str(path) if path is not None else None
@@ -662,17 +645,6 @@ class BaseStoreTarget(DataTargetBase):
     ):
         raise NotImplementedError()
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def purge(self):
         self._get_store().rm(self.get_target_path(), recursive=True)
 
@@ -750,18 +722,10 @@ class ParquetTarget(BaseStoreTarget):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = 10000,
         flush_after_seconds: Optional[int] = 900,
         storage_options: Dict[str, str] = None,
     ):
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
 
         self.path = path
         if partitioned is None:
@@ -803,17 +767,6 @@ class ParquetTarget(BaseStoreTarget):
             storage_options=storage_options,
             **kwargs,
         )
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -969,17 +922,6 @@ class CSVTarget(BaseStoreTarget):
             kwargs["index"] = kwargs.get("index", False)
         df.to_csv(target_path, storage_options=storage_options, **kwargs)
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,
@@ -1062,17 +1004,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_table_object(self):
         raise NotImplementedError()
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1259,17 +1190,6 @@ class StreamTarget(BaseStoreTarget):
     support_storey = True
     support_append = True
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,
@@ -1366,17 +1286,6 @@ class TSDBTarget(BaseStoreTarget):
     support_storey = True
     support_append = True
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,
@@ -1451,31 +1360,11 @@ class CustomTarget(BaseStoreTarget):
         class_name: str,
         name: str = "",
         after_step=None,
-        after_state=None,
         **attributes,
     ):
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
-
         attributes = attributes or {}
         attributes["class_name"] = class_name
         super().__init__(name, "", attributes, after_step=after_step)
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1508,19 +1397,8 @@ class DFTarget(BaseStoreTarget):
     def set_df(self, df):
         self._df = df
 
-    def update_resource_status(self, status="", producer=None):
+    def update_resource_status(self, status="", producer=None, size=None):
         pass
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1665,17 +1543,6 @@ class SQLTarget(BaseStoreTarget):
             after_state=after_state,
             schema=schema,
         )
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
         from storey import SQLDriver, Table

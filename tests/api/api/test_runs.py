@@ -30,6 +30,9 @@ from mlrun.api.db.sqldb.models import Run
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 
+API_V1 = "/api/v1"
+RUNS_API_V1 = f"{API_V1}/runs"
+
 
 def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     """
@@ -333,10 +336,10 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
 
     # Some negative testing - no sort by field
-    response = client.get("/api/runs?partition-by=name")
+    response = client.get(f"{RUNS_API_V1}?partition-by=name")
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
-    response = client.get("/api/runs?partition-by=key&partition-sort-by=name")
+    response = client.get(f"{RUNS_API_V1}?partition-by=key&partition-sort-by=name")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
@@ -393,7 +396,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid="some-uid", project=project)
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(f"/api/runs?project={project}")
+    response = client.delete(f"{RUNS_API_V1}?project={project}")
     assert response.status_code == HTTPStatus.OK.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
@@ -404,7 +407,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid=None, project=second_project)
     all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
-    response = client.delete("/api/runs?project=*")
+    response = client.delete(f"{RUNS_API_V1}?project=*")
     assert response.status_code == HTTPStatus.OK.value
     runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
@@ -419,20 +422,20 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     project = "some-project"
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
-    response = client.delete(f"/api/runs?project={project}")
+    response = client.delete(f"{RUNS_API_V1}?project={project}")
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
 
     # try delete runs with no permission to project (project contains runs)
     _store_run(db, uid="some-uid", project=project)
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(f"/api/runs?project={project}")
+    response = client.delete(f"{RUNS_API_V1}?project={project}")
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
-    response = client.delete("/api/runs?project=*")
+    response = client.delete(f"{RUNS_API_V1}?project=*")
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
@@ -449,7 +452,7 @@ def _store_run(db, uid, project="some-project"):
 
 
 def _list_and_assert_objects(client: TestClient, params, expected_number_of_runs: int):
-    response = client.get("/api/runs", params=params)
+    response = client.get(RUNS_API_V1, params=params)
     assert response.status_code == HTTPStatus.OK.value, response.text
 
     runs = response.json()["runs"]

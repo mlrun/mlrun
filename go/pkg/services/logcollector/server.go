@@ -172,7 +172,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		"Selector", request.Selector)
 
 	// to make start log idempotent, if log collection has already started for this run uid, return success
-	if s.isLogCollectionRunning(ctx, request.RunUID) {
+	if s.isLogCollectionRunning(ctx, request.RunUID, request.ProjectName) {
 		s.Logger.DebugWithCtx(ctx,
 			"Logs are already being collected for this run uid",
 			"runUID", request.RunUID)
@@ -455,10 +455,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// initialize stream and error for the while loop
 	var (
-		stream         io.ReadCloser
-		streamErr      error
-		streamErrCount = 0
-		keepLogging    = true
+		stream      io.ReadCloser
+		streamErr   error
+		keepLogging = true
 	)
 
 	// get logs from pod, and keep the stream open (follow)
@@ -467,21 +466,21 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	}
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
-	// get the log stream - retry if failed
-	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
+	// get the log stream - if the retry times out, the monitoring loop will restart log collection for this runUID
+	if err := common.RetryUntilSuccessful(1*time.Minute, 5*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 
-			// first 3 errors are not logged to prevent spamming - they are expected if pod is not ready yet
-			if streamErrCount > 3 {
-				s.Logger.WarnWithCtx(ctx,
-					"Failed to get pod log stream, retrying",
-					"runUID", runUID,
-					"err", streamErr.Error())
+			// if the pod is pending, retry
+			if s.isPodPendingError(streamErr) {
+				return true, streamErr
 			}
-			streamErrCount++
-			return true, streamErr
+
+			// an error occurred, stop retrying
+			return false, streamErr
 		}
+
+		// success
 		return false, nil
 	}); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
@@ -696,11 +695,6 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
 			logItemsInProgress.Range(func(key, value interface{}) bool {
-				runUID, ok := key.(string)
-				if !ok {
-					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
-					return true
-				}
 				logItem, ok := value.(statestore.LogItem)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
@@ -708,11 +702,11 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 				}
 
 				// check if the log streaming is already running for this runUID
-				if logCollectionStarted := s.isLogCollectionRunning(ctx, runUID); !logCollectionStarted {
+				if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
 
-					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
+					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-						RunUID:      runUID,
+						RunUID:      logItem.RunUID,
 						Selector:    logItem.LabelSelector,
 						ProjectName: logItem.Project,
 					}); err != nil {
@@ -720,8 +714,9 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						// we don't fail here, as there might be other items to start log for, just log it
 						s.Logger.WarnWithCtx(ctx,
 							"Failed to start log collection for log item",
-							"runUID", runUID,
-							"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+							"runUID", logItem.RunUID,
+							"project", logItem.Project,
+							"err", common.GetErrorStack(err, 10),
 						)
 					}
 				}
@@ -743,7 +738,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 }
 
 // isLogCollectionRunning checks if log collection is running for a given runUID
-func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool {
+func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project string) bool {
 	inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()
 	if err != nil {
 
@@ -754,7 +749,8 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool
 		return false
 	}
 
-	_, running := inMemoryInProgress.Load(runUID)
+	key := statestore.GenerateKey(runUID, project)
+	_, running := inMemoryInProgress.Load(key)
 	return running
 }
 
@@ -774,4 +770,15 @@ func (s *Server) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
 	}
 
 	return chunkSize
+}
+
+// isPodPendingError checks if the error is due to a pod pending state
+func (s *Server) isPodPendingError(err error) bool {
+	errString := err.Error()
+	if strings.Contains(errString, "ContainerCreating") ||
+		strings.Contains(errString, "PodInitializing") {
+		return true
+	}
+
+	return false
 }

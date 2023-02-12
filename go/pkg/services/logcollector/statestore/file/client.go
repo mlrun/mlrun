@@ -77,20 +77,22 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		Project:       project,
 	}
 
-	if existingItem, exists := s.state.InProgress.Load(runUID); exists {
+	key := statestore.GenerateKey(runUID, project)
+	if existingItem, exists := s.state.InProgress.Load(key); exists {
 		s.logger.DebugWithCtx(ctx,
 			"Item already exists in state file. Overwriting label selector",
 			"runUID", runUID,
 			"existingItem", existingItem)
 	}
 
-	s.state.InProgress.Store(logItem.RunUID, logItem)
+	s.state.InProgress.Store(key, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
 func (s *Store) RemoveLogItem(runUID, project string) error {
-	s.state.InProgress.Delete(runUID)
+	key := statestore.GenerateKey(runUID, project)
+	s.state.InProgress.Delete(key)
 	return nil
 }
 

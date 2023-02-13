@@ -61,15 +61,14 @@ class SQLDB(RunDBInterface):
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
-        import mlrun.api.crud
-
-        return self._transform_db_error(
-            mlrun.api.crud.Logs().get_logs,
-            self.session,
-            project,
-            uid,
-            size,
-            offset,
+        # TODO: this is method which is not being called through the API (only through the SDK), but due to changes in
+        #  the API we changed the get_log method to async so we cannot call it here, and in this PR we won't change the
+        #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
+        #  we will change it.
+        raise NotImplementedError(
+            "This should be changed to async call, if you are running in the API, use `crud.get_log`"
+            " method directly instead and not through the get_db().get_log() method"
+            "This will be removed in 1.5.0",
         )
 
     def store_run(self, struct, uid, project="", iter=0):
@@ -113,7 +112,7 @@ class SQLDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project=None,
         labels=None,
         state=None,
@@ -307,7 +306,9 @@ class SQLDB(RunDBInterface):
             labels,
         )
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )
@@ -768,17 +769,18 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key=None,
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key=None
+    def delete_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         raise NotImplementedError()
 
@@ -791,7 +793,6 @@ class SQLDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key=None,
     ):
         raise NotImplementedError()
 
@@ -803,7 +804,14 @@ class SQLDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
     ):
         raise NotImplementedError()
 

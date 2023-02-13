@@ -24,7 +24,7 @@ from typing import Union
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
-from ..errors import MLRunInvalidArgumentError
+from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
@@ -173,19 +173,20 @@ class BaseStep(ModelObj):
 
     def _log_error(self, event, err, **kwargs):
         """on failure log (for sync mode)"""
+        error_message = err_to_str(err)
         self.context.logger.error(
-            f"step {self.name} got error {err} when processing an event:\n {event.body}"
+            f"step {self.name} got error {error_message} when processing an event:\n {event.body}"
         )
-        message = traceback.format_exc()
-        self.context.logger.error(message)
+        error_trace = traceback.format_exc()
+        self.context.logger.error(error_trace)
         self.context.push_error(
-            event, f"{err}\n{message}", source=self.fullname, **kwargs
+            event, f"{error_message}\n{error_trace}", source=self.fullname, **kwargs
         )
 
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
         if self._on_error_handler:
-            event.error = str(err)
+            event.error = err_to_str(err)
             event.origin_state = self.fullname
             return self._on_error_handler(event)
 
@@ -363,8 +364,8 @@ class TaskStep(BaseStep):
                 self._object = self._class_object(**class_args)
             except TypeError as exc:
                 raise TypeError(
-                    f"failed to init step {self.name}, {exc}\n args={self.class_args}"
-                )
+                    f"failed to init step {self.name}\n args={self.class_args}"
+                ) from exc
 
             # determine the right class handler to use
             handler = self.handler
@@ -1072,12 +1073,12 @@ class FlowStep(BaseStep):
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
 
-        :param filename:  target filepath for the image (None for the notebook)
-        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
-        :param source:    source step to add to the graph
-        :param targets:   list of target steps to add to the graph
-        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
-        :return: graphviz graph object
+        :param filename:  target filepath for the graph image (None for the notebook)
+        :param format:    the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph image
+        :param targets:   list of target steps to add to the graph image
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see https://graphviz.org/doc/info/attrs.html)
+        :return:          graphviz graph object
         """
         return _generate_graphviz(
             self,
@@ -1156,7 +1157,14 @@ def _add_graphviz_flow(
     # draw targets after the last step (if specified)
     if targets:
         for target in targets or []:
-            graph.node(target.fullname, label=target.name, shape=target.get_shape())
+            target_kind, target_name = target.name.split("/", 1)
+            if target_kind != target_name:
+                label = (
+                    f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+                )
+            else:
+                label = target_name
+            graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)

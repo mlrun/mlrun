@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 from subprocess import run
 
 import kubernetes.client
@@ -21,7 +20,8 @@ import mlrun.errors
 from mlrun.config import config
 
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..platforms.iguazio import mount_v3io, mount_v3iod
+from .base import RuntimeClassMode
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
 
@@ -139,7 +139,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-            self.apply(mount_v3io_extended())
+            self.apply(mount_v3io())
             self.apply(
                 mount_v3iod(
                     namespace=config.namespace,
@@ -178,6 +178,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
@@ -190,7 +191,7 @@ class RemoteSparkRuntime(KubejobRuntime):
                               e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:  show logs only in case of build failure
 
-        :return True if the function is ready (deployed)
+        :return True: if the function is ready (deployed)
         """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
@@ -201,12 +202,14 @@ class RemoteSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     kind = "remote-spark"
+    class_modes = {RuntimeClassMode.run: "remote-spark"}
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
@@ -215,10 +218,6 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["remote-spark"]
 
 
 def igz_spark_pre_hook():

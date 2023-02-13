@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import shutil
 import unittest
 from http import HTTPStatus
 from os import environ
+from pathlib import Path
 from typing import Callable, Generator
 from unittest.mock import Mock
 
@@ -22,6 +24,7 @@ import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+from aioresponses import aioresponses as aioresponses_
 
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -42,7 +45,8 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
-from tests.conftest import logs_path, root_path, rundb_path
+from mlrun.utils import update_in
+from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
 
@@ -50,6 +54,13 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
+
+    # recreating the test results path on each test instead of running it on conftest since
+    # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
+    # in parallel and may cause errors.
+    shutil.rmtree(results, ignore_errors=True, onerror=None)
+    Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path
@@ -63,12 +74,14 @@ def config_test_base():
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 
-    # remove the run db cache so it won't pass between tests
+    # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
+    # remove the is_running_as_api cache, so it won't pass between tests
+    mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 
@@ -82,6 +95,18 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
+
+    # TODO: update this to "sidecar" once the default mode is changed
+    mlrun.config.config.log_collector.mode = "legacy"
+
+
+@pytest.fixture
+def aioresponses_mock():
+    with aioresponses_() as aior:
+
+        # handy function to get how many times requests were made using this specific mock
+        aior.called_times = lambda: len(list(aior.requests.values())[0])
+        yield aior
 
 
 @pytest.fixture
@@ -166,12 +191,15 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifact = None
+        self._runs = {}
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -179,13 +207,17 @@ class RunDBMock:
         return "1234-1234-1234-1234"
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._run = {
-            uid: {
-                "struct": struct,
-                "projct": project,
-                "iter": iter,
-            }
+        self._runs[uid] = {
+            "struct": struct,
+            "project": project,
+            "iter": iter,
         }
+
+    def read_run(self, uid, project, iter=0):
+        return self._runs.get(uid, {})
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifact = artifact
 
     def get_function(self, function, project, tag):
         return {
@@ -253,6 +285,17 @@ class RunDBMock:
         verbose=False,
     ):
         return "ready", last_log_timestamp
+
+    def update_run(self, updates: dict, uid, project="", iter=0):
+        state = self._function.get("state", {})
+        update_in(state, "status.state", updates)
+        update_in(state, "status.results", updates)
+        update_in(state, "status.start_time", updates)
+        update_in(state, "status.last_update", updates)
+        update_in(state, "status.error", updates)
+        update_in(state, "status.commit", updates)
+        update_in(state, "status.iterations", updates)
+        self._function["state"] = state
 
     def assert_no_mount_or_creds_configured(self):
         env_list = self._function["spec"]["env"]

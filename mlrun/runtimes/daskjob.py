@@ -15,10 +15,10 @@ import datetime
 import inspect
 import socket
 import time
-import warnings
 from os import environ
 from typing import Dict, List, Optional, Union
 
+from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,7 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
+from mlrun.errors import err_to_str
 from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..config import config
@@ -35,7 +36,7 @@ from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
 from ..utils import logger, normalize_name, update_in
-from .base import FunctionStatus
+from .base import FunctionStatus, RuntimeClassMode
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
 from .pod import KubeResourceSpec, kube_resource_spec_to_pod_spec
@@ -151,7 +152,7 @@ class DaskSpec(KubeResourceSpec):
             "scheduler_resources", scheduler_resources
         )
         self._worker_resources = self.enrich_resources_with_default_pod_resources(
-            "worker_resources", scheduler_resources
+            "worker_resources", worker_resources
         )
 
     @property
@@ -306,12 +307,12 @@ class DaskCluster(KubejobRuntime):
 
     def get_status(self):
         meta = self.metadata
-        s = get_func_selector(meta.project, meta.name, meta.tag)
+        selector = get_func_selector(meta.project, meta.name, meta.tag)
         if self._is_remote_api():
             db = self._get_db()
-            return db.remote_status(meta.project, meta.name, self.kind, s)
+            return db.remote_status(meta.project, meta.name, self.kind, selector)
 
-        status = get_obj_status(s)
+        status = get_obj_status(selector)
         print(status)
         return status
 
@@ -347,7 +348,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
             except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {exc}"
+                    f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
                 )
 
                 # todo: figure out if test is needed
@@ -382,6 +383,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
@@ -402,34 +404,31 @@ class DaskCluster(KubejobRuntime):
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 
+    # TODO: Remove in 1.5.0
+    @deprecated(
+        version="1.3.0",
+        reason="'Dask gpus' will be removed in 1.5.0, use 'with_scheduler_limits' / 'with_worker_limits' instead",
+        category=FutureWarning,
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Dask's gpus will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
-            # TODO: In 0.8.0 deprecate and replace gpus to with_worker/scheduler_limits in examples & demos (or maybe
-            #  just change behavior ?)
-            PendingDeprecationWarning,
-        )
-        # the scheduler/worker specific functions was introduced after the general one, to keep backwards compatibility
-        # this function just sets the gpus for both of them
         update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
         update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Dask's with_limits will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
-            # TODO: In 0.8.0 deprecate and replace with_limits to with_worker/scheduler_limits in examples & demos (or
-            #  maybe just change behavior ?)
-            PendingDeprecationWarning,
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        raise NotImplementedError(
+            "Use with_scheduler_limits/with_worker_limits to set resource limits",
         )
-        # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility
-        # this function just sets the limits for both of them
-        self.with_scheduler_limits(mem, cpu, gpus, gpu_type)
-        self.with_worker_limits(mem, cpu, gpus, gpu_type)
 
     def with_scheduler_limits(
         self,
@@ -463,18 +462,10 @@ class DaskCluster(KubejobRuntime):
             "worker_resources", mem, cpu, gpus, gpu_type, patch=patch
         )
 
-    def with_requests(self, mem=None, cpu=None):
-        warnings.warn(
-            "Dask's with_requests will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
-            "with_scheduler_requests/with_worker_requests instead",
-            # TODO: In 0.8.0 deprecate and replace with_requests to with_worker/scheduler_requests in examples & demos
-            #  (or maybe just change behavior ?)
-            PendingDeprecationWarning,
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
+        raise NotImplementedError(
+            "Use with_scheduler_requests/with_worker_requests to set resource requests",
         )
-        # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility
-        # this function just sets the requests for both of them
-        self.with_scheduler_requests(mem, cpu)
-        self.with_worker_requests(mem, cpu)
 
     def with_scheduler_requests(
         self, mem: str = None, cpu: str = None, patch: bool = False
@@ -522,11 +513,16 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
+def deploy_function(
+    function: DaskCluster,
+    secrets=None,
+    client_version: str = None,
+    client_python_version: str = None,
+):
     _validate_dask_related_libraries_installed()
 
     scheduler_pod, worker_pod, function, namespace = enrich_dask_cluster(
-        function, secrets, client_version
+        function, secrets, client_version, client_python_version
     )
     return initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace)
 
@@ -579,7 +575,9 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
     return cluster
 
 
-def enrich_dask_cluster(function, secrets, client_version):
+def enrich_dask_cluster(
+    function, secrets, client_version: str = None, client_python_version: str = None
+):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
@@ -593,7 +591,11 @@ def enrich_dask_cluster(function, secrets, client_version):
     spec.remote = True
 
     image = (
-        function.full_image_path(client_version=client_version) or "daskdev/dask:latest"
+        function.full_image_path(
+            client_version=client_version, client_python_version=client_python_version
+        )
+        # TODO: we might never enter here, since running a function requires defining an image
+        or "daskdev/dask:latest"
     )
     env = spec.env
     namespace = meta.namespace or config.namespace
@@ -601,6 +603,7 @@ def enrich_dask_cluster(function, secrets, client_version):
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
+    # TODO: 'dask-worker' has deprecation notice, user 'dask worker' instead
     worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
     memory_limit = spec.resources.get("limits", {}).get("memory")
     if memory_limit:
@@ -659,7 +662,10 @@ def _validate_dask_related_libraries_installed():
         raise exc
 
 
-def get_obj_status(selector=[], namespace=None):
+def get_obj_status(selector=None, namespace=None):
+    if selector is None:
+        selector = []
+
     k8s = get_k8s_helper()
     namespace = namespace or config.namespace
     selector = ",".join(["dask.org/component=scheduler"] + selector)
@@ -682,6 +688,7 @@ def get_obj_status(selector=[], namespace=None):
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
+    class_modes = {RuntimeClassMode.run: "dask"}
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
@@ -694,10 +701,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> List[str]:
-        return ["dask"]
 
     def _enrich_list_resources_response(
         self,

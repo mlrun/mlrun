@@ -122,7 +122,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def _execute_run(self, runtime, **kwargs):
-        deploy_nuclio_function(runtime)
+        deploy_nuclio_function(runtime, **kwargs)
 
     def _generate_runtime(
         self, kind=None, labels=None
@@ -351,6 +351,18 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
         else:
             assert deploy_spec.get("securityContext") is None
+
+    def test_compile_function_config_with_special_character_labels(
+        self, db: Session, client: TestClient
+    ):
+        """
+        Test that compiling function configuration with labels containing special characters correctly sets them
+        """
+        function = self._generate_runtime(self.runtime_kind)
+        key, val = "test.label.com/env", "test"
+        function.set_label(key, val)
+        _, _, config = compile_function_config(function)
+        assert config["metadata"]["labels"].get(key) == val
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
@@ -784,6 +796,43 @@ class TestNuclioRuntime(TestRuntimeBase):
                 deploy_metadata["annotations"].get("annotation-key")
                 == "annotation-value"
             )
+
+    @pytest.mark.parametrize(
+        "client_version,client_python_version,nuclio_version,expected_nuclio_runtime",
+        [
+            ("1.2.0", None, "1.5.9", "python:3.6"),
+            ("1.2.0", None, "1.9.15", "python:3.7"),
+            (None, None, "1.5.9", "python:3.6"),
+            (None, None, "1.9.15", "python:3.7"),
+            ("1.3.0", "3.7", "1.11.9", "python:3.7"),
+            ("1.3.0", "3.9", "1.11.9", "python:3.9"),
+            ("1.3.0", "3.9", "1.5.9", "python:3.9"),
+            ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
+            ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
+        ],
+    )
+    def test_deploy_with_runtime(
+        self,
+        db: Session,
+        client: TestClient,
+        client_version,
+        client_python_version,
+        nuclio_version,
+        expected_nuclio_runtime,
+    ):
+        mlconf.nuclio_version = nuclio_version
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(
+            function,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=expected_nuclio_runtime,
+        )
 
     def test_deploy_python_decode_string_env_var_enrichment(
         self, db: Session, client: TestClient

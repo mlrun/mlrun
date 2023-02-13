@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import base64
 import typing
 
@@ -38,7 +39,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         else:
             raise NotImplementedError("Unsupported authorization mode")
 
-    def filter_project_resources_by_permissions(
+    async def filter_project_resources_by_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         resources: typing.List,
@@ -52,24 +53,24 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 resource_type, project_name, resource_name
             )
 
-        return self.filter_by_permissions(
+        return await self.filter_by_permissions(
             resources, _generate_opa_resource, action, auth_info
         )
 
-    def filter_projects_by_permissions(
+    async def filter_projects_by_permissions(
         self,
         project_names: typing.List[str],
         auth_info: mlrun.api.schemas.AuthInfo,
         action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
     ) -> typing.List:
-        return self.filter_by_permissions(
+        return await self.filter_by_permissions(
             project_names,
             self._generate_resource_string_from_project_name,
             action,
             auth_info,
         )
 
-    def query_project_resources_permissions(
+    async def query_project_resources_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         resources: typing.List,
@@ -78,22 +79,28 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        allowed = True
-        # TODO: execute in parallel
-        for resource in resources:
-            project_name, resource_name = project_and_resource_name_extractor(resource)
-            resource_allowed = self.query_project_resource_permissions(
-                resource_type,
-                project_name,
-                resource_name,
-                action,
-                auth_info,
-                raise_on_forbidden,
+        project_resources = [
+            # project name, resource name
+            project_and_resource_name_extractor(resource)
+            for resource in resources
+        ]
+        return all(
+            await asyncio.gather(
+                *[
+                    self.query_project_resource_permissions(
+                        resource_type,
+                        project_resource[0],
+                        project_resource[1],
+                        action,
+                        auth_info,
+                        raise_on_forbidden,
+                    )
+                    for project_resource in project_resources
+                ]
             )
-            allowed = allowed and resource_allowed
-        return allowed
+        )
 
-    def query_project_resource_permissions(
+    async def query_project_resource_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         project_name: str,
@@ -102,7 +109,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return self.query_permissions(
+        return await self.query_permissions(
             self._generate_resource_string_from_project_resource(
                 resource_type, project_name, resource_name
             ),
@@ -111,28 +118,28 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             raise_on_forbidden,
         )
 
-    def query_project_permissions(
+    async def query_project_permissions(
         self,
         project_name: str,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return self.query_permissions(
+        return await self.query_permissions(
             self._generate_resource_string_from_project_name(project_name),
             action,
             auth_info,
             raise_on_forbidden,
         )
 
-    def query_global_resource_permissions(
+    async def query_global_resource_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return self.query_resource_permissions(
+        return await self.query_resource_permissions(
             resource_type,
             "",
             action,
@@ -140,7 +147,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             raise_on_forbidden,
         )
 
-    def query_resource_permissions(
+    async def query_resource_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         resource_name: str,
@@ -148,35 +155,32 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return self.query_permissions(
+        return await self.query_permissions(
             resource_type.to_resource_string("", resource_name),
             action=action,
             auth_info=auth_info,
             raise_on_forbidden=raise_on_forbidden,
         )
 
-    def query_permissions(
+    async def query_permissions(
         self,
         resource: str,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return self._auth_provider.query_permissions(
-            resource,
-            action,
-            auth_info,
-            raise_on_forbidden,
+        return await self._auth_provider.query_permissions(
+            resource, action, auth_info, raise_on_forbidden
         )
 
-    def filter_by_permissions(
+    async def filter_by_permissions(
         self,
         resources: typing.List,
         opa_resource_extractor: typing.Callable,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
     ) -> typing.List:
-        return self._auth_provider.filter_by_permissions(
+        return await self._auth_provider.filter_by_permissions(
             resources,
             opa_resource_extractor,
             action,
@@ -188,7 +192,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ):
         self._auth_provider.add_allowed_project_for_owner(project_name, auth_info)
 
-    def authenticate_request(
+    async def authenticate_request(
         self, request: fastapi.Request
     ) -> mlrun.api.schemas.AuthInfo:
         auth_info = mlrun.api.schemas.AuthInfo()
@@ -214,8 +218,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
             auth_info.token = token
         elif self._iguazio_auth_configured():
-            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
-            auth_info = iguazio_client.verify_request_session(request)
+            iguazio_client = mlrun.api.utils.clients.iguazio.AsyncClient()
+            auth_info = await iguazio_client.verify_request_session(request)
             if "x-data-session-override" in request.headers:
                 auth_info.data_session = request.headers["x-data-session-override"]
 
@@ -242,14 +246,16 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
         return auth_info
 
-    def generate_auth_info_from_session(
+    async def generate_auth_info_from_session(
         self, session: str
     ) -> mlrun.api.schemas.AuthInfo:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
                 "Session is currently supported only for iguazio authentication mode"
             )
-        return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
+        return await mlrun.api.utils.clients.iguazio.AsyncClient().verify_session(
+            session
+        )
 
     def get_or_create_access_key(
         self, session: str, planes: typing.List[str] = None

@@ -304,3 +304,10 @@ def test_new_function_override_default_image_pull_secret():
         )
         == {}
     )
+
+
+def test_new_function_invalid_characters():
+    runtime = _get_runtime()
+    invalid_function_name = "invalid_name with_spaces"
+    function = mlrun.new_function(name=invalid_function_name, runtime=runtime)
+    assert function.metadata.name == "invalid-name-with-spaces"

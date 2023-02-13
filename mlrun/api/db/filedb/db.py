@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -60,6 +60,22 @@ class FileDB(DBInterface):
             self.db.update_run, updates, uid, project, iter
         )
 
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs_modes: List[bool] = None,
+        only_uids: bool = False,
+        last_update_time_from: datetime.datetime = None,
+        states: List[str] = None,
+    ):
+        raise NotImplementedError()
+
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
+        raise NotImplementedError()
+
     def read_run(self, session, uid, project="", iter=0):
         return self._transform_run_db_error(self.db.read_run, uid, project, iter)
 
@@ -67,7 +83,7 @@ class FileDB(DBInterface):
         self,
         session,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         states=None,
@@ -83,6 +99,8 @@ class FileDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -103,6 +121,8 @@ class FileDB(DBInterface):
             partition_sort_by,
             partition_order,
             max_partitions,
+            requested_logs,
+            return_as_run_structs,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -434,8 +454,12 @@ class FileDB(DBInterface):
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, session, project, category):
-        return self._transform_run_db_error(self.db.list_artifact_tags, project)
+    def list_artifact_tags(
+        self, session, project, category: Union[str, schemas.ArtifactCategories] = None
+    ):
+        return self._transform_run_db_error(
+            self.db.list_artifact_tags, project, category
+        )
 
     def create_schedule(
         self,

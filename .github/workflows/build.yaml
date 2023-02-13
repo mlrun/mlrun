@@ -54,9 +54,9 @@ jobs:
         run: |
           skipImages=,${{ github.event.inputs.skip_images }},
           matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
-          echo ::set-output name=matrix::{\"include\":$(echo $matrix)}
+          echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
   build-images:
-    name: Build and push image - ${{ matrix.image-name }}
+    name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     needs: matrix_prep
 
@@ -68,13 +68,19 @@ jobs:
       matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
     steps:
     - uses: actions/checkout@v3
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Extract git hash, ref and latest version
       id: git_info
       run: |
-        echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
-        echo "::set-output name=unstable_version_prefix::$(cat automation/version/unstable_version_prefix)"
+        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)"  >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)"  >> $GITHUB_OUTPUT
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
@@ -82,23 +88,23 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
         export build_from_cache=$(if [ -z "${{ github.event.inputs.build_from_cache }}" ]; then echo "true" ; else echo "${{ github.event.inputs.build_from_cache }}";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
-        echo "::set-output name=tag::$(echo $unstable_tag)"
-        echo "::set-output name=no_cache::$(echo $no_cache)"
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+        echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
     - name: Set computed versions params
       id: computed_params
       run: |
-        echo "::set-output name=mlrun_version::$( \
+        echo "mlrun_version=$( \
           input_mlrun_version=${{ github.event.inputs.version }} && \
           default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
-          echo ${input_mlrun_version:-`echo $default_mlrun_version`})"
-        echo "::set-output name=mlrun_docker_repo::$( \
+          echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_repo=$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
-          echo ${input_docker_repo:-`echo $default_docker_repo`})"
-        echo "::set-output name=mlrun_docker_registries::$( \
+          echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
+        echo "mlrun_docker_registries=$( \
           input_docker_registries=${{ github.event.inputs.docker_registries }} && \
-          echo ${input_docker_registries:-ghcr.io/})"
-        echo "::set-output name=mlrun_cache_date::$(date +%s)"
+          echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
+        echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
     - name: Docker login
       # all suffixed with "| true" to allow failures if secrets are not defined (fork)
       run: |
@@ -127,6 +133,8 @@ jobs:
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
+            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
 
@@ -144,6 +152,8 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=unstable \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image
@@ -157,4 +167,6 @@ jobs:
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
+        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}

@@ -22,6 +22,7 @@ import socket
 import tempfile
 import time
 import uuid
+import warnings
 from base64 import b64decode
 from collections import OrderedDict
 from copy import deepcopy
@@ -31,11 +32,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import cloudpickle
+import nuclio
 import numpy as np
 import pandas as pd
 import yaml
 from kfp import Client
-from nuclio import build_file
 
 import mlrun.api.schemas
 import mlrun.errors
@@ -154,6 +155,11 @@ def run_local(
     :param params:   input parameters (dict)
     :param inputs:   input objects (dict of key: path)
     :param artifact_path: default artifact output path
+    :param mode:    Runtime mode for more details head to `mlrun.new_function`
+    :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
+                                    (allows to have function which don't depend on having targets,
+                                    e.g a function which accepts a feature vector uri and generate
+                                     the offline vector e.g. parquet_ for it if it doesn't exist)
 
     :return: run object
     """
@@ -171,6 +177,8 @@ def run_local(
     command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
+        if task:
+            handler = handler or task.spec.handler
         handler = handler or runtime.spec.default_handler or ""
         meta = runtime.metadata.copy()
         meta.project = project or meta.project
@@ -436,7 +444,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     examples::
 
-        function = mlrun.import_function("hub://sklearn_classifier")
+        function = mlrun.import_function("hub://auto_trainer")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
@@ -466,7 +474,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
-        function.metadata.name = new_name
+        function.metadata.name = mlrun.utils.helpers.normalize_name(new_name)
     return function
 
 
@@ -591,11 +599,14 @@ def new_function(
             )
 
     if not name:
-        # todo: regex check for valid name
         if command and kind not in [RuntimeKinds.remote]:
             name, _ = path.splitext(path.basename(command))
         else:
             name = "mlrun-" + uuid.uuid4().hex[0:6]
+
+    # make sure function name is valid
+    name = mlrun.utils.helpers.normalize_name(name)
+
     runner.metadata.name = name
     runner.metadata.project = (
         runner.metadata.project or project or mlconf.default_project
@@ -814,7 +825,7 @@ def code_to_function(
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
-    name, spec, code = build_file(
+    name, spec, code = nuclio.build_file(
         filename,
         name=name,
         handler=handler or "handler",
@@ -828,7 +839,7 @@ def code_to_function(
         # if its a nuclio subkind, redo nb parsing
         is_nuclio, subkind = resolve_nuclio_subkind(kind)
         if is_nuclio:
-            name, spec, code = build_file(
+            name, spec, code = nuclio.build_file(
                 filename,
                 name=name,
                 handler=handler or "handler",
@@ -876,7 +887,7 @@ def code_to_function(
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
-    name, spec, code = build_file(filename, name=name, ignored_tags=ignored_tags)
+    name, spec, code = nuclio.build_file(filename, name=name, ignored_tags=ignored_tags)
 
     if not name:
         raise ValueError("name must be specified")
@@ -914,8 +925,10 @@ def run_pipeline(
     artifact_path=None,
     ops=None,
     url=None,
+    # TODO: deprecated, remove in 1.5.0
     ttl=None,
     remote: bool = True,
+    cleanup_ttl=None,
 ):
     """remote KubeFlow pipeline execution
 
@@ -930,11 +943,23 @@ def run_pipeline(
     :param url:        optional, url to mlrun API service
     :param artifact_path:  target location/url for mlrun artifacts
     :param ops:        additional operators (.apply() to all pipeline functions)
-    :param ttl:        pipeline ttl in secs (after that the pods will be removed)
+    :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param remote:     read kfp data from mlrun service (default=True)
+    :param cleanup_ttl:
+                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted)
 
     :returns: kubeflow pipeline id
     """
+
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead",
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
 
     artifact_path = artifact_path or mlconf.artifact_path
     project = project or mlconf.default_project
@@ -965,6 +990,7 @@ def run_pipeline(
             namespace=namespace,
             ops=ops,
             artifact_path=artifact_path,
+            cleanup_ttl=cleanup_ttl or ttl,
         )
 
     else:
@@ -975,7 +1001,7 @@ def run_pipeline(
                 experiment.id, run, pipeline, params=arguments
             )
         else:
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_meta(artifact_path=artifact_path, args=ops, cleanup_ttl=ttl)
             run_result = client.create_run_from_pipeline_func(
                 pipeline,
                 arguments,
@@ -1521,6 +1547,11 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
+            except ImportError:
+                logger.warn(
+                    "Bokeh installation is ignored. If needed, "
+                    "make sure you have the required version with `pip install mlrun[bokeh]`"
+                )
 
         # Log the artifact:
         if artifact is None:
@@ -1722,7 +1753,10 @@ class ContextHandler:
         for key in kwargs.keys():
             if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
                 key
-            ] not in [inspect._empty, mlrun.DataItem]:
+            ] not in [
+                inspect._empty,
+                mlrun.DataItem,
+            ]:
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )
@@ -1829,6 +1863,11 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
+        except ImportError:
+            logger.warn(
+                "Bokeh installation is ignored. If needed, "
+                "make sure you have the required version with `pip install mlrun[bokeh]`"
+            )
 
     @classmethod
     def _init_outputs_logging_map(cls):

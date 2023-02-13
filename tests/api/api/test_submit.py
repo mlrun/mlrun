@@ -14,10 +14,12 @@
 #
 import http
 import json
+import typing
 import unittest.mock
 from http import HTTPStatus
 
 import fastapi.testclient
+import pandas as pd
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -54,7 +56,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
     }
     resp = client.post("submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
-    assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]
+    assert f"Function not found {function_reference}" in resp.json()["detail"]
 
 
 username = "voldemort"
@@ -92,7 +94,7 @@ def pod_create_mock():
         mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
-        unittest.mock.Mock(return_value=auth_info_mock)
+        unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
     yield get_k8s().create_pod
@@ -304,6 +306,67 @@ def test_submit_job_service_accounts(
     mlconf.function.spec.service_account.default = None
 
 
+class _MockDataItem:
+    def as_df(self):
+        return pd.DataFrame({"key1": [0], "key2": [1]})
+
+
+def test_submit_job_with_hyper_params_file(
+    db: Session,
+    client: TestClient,
+    pod_create_mock,
+    k8s_secrets_mock: K8sSecretsMock,
+    monkeypatch,
+):
+    project_name = "proj-with-hyper-params"
+    project_artifact_path = f"/{project_name}"
+    tests.api.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
+    function = mlrun.new_function(
+        name="test-function",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    # set default artifact path
+    mlconf.artifact_path = "/some-path"
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
+
+    async def auth_info_mock(*args, **kwargs):
+        return mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
+
+    # Create test-specific mocks
+    monkeypatch.setattr(
+        mlrun.api.utils.auth.verifier.AuthVerifier(),
+        "authenticate_request",
+        auth_info_mock,
+    )
+    project_secrets = {"SECRET1": "VALUE1"}
+    k8s_secrets_mock.store_project_secrets(project_name, project_secrets)
+
+    # Configure hyper-param related values
+    task_spec = submit_job_body["task"]["spec"]
+    task_spec["param_file"] = "v3io://users/user1"
+    task_spec["selector"] = "max.loss"
+    task_spec["strategy"] = "list"
+
+    with unittest.mock.patch.object(
+        mlrun.MLClientCtx, "get_dataitem", return_value=_MockDataItem()
+    ) as data_item_mock:
+        resp = client.post("submit_job", json=submit_job_body)
+        assert resp.status_code == http.HTTPStatus.OK.value
+
+        # Validate that secrets were properly passed to get_dataitem
+        project_secrets.update({"V3IO_ACCESS_KEY": access_key})
+        data_item_mock.assert_called_once_with(
+            task_spec["param_file"], secrets=project_secrets
+        )
+
+
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
@@ -326,7 +389,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     )
 
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
@@ -384,7 +447,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         {
             "body": submit_job_body,
             "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
+            "expected_body": {"detail": "Unknown error"},
         },
     ]:
         expected_status = test_case.get("expected_status")
@@ -400,6 +463,51 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         response = client.post(endpoint, data=json_body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
+
+
+@pytest.mark.parametrize(
+    "task_name,parameters,hyperparameters",
+    [
+        ("param-pos", {"x": 2**63 + 1}, None),
+        ("param-neg", {"x": -(2**63 + 1)}, None),
+        ("hyperparam-pos", None, {"x": [1, 2**63 + 1]}),
+        ("hyperparam-neg", None, {"x": [1, -(2**63 + 1)]}),
+    ],
+)
+def test_submit_job_failure_params_exceed_int64(
+    db: Session,
+    client: TestClient,
+    pod_create_mock,
+    task_name: str,
+    parameters: typing.Dict[str, int],
+    hyperparameters: typing.Dict[str, typing.List[int]],
+) -> None:
+    project_name = "params-exceed-int64"
+    project_artifact_path = f"/{project_name}"
+    tests.api.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
+    function = mlrun.new_function(
+        name="test-function",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    submit_job_body = _create_submit_job_body(function, project_name)
+    submit_job_body["task"]["metadata"]["name"] = task_name
+    if parameters:
+        submit_job_body["task"]["spec"]["parameters"] = parameters
+    if hyperparameters:
+        submit_job_body["task"]["spec"]["hyperparams"] = hyperparameters
+    resp = client.post("submit_job", json=submit_job_body)
+
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+    assert "exceeds int64" in resp.json()["detail"]
+
+    resp = client.get("runs", params={"project": project_name})
+    # assert the run wasn't saved to the DB
+    assert len(resp.json()["runs"]) == 0
 
 
 def _create_submit_job_body(function, project, with_output_path=True):

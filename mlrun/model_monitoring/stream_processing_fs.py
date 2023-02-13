@@ -316,7 +316,7 @@ class EventStreamProcessor:
                     EventFieldType.RECORD_TYPE,
                 ],
                 max_events=self.tsdb_batching_max_events,
-                timeout_secs=self.tsdb_batching_timeout_secs,
+                flush_after_seconds=self.tsdb_batching_timeout_secs,
                 key=EventFieldType.ENDPOINT_ID,
             )
 
@@ -423,8 +423,8 @@ class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
         }
         # Unpack labels dictionary
         e = {
-            **e,
             **e.pop(EventFieldType.UNPACKED_LABELS, {}),
+            **e,
         }
         # Write labels to kv as json string to be presentable later
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
@@ -716,7 +716,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id, time=timestamp)
+        storey_event = storey.Event(body=events, key=endpoint_id)
         return storey_event
 
     def is_list_of_numerics(

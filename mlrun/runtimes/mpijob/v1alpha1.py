@@ -23,7 +23,7 @@ from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
-from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
+from mlrun.runtimes.base import BaseRuntimeHandler, RunStates, RuntimeClassMode
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
@@ -78,7 +78,10 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 job,
                 "image",
                 self.full_image_path(
-                    client_version=runobj.metadata.labels.get("mlrun/client_version")
+                    client_version=runobj.metadata.labels.get("mlrun/client_version"),
+                    client_python_version=runobj.metadata.labels.get(
+                        "mlrun/client_python_version"
+                    ),
                 ),
             )
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)
@@ -157,6 +160,9 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
     kind = "mpijob"
+    class_modes = {
+        RuntimeClassMode.run: "mpijob",
+    }
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
@@ -191,8 +197,13 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["mpijob"]
+    def _get_run_completion_updates(run: dict) -> dict:
+
+        # TODO: add a 'workers' section in run objects state, each worker will update its state while
+        #  the run state will be resolved by the server.
+        # update the run object state if empty so that it won't default to 'created' state
+        update_in(run, "status.state", "running", append=False, replace=False)
+        return {}
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:

@@ -21,6 +21,7 @@ from time import sleep
 from urllib.parse import urlparse
 
 import nuclio
+import nuclio.utils
 import requests
 import semver
 from aiohttp.client import ClientSession
@@ -35,18 +36,23 @@ from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
+from ..errors import err_to_str
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
+from ..platforms.iguazio import (
+    VolumeMount,
+    mount_v3io,
+    parse_path,
+    split_path,
+    v3io_cred,
+)
 from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
-
-default_max_replicas = 4
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -208,14 +214,12 @@ class NuclioSpec(KubeResourceSpec):
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
 
-        # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
-        #  x-nuclio-target header or to create the function with http trigger and invoke the function through it - so
-        #  we need to do one of the two
         self.min_replicas = min_replicas or 1
-        self.max_replicas = max_replicas or default_max_replicas
+        self.max_replicas = max_replicas or 4
+
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
-        self.base_image_pull: bool = None
+        self.base_image_pull = False
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -251,6 +255,7 @@ class NuclioStatus(FunctionStatus):
         internal_invocation_urls=None,
         external_invocation_urls=None,
         build_pod=None,
+        container_image=None,
     ):
         super().__init__(state, build_pod)
 
@@ -264,6 +269,9 @@ class NuclioStatus(FunctionStatus):
         # still exists for backwards compatability reasons.
         # on latest Nuclio (>= 1.6.x) versions, use external_invocation_urls / internal_invocation_urls instead
         self.address = address
+
+        # the name of the image that was built and pushed to the registry, and used by the nuclio function
+        self.container_image = container_image
 
 
 class RemoteRuntime(KubeResource):
@@ -370,7 +378,11 @@ class RemoteRuntime(KubeResource):
         :param remote: v3io path
         """
         if local and remote:
-            self.apply(mount_v3io(remote=remote, mount_path=local))
+            self.apply(
+                mount_v3io(
+                    remote=remote, volume_mounts=[VolumeMount(path=local, sub_path="")]
+                )
+            )
         else:
             self.apply(v3io_cred())
         return self
@@ -399,7 +411,7 @@ class RemoteRuntime(KubeResource):
         :param port:       TCP port
         :param host:       hostname
         :param paths:      list of sub paths
-        :param canary:     k8s ingress canary (% traffic value between 0 to 100)
+        :param canary:     k8s ingress canary (% traffic value between 0 and 100)
         :param secret:     k8s secret name for SSL certificate
         :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
                                 before an error is returned)
@@ -507,7 +519,7 @@ class RemoteRuntime(KubeResource):
         # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
         # to decode the secrets and special env variable names in the function, we just use the same env variable as
         # the key name (encode_key_names=False)
-        self._add_project_k8s_secrets_to_spec(
+        self._add_k8s_secrets_to_spec(
             None, project=self.metadata.project, encode_key_names=False
         )
 
@@ -549,6 +561,9 @@ class RemoteRuntime(KubeResource):
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
             self._update_credentials_from_remote_build(data["data"])
+
+            # when a function is deployed, we wait for it to be ready by default
+            # this also means that the function object will be updated with the function status
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -696,6 +711,7 @@ class RemoteRuntime(KubeResource):
             )
             self.status.state = state
             self.status.nuclio_name = name
+            self.status.container_image = function_status.get("containerImage", "")
             if address:
                 self.status.address = address
                 self.spec.command = f"http://{address}"
@@ -806,6 +822,7 @@ class RemoteRuntime(KubeResource):
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
+        mock: bool = None,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -820,9 +837,20 @@ class RemoteRuntime(KubeResource):
         :param dashboard: nuclio dashboard address
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
+        :param mock:     use mock server vs a real Nuclio function (for local simulations)
         """
         if not method:
             method = "POST" if body else "GET"
+
+        if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
+            # if we deployed mock server or in simulated nuclio environment use mock
+            if not self._mock_server:
+                self._set_as_mock(True)
+            return self._mock_server.test(path, body, method, headers)
+
+        # clear the mock server when using the real endpoint
+        self._mock_server = None
+
         if "://" not in path:
             if not self.status.address:
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
@@ -851,7 +879,9 @@ class RemoteRuntime(KubeResource):
             logger.info("invoking function", method=method, path=path)
             resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
-            raise OSError(f"error: cannot run function at url {path}, {err}")
+            raise OSError(
+                f"error: cannot run function at url {path}, {err_to_str(err)}"
+            )
         if not resp.ok:
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
@@ -889,7 +919,7 @@ class RemoteRuntime(KubeResource):
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            logger.error(f"error invoking function: {err}")
+            logger.error(f"error invoking function: {err_to_str(err)}")
             raise OSError(f"error: cannot run function at url {command}")
 
         if not resp.ok:
@@ -1107,10 +1137,15 @@ def deploy_nuclio_function(
     auth_info: AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
+    client_python_version: str = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
-        function, client_version, builder_env or {}, auth_info=auth_info
+        function,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env or {},
+        auth_info=auth_info,
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -1120,18 +1155,26 @@ def deploy_nuclio_function(
         mlconf.httpdb.nuclio.default_service_type,
     )
 
-    return nuclio.deploy.deploy_config(
-        function_config,
-        dashboard_url=dashboard,
-        name=function_name,
-        project=project_name,
-        tag=function.metadata.tag,
-        verbose=function.verbose,
-        create_new=True,
-        watch=watch,
-        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
-        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
-    )
+    try:
+        return nuclio.deploy.deploy_config(
+            function_config,
+            dashboard_url=dashboard,
+            name=function_name,
+            project=project_name,
+            tag=function.metadata.tag,
+            verbose=function.verbose,
+            create_new=True,
+            watch=watch,
+            return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+        )
+    except nuclio.utils.DeployError as exc:
+        if exc.err:
+            mlrun.errors.raise_for_status(
+                exc.err.response,
+                f"Failed to deploy function {project_name}/{function_name} to Nuclio",
+            )
+        raise
 
 
 def resolve_function_ingresses(function_spec):
@@ -1157,13 +1200,16 @@ def resolve_function_http_trigger(function_spec):
 def compile_function_config(
     function: RemoteRuntime,
     client_version: str = None,
+    client_python_version: str = None,
     builder_env=None,
     auth_info=None,
 ):
+
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
-        function.set_config(f"metadata.labels.{key}", value)
+        # Adding escaping to the key to prevent it from being split by dots if it contains any
+        function.set_config(f"metadata.labels.\\{key}\\", value)
 
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -1172,9 +1218,14 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+
     nuclio_runtime = (
-        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+        function.spec.nuclio_runtime
+        or _resolve_nuclio_runtime_python_image(
+            mlrun_client_version=client_version, python_version=client_python_version
+        )
     )
+
     if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
         "python:3.7",
         "python:3.8",
@@ -1185,7 +1236,7 @@ def compile_function_config(
                 f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
             )
         else:
-            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
     # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
@@ -1321,6 +1372,7 @@ def compile_function_config(
         config = nuclio.config.extend_config(
             config, nuclio_spec, tag, function.spec.build.code_origin
         )
+
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = (
@@ -1332,7 +1384,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         logger.info("deploy started")
@@ -1381,7 +1433,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         name = get_fullname(name, project, tag)
@@ -1450,19 +1502,40 @@ def get_nuclio_deploy_status(
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
+    get_err_message = f"Failed to get function {name} deploy status"
 
-    state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
-        api_address,
-        name,
-        last_log_timestamp,
-        verbose,
-        resolve_address,
-        return_function_status=True,
-        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
-    )
+    try:
+        (
+            state,
+            address,
+            last_log_timestamp,
+            outputs,
+            function_status,
+        ) = get_deploy_status(
+            api_address,
+            name,
+            last_log_timestamp,
+            verbose,
+            resolve_address,
+            return_function_status=True,
+            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+        )
+    except requests.exceptions.ConnectionError as exc:
+        mlrun.errors.raise_for_status(
+            exc.response,
+            get_err_message,
+        )
 
-    text = "\n".join(outputs) if outputs else ""
-    return state, address, name, last_log_timestamp, text, function_status
+    except nuclio.utils.DeployError as exc:
+        if exc.err:
+            mlrun.errors.raise_for_status(
+                exc.err.response,
+                get_err_message,
+            )
+        raise exc
+    else:
+        text = "\n".join(outputs) if outputs else ""
+        return state, address, name, last_log_timestamp, text, function_status
 
 
 def _compile_nuclio_archive_config(
@@ -1603,3 +1676,36 @@ def _resolve_work_dir_and_handler(handler):
         return "", extend_handler(handler)
 
     return split_handler[0], extend_handler(split_handler[1])
+
+
+def _resolve_nuclio_runtime_python_image(
+    mlrun_client_version: str = None, python_version: str = None
+):
+    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 therefore need
+    # to use the previoud default runtime which is python 3.7
+    if not python_version or not mlrun_client_version:
+        return "python:3.7"
+
+    # If the mlrun version is 0.0.0-<unstable>, it is a dev version,
+    # so we can't check if it is higher than 1.3.0, but if the python version was passed,
+    # it means it is 1.3.0-rc or higher, so use the image according to the python version
+    if mlrun_client_version.startswith("0.0.0-") or "unstable" in mlrun_client_version:
+        if python_version.startswith("3.7"):
+            return "python:3.7"
+
+        return mlrun.mlconf.default_nuclio_runtime
+
+    # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
+    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
+        "1.3.0-X"
+    ):
+        return "python:3.7"
+
+    # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
+    if semver.VersionInfo.parse(mlrun_client_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
+        return "python:3.7"
+
+    # if none of the above conditions are met we use the default runtime which is python 3.9
+    return mlrun.mlconf.default_nuclio_runtime

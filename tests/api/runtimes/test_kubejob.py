@@ -363,6 +363,44 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
+    def test_run_with_global_secrets(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        project_secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
+        project_secrets = {key: "some-secret-value" for key in project_secret_keys}
+        # secret1 is included both in the global secrets and the project secrets, it should have the value from the
+        # project-secret (this is the logic in get_expected_env_variables_from_secrets)
+        global_secret_keys = [
+            "global_secret1",
+            "global_secret2",
+            "mlrun.global_secret3",
+            "secret1",
+        ]
+        global_secrets = {key: "some-global-secret-value" for key in global_secret_keys}
+        global_secret_name = "global-secret-1"
+
+        k8s_secrets_mock.store_project_secrets(self.project, project_secrets)
+        k8s_secrets_mock.store_secret(global_secret_name, global_secrets)
+
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
+            global_secret_name
+        )
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = None
+
+        expected_env_from_secrets = (
+            k8s_secrets_mock.get_expected_env_variables_from_secrets(
+                self.project, include_internal=False, global_secret=global_secret_name
+            )
+        )
+
+        self._assert_pod_creation_config(
+            expected_env_from_secrets=expected_env_from_secrets,
+        )
+
     def test_run_with_vault_secrets(self, db: Session, client: TestClient):
         self._mock_vault_functionality()
         runtime = self._generate_runtime()
@@ -403,7 +441,15 @@ def my_func(context):
         runtime.with_code(body=expected_code)
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_code=expected_code)
+        self._assert_pod_creation_config(
+            expected_code=expected_code,
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+            ],
+        )
 
     def test_set_env(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -448,6 +494,23 @@ def my_func(context):
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
 
+    def test_run_with_args(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.spec.args = ["--arg1", "value1"]
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+                "*",
+                "--arg1",
+                "value1",
+            ],
+        )
+
     def test_set_label(self, db: Session, client: TestClient):
         task = self._generate_task()
         task.set_label("category", "test")
@@ -456,6 +519,24 @@ def my_func(context):
         runtime = self._generate_runtime()
         self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
+
+    def test_with_image_pull_configuration(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        policy = "IfNotPresent"
+        secret = "some_secret"
+        runtime.set_image_pull_configuration(
+            image_pull_policy=policy, image_pull_secret_name=secret
+        )
+        assert (
+            runtime.spec.image_pull_policy == policy
+            and runtime.spec.image_pull_secret == secret
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Image pull policy must be one of",
+        ):
+            runtime.set_image_pull_configuration(image_pull_policy="invalidPolicy")
 
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

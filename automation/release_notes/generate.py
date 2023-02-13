@@ -40,38 +40,41 @@ class ReleaseNotesGenerator:
         r"\)"
         r"$"
     )
+    bug_fixes_words = ["fix", "bug"]
 
     def __init__(
         self,
         release: str,
         previous_release: str,
         release_branch: str,
+        raise_on_failed_parsing: bool = True,
+        tmp_file_path: str = None,
+        skip_clone: bool = False,
     ):
         self._logger = logger
         self._release = release
         self._previous_release = previous_release
         self._release_branch = release_branch
+        self._raise_on_failed_parsing = raise_on_failed_parsing
+        self._tmp_file_path = tmp_file_path
+        self._skip_clone = skip_clone
         # adding a map with the common contributors to prevent going to github API on every commit (better performance,
         # and prevent rate limiting)
         self._git_to_github_usernames_map = {
             "Hedingber": "Hedingber",
             "gilad-shaham": "gilad-shaham",
             "Saar Cohen": "theSaarco",
-            "urihoenig": "urihoenig",
-            "Eyal Salomon": "eyalsol",
-            "Katya Katsenelenbogen": "katyakats",
-            "Ben": "benbd86",
             "Yaron Haviv": "yaronha",
-            "Marcelo Litovsky": "marcelonyc",
             "Liran BG": "liranbg",
             "Gal Topper": "gtopper",
-            "Dina Nimrodi": "dinal",
-            "Michael": "Michaelliv",
             "guy1992l": "guy1992l",
             "Nick Brown": "ihs-nick",
-            "Oded Messer": "omesser",
             "Tom Tankilevitch": "tankilevitch",
             "Adam": "quaark",
+            "Alon Maor": "alonmr",
+            "TomerShor": "TomerShor",
+            "Assaf Ben-Amitai": "assaf758",
+            "Yael Genish": "yaelgen",
         }
 
     def run(self):
@@ -85,17 +88,24 @@ class ReleaseNotesGenerator:
         with tempfile.TemporaryDirectory(
             suffix="mlrun-release-notes-clone"
         ) as repo_dir:
-            self._logger.info("Cloning repo", repo_dir=repo_dir)
-            self._run_command(
-                "git",
-                args=[
-                    "clone",
-                    "--branch",
-                    self._release_branch,
-                    "git@github.com:mlrun/mlrun.git",
-                    repo_dir,
-                ],
-            )
+            current_working_dir = repo_dir
+            if self._skip_clone:
+                current_working_dir = None
+                self._logger.info(
+                    "Skipping cloning repo, assuming already cloned, using current working dir"
+                )
+            else:
+                self._logger.info("Cloning repo", repo_dir=current_working_dir)
+                self._run_command(
+                    "git",
+                    args=[
+                        "clone",
+                        "--branch",
+                        self._release_branch,
+                        "git@github.com:mlrun/mlrun.git",
+                        current_working_dir,
+                    ],
+                )
 
             commits_for_highlights = self._run_command(
                 "git",
@@ -104,7 +114,7 @@ class ReleaseNotesGenerator:
                     '--pretty=format:"%h {%an} %s"',
                     f"{self._previous_release}..{self._release}",
                 ],
-                cwd=repo_dir,
+                cwd=current_working_dir,
             )
 
             commits_for_pull_requests = self._run_command(
@@ -114,7 +124,7 @@ class ReleaseNotesGenerator:
                     '--pretty=format:"%h %s"',
                     f"{self._previous_release}..{self._release}",
                 ],
-                cwd=repo_dir,
+                cwd=current_working_dir,
             )
 
         self._generate_release_notes_from_commits(
@@ -125,20 +135,26 @@ class ReleaseNotesGenerator:
         self, commits_for_highlights, commits_for_pull_requests
     ):
         (
-            highlight_notes,
+            feature_notes,
+            bug_fixes_notes,
             failed_parsing_commits,
         ) = self._generate_highlight_notes_from_commits(commits_for_highlights)
-        # currently we just put everything under features / enhancements
         # TODO: enforce a commit message convention which will allow to parse whether it's a feature/enhancement or
         #  bug fix
         failed_commits = "\n".join(failed_parsing_commits)
+        ui_feature_notes = (
+            f"* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/"
+            f"{self._release}#features-and-enhancements)"
+        )
+        ui_bug_fix_notes = f"* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{self._release}#bug-fixes)"
+        feature_notes += ui_feature_notes
+        bug_fixes_notes += ui_bug_fix_notes
         release_notes = f"""
 ### Features / Enhancements
-{highlight_notes}
-* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{self._release}#features-and-enhancements)
+{feature_notes}
 
 ### Bug fixes
-* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{self._release}#bug-fixes)
+{bug_fixes_notes}
 
 
 #### Pull requests:
@@ -150,16 +166,25 @@ class ReleaseNotesGenerator:
 #### Failed parsing:
 {failed_commits}
 """
+            release_notes += failed_parsing_template
+            if self._raise_on_failed_parsing:
+                self.output_release_notes(release_notes)
+                raise ValueError(
+                    "Failed parsing some of the commits, added them at the end of the release notes"
+                )
 
-            print(release_notes + failed_parsing_template)
-            raise ValueError(
-                "Failed parsing some of the commits, added them at the end of the release notes"
-            )
+        self.output_release_notes(release_notes)
 
+    def output_release_notes(self, release_notes: str):
         print(release_notes)
+        if self._tmp_file_path:
+            logger.info("Writing release notes to file", path=self._tmp_file_path)
+            with open(self._tmp_file_path, "w") as f:
+                f.write(release_notes)
 
     def _generate_highlight_notes_from_commits(self, commits: str):
-        highlighted_notes = ""
+        feature_notes = ""
+        bug_fixes_notes = ""
         failed_parsing_commits = []
         if commits:
             for commit in commits.split("\n"):
@@ -171,11 +196,22 @@ class ReleaseNotesGenerator:
                     commit_id = match.groupdict()["commitId"]
                     username = match.groupdict()["username"]
                     github_username = self._resolve_github_username(commit_id, username)
-                    highlighted_notes += f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
+                    message_note = f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
+                    if self._is_bug_fix(message_note):
+                        bug_fixes_notes += message_note
+                    else:
+                        feature_notes += message_note
                 elif commit:
                     failed_parsing_commits.append(commit)
 
-        return highlighted_notes, failed_parsing_commits
+        return feature_notes, bug_fixes_notes, failed_parsing_commits
+
+    def _is_bug_fix(self, note: str):
+        for bug_fix_word in self.bug_fixes_words:
+            if bug_fix_word in note.lower():
+                return True
+
+        return False
 
     def _resolve_github_username(self, commit_id, username):
         """
@@ -234,13 +270,24 @@ def main():
 @click.argument("release", type=str, required=True)
 @click.argument("previous-release", type=str, required=True)
 @click.argument("release-branch", type=str, required=False, default="master")
+@click.argument("raise-on-failed-parsing", type=bool, required=False, default=True)
+@click.argument("tmp-file-path", type=str, required=False, default=None)
+@click.argument("skip-clone", type=bool, required=False, default=True)
 def run(
     release: str,
     previous_release: str,
     release_branch: str,
+    raise_on_failed_parsing: bool,
+    tmp_file_path: str,
+    skip_clone: bool,
 ):
     release_notes_generator = ReleaseNotesGenerator(
-        release, previous_release, release_branch
+        release,
+        previous_release,
+        release_branch,
+        raise_on_failed_parsing,
+        tmp_file_path,
+        skip_clone,
     )
     try:
         release_notes_generator.run()

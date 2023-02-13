@@ -61,7 +61,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             "status": {"bla": "blabla"},
         }
         function_names = ["function_name_1", "function_name_2", "function_name_3"]
-        function_tags = ["some_tag", "some_tag2", "some_tag3"]
+        function_tags = ["some-tag", "some-tag2", "some-tag3"]
         for function_name in function_names:
             for function_tag in function_tags:
                 db.store_function(
@@ -84,7 +84,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
                 artifact_key,
                 artifact,
                 "some_uid",
-                tag="some_tag",
+                tag="some-tag",
                 project=project.metadata.name,
             )
 
@@ -95,7 +95,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         # verify artifacts and functions were created
         project_artifacts = project.list_artifacts()
         loaded_project_artifacts = projects[0].list_artifacts()
-        assert len(project_artifacts) == len(artifact_keys)
+        assert (
+            len(project_artifacts) == len(artifact_keys) * 2
+        )  # project artifacts include "latest"
         assert len(project_artifacts) == len(loaded_project_artifacts)
         assert project_artifacts == loaded_project_artifacts
 

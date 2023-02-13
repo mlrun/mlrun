@@ -18,10 +18,10 @@ import json
 import traceback
 from enum import Enum
 from io import BytesIO
-from typing import Union
+from typing import Dict, List, Union
 
 import numpy
-from numpy.core.fromnumeric import mean
+import numpy as np
 
 import mlrun
 import mlrun.utils.model_monitoring
@@ -40,14 +40,8 @@ from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
-
-class ExecutorTypes:
-    thread = "thread"
-    process = "process"
-
-    @staticmethod
-    def all():
-        return [ExecutorTypes.thread, ExecutorTypes.process]
+# Used by `ParallelRun` in process mode, so it can be accessed from different processes.
+local_routes = {}
 
 
 class BaseModelRouter(RouterToDict):
@@ -117,7 +111,7 @@ class BaseModelRouter(RouterToDict):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
             else:
-                raise ValueError(f"Unrecognized request format: {exc}")
+                raise ValueError("Unrecognized request format") from exc
 
         return parsed_event
 
@@ -221,11 +215,30 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
+class ExecutorTypes:
+    # TODO: Remove in 1.5.0.
+    thread = "thread"
+    process = "process"
+
+    @staticmethod
+    def all():
+        return [ExecutorTypes.thread, ExecutorTypes.process]
+
+
 class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
-    array = "array"
-    thread = "thread"
+    array = "array"  # running one by one
+    process = "process"  # running in separated processes
+    thread = "thread"  # running in separated threads
+
+    @staticmethod
+    def all():
+        return [
+            ParallelRunnerModes.thread,
+            ParallelRunnerModes.process,
+            ParallelRunnerModes.array,
+        ]
 
 
 class VotingTypes(str, Enum):
@@ -243,7 +256,10 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class VotingEnsemble(BaseModelRouter):
+class ParallelRun(BaseModelRouter):
+    # TODO: change name to ParallelRunModelRouter
+    # To consider because ParallelRun inherits from BaseModelRouter
+    # Didn't changed yet because ParallelRun is not only for models
     def __init__(
         self,
         context=None,
@@ -252,9 +268,247 @@ class VotingEnsemble(BaseModelRouter):
         protocol: str = None,
         url_prefix: str = None,
         health_prefix: str = None,
-        vote_type=None,
-        executor_type=None,
-        prediction_col_name=None,
+        extend_event=None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        **kwargs,
+    ):
+        """Process multiple steps (child routes) in parallel and merge the results
+
+        By default the results dict from each step are merged (by key), when setting the `extend_event`
+        the results will start from the event body dict (values can be overwritten)
+
+        Users can overwrite the merger() method to implement custom merging logic.
+
+        Example::
+
+            # create a function with a parallel router and 3 children
+            fn = mlrun.new_function("parallel", kind="serving")
+            graph = fn.set_topology(
+                "router",
+                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
+            )
+            graph.add_route("child1", class_name="Cls1")
+            graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
+            graph.add_route("child3", handler="my_handler")
+            server = fn.to_mock_server()
+            resp = server.test("", {"x": 8})
+
+
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param executor_type: Parallelism mechanism,  Have 3 option :
+                              * array - running one by one
+                              * process - running in separated process
+                              * thread - running in separated threads
+                              by default `threads`
+        :param extend_event:  True will add the event body to the result
+        :param kwargs:        extra arguments
+        """
+        super().__init__(
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            **kwargs,
+        )
+        self.name = name or "ParallelRun"
+        self.extend_event = extend_event
+        if isinstance(executor_type, ExecutorTypes):
+            executor_type = str(executor_type)
+            logger.warn(
+                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
+                # TODO: In 1.5.0 to remove ExecutorTypes
+                FutureWarning,
+            )
+        self.executor_type = ParallelRunnerModes(executor_type)
+        self._pool: Union[
+            concurrent.futures.ProcessPoolExecutor,
+            concurrent.futures.ThreadPoolExecutor,
+        ] = None
+
+    def _apply_logic(self, results: dict, event=None):
+        """
+        Apply merge logic on results.
+
+        :param results: A list of sample results by models e.g. results[model][prediction]
+        :param event: Response event
+
+        :return: Dictionary of results
+        """
+        if not self.extend_event:
+            event.body = {}
+        return self.merger(event.body, results)
+
+    def merger(self, body, results):
+        """Merging logic
+
+        input the event body and a dict of route results and returns a dict with merged results
+        """
+        for result in results.values():
+            body.update(result)
+        return body
+
+    def do_event(self, event, *args, **kwargs):
+        # Handle and verify the request
+        original_body = event.body
+        event.body = _extract_input_data(self._input_path, event.body)
+        event = self.preprocess(event)
+        event = self._pre_handle_event(event)
+
+        # Should we terminate the event?
+        if hasattr(event, "terminated") and event.terminated:
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
+            self._shutdown_pool()
+            return event
+
+        response = copy.copy(event)
+        results = self._parallel_run(event)
+        self._apply_logic(results, response)
+        response = self.postprocess(response)
+
+        event.body = _update_result_body(
+            self._result_path, original_body, response.body if response else None
+        )
+        return event
+
+    def _init_pool(
+        self,
+    ) -> Union[
+        concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor
+    ]:
+        """
+
+        Get the tasks pool of this runner. If the pool is `None`,
+        a new pool will be initialized according to `executor_type`.
+
+        :return: The tasks pool
+        """
+        if self._pool is None:
+            if self.executor_type == ParallelRunnerModes.process:
+                # init the context and route on the worker side (cannot be pickeled)
+                server = self.context.server.to_dict()
+                routes = {}
+                for key, route in self.routes.items():
+                    step = copy.copy(route)
+                    step.context = None
+                    step._parent = None
+                    if step._object:
+                        step._object.context = None
+                    routes[key] = step
+                executor_class = concurrent.futures.ProcessPoolExecutor
+                self._pool = executor_class(
+                    max_workers=len(self.routes),
+                    initializer=ParallelRun.init_pool,
+                    initargs=(server, routes, id(self)),
+                )
+            elif self.executor_type == ParallelRunnerModes.thread:
+                executor_class = concurrent.futures.ThreadPoolExecutor
+                self._pool = executor_class(max_workers=len(self.routes))
+
+        return self._pool
+
+    def _shutdown_pool(self):
+        """
+        Shutdowns the pool and updated self._pool to None
+        """
+        if self._pool is not None:
+            if self.executor_type == ParallelRunnerModes.process:
+                global local_routes
+                local_routes.pop(id(self))
+            self._pool.shutdown()
+            self._pool = None
+
+    def _parallel_run(self, event: dict):
+        """
+        Execute parallel run
+
+        :param event: event to run in parallel
+
+        :return: All the results of the runs
+        """
+        results = {}
+        if self.executor_type == ParallelRunnerModes.array:
+            results = {
+                model_name: model.run(copy.copy(event)).body
+                for model_name, model in self.routes.items()
+            }
+            return results
+        futures = []
+        executor = self._init_pool()
+        for route in self.routes.keys():
+            if self.executor_type == ParallelRunnerModes.process:
+                future = executor.submit(
+                    ParallelRun._wrap_step, route, id(self), copy.copy(event)
+                )
+            elif self.executor_type == ParallelRunnerModes.thread:
+                step = self.routes[route]
+                future = executor.submit(
+                    ParallelRun._wrap_method,
+                    route,
+                    step.run,
+                    copy.copy(event),
+                )
+
+            futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                key, result = future.result()
+                results[key] = result.body
+            except Exception as exc:
+                logger.error(traceback.format_exc())
+                print(f"child route generated an exception: {exc}")
+        self.context.logger.debug(f"Collected results from children: {results}")
+        return results
+
+    @staticmethod
+    def init_pool(server_spec, routes, object_id):
+        server = mlrun.serving.GraphServer.from_dict(server_spec)
+        server.init_states(None, None)
+        global local_routes
+        if object_id in local_routes:
+            return
+        for route in routes.values():
+            route.context = server.context
+            if route._object:
+                route._object.context = server.context
+        local_routes[object_id] = routes
+
+    @staticmethod
+    def _wrap_step(route, object_id, event):
+        global local_routes
+        routes = local_routes.get(object_id, None).copy()
+        if routes is None:
+            return None, None
+        return route, routes[route].run(event)
+
+    @staticmethod
+    def _wrap_method(route, handler, event):
+        return route, handler(event)
+
+
+class VotingEnsemble(ParallelRun):
+    def __init__(
+        self,
+        context=None,
+        name: str = None,
+        routes=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
+        vote_type: str = None,
+        weights: Dict[str, float] = None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        format_response_with_col_name_flag: bool = False,
+        prediction_col_name: str = "prediction",
         **kwargs,
     ):
         """Voting Ensemble
@@ -330,7 +584,15 @@ class VotingEnsemble(BaseModelRouter):
                               by default will try to self-deduct upon the first event:
                               - float prediction type: regression
                               - int prediction type: classification
+        :param weights        A dictionary ({"<model_name>": <model_weight>}) that specified each model weight,
+                              if there is a model that didn't appear in the dictionary his
+                              weight will be count as a zero. None means that all the models have the same weight.
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
+        :param format_response_with_col_name_flag: If this flag is True the model's responses output format is
+                                                     `{id: <id>, model_name: <name>, outputs:
+                                                     {..., prediction: [<predictions>], ...}}`
+                                                   Else
+                                                      `{id: <id>, model_name: <name>, outputs: [<predictions>]}`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
                               Example: If the model returns
                               `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
@@ -339,12 +601,19 @@ class VotingEnsemble(BaseModelRouter):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context, name, routes, protocol, url_prefix, health_prefix, **kwargs
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            executor_type=executor_type,
+            **kwargs,
         )
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
-        self.executor_type = executor_type
+        self.weights = weights
         self._model_logger = (
             _ModelLogPusher(self, context)
             if context and context.stream.enabled
@@ -353,7 +622,7 @@ class VotingEnsemble(BaseModelRouter):
         self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
-        self.format_response_with_col_name_flag = False
+        self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = None
 
     def post_init(self, mode="sync"):
@@ -366,6 +635,8 @@ class VotingEnsemble(BaseModelRouter):
 
         if not self.context.is_mock or self.context.server.track_models:
             self.model_endpoint_uid = _init_endpoint_record(server, self)
+
+        self._update_weights(self.weights)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -452,35 +723,53 @@ class VotingEnsemble(BaseModelRouter):
             )
         return model, None, subpath
 
-    def _max_vote(self, all_predictions):
-        """Returns most predicted class for each event
-
-        Args:
-            all_predictions (List[List[Int]]): The predictions from all models, per event
-
-        Returns:
-            List[Int]: The most predicted class by all models, per event
+    def _majority_vote(self, all_predictions: List[List[int]], weights: List[float]):
         """
-        return [
-            max(predictions, key=predictions.count) for predictions in all_predictions
-        ]
+        Returns most predicted class for each event
 
-    def _mean_vote(self, all_predictions):
-        """Returns mean of the predictions
+        :param all_predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
 
-        Args:
-            all_predictions (List[List[float]]): The predictions from all models, per event
-
-        Returns:
-            List[Float]: The mean of predictions from all models, per event
+        :return: A list with the most predicted class by all models, per event
         """
-        return [mean(predictions) for predictions in all_predictions]
+        all_predictions = np.array(all_predictions)
+        # Create 3d matrix (n,c,m) - m the number of models,
+        # c the number of classes and n the number of samples
+        one_hot_representation = np.transpose(
+            (np.arange(all_predictions.max() + 1) == all_predictions[..., None]).astype(
+                int
+            ),
+            (0, 2, 1),
+        )
+        # Each 2d matrix multiply by the weights, and
+        # we get matrix (n,c) such that each row
+        # represent the prediction to each sample.
+        weighted_res = one_hot_representation @ weights
+        return np.argmax(weighted_res, axis=1).tolist()
+
+    def _mean_vote(self, all_predictions: List[List[float]], weights: List[float]):
+        """
+        Returns weighted mean of the predictions
+
+        :param all_predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
+
+        :return: A list of the mean of predictions from all models, per event
+        """
+        return (np.array(all_predictions) @ weights).tolist()
 
     def _is_int(self, value):
         return float(value).is_integer()
 
-    def logic(self, predictions):
-        self.context.logger.debug(f"Applying logic to {predictions}")
+    def logic(self, predictions: List[List[Union[int, float]]], weights: List[float]):
+        """
+        Returns the final prediction of all the models after applying the desire logic
+
+        :param predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
+
+        :return: List of the resulting voted predictions
+        """
         # Infer voting type if not given (Classification or recommendation) (once)
         if not self.vote_flag:
             # Are we dealing with an All-Int predictions
@@ -502,40 +791,41 @@ class VotingEnsemble(BaseModelRouter):
 
             # set flag to not infer this again
             self.vote_flag = True
-
         # Apply voting logic
         if self.vote_type == VotingTypes.classification:
             int_predictions = [
                 list(map(int, sample_predictions)) for sample_predictions in predictions
             ]
-            votes = self._max_vote(int_predictions)
+            self.context.logger.debug(f"Applying max logic vote on {predictions}")
+            votes = self._majority_vote(int_predictions, weights)
         else:
-            votes = self._mean_vote(predictions)
+            self.context.logger.debug(f"Applying majority logic vote on {predictions}")
+            votes = self._mean_vote(predictions, weights)
 
         return votes
 
-    def _apply_logic(self, predictions):
-        """Reduces a list of k predictions from n models to k predictions according to voting logic
-
-        Parameters
-        ----------
-        predictions : List[List]
-            A list of sample predictions by models
-            e.g. predictions[model][prediction]
-
-        Returns
-        -------
-        List
-            List of the resulting voted predictions
+    def _apply_logic(self, results: dict, event=None):
         """
+        Reduces a list of k predictions from n models to k predictions according to voting logic
 
-        # Flatten predictions by sample instead of by model as received
-        flattened_predictions = [
-            [predictions[j][i] for j in range(len(predictions))]
-            for i in range(len(predictions[0]))
-        ]
-
-        return self.logic(flattened_predictions)
+        :param results: A list of sample predictions by models e.g. predictions[model][prediction]
+        :param event: Response event
+        :return: List of the resulting voted predictions
+        """
+        flattened_predictions = np.array(
+            list(
+                map(
+                    lambda dictionary: (
+                        dictionary["outputs"][self.prediction_col_name]
+                        if self.format_response_with_col_name_flag
+                        else dictionary["outputs"]
+                    ),
+                    results.values(),
+                )
+            )
+        ).T
+        weights = [self._weights[model_name] for model_name in results.keys()]
+        return self.logic(flattened_predictions, np.array(weights))
 
     def do_event(self, event, *args, **kwargs):
         """Handles incoming requests.
@@ -563,6 +853,8 @@ class VotingEnsemble(BaseModelRouter):
             event.body = _update_result_body(
                 self._result_path, original_body, event.body
             )
+
+            self._shutdown_pool()
             return event
 
         # Extract route information
@@ -575,17 +867,20 @@ class VotingEnsemble(BaseModelRouter):
         if not name and route is None:
             # Return model list
             setattr(event, "terminated", True)
-            event.body = {"models": list(self.routes.keys()) + [self.name]}
+            event.body = {
+                "models": list(self.routes.keys()) + [self.name],
+                "weights": self.weights,
+            }
             event.body = _update_result_body(
                 self._result_path, original_body, event.body
             )
             return event
         else:
             # Verify we use the V2 protocol
-            request = self.validate(event.body)
+            request = self.validate(event.body, event.method)
 
             # If this is a Router Operation
-            if name == self.name:
+            if name == self.name and event.method != "GET":
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
                 # Format the prediction response like the regular
@@ -600,6 +895,26 @@ class VotingEnsemble(BaseModelRouter):
                 }
                 if self.version:
                     response_body["model_version"] = self.version
+                response.body = response_body
+            elif name == self.name and event.method == "GET" and not subpath:
+                response = copy.copy(event)
+                response_body = {
+                    "name": self.name,
+                    "version": self.version or "",
+                    "inputs": [],
+                    "outputs": [],
+                }
+                for route in self.routes.values():
+                    response_random_route = route.run(copy.copy(event))
+                    response_body["inputs"] = (
+                        response_body["inputs"] or response_random_route.body["inputs"]
+                    )
+                    response_body["outputs"] = (
+                        response_body["outputs"]
+                        or response_random_route.body["outputs"]
+                    )
+                    if response_body["inputs"] and response_body["outputs"]:
+                        break
                 response.body = response_body
             # A specific model event
             else:
@@ -642,73 +957,56 @@ class VotingEnsemble(BaseModelRouter):
                 f"in the model's response ({response.keys()})"
             )
 
-    def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
-        """Executes the processing logic in parallel
-
-        Args:
-            event (nuclio.Event): Incoming event after router preprocessing
-            mode (str, optional): Parallel processing method. Defaults to "thread".
-
-        Returns:
-            dict[str, nuclio.Event]: {model_name: model_response} for selected all models the registry
+    def validate(self, request: dict, method: str):
         """
-        if mode == ParallelRunnerModes.array:
-            results = {
-                model_name: model.run(copy.copy(event))
-                for model_name, model in self.routes.items()
-            }
-        elif mode == ParallelRunnerModes.thread:
-            pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.routes))
-            with pool as executor:
-                results = []
-                futures = [
-                    executor.submit(self.routes[model].run, copy.copy(event))
-                    for model in self.routes.keys()
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        results.append(future.result())
-                    except Exception as exc:
-                        print(f"child route generated an exception: {exc}")
-                results = [
-                    self.extract_results_from_response(event.body["outputs"])
-                    for event in results
-                ]
-                self.context.logger.debug(f"Collected results from models: {results}")
-        else:
-            raise ValueError(
-                f"{mode} is not a supported parallel run mode, please select from "
-                f"{[mode.value for mode in list(ParallelRunnerModes)]}"
-            )
-        return results
+        Validate the event body (after preprocessing)
 
-    def validate(self, request):
-        """Validate the event body (after preprocessing)
+        :param request: Event body.
+        :param method: Event method.
 
-        Parameters
-        ----------
-        request : dict
-            Event body.
 
-        Returns
-        -------
-        dict
-            Event body after validation
+        :return: The given Event body (request).
 
-        Raises
-        ------
-        Exception
-            `inputs` key not found in `request`
-        Exception
-            `inputs` should be of type List
+        :raise Exception: If validation failed.
         """
-        if self.protocol == "v2":
+        if self.protocol == "v2" and method != "GET":
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
 
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
+
+    def _normalize_weights(self, weights_dict: Dict[str, float]):
+        """
+        Normalized all the weights such that abs(weights_sum - 1.0) <= 0.001
+        and adding 0 weight to all the routes that doesn't appear in the dict.
+        If weights_dict is None the function returns equal weights to all the routes.
+
+        :param weights_dict: weights dictionary {<model_name>: <wight>}
+
+        :return: Normalized weights dictionary
+        """
+        if weights_dict is None:
+            num_of_models = len(self.routes)
+            return dict(zip(self.routes.keys(), [1 / num_of_models] * num_of_models))
+        weights_values = [*weights_dict.values()]
+        weights_sum = np.sum(weights_values)
+        if 1.0 - weights_sum <= 1e-5:
+            return weights_dict
+        new_weights_values = (np.array(weights_dict.values()) / weights_sum).tolist()
+        return dict(zip(weights_dict.keys(), new_weights_values))
+
+    def _update_weights(self, weights_dict):
+        """
+        Updated self._weights
+
+        :param weights_dict: weights dictionary {<model_name>: <wight>}
+        """
+        self._weights = self._normalize_weights(weights_dict)
+        for model in self.routes.keys():
+            if model not in self._weights.keys():
+                self._weights[model] = 0
 
 
 def _init_endpoint_record(
@@ -763,29 +1061,30 @@ def _init_endpoint_record(
                 if hasattr(c, "endpoint_uid"):
                     children_uids.append(c.endpoint_uid)
 
-            model_endpoint = ModelEndpoint(
-                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-                spec=ModelEndpointSpec(
-                    function_uri=graph_server.function_uri,
-                    model=versioned_model_name,
-                    model_class=voting_ensemble.__class__.__name__,
-                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project, kind="stream"
+                model_endpoint = ModelEndpoint(
+                    metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                    spec=ModelEndpointSpec(
+                        function_uri=graph_server.function_uri,
+                        model=versioned_model_name,
+                        model_class=voting_ensemble.__class__.__name__,
+                        stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                            project=project, kind="stream"
+                        ),
+                        active=True,
+                        monitoring_mode=ModelMonitoringMode.enabled
+                        if voting_ensemble.context.server.track_models
+                        else ModelMonitoringMode.disabled,
                     ),
-                    active=True,
-                    monitoring_mode=ModelMonitoringMode.enabled
-                    if voting_ensemble.context.server.track_models
-                    else ModelMonitoringMode.disabled,
-                ),
-                status=ModelEndpointStatus(
-                    children=list(voting_ensemble.routes.keys()),
-                    endpoint_type=EndpointType.ROUTER,
-                    children_uids=children_uids,
-                ),
-            )
+                    status=ModelEndpointStatus(
+                        children=list(voting_ensemble.routes.keys()),
+                        endpoint_type=EndpointType.ROUTER,
+                        children_uids=children_uids,
+                    ),
+                )
 
             db = mlrun.get_run_db()
-            db.create_or_patch_model_endpoint(
+
+            db.create_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
                 model_endpoint=model_endpoint,
@@ -797,7 +1096,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
-                db.create_or_patch_model_endpoint(
+                db.create_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,
                     model_endpoint=current_endpoint,
@@ -906,8 +1205,8 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        executor_type=None,
-        prediction_col_name=None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        prediction_col_name: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
@@ -1003,15 +1302,15 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context,
-            name,
-            routes,
-            protocol,
-            url_prefix,
-            health_prefix,
-            vote_type,
-            executor_type,
-            prediction_col_name,
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            vote_type=vote_type,
+            executor_type=executor_type,
+            prediction_col_name=prediction_col_name,
             **kwargs,
         )
 
@@ -1035,181 +1334,3 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
             event.body["inputs"], as_list=True
         )
         return event
-
-
-class ParallelRun(BaseModelRouter):
-    def __init__(
-        self,
-        context=None,
-        name: str = None,
-        routes=None,
-        extend_event=None,
-        executor_type: ExecutorTypes = None,
-        **kwargs,
-    ):
-        """Process multiple steps (child routes) in parallel and merge the results
-
-        By default the results dict from each step are merged (by key), when setting the `extend_event`
-        the results will start from the event body dict (values can be overwritten)
-
-        Users can overwrite the merger() method to implement custom merging logic.
-
-        Example::
-
-            # create a function with a parallel router and 3 children
-            fn = mlrun.new_function("parallel", kind="serving")
-            graph = fn.set_topology(
-                "router",
-                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
-            )
-            graph.add_route("child1", class_name="Cls1")
-            graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
-            graph.add_route("child3", handler="my_handler")
-            server = fn.to_mock_server()
-            resp = server.test("", {"x": 8})
-
-
-        :param context:       for internal use (passed in init)
-        :param name:          step name
-        :param routes:        for internal use (routes passed in init)
-        :param executor_type: Parallelism mechanism, "thread" or "process"
-        :param extend_event:  True will add the event body to the result
-        :param input_path:    when specified selects the key/path in the event to use as body
-                              this require that the event body will behave like a dict, example:
-                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
-        :param result_path:   selects the key/path in the event to write the results to
-                              this require that the event body will behave like a dict, example:
-                              event: {"x": 5} , result_path="resp" means the returned response will be written
-                              to event["y"] resulting in {"x": 5, "resp": <result>}
-        :param vote_type:     Voting type to be used (from `VotingTypes`).
-                              by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
-        :param kwargs:        extra arguments
-        """
-        super().__init__(context, name, routes, **kwargs)
-        self.name = name or "ParallelRun"
-        if executor_type and executor_type not in ExecutorTypes.all():
-            raise ValueError(
-                f"executor_type must be one of {' | '.join(ExecutorTypes.all())}"
-            )
-        self.executor_type = executor_type
-        self.extend_event = extend_event
-
-        self._pool = None
-
-    def _init_pool(self):
-        if self._pool is None:
-            if self.executor_type == ExecutorTypes.process:
-                # init the context and route on the worker side (cannot be pickeled)
-                server = self.context.server.to_dict()
-                routes = {}
-                for key, route in self.routes.items():
-                    step = copy.copy(route)
-                    step.context = None
-                    step._parent = None
-                    if step._object:
-                        step._object.context = None
-                    routes[key] = step
-                executor_class = concurrent.futures.ProcessPoolExecutor
-                self._pool = executor_class(
-                    max_workers=len(self.routes),
-                    initializer=init_pool,
-                    initargs=(
-                        server,
-                        routes,
-                    ),
-                )
-            else:
-                executor_class = concurrent.futures.ThreadPoolExecutor
-                self._pool = executor_class(max_workers=len(self.routes))
-
-        return self._pool
-
-    def _shutdown_pool(self):
-        if self._pool is not None:
-            self._pool.shutdown()
-            self._pool = None
-
-    def merger(self, body, results):
-        """Merging logic
-
-        input the event body and a dict of route results and returns a dict with merged results
-        """
-        for result in results.values():
-            body.update(result)
-        return body
-
-    def do_event(self, event, *args, **kwargs):
-        # Handle and verify the request
-        original_body = event.body
-        event.body = _extract_input_data(self._input_path, event.body)
-        event = self.preprocess(event)
-        event = self._pre_handle_event(event)
-
-        # Should we terminate the event?
-        if hasattr(event, "terminated") and event.terminated:
-            event.body = _update_result_body(
-                self._result_path, original_body, event.body
-            )
-            self._shutdown_pool()
-            return event
-
-        # Verify we use the V2 protocol
-        results = self._parallel_run(event)
-        response = copy.copy(event)
-        if self.extend_event:
-            body = copy.copy(event.body)
-        else:
-            body = {}
-        response.body = self.merger(body, results)
-        response = self.postprocess(response)
-
-        event.body = _update_result_body(
-            self._result_path, original_body, response.body if response else None
-        )
-        return event
-
-    def _parallel_run(self, event):
-        futures = []
-        results = {}
-        executor = self._init_pool()
-        for route in self.routes.keys():
-            if self.executor_type == ExecutorTypes.process:
-                future = executor.submit(_wrap_step, route, copy.copy(event))
-            else:
-                step = self.routes[route]
-                future = executor.submit(
-                    _wrap_method, route, step.run, copy.copy(event)
-                )
-
-            futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                key, result = future.result()
-                results[key] = result.body
-            except Exception as exc:
-                logger.error(traceback.format_exc())
-                print(f"child route generated an exception: {exc}")
-        self.context.logger.debug(f"Collected results from children: {results}")
-        return results
-
-
-def init_pool(server_spec, routes):
-    server = mlrun.serving.GraphServer.from_dict(server_spec)
-    server.init_states(None, None)
-    global local_routes
-    for route in routes.values():
-        route.context = server.context
-        if route._object:
-            route._object.context = server.context
-    local_routes = routes
-
-
-def _wrap_step(route, event):
-    return route, local_routes[route].run(event)
-
-
-def _wrap_method(route, handler, event):
-    return route, handler(event)

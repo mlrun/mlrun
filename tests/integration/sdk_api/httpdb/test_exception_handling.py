@@ -30,12 +30,12 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         mlrun.get_or_create_project("some-project", context="./")
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
         # sending a store artifact request with an invalid json body
-        # This is practically verifies that log_and_raise puts the kwargs under the details.reason
+        # This is practically verifies that log_and_raise puts the kwargs under the details
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
             rf"{mlrun.get_run_db().get_api_path_prefix()}\/artifact\/some-project\/some-uid\/some-key: details: "
-            "{'reason': {'reason': 'bad JSON body'}}",
+            "{'reason': 'bad JSON body'}",
         ):
             mlrun.get_run_db().api_call(
                 "POST",
@@ -54,8 +54,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
             r"\/projects: Failed creating project some_p"
-            r"roject details: {'reason': 'MLRunInvalidArgumentError\(\"Field \\'project\.metadata\.name\\' is malformed"
-            r"\. Does not match required pattern: (.*)\"\)'}",
+            r"roject details: MLRunInvalidArgumentError\(\"Field \'project\.metadata\.name\' is malformed"
+            r"\. Does not match required pattern: (.*)\"\)",
         ):
             mlrun.get_run_db().create_project(project)
 
@@ -74,20 +74,6 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         ):
             mlrun.get_run_db().delete_project(
                 "some-project-name", deletion_strategy=invalid_deletion_strategy
-            )
-
-        # python exception - list endpoints uses v3io client which uses python http client which throws some exception
-        # (socket.gaierror) since the v3io address is empty
-        # This is handled in the mlrun/api/main.py::generic_error_handler
-        with pytest.raises(
-            mlrun.errors.MLRunInternalServerError,
-            match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)"
-            rf"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/model-"
-            r"endpoints\?start=now-1h&end=now&top-level=False: details: {\'reason\': \"ValueError\(\'Access key must be"
-            r" provided in Client\(\) arguments or in the V3IO_ACCESS_KEY environment variable\'\)\"}",
-        ):
-            mlrun.get_run_db().list_model_endpoints(
-                "some-project", access_key="some-access-key"
             )
 
         # lastly let's verify that a request error (failure reaching to the server) is handled nicely

@@ -61,6 +61,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
 )
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
@@ -72,6 +73,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_tag_name,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -107,7 +109,9 @@ def retry_on_conflict(function):
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
-                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
+                    logger.warning(
+                        "Got conflict error from DB. Retrying", err=err_to_str(exc)
+                    )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Got conflict error from DB"
                     ) from exc
@@ -188,6 +192,7 @@ class SQLDB(DBInterface):
                 iteration=iter,
                 state=run_state(run_data),
                 start_time=run_start_time(run_data) or now,
+                requested_logs=False,
             )
         self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
@@ -224,6 +229,72 @@ class SQLDB(DBInterface):
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
 
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs_modes: typing.List[bool] = None,
+        only_uids=True,
+        last_start_time_from: datetime = None,
+        states: typing.List[str] = None,
+    ) -> typing.Union[typing.List[str], RunList]:
+        """
+        List all runs uids in the DB
+        :param session: DB session
+        :param project: Project name, `*` or `None` lists across all projects
+        :param requested_logs_modes: If not `None`, will return only runs with the given requested logs modes
+        :param only_uids: If True, will return only the uids of the runs as list of strings
+                          If False, will return the full run objects as RunList
+        :param last_start_time_from: If not `None`, will return only runs created after this time
+        :param states: If not `None`, will return only runs with the given states
+        :return: List of runs uids or RunList
+        """
+        if only_uids:
+            # using distinct to avoid duplicates as there could be multiple runs with the same uid(different iterations)
+            query = self._query(session, distinct(Run.uid))
+        else:
+            query = self._query(session, Run)
+
+        if project and project != "*":
+            query = query.filter(Run.project == project)
+
+        if states:
+            query = query.filter(Run.state.in_(states))
+
+        if last_start_time_from is not None:
+            query = query.filter(Run.start_time >= last_start_time_from)
+
+        if requested_logs_modes is not None:
+            query = query.filter(Run.requested_logs.in_(requested_logs_modes))
+
+        if not only_uids:
+            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
+            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
+            query = query.group_by(Run.uid)
+
+            runs = RunList()
+            for run in query:
+                runs.append(run.struct)
+
+            return runs
+
+        # from each row we expect to get a tuple of (uid,) so we need to extract the uid from the tuple
+        return [uid for uid, in query.all()]
+
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
+        # note that you should commit right after the synchronize_session=False
+        # https://stackoverflow.com/questions/70350298/what-does-synchronize-session-false-do-exactly-in-update-functions-for-sqlalch
+        self._query(session, Run).filter(Run.uid.in_(uids)).update(
+            {
+                Run.requested_logs: requested_logs,
+                Run.updated: datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
+        )
+        session.commit()
+
     def read_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
@@ -235,7 +306,7 @@ class SQLDB(DBInterface):
         self,
         session,
         name=None,
-        uid=None,
+        uid: typing.Optional[typing.Union[str, List[str]]] = None,
         project=None,
         labels=None,
         states=None,
@@ -251,6 +322,8 @@ class SQLDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -276,7 +349,8 @@ class SQLDB(DBInterface):
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
-
+        if requested_logs is not None:
+            query = query.filter(Run.requested_logs == requested_logs)
         if partition_by:
             self._assert_partition_by_parameters(
                 schemas.RunPartitionByField, partition_by, partition_sort_by
@@ -291,6 +365,8 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+        if not return_as_run_structs:
+            return query.all()
 
         runs = RunList()
         for run in query:
@@ -529,6 +605,10 @@ class SQLDB(DBInterface):
         self._upsert(session, [art])
         if tag_artifact:
             tag = tag or "latest"
+
+            # we want to ensure that the tag is valid before storing,
+            # if it isn't, MLRunInvalidArgumentError will be raised
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_artifacts(session, [art], project, tag)
             # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
@@ -623,9 +703,7 @@ class SQLDB(DBInterface):
                 "best-iteration cannot be used when iter is specified"
             )
         # TODO: Refactor this area
-        # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
-        # old way - by the updated field
-        ids = "latest"
+        ids = "*"
         if tag:
             # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
             # producer and not by context, this because when were logging artifacts using the project producer we were
@@ -660,7 +738,31 @@ class SQLDB(DBInterface):
                     "as_records is not supported with best_iteration=True"
                 )
             return artifact_records
-        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+
+        # In case best_iteration is requested and filtering is done by tag, then we might have artifacts from the best
+        # iteration (which is tagged) but not the link artifact (that is not tagged). This will cause the filtering
+        # happening next to fail. Therefore, we need to add to the list of results the link artifacts from the given
+        # keys + uids.
+        if best_iteration:
+            iteration_keys = set()
+            link_keys = set()
+            for artifact in artifact_records:
+                if self._name_with_iter_regex.match(artifact.key):
+                    key_without_iteration = artifact.key.split("-", maxsplit=1)[1]
+                    iteration_keys.add((key_without_iteration, artifact.uid))
+                else:
+                    link_keys.add((artifact.key, artifact.uid))
+            missing_link_keys = iteration_keys.difference(link_keys)
+            artifact_records.extend(
+                self._get_link_artifacts_by_keys_and_uids(
+                    session, project, missing_link_keys
+                )
+            )
+
+        # concatenating <artifact.key> and <artifact.uid> to create a unique key for the artifacts
+        indexed_artifacts = {
+            f"{artifact.key}-{artifact.uid}": artifact for artifact in artifact_records
+        }
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)
 
@@ -676,7 +778,9 @@ class SQLDB(DBInterface):
                     link_iteration = artifact.struct["spec"].get("link_iteration")
 
                 if link_iteration:
-                    linked_key = f"{link_iteration}-{artifact.key}"
+                    # link artifact key is without the iteration so to pull the linked artifact we need to
+                    # concatenate the <link-iteration>-<artifact.key>-<artifact.uid> together
+                    linked_key = f"{link_iteration}-{artifact.key}-{artifact.uid}"
                     linked_artifact = indexed_artifacts.get(linked_key)
                     if linked_artifact:
                         artifact = linked_artifact
@@ -690,17 +794,27 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            # ids = "latest" and not tag means that it was not given by the user, so we will not set the tag in the
-            # artifact struct
-            if ids != "latest" or tag:
-                artifacts_with_tag = self._add_tags_to_artifact_struct(
-                    session, artifact_struct, artifact.id, tag
-                )
-                artifacts.extend(artifacts_with_tag)
-            else:
-                artifacts.append(artifact_struct)
+
+            # set the tags in the artifact struct
+            artifacts_with_tag = self._add_tags_to_artifact_struct(
+                session, artifact_struct, artifact.id, tag
+            )
+            artifacts.extend(artifacts_with_tag)
 
         return artifacts
+
+    def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
+        # identifiers are tuples of (key, uid)
+        if not identifiers:
+            return []
+        predicates = [
+            and_(Artifact.key == key, Artifact.uid == uid) for (key, uid) in identifiers
+        ]
+        return (
+            self._query(session, Artifact, project=project)
+            .filter(or_(*predicates))
+            .all()
+        )
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
@@ -1077,6 +1191,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             labels=labels,
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
         )
         self._upsert(session, [schedule])
 
@@ -1183,6 +1298,10 @@ class SQLDB(DBInterface):
             )
             tag = query.one_or_none()
             if not tag:
+                # To maintain backwards compatibility,
+                # we validate the tag name only if it does not already exist on the artifact,
+                # we don't want to fail on old tags that were created before the validation was added.
+                validate_tag_name(tag_name=name, field_name="artifact.metadata.tag")
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
             self._upsert(session, [tag], ignore=True)
@@ -2601,7 +2720,9 @@ class SQLDB(DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise mlrun.errors.MLRunConflictError(f"add user: {err}") from err
+                raise mlrun.errors.MLRunConflictError(
+                    f"add user: {err_to_str(err)}"
+                ) from err
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
@@ -2651,7 +2772,9 @@ class SQLDB(DBInterface):
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
+                logger.warning(
+                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                )
                 if not ignore:
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
@@ -2686,7 +2809,11 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         if project == "*":
             project = None
-        query = self._query(session, Run, uid=uid, project=project)
+        query = self._query(session, Run, project=project)
+        if uid:
+            # uid may be either a single uid (string) or a list of uids
+            uid = mlrun.utils.helpers.as_list(uid)
+            query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
     def _latest_uid_filter(self, session, query):

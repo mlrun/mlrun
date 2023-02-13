@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from enum import Enum
-
 import mergedeep
 
+import mlrun.api.utils.helpers
 import mlrun.errors
 
 
-class PatchMode(str, Enum):
+class PatchMode(mlrun.api.utils.helpers.StrEnum):
     replace = "replace"
     additive = "additive"
 
@@ -34,7 +33,7 @@ class PatchMode(str, Enum):
             )
 
 
-class DeletionStrategy(str, Enum):
+class DeletionStrategy(mlrun.api.utils.helpers.StrEnum):
     restrict = "restrict"
     restricted = "restricted"
     cascade = "cascade"
@@ -92,9 +91,13 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
     client_version = f"{headers_prefix}client-version"
+    python_version = f"{headers_prefix}client-python-version"
+    backend_version = f"{headers_prefix}be-version"
+    ui_version = f"{headers_prefix}ui-version"
+    ui_clear_cache = f"{headers_prefix}ui-clear-cache"
 
 
-class FeatureStorePartitionByField(str, Enum):
+class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):
     name = "name"  # Supported for feature-store objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -106,7 +109,7 @@ class FeatureStorePartitionByField(str, Enum):
             )
 
 
-class RunPartitionByField(str, Enum):
+class RunPartitionByField(mlrun.api.utils.helpers.StrEnum):
     name = "name"  # Supported for runs objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -118,7 +121,7 @@ class RunPartitionByField(str, Enum):
             )
 
 
-class SortField(str, Enum):
+class SortField(mlrun.api.utils.helpers.StrEnum):
     created = "created"
     updated = "updated"
 
@@ -136,7 +139,7 @@ class SortField(str, Enum):
             )
 
 
-class OrderType(str, Enum):
+class OrderType(mlrun.api.utils.helpers.StrEnum):
     asc = "asc"
     desc = "desc"
 
@@ -171,3 +174,9 @@ class APIStates:
 class ClusterizationRole:
     chief = "chief"
     worker = "worker"
+
+
+class LogsCollectorMode:
+    legacy = "legacy"
+    sidecar = "sidecar"
+    best_effort = "best-effort"

@@ -1,4 +1,5 @@
-pytest~=5.4
-matplotlib~=3.0
-graphviz~=0.16.0
+pytest~=6.0
+matplotlib~=3.5
+graphviz~=0.20.0
 scikit-learn~=1.0
+aioresponses~=0.7

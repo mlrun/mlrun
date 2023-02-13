@@ -57,8 +57,8 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
-        unittest.mock.Mock(
+    mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
             return_value=(
                 mlrun.api.schemas.AuthInfo(
                     username=None,
@@ -84,10 +84,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
 def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
-    for endpoint in endpoints_in:
-        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(
-            _get_access_key(), endpoint
+    # Initialize endpoint store target object
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+            project=TEST_PROJECT, access_key=_get_access_key()
         )
+    )
+
+    for endpoint in endpoints_in:
+        endpoint_target.write_model_endpoint(endpoint)
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
@@ -426,8 +431,15 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     for e in endpoints:
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
+    # Initialize endpoint store target object
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+            project=TEST_PROJECT, access_key=_get_access_key()
+        )
+    )
+
     for endpoint in endpoints:
-        mlrun.api.crud.ModelEndpoints().create_or_patch(_get_access_key(), endpoint)
+        endpoint_target.write_model_endpoint(endpoint)
 
         total = 0
 

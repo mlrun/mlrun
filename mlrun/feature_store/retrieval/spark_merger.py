@@ -15,11 +15,15 @@
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
+from ...runtimes import RemoteSparkRuntime
+from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 
 class SparkFeatureMerger(BaseMerger):
+    engine = "spark"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
@@ -55,37 +59,51 @@ class SparkFeatureMerger(BaseMerger):
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            target = get_offline_target(feature_set)
-            if not target:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Feature set {name} does not have offline targets"
-                )
+
+            if feature_set.spec.passthrough:
+                if not feature_set.spec.source:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"passthrough feature set {name} with no source"
+                    )
+                source_kind = feature_set.spec.source.kind
+                source_path = feature_set.spec.source.path
+            else:
+                target = get_offline_target(feature_set)
+                if not target:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"feature set {name} does not have offline targets"
+                    )
+                source_kind = target.kind
+                source_path = target.get_target_path()
 
             # handling case where there are multiple feature sets and user creates vector where
             # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
-            source_driver = mlrun.datastore.sources.source_kind_to_driver[target.kind]
+            source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
             if (
                 entity_timestamp_column in column_names
                 or feature_set.spec.timestamp_key == entity_timestamp_column
             ):
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
                 )
             else:
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                 )
 
-            df = source.to_spark_df(self.spark, named_view=self.named_view)
-
             # add the index/key to selected columns
             timestamp_key = feature_set.spec.timestamp_key
+
+            df = source.to_spark_df(
+                self.spark, named_view=self.named_view, time_field=timestamp_key
+            )
+
             if timestamp_key and timestamp_key not in column_names:
                 columns.append((timestamp_key, None))
             for entity in feature_set.spec.entities.keys():
@@ -127,6 +145,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """Perform an as of join between entity and featureset.
@@ -198,6 +219,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """
@@ -230,3 +254,14 @@ class SparkFeatureMerger(BaseMerger):
             return self._pandas_df
 
         return self._result_df
+
+    @classmethod
+    def get_default_image(cls, kind):
+        if kind == AbstractSparkRuntime.kind:
+            return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
+                with_gpu=False
+            )
+        elif kind == RemoteSparkRuntime.kind:
+            return RemoteSparkRuntime.default_image
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")

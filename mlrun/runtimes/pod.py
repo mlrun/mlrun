@@ -20,6 +20,7 @@ from enum import Enum
 import dotenv
 import kfp.dsl
 import kubernetes.client as k8s_client
+from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -908,7 +909,7 @@ class KubeResource(BaseRuntime):
 
     def apply(self, modify):
         """
-        Apply a modifier to the runtime which is used to change the runtime's k8s object's spec.
+        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
         Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
         a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
         one after the other.
@@ -996,8 +997,33 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
+    # TODO: Remove in 1.5.0
+    @deprecated(
+        version="1.3.0",
+        reason="'Job gpus' will be removed in 1.5.0, use 'with_limits' instead",
+        category=FutureWarning,
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
+
+    def set_image_pull_configuration(
+        self, image_pull_policy: str = None, image_pull_secret_name: str = None
+    ):
+        """
+        Configure the image pull parameters for the runtime.
+
+        :param image_pull_policy: The policy to use when pulling. One of `IfNotPresent`, `Always` or `Never`
+        :param image_pull_secret_name: Name of a k8s secret containing image repository's authentication credentials
+        """
+        if image_pull_policy is not None:
+            allowed_policies = ["Always", "IfNotPresent", "Never"]
+            if image_pull_policy not in allowed_policies:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Image pull policy must be one of {allowed_policies}, got {image_pull_policy}"
+                )
+            self.spec.image_pull_policy = image_pull_policy
+        if image_pull_secret_name is not None:
+            self.spec.image_pull_secret = image_pull_secret_name
 
     def with_limits(
         self,
@@ -1154,11 +1180,11 @@ class KubeResource(BaseRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            self._add_project_k8s_secrets_to_spec(
+            self._add_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), runobj=runobj, project=project
             )
         else:
-            self._add_project_k8s_secrets_to_spec(None, runobj=runobj, project=project)
+            self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
@@ -1182,9 +1208,28 @@ class KubeResource(BaseRuntime):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
-    def _add_project_k8s_secrets_to_spec(
-        self, secrets, runobj=None, project=None, encode_key_names=True
+    def _add_k8s_secrets_to_spec(
+        self,
+        secrets,
+        runobj=None,
+        project=None,
+        encode_key_names=True,
     ):
+        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
+        # project secrets, to allow project secret keys to override them
+        global_secret_name = (
+            mlconf.secret_stores.kubernetes.global_function_env_secret_name
+        )
+        if mlrun.config.is_running_as_api() and global_secret_name:
+            global_secrets = self._get_k8s().get_secret_data(global_secret_name)
+            for key, value in global_secrets.items():
+                env_var_name = (
+                    SecretsStore.k8s_env_variable_name_for_secret(key)
+                    if encode_key_names
+                    else key
+                )
+                self.set_env_from_secret(env_var_name, global_secret_name, key)
+
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (

@@ -86,10 +86,6 @@ Defaults to return as a return value to the caller.
 -**engine_args** &mdash; kwargs for the processing engine
 -**query** &mdash; The query string used to filter rows
 -**spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
-- **relations** &mdash; (optional) Dictionary that indicates all of the relations between different feature sets. It looks like: `{"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}`. If the relation is None, and the `feature_set` 
-   relations is also None, the join is done on the entity. Relevant only for Dask and storey(local) engines.<br>
-   You can define the relations of a feature set with the relations argument, like this:
-   `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
 - **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey (local) engines. 
    - left: use only keys from left frame (SQL: left outer join)
    - right: use only keys from right frame (SQL: right outer join)
@@ -155,7 +151,6 @@ employees_set_entity = fs.Entity("id")
 employees_set = fs.FeatureSet(
     "employees",
     entities=[employees_set_entity],
-    relations={"department_id": departments_set_entity},
 )
 employees_set.set_targets(targets=["parquet"], with_defaults=False)
 fs.ingest(employees_set, employees)
@@ -163,9 +158,6 @@ fs.ingest(employees_set, employees)
 mini_employees_set = fs.FeatureSet(
     "mini-employees",
     entities=[employees_set_entity],
-    relations={
-        "department_id": departments_set_entity,
-        "class_id": classes_set_entity,
     },
 )
 mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)

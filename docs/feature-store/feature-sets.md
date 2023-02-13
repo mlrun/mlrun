@@ -27,18 +27,22 @@ See also [Ingest data using the feature store](#ingest-data-fs)
    
 ## Create a feature set
 
-Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
+Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
 * **name** &mdash; The feature set name is a unique name within a project. 
-* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the entity or the relation is considered as the keys columns.
+* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the key columns 
+   are determined by the the relations field if it exists, and otherwise by the entities.
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
    - Spark
    - pandas
    - storey. Default. (Some advanced functionalities are in the Beta state.)
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
-* **relations** &mdash; (optional) Dictionary that indicates all of the relations this feature set has with other feature sets. The format of 
-the dictionary is <br>`{"<my_column_name>":Entity (of other featureset), ...}`
+* **relations** &mdash; (optional) Dictionary that indicates all of the relations between different feature sets. It looks like: `{"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}`. If the relation is None, and the `feature_set` 
+   relations is also None, the join is done on the entity. Relevant only for Dask and storey (local) engines.<br>
+   You can define the relations of a feature set with the relations argument, like this:
+   `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`<br>
+   See more about joins in [Creating an offline feature vector](./feature-vectors.html#creating-an-offline-feature-vector).
    
 Example:
 ```python
@@ -103,9 +107,9 @@ See more details in [Feature set transformations](transformations.html).
 ## Simulate and debug the data pipeline with a small dataset
 During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before 
 ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
-This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source 
-data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
-The infer operation also learns the feature set schema and does statistical analysis on the result by default.
+This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `preview`. It previews in the source 
+data schema, as well as processing the graph logic (assuming there is one) on a small subset of data. 
+The preview operation also learns the feature set schema and does statistical analysis on the result by default.
   
 ```python
 df = fstore.preview(quotes_set, quotes)

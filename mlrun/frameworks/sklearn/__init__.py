@@ -203,9 +203,10 @@ def apply_mlrun(
 def __getattr__(name):
     if name == "SklearnModelServer":
         warnings.warn(
-            "PendingDeprecationWarning: 'SklearnModelServer' was renamed to 'SKLearnModelServer'. "
-            "Please use the new name. The old name will be removed in mlrun 1.2.0.",
-            PendingDeprecationWarning,
+            "'SklearnModelServer' was renamed to 'SKLearnModelServer'. "
+            "Please use the new name. The old name will be removed in mlrun 1.5.0.",
+            # TODO: remove in 1.5.0
+            FutureWarning,
         )
         return SKLearnModelServer
     raise ImportError(f"cannot import name '{name}' from '{__name__}' ({__file__})")

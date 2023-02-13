@@ -643,9 +643,10 @@ def preview(
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
         warnings.warn(
-            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
+            "preview's timestamp_key parameter is deprecated and will be removed in 1.4.0. "
+            "Please pass this parameter to FeatureSet instead",
             # TODO: Remove this API in 1.4.0
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         featureset.spec.timestamp_key = timestamp_key
         for step in featureset.graph.steps.values():

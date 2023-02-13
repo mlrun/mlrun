@@ -215,8 +215,10 @@ class ArtifactList(list):
     def objects(self) -> List[Artifact]:
         """return as a list of artifact objects"""
         warnings.warn(
-            "This is replaced with .to_objects(), and will be deprecated in 1.1.x",
-            PendingDeprecationWarning,
+            "'objects' is deprecated in 1.3.0 and will be removed in 1.5.0. "
+            "Use 'to_objects' instead.",
+            # TODO: remove in 1.5.0
+            FutureWarning,
         )
         return [dict_to_artifact(artifact) for artifact in self]
 

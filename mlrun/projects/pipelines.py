@@ -30,7 +30,12 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
-from mlrun.utils import get_ui_url, logger, new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import (
+    get_ui_url,
+    logger,
+    new_pipe_metadata,
+    parse_versioned_object_uri,
+)
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -80,7 +85,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
     ):
         if ttl:
             warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead",
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,
@@ -546,7 +551,7 @@ class _KFPRunner(_PipelineRunner):
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
-        conf = new_pipe_meta(
+        conf = new_pipe_metadata(
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
@@ -1023,7 +1028,7 @@ def load_and_run(
     """
     if ttl:
         warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead",
+            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
             "This will be removed in 1.5.0",
             # TODO: Remove this in 1.5.0
             FutureWarning,

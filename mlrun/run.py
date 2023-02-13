@@ -70,7 +70,7 @@ from .utils import (
     extend_hub_uri_if_needed,
     get_in,
     logger,
-    new_pipe_meta,
+    new_pipe_metadata,
     parse_versioned_object_uri,
     retry_until_successful,
     run_keys,
@@ -955,7 +955,7 @@ def run_pipeline(
 
     if ttl:
         warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead",
+            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
             "This will be removed in 1.5.0",
             # TODO: Remove this in 1.5.0
             FutureWarning,
@@ -1001,7 +1001,9 @@ def run_pipeline(
                 experiment.id, run, pipeline, params=arguments
             )
         else:
-            conf = new_pipe_meta(artifact_path=artifact_path, args=ops, cleanup_ttl=ttl)
+            conf = new_pipe_metadata(
+                artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=ops
+            )
             run_result = client.create_run_from_pipeline_func(
                 pipeline,
                 arguments,

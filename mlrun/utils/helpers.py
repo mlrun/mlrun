@@ -32,6 +32,7 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
+from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -264,7 +265,7 @@ def normalize_name(name):
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
         warnings.warn(
-            "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
+            "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
             "Replacing underscores with dashes.",
             FutureWarning,
         )
@@ -633,7 +634,11 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_meta(artifact_path=None, ttl=None, *args, **kwargs):
+def new_pipe_metadata(
+    artifact_path: str = None,
+    cleanup_ttl: int = None,
+    op_transformers: typing.List[typing.Callable] = None,
+):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -645,26 +650,28 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args, **kwargs):
         return task
 
     conf = PipelineConf()
+    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
 
-    if ttl:
-        warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead (in kwargs)",
-            "This will be removed in 1.5.0",
-            # TODO: Remove this in 1.5.0
-            FutureWarning,
-        )
-
-    # Putting the cleanup_ttl in the kwargs of the method, as we cannot deprecate the ttl argument
-    # while it's a positional argument
-    cleanup_ttl = kwargs.get("cleanup_ttl", None) or ttl or int(config.kfp_ttl)
     if cleanup_ttl:
         conf.set_ttl_seconds_after_finished(cleanup_ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
-    for op in args:
-        if op:
-            conf.add_op_transformer(op)
+    if op_transformers:
+        for op_transformer in op_transformers:
+            conf.add_op_transformer(op_transformer)
     return conf
+
+
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'new_pipe_meta' will be removed in 1.5.0",
+    category=FutureWarning,
+)
+def new_pipe_meta(artifact_path=None, ttl=None, *args):
+    return new_pipe_metadata(
+        artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=args
+    )
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):

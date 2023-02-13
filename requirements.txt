@@ -26,7 +26,7 @@ numpy>=1.16.5, <1.23.0
 pandas~=1.2, <1.5.0
 # used as a the engine for parquet files by pandas
 # >=3 to stay compatible with google-cloud
-pyarrow>=3,<7
+pyarrow>=3,<12
 pyyaml~=5.1
 requests~=2.22
 sqlalchemy~=1.3
@@ -52,7 +52,7 @@ fsspec~=2021.8.1
 v3iofs~=0.1.15
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.3.7
+storey~=1.3.8
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

@@ -16,8 +16,6 @@ import math
 import re
 from typing import Dict, List, Optional, Union
 
-import mlrun.errors
-
 from .data_types import ValueType
 from .errors import MLRunRuntimeError, err_to_str
 from .model import ModelObj

@@ -668,7 +668,8 @@ class FeatureSet(ModelObj):
                            They are reserved for internal use, and the data does not ingest correctly.
                            When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
                            they cause errors in the ingestion.
-        :param operations: aggregation operations, e.g. ['sum', 'std']
+        :param operations: aggregation operations. Supported operations:
+                             count, sum, sqr, max, min, first, last, avg, stdvar, stddev
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
                             or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
@@ -938,6 +939,19 @@ class FeatureSet(ModelObj):
 
 
 class SparkAggregateByKey(StepToDict):
+    _supported_operations = [
+        "count",
+        "sum",
+        "sqr",
+        "max",
+        "min",
+        "first",
+        "last",
+        "avg",
+        "stdvar",
+        "stddev",
+    ]
+
     def __init__(
         self,
         key_columns: List[str],
@@ -970,10 +984,21 @@ class SparkAggregateByKey(StepToDict):
             raise ValueError(f"Invalid duration '{duration}'")
         return f"{num} {unit}"
 
+    @staticmethod
+    def _verify_operation(op):
+        if op not in SparkAggregateByKey._supported_operations:
+            error_string = (
+                f"operation {op} is unsupported. Supported operations: "
+                + ", ".join(SparkAggregateByKey._supported_operations)
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(error_string)
+
     def _extract_fields_from_aggregate_dict(self, aggregate):
         name = aggregate["name"]
         column = aggregate["column"]
         operations = aggregate["operations"]
+        for op in operations:
+            self._verify_operation(op)
         windows = aggregate["windows"]
         spark_period = (
             self._duration_to_spark_format(aggregate["period"])
@@ -1010,9 +1035,15 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        if operation == "sqr":
+                            agg = funcs.sum(funcs.expr(f"{column} * {column}"))
+                        elif operation == "stdvar":
+                            agg = funcs.variance(column)
+                        else:
+                            func = getattr(funcs, operation)
+                            agg = func(column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        agg = func(column).alias(agg_name)
+                        agg = agg.alias(agg_name)
                         aggs.append(agg)
                     window_column = funcs.window(
                         time_column, spark_window, spark_period

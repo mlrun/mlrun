@@ -14,7 +14,9 @@
 #
 import math
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+
+import mlrun.errors
 
 from .data_types import ValueType
 from .errors import MLRunRuntimeError, err_to_str
@@ -41,7 +43,7 @@ class Entity(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
+        name: str,
         value_type: ValueType = None,
         description: str = None,
         labels: Optional[Dict[str, str]] = None,
@@ -49,15 +51,14 @@ class Entity(ModelObj):
         """data entity (index key)
 
         :param name:        entity name
-        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT
+        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT (default ValueType.STRING)
         :param description: test description of the entity
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name
+        self.value_type = ValueType(value_type) if value_type else ValueType.STRING
         self.description = description
         self.value_type = value_type
-        if name and not value_type:
-            self.value_type = ValueType.STRING
         self.labels = labels or {}
 
     def __eq__(self, other):
@@ -81,11 +82,11 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        value_type: str = None,
+        name: str,
+        value_type: Union[str, ValueType] = None,
         dims: List[int] = None,
         description: str = None,
         aggregate: bool = None,
-        name: str = None,
         validator=None,
         default: str = None,
         labels: Dict[str, str] = None,
@@ -94,18 +95,18 @@ class Feature(ModelObj):
 
         Features can be specified manually or inferred automatically (during ingest/preview)
 
+        :param name:        name of the feature
         :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
-                            ValueType.INT
+                            ValueType.INT (default ValueType.STRING)
         :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
         :param description: text description of the feature
         :param aggregate:   is it an aggregated value
-        :param name:        name of the feature
         :param validator:   feature validation policy
         :param default:     default value
         :param labels:      a set of key/value labels (tags)
         """
-        self.name = name or ""
-        self.value_type = value_type
+        self.name = name
+        self.value_type = ValueType(value_type) if value_type else ValueType.STRING
         self.dims = dims
         self.description = description
         self.default = default

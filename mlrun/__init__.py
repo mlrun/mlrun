@@ -24,7 +24,6 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import json
 import warnings
 from os import environ, path
 
@@ -35,7 +34,7 @@ from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
-from .model import NewTask, RunObject, RunTemplate, new_task
+from .model import RunObject, RunTemplate, new_task
 from .platforms import (
     VolumeMount,
     auto_mount,

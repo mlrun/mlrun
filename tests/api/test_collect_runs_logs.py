@@ -246,6 +246,93 @@ class TestCollectRunSLogs:
         assert run_uid is None
         assert log_collector._call.call_count == 1
 
+    @pytest.mark.asyncio
+    async def test_stop_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector._call = unittest.mock.AsyncMock(return_value=None)
+
+        # create a mock runs list
+        runs = []
+        for i in range(3):
+            project_name = f"some-project-{i}"
+            for j in range(3):
+                run_uid = f"some-uid-{j}"
+                runs.append(
+                    {
+                        "metadata": {
+                            "project": project_name,
+                            "uid": run_uid,
+                        }
+                    }
+                )
+
+        ret_val = await mlrun.api.main._stop_logs_for_runs(runs)
+
+        assert ret_val is None
+        assert log_collector._call.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_verify_stop_logs_on_startup(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        project_name = "some-project"
+        run_uids = ["some_uid", "some_uid2", "some_uid3"]
+        for run_uid in run_uids:
+            _create_new_run(
+                db,
+                project_name,
+                uid=run_uid,
+                name=run_uid,
+                kind="job",
+                state=mlrun.runtimes.constants.RunStates.completed,
+            )
+
+            # update requested logs field to True
+            mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs(
+                db, run_uids, True
+            )
+
+        runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[True],
+            only_uids=False,
+        )
+        assert len(runs) == 3
+
+        log_collector._call = unittest.mock.AsyncMock(return_value=None)
+
+        await mlrun.api.main._verify_log_collection_stopped_on_startup()
+
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "StopLog"
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert len(stop_log_request.projectToRunUIDs[project_name].values) == 3
+
+        # update requested logs field to False for one run
+        mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs(
+            db, [run_uids[0]], False
+        )
+
+        runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[True],
+            only_uids=False,
+        )
+        assert len(runs) == 2
+
+        await mlrun.api.main._verify_log_collection_stopped_on_startup()
+
+        assert log_collector._call.call_count == 2
+        assert log_collector._call.call_args[0][0] == "StopLog"
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert len(stop_log_request.projectToRunUIDs[project_name].values) == 2
+
 
 def _create_new_run(
     db_session: sqlalchemy.orm.session.Session,

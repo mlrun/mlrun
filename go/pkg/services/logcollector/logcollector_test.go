@@ -237,6 +237,20 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
+func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
+
+	// call start log for a non-existent pod, and expect no error
+	request := &log_collector.StartLogRequest{
+		RunUID:      "some-run-id",
+		ProjectName: "some-project",
+		Selector:    "app=some-app",
+		BestEffort:  true,
+	}
+	response, err := suite.LogCollectorServer.StartLog(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to start log")
+	suite.Require().True(response.Success, "Failed to start log")
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()

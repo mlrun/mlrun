@@ -419,7 +419,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 			}
 		}
 	}
-	
+
 	return &empty.Empty{}, nil
 }
 

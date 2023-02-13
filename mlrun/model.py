@@ -1236,8 +1236,8 @@ class DataTargetBase(ModelObj):
     ):
         if after_state:
             warnings.warn(
-                "The after_state parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use after_step instead",
+                "The 'after_state' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "Use 'after_step' instead",
                 # TODO: remove in 1.5.0
                 FutureWarning,
             )

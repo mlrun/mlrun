@@ -560,7 +560,7 @@ class SetEventMetadata(MapClass):
         """
         if time_path:
             warnings.warn(
-                "SetEventMetadata's time_path parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "SetEventMetadata's 'time_path' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
                 "It has no effect.",
                 FutureWarning,
             )

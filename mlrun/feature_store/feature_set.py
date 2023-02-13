@@ -444,8 +444,8 @@ class FeatureSet(ModelObj):
         """
         if default_final_state:
             warnings.warn(
-                "The default_final_state parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
-                "Use default_final_step instead",
+                "The 'default_final_state' parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
+                "Use 'default_final_step' instead",
                 # TODO: remove in 1.5.0
                 FutureWarning,
             )
@@ -708,8 +708,8 @@ class FeatureSet(ModelObj):
             )
         if state_name:
             warnings.warn(
-                "The state_name parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use step_name instead",
+                "The 'state_name' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "Use 'step_name' instead",
                 # TODO: remove in 1.5.0
                 FutureWarning,
             )

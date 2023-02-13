@@ -1318,7 +1318,7 @@ class HTTPRunDB(RunDBInterface):
 
         if ttl:
             warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead"
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,

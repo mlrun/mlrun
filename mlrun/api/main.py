@@ -28,6 +28,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.log_collector
 import mlrun.errors
+import mlrun.lists
 import mlrun.utils
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
@@ -161,6 +162,7 @@ async def move_api_to_online():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
             await _start_logs_collection()
+            await _start_periodic_stop_logs()
 
 
 async def _start_logs_collection():
@@ -224,8 +226,10 @@ async def _verify_log_collection_started_on_startup(
             only_uids=False,
             last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(
-                seconds=min(int(config.log_collector.api_downtime_grace_period),
-                            int(config.runtime_resources_deletion_grace_period))
+                seconds=min(
+                    int(config.log_collector.api_downtime_grace_period),
+                    int(config.runtime_resources_deletion_grace_period),
+                )
             ),
             states=mlrun.runtimes.constants.RunStates.terminal_states(),
         )
@@ -235,7 +239,9 @@ async def _verify_log_collection_started_on_startup(
             "Found runs which require logs collection",
             runs_uids=runs,
         )
-        await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+        await _start_log_and_update_runs(
+            start_logs_limit, db_session, runs, best_effort=True
+        )
 
 
 async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
@@ -268,16 +274,19 @@ async def _start_log_and_update_runs(
     start_logs_limit: asyncio.Semaphore,
     db_session: sqlalchemy.orm.Session,
     runs: list,
+    best_effort: bool = False,
 ):
     if not runs:
         return
 
     # each result contains either run_uid or None
-    # if it's None it means something went wrong and we should skip it
+    # if it's None it means something went wrong, and we should skip it
     # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
     results = await asyncio.gather(
         *[
-            _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+            _start_log_for_run(
+                run, start_logs_limit, raise_on_error=False, best_effort=best_effort
+            )
             for run in runs
         ]
     )
@@ -300,7 +309,10 @@ async def _start_log_and_update_runs(
 
 
 async def _start_log_for_run(
-    run: dict, start_logs_limit: asyncio.Semaphore = None, raise_on_error: bool = True
+    run: dict,
+    start_logs_limit: asyncio.Semaphore = None,
+    raise_on_error: bool = True,
+    best_effort: bool = False,
 ) -> typing.Union[str, None]:
     """
     Starts log collection for a specific run
@@ -336,6 +348,7 @@ async def _start_log_for_run(
                 run_uid=run_uid,
                 selector=label_selector,
                 project=project_name,
+                best_effort=best_effort,
                 raise_on_error=True,
             )
             if success:
@@ -372,23 +385,46 @@ def _start_periodic_runs_monitoring():
         )
 
 
-async def _verify_log_collection_stopped_on_startup():
-    """
-    Pull runs from DB that are in terminal state and have logs requested.
-    For each such run, call stop logs on the log collector.
-    """
-    pass
-
-
 async def _start_periodic_stop_logs():
+    if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+        logger.info(
+            "Using legacy logs collection method, skipping stop logs periodic function",
+            mode=config.log_collector.mode,
+        )
+        return
+
     await _verify_log_collection_stopped_on_startup()
 
     interval = int(config.log_collector.stop_logs_interval)
     if interval > 0:
         logger.info("Starting periodic stop logs", interval=interval)
-        run_function_periodically(
-            interval, _stop_logs.__name__, False, _stop_logs
-        )
+        run_function_periodically(interval, _stop_logs.__name__, False, _stop_logs)
+
+
+async def _verify_log_collection_stopped_on_startup():
+    """
+    Pulls runs from DB that are in terminal state and have logs requested, and call stop logs for them.
+    This is done so that the log collector won't keep trying to collect logs for runs that are already
+    in terminal state.
+    """
+    logger.debug(
+        "Getting all runs which have reached terminal state and have logs requested",
+    )
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    runs = await fastapi.concurrency.run_in_threadpool(
+        get_db().list_distinct_runs_uids,
+        db_session,
+        requested_logs_modes=[True],
+        only_uids=False,
+        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+    )
+    close_session(db_session)
+
+    logger.debug(
+        "Stopping logs for runs which reached terminal state before startup",
+        runs_count=len(runs),
+    )
+    await _stop_logs_for_runs(runs)
 
 
 def _start_chief_clusterization_spec_sync_loop():
@@ -507,7 +543,7 @@ async def _stop_logs():
         only_uids=False,
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
         last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-        - datetime.timedelta(seconds=3600),
+        - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
     )
     close_session(db_session)
 
@@ -515,18 +551,28 @@ async def _stop_logs():
         "Stopping logs for runs which reached terminal state in the past hour",
         runs_count=len(runs),
     )
+    await _stop_logs_for_runs(runs)
+
+
+async def _stop_logs_for_runs(runs: list):
+    project_to_run_uids = {}
     for run in runs:
+        project_name = run.get("metadata", {}).get("project", None)
+        run_uid = run.get("metadata", {}).get("uid", None)
+        project_to_run_uids.setdefault(project_name, []).append(run_uid)
+
+    if project_to_run_uids:
         try:
             await log_collector.LogCollectorClient().stop_logs(
-                run_uid=run.uid,
-                project=run.project,
+                project_to_run_uids_dict=project_to_run_uids,
             )
         except Exception as exc:
             logger.warning(
                 "Failed stopping logs for run. Ignoring",
                 exc=err_to_str(exc),
-                run=run,
+                project_to_run_uids=project_to_run_uids,
             )
+
 
 def main():
     if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:

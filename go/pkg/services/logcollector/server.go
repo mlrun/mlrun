@@ -107,9 +107,13 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to create in-memory state")
 	}
 
+	isChief := clusterizationRole == "chief"
+
 	// ensure base dir exists
-	if err := common.EnsureDirExists(baseDir, os.ModePerm); err != nil {
-		return nil, errors.Wrap(err, "Failed to ensure base dir exists")
+	if isChief {
+		if err := common.EnsureDirExists(baseDir, os.ModePerm); err != nil {
+			return nil, errors.Wrap(err, "Failed to ensure base dir exists")
+		}
 	}
 
 	// ensure log collection buffer size is not bigger than the default, because of the gRPC message size limit
@@ -134,7 +138,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		getLogsBufferPool:            getLogsBufferPool,
 		logCollectionBufferSizeBytes: logCollectionBufferSizeBytes,
 		getLogsBufferSizeBytes:       getLogsBufferSizeBytes,
-		isChief:                      clusterizationRole == "chief",
+		isChief:                      isChief,
 	}, nil
 }
 
@@ -214,6 +218,13 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 			"runUID", request.RunUID,
 			"selector", request.Selector)
 		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
+
+		// if request is best-effort, return success so run will be marked as "requested logs" in the DB
+		if request.BestEffort {
+			return &protologcollector.StartLogResponse{
+				Success: true,
+			}, nil
+		}
 		return &protologcollector.StartLogResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeNotFound,
@@ -387,8 +398,12 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 // StopLog stops streaming logs for a given run id by removing it from the persistent state.
 // This will prevent the monitoring loop from starting logging again for this run id
 func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*empty.Empty, error) {
-
-	s.Logger.DebugWithCtx(ctx, "Received Stop Log request", "ProjectToRunUIDsMap", request.ProjectToRunUIDs)
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring stop log request",
+			"requestRuns", request.ProjectToRunUIDs)
+		return nil, nil
+	}
 
 	for project, runUIDs := range request.ProjectToRunUIDs {
 		for _, runUID := range runUIDs.Values {
@@ -404,7 +419,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 			}
 		}
 	}
-
+	
 	return &empty.Empty{}, nil
 }
 

@@ -46,10 +46,13 @@ Aggregations, being a common tool in data preparation and ML feature engineering
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
 feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
 sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
-aggregations. A window can be measured in years, days, hours, seconds, minutes. 
+aggregations. 
+
+A window can be measured in years, days, hours, seconds, minutes. 
 A window can be a single window, e.g. ‘1h’, ‘1d’, or a 
 list of same unit windows e.g. [‘1h’, ‘6h’]. If you define the time period (in addition to the window), then you have a sliding window. If 
 you don't define the time period, then the time period and the window are the same.
+All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
 - Sliding window
    

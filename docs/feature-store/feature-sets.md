@@ -41,9 +41,7 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
    - storey. Default. (Some advanced functionalities are in the Beta state.)
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations between different feature sets. It looks like: `{"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}`. If the relation is None, and the `feature_set` 
-   relations is also None, the join is done on the entity. Relevant only for Dask and storey (local) engines.<br>
-   You can define the relations of a feature set with the relations argument, like this:
-   `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`<br>
+   relations is also None, the join is done on the entity. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
    
 Example:

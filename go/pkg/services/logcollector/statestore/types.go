@@ -17,6 +17,7 @@ package statestore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -32,7 +33,7 @@ const (
 )
 
 type LogItem struct {
-	RunUID        string `json:"runId"`
+	RunUID        string `json:"runUID"`
 	LabelSelector string `json:"labelSelector"`
 	Project       string `json:"project"`
 }
@@ -97,10 +98,10 @@ type StateStore interface {
 	Initialize(ctx context.Context) error
 
 	// AddLogItem adds a log item to the state store
-	AddLogItem(ctx context.Context, runId, selector, project string) error
+	AddLogItem(ctx context.Context, runUID, selector, project string) error
 
 	// RemoveLogItem removes a log item from the state store
-	RemoveLogItem(runId string) error
+	RemoveLogItem(runUID, project string) error
 
 	// WriteState writes the state to persistent storage
 	WriteState(state *State) error
@@ -110,4 +111,8 @@ type StateStore interface {
 
 	// GetState returns the state store state
 	GetState() *State
+}
+
+func GenerateKey(runUID, project string) string {
+	return fmt.Sprintf("%s-%s", runUID, project)
 }

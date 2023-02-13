@@ -38,6 +38,7 @@ from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
+from ..serving.server import Response
 from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
 from .common import (
     RunConfig,
@@ -840,6 +841,9 @@ def _ingest_with_spark(
             df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
+
+        if isinstance(df, Response) and df.status_code != 0:
+            mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())

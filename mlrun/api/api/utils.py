@@ -49,9 +49,7 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-    #  version can be changed to details=kw
-    raise HTTPException(status_code=status, detail={"reason": kw})
+    raise HTTPException(status_code=status, detail=kw)
 
 
 def log_path(project, uid) -> Path:

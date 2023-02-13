@@ -490,7 +490,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
@@ -502,6 +502,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "bid_sqr_1h": {("moshe", "cohen"): 4000144, ("yosi", "levi"): 477},
+            "bid_stdvar_1h": {
+                ("moshe", "cohen"): 1976072,
+                ("yosi", "levi"): 10.333333333333334,
+            },
             "time": {
                 ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
                 ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
@@ -518,7 +523,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
@@ -543,9 +548,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
             "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
             "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
+            "bid_sqr_1h": {("moshe", "cohen"): 4000144, ("yosi", "levi"): 477},
+            "bid_stdvar_1h": {
+                ("moshe", "cohen"): 1976072,
+                ("yosi", "levi"): 10.333333333333334,
+            },
             "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:40:00"),
+                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:40:00"),
             },
             "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
         }

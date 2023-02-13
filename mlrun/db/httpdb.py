@@ -40,7 +40,7 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_meta,
+    new_pipe_metadata,
     normalize_name,
     version,
 )
@@ -918,33 +918,6 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided group by field is not supported. group_by={group_by}"
             )
 
-    def list_runtimes(self, label_selector: str = None) -> List:
-        """Deprecated use :py:func:`~list_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        error = "list runtimes"
-        resp = self.api_call("GET", "runtimes", error, params=params)
-        return resp.json()
-
-    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
-        """Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        path = f"runtimes/{kind}"
-        error = f"get runtime {kind}"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()
-
     def delete_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -996,83 +969,6 @@ class HTTPRunDB(RunDBInterface):
                     kind
                 ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
         return structured_dict
-
-    def delete_runtimes(
-        self,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        error = "delete runtimes"
-        self.api_call("DELETE", "runtimes", error, params=params)
-
-    def delete_runtime(
-        self,
-        kind: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}"
-        error = f"delete runtime {kind}"
-        self.api_call("DELETE", path, error, params=params)
-
-    def delete_runtime_object(
-        self,
-        kind: str,
-        object_id: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}/{object_id}"
-        error = f"delete runtime object {kind} {object_id}"
-        self.api_call("DELETE", path, error, params=params)
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
@@ -1422,7 +1318,7 @@ class HTTPRunDB(RunDBInterface):
 
         if ttl:
             warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead",
+                "'ttl' is deprecated, use 'cleanup_ttl' instead"
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,
@@ -1432,8 +1328,10 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(
-                artifact_path=artifact_path, args=ops, cleanup_ttl=cleanup_ttl or ttl
+            conf = new_pipe_metadata(
+                artifact_path=artifact_path,
+                cleanup_ttl=cleanup_ttl or ttl,
+                op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf

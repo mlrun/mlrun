@@ -99,30 +99,6 @@ async def list_pipelines(
     )
 
 
-@router.post("/submit_pipeline")
-@router.post("/submit_pipeline/")
-# TODO: remove when 0.6.6 is no longer relevant
-async def submit_pipeline_legacy(
-    request: Request,
-    namespace: str = None,
-    experiment_name: str = Query("Default", alias="experiment"),
-    run_name: str = Query("", alias="run"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-):
-    if namespace is None:
-        namespace = config.namespace
-    response = await _create_pipeline(
-        auth_info,
-        request,
-        namespace,
-        experiment_name,
-        run_name,
-    )
-    return response
-
-
 @router.post("/projects/{project}/pipelines")
 async def create_pipeline(
     project: str,
@@ -221,20 +197,6 @@ def _try_resolve_project_from_body(
     return mlrun.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         workflow_manifest
     )
-
-
-@router.get("/pipelines/{run_id}")
-@router.get("/pipelines/{run_id}/")
-# TODO: remove when 0.6.6 is no longer relevant
-async def get_pipeline_legacy(
-    run_id: str,
-    namespace: str = Query(config.namespace),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")

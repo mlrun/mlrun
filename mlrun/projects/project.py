@@ -1525,21 +1525,6 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def func(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
-        """get function object by name
-
-        :param sync:  will reload/reinit the function
-
-        :returns: function object
-        """
-        warnings.warn(
-            "This will be deprecated in future releases, use  get_function() instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
-        return self.get_function(key, sync)
-
     def get_function(
         self,
         key,

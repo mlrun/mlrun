@@ -40,7 +40,7 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_meta,
+    new_pipe_metadata,
     normalize_name,
     version,
 )
@@ -1432,8 +1432,10 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(
-                artifact_path=artifact_path, args=ops, cleanup_ttl=cleanup_ttl or ttl
+            conf = new_pipe_metadata(
+                artifact_path=artifact_path,
+                cleanup_ttl=cleanup_ttl or ttl,
+                op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf

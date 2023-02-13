@@ -42,7 +42,7 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
    relations is also None, the join is done on the entity. Relevant only for Dask and storey (local) engines.<br>
    You can define the relations of a feature set with the relations argument, like this:
    `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`<br>
-   See more about joins in [Creating an offline feature vector](./feature-vectors.html#creating-an-offline-feature-vector).
+   See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
    
 Example:
 ```python

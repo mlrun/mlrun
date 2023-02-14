@@ -81,9 +81,18 @@ class ModelObj:
         struct = {} if struct is None else struct
         deprecated_fields = deprecated_fields or {}
         fields = fields or cls._dict_fields
+        init_cls_signature_param = inspect.signature(cls.__init__).parameters
         if not fields:
-            fields = list(inspect.signature(cls.__init__).parameters.keys())
-        new_obj = cls()
+            fields = list(init_cls_signature_param.keys())
+        none_optional_param = {}
+        for field in init_cls_signature_param:
+            if (
+                field not in ["self", "args", "kwargs"]
+                and init_cls_signature_param[field].default == inspect._empty
+            ):
+                none_optional_param[field] = struct.get(field, None)
+        new_obj = cls(**none_optional_param)
+        fields = list(set(fields) - set(none_optional_param.keys()))
         if struct:
             # we are looping over the fields to save the same order and behavior in which the class
             # initialize the attributes

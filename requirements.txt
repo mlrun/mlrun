@@ -26,7 +26,7 @@ numpy>=1.16.5, <1.23.0
 pandas~=1.2, <1.5.0
 # used as a the engine for parquet files by pandas
 # >=3 to stay compatible with google-cloud
-pyarrow>=3,<12
+pyarrow>=10,<12
 pyyaml~=5.1
 requests~=2.22
 sqlalchemy~=1.3

@@ -126,7 +126,7 @@ def test_requirement_specifiers_convention():
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=3,<12"},
+        "pyarrow": {">=10,<12"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},

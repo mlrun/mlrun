@@ -157,9 +157,9 @@ def run_local(
     :param artifact_path: default artifact output path
     :param mode:    Runtime mode for more details head to `mlrun.new_function`
     :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                    (allows to have function which don't depend on having targets,
-                                    e.g a function which accepts a feature vector uri and generate
-                                     the offline vector e.g. parquet_ for it if it doesn't exist)
+                                    (allows to have function that doesn't depend on having targets,
+                                    e.g a function that accepts a feature vector uri and generates
+                                    the offline vector for it, e.g. parquet, if it doesn't exist)
 
     :return: run object
     """

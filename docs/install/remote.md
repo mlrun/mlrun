@@ -151,7 +151,7 @@ For more explanations read the documentation [mlrun.set_environment](https://doc
 
 Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
 
-##### Create environment file
+#### Create environment file
 
 Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
 

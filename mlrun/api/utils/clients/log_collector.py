@@ -220,7 +220,6 @@ class LogCollectorClient(
             projectToRunUIDs=request_dict,
         )
 
-        # StopLogs has no return value, so we don't need to check the response
         response = await self._call("StopLog", request)
         if not response.success:
             msg = "Failed to stop logs"

@@ -40,8 +40,7 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
    - pandas
    - storey. Default. (Some advanced functionalities are in the Beta state.)
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
-* **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the relation is None, and the `feature_set` 
-   relations is also None, the join is done on the entity. Relevant only for Dask and storey (local) engines.
+* **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
    
 Example:

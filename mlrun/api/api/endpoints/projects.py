@@ -194,8 +194,7 @@ async def delete_project(
         chief_client = mlrun.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
-    is_running_in_background = await run_in_threadpool(
-        get_project_member().delete_project,
+    is_running_in_background = await get_project_member().delete_project(
         db_session,
         name,
         deletion_strategy,

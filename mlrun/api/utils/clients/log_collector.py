@@ -111,7 +111,6 @@ class LogCollectorClient(
         try:
             has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
             if not has_logs:
-
                 # run has no logs - return empty logs and exit so caller won't wait for logs or retry
                 yield b""
                 return
@@ -191,3 +190,39 @@ class LogCollectorClient(
                     f"{msg},error= {response.errorMessage}"
                 )
         return response.hasLogs
+
+    async def stop_logs(
+        self,
+        project_to_run_uids_dict: dict,
+        verbose: bool = False,
+    ) -> None:
+        """
+        Stop logs streaming from the log collector service
+        :param project_to_run_uids_dict: a dict of run uids per project to stop logs for
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: None
+        """
+        # convert the dict to a map with protobuf StringArray
+        request_dict = {}
+        for project, runs in project_to_run_uids_dict.items():
+            request_dict[project] = self._log_collector_pb2.StringArray(
+                values=project_to_run_uids_dict[project]
+            )
+
+        request = self._log_collector_pb2.StopLogRequest(
+            projectToRunUIDs=request_dict,
+        )
+
+        try:
+            # StopLogs has no return value, so we don't need to check the response
+            await self._call("StopLog", request)
+
+        except Exception as exc:
+            # gRPC is thread safe, but an exception can be raised when running in threadpool
+            # we catch and log/ignore it until fixed, see https://github.com/grpc/grpc/issues/25364
+            if verbose:
+                logger.warning(
+                    "Failed to stop logs",
+                    exc=mlrun.errors.err_to_str(exc),
+                )

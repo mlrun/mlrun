@@ -20,6 +20,7 @@ import humanfriendly
 import mergedeep
 import pytz
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.db.session
@@ -189,7 +190,7 @@ class Member(
                 wait_for_completion,
             )
 
-    def delete_project(
+    async def delete_project(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
@@ -199,11 +200,12 @@ class Member(
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
-            mlrun.api.crud.Projects().delete_project(
+            await mlrun.api.crud.Projects().delete_project(
                 db_session, name, deletion_strategy
             )
         else:
-            return self._leader_client.delete_project(
+            return await run_in_threadpool(
+                self._leader_client.delete_project,
                 auth_info.session,
                 name,
                 deletion_strategy,
@@ -318,7 +320,7 @@ class Member(
             db_projects = mlrun.api.crud.Projects().list_projects(
                 db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
             )
-            # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
+            # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
             filtered_projects = []
             for leader_project in leader_projects:
                 if (
@@ -346,7 +348,7 @@ class Member(
                         "Found project in the DB that is not in leader. Removing",
                         name=project_to_remove,
                     )
-                    mlrun.api.crud.Projects().delete_project(
+                    await mlrun.api.crud.Projects().delete_project(
                         db_session,
                         project_to_remove,
                         mlrun.api.schemas.DeletionStrategy.cascading,

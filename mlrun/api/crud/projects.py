@@ -24,6 +24,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.clients.log_collector
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -72,7 +73,7 @@ class Projects(
             session, name, project, patch_mode
         )
 
-    def delete_project(
+    async def delete_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
@@ -94,7 +95,7 @@ class Projects(
             if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name)
+            await self.delete_project_resources(session, name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -122,7 +123,7 @@ class Projects(
                 f"Project {project} can not be deleted since related resources found: project secrets"
             )
 
-    def delete_project_resources(
+    async def delete_project_resources(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
@@ -138,6 +139,9 @@ class Projects(
             label_selector=f"mlrun/project={name}",
             force=True,
         )
+
+        # stop logs in the log collector
+        await self._stop_logs_for_project(session, name)
 
         mlrun.api.crud.Logs().delete_logs(name)
 
@@ -320,3 +324,25 @@ class Projects(
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
+
+    async def _stop_logs_for_project(self, session, name) -> None:
+
+        # get all project runs' uids
+        run_uids = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            session, project=name, only_uids=True
+        )
+
+        # stop all project runs' logs
+        project_to_run_uids = {
+            name: run_uids,
+        }
+        try:
+            await mlrun.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
+                project_to_run_uids_dict=project_to_run_uids,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed stopping logs for runs. Ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+                project_to_run_uids=project_to_run_uids,
+            )

@@ -64,14 +64,14 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
                 project.spec.desired_state
             )
 
-    def delete_project(
+    async def delete_project(
         self,
         session: str,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        return mlrun.api.utils.singletons.project_member.get_project_member().delete_project(
+        return await mlrun.api.utils.singletons.project_member.get_project_member().delete_project(
             self.db_session, name, deletion_strategy, self._project_role
         )
 

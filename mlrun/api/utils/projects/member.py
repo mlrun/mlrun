@@ -84,7 +84,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete_project(
+    async def delete_project(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,

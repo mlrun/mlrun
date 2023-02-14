@@ -39,7 +39,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def delete_project(
+    async def delete_project(
         self,
         session: str,
         name: str,

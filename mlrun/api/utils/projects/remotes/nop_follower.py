@@ -56,7 +56,7 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         mergedeep.merge(existing_project_dict, project, strategy=strategy)
         self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
 
-    def delete_project(
+    async def delete_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,

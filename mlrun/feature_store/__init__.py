@@ -37,7 +37,7 @@ __all__ = [
 
 from ..data_types import InferOptions, ValueType
 from ..features import Entity, Feature
-from ..api import (
+from .api import (
     delete_feature_set,
     delete_feature_vector,
     deploy_ingestion_service,

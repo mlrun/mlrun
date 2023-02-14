@@ -16,7 +16,6 @@ import inspect
 import pathlib
 import re
 import time
-import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -1203,12 +1202,9 @@ class DataTargetBase(ModelObj):
         "schema",
     ]
 
-    # TODO - remove once "after_state" is fully deprecated
     @classmethod
     def from_dict(cls, struct=None, fields=None):
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields={"after_state": "after_step"}
-        )
+        return super().from_dict(struct, fields=fields)
 
     def get_path(self):
         if self.path:
@@ -1230,19 +1226,9 @@ class DataTargetBase(ModelObj):
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        after_state=None,
         storage_options: Dict[str, str] = None,
         schema: Dict[str, Any] = None,
     ):
-        if after_state:
-            warnings.warn(
-                "The 'after_state' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use 'after_step' instead",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            after_step = after_step or after_state
-
         self.name = name
         self.kind: str = kind
         self.path = path

@@ -110,7 +110,10 @@ extras_require = {
     ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
     "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.2"],
-    "kafka": ["kafka-python~=2.0"],
+    "kafka": [
+        "kafka-python~=2.0",
+        "avro==1.11.1",
+    ],
     "redis": ["redis~=4.3"],
 }
 extras_require["complete"] = sorted(

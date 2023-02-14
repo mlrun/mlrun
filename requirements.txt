@@ -2,7 +2,7 @@
 urllib3>=1.25.4, <1.27
 # >=3.0.2 from requests 2.25.1 <4.0 from aiohttp 3.7.3, requests is <5, so without the upbound there's a conflict
 chardet>=3.0.2, <4.0
-GitPython~=3.0
+GitPython~=3.1, >= 3.1.30
 aiohttp~=3.8
 aiohttp-retry~=2.8
 # 8.1.0+ breaks dask/distributed versions older than 2022.04.0, see here - https://github.com/dask/distributed/pull/6018

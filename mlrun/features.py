@@ -80,7 +80,7 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        name: str,
+        name: str = None,
         value_type: Union[str, ValueType] = None,
         dims: List[int] = None,
         description: str = None,
@@ -103,7 +103,7 @@ class Feature(ModelObj):
         :param default:     default value
         :param labels:      a set of key/value labels (tags)
         """
-        self.name = name
+        self.name = name or ""
         self.value_type = ValueType(value_type) if value_type else ValueType.STRING
         self.dims = dims
         self.description = description

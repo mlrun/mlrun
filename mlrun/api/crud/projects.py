@@ -325,7 +325,10 @@ class Projects(
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
 
-    async def _stop_logs_for_project(self, session, name) -> None:
+    @staticmethod
+    async def _stop_logs_for_project(session, name) -> None:
+
+        logger.debug("Stopping logs for project's runs", project=name)
 
         # get all project runs' uids
         run_uids = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
@@ -342,7 +345,8 @@ class Projects(
             )
         except Exception as exc:
             logger.warning(
-                "Failed stopping logs for runs. Ignoring",
+                "Failed stopping logs for project's runs. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
+                project=name,
                 project_to_run_uids=project_to_run_uids,
             )

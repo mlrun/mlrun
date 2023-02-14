@@ -313,7 +313,7 @@ async def _start_log_for_run(
     start_logs_limit: asyncio.Semaphore = None,
     raise_on_error: bool = True,
     best_effort: bool = False,
-) -> typing.Union[str, None]:
+) -> typing.Optional[typing.Union[str, None]]:
     """
     Starts log collection for a specific run
     :param run: run object
@@ -418,7 +418,6 @@ async def _verify_log_collection_stopped_on_startup():
         only_uids=False,
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
     )
-    close_session(db_session)
 
     logger.debug(
         "Stopping logs for runs which reached terminal state before startup",
@@ -545,7 +544,6 @@ async def _stop_logs():
         last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
         - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
     )
-    close_session(db_session)
 
     logger.debug(
         "Stopping logs for runs which reached terminal state in the past hour",

@@ -18,13 +18,11 @@ package mlrun;
 
 option go_package = "proto/build/log_collector";
 
-import "google/protobuf/empty.proto";
-
 service LogCollector {
-  rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
+  rpc StartLog(StartLogRequest) returns (BaseResponse) {}
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
   rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
-  rpc StopLog(StopLogRequest) returns (google.protobuf.Empty) {}
+  rpc StopLog(StopLogRequest) returns (BaseResponse) {}
 }
 
 message StartLogRequest {
@@ -34,7 +32,7 @@ message StartLogRequest {
   bool bestEffort = 4;
 }
 
-message StartLogResponse {
+message BaseResponse {
   bool success = 1;
   int32 errorCode = 2;
   string errorMessage = 3;

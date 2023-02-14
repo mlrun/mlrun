@@ -34,7 +34,6 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
 	protologcollector "github.com/mlrun/mlrun/proto/build/log_collector"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"k8s.io/api/core/v1"
@@ -168,7 +167,7 @@ func (s *Server) RegisterRoutes(ctx context.Context) {
 
 // StartLog writes the log item info to the state file, gets the pod using the label selector,
 // triggers `monitorPod` and `streamLogs` goroutines.
-func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.StartLogResponse, error) {
+func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.BaseResponse, error) {
 
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
@@ -188,9 +187,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		s.Logger.DebugWithCtx(ctx,
 			"Logs are already being collected for this run uid",
 			"runUID", request.RunUID)
-		return &protologcollector.StartLogResponse{
-			Success: true,
-		}, nil
+		return s.successfulBaseResponse(), nil
 	}
 
 	var pods *v1.PodList
@@ -221,11 +218,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 
 		// if request is best-effort, return success so run will be marked as "requested logs" in the DB
 		if request.BestEffort {
-			return &protologcollector.StartLogResponse{
-				Success: true,
-			}, nil
+			return s.successfulBaseResponse(), nil
 		}
-		return &protologcollector.StartLogResponse{
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeNotFound,
 			ErrorMessage: err.Error(),
@@ -238,7 +233,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	// write log item in progress to state store
 	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
-		return &protologcollector.StartLogResponse{
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
@@ -259,7 +254,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	// add log item to in-memory state, so we can monitor it
 	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
-		return &protologcollector.StartLogResponse{
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
@@ -268,9 +263,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 
 	s.Logger.DebugWithCtx(ctx, "Successfully started collecting log", "runUID", request.RunUID)
 
-	return &protologcollector.StartLogResponse{
-		Success: true,
-	}, nil
+	return s.successfulBaseResponse(), nil
 }
 
 // GetLogs returns the log file contents of length size from an offset, for a given run id
@@ -397,7 +390,7 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 
 // StopLog stops streaming logs for a given run id by removing it from the persistent state.
 // This will prevent the monitoring loop from starting logging again for this run id
-func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*empty.Empty, error) {
+func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*protologcollector.BaseResponse, error) {
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
 			"Server is not the chief, ignoring stop log request",
@@ -410,17 +403,27 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 
 			// remove item from persistent state
 			if err := s.stateStore.RemoveLogItem(runUID, project); err != nil {
-				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from persistent state for run id %s", runUID)
+				message := fmt.Sprintf("Failed to remove item from persistent state for run id %s", runUID)
+				return &protologcollector.BaseResponse{
+					Success:      false,
+					ErrorCode:    0,
+					ErrorMessage: message,
+				}, errors.Wrap(err, message)
 			}
 
 			// remove item from in-memory state
 			if err := s.inMemoryState.RemoveLogItem(runUID, project); err != nil {
-				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from in memory state for run id %s", runUID)
+				message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
+				return &protologcollector.BaseResponse{
+					Success:      false,
+					ErrorCode:    0,
+					ErrorMessage: message,
+				}, errors.Wrap(err, message)
 			}
 		}
 	}
 
-	return &empty.Empty{}, nil
+	return s.successfulBaseResponse(), nil
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file
@@ -804,4 +807,10 @@ func (s *Server) isPodPendingError(err error) bool {
 	}
 
 	return false
+}
+
+func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
+	return &protologcollector.BaseResponse{
+		Success: true,
+	}
 }

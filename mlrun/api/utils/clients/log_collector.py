@@ -63,6 +63,8 @@ class LogCollectorClient(
         :param selector: The selector to filter the logs by (e.g. "application=mlrun,job-name=job")
             format is key1=value1,key2=value2
         :param project: The project name
+        :param best_effort: Whether to start logs collection in best-effort mode, meaning that success will be returned
+            even if the logs collection failed to start (e.g. if the pod doesn't exist)
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
         :return: A tuple of (success, error)
@@ -144,12 +146,12 @@ class LogCollectorClient(
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
-                        if verbose:
-                            logger.warning(msg, error=chunk.errorMessage)
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
                                 f"{msg},error= {chunk.errorMessage}"
                             )
+                        if verbose:
+                            logger.warning(msg, error=chunk.errorMessage)
                     yield chunk.logs
                 return
             except Exception as exc:
@@ -198,8 +200,9 @@ class LogCollectorClient(
 
     async def stop_logs(
         self,
-        project_to_run_uids_dict: dict,
+        project_to_run_uids_dict: typing.Dict[str, typing.List[str]],
         verbose: bool = False,
+        raise_on_error: bool = True,
     ) -> None:
         """
         Stop logs streaming from the log collector service
@@ -211,23 +214,19 @@ class LogCollectorClient(
         # convert the dict to a map with protobuf StringArray
         request_dict = {}
         for project, runs in project_to_run_uids_dict.items():
-            request_dict[project] = self._log_collector_pb2.StringArray(
-                values=project_to_run_uids_dict[project]
-            )
+            request_dict[project] = self._log_collector_pb2.StringArray(values=runs)
 
         request = self._log_collector_pb2.StopLogRequest(
             projectToRunUIDs=request_dict,
         )
 
-        try:
-            # StopLogs has no return value, so we don't need to check the response
-            await self._call("StopLog", request)
-
-        except Exception as exc:
-            # gRPC is thread safe, but an exception can be raised when running in threadpool
-            # we catch and log/ignore it until fixed, see https://github.com/grpc/grpc/issues/25364
-            if verbose:
-                logger.warning(
-                    "Failed to stop logs",
-                    exc=mlrun.errors.err_to_str(exc),
+        # StopLogs has no return value, so we don't need to check the response
+        response = await self._call("StopLog", request)
+        if not response.success:
+            msg = "Failed to stop logs"
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
                 )
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)

@@ -35,7 +35,6 @@ from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
-from mlrun.api.utils.clients import log_collector
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -224,6 +223,9 @@ async def _verify_log_collection_started_on_startup(
             db_session,
             requested_logs_modes=[None, False],
             only_uids=False,
+            # We take the minimum between the api_downtime_grace_period and the runtime_resources_deletion_grace_period
+            # because we want to make sure that we don't miss any runs which might have reached terminal state while the
+            # API was down, and their runtime resources are not deleted
             last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(
                 seconds=min(
@@ -561,7 +563,7 @@ async def _stop_logs_for_runs(runs: list):
 
     if project_to_run_uids:
         try:
-            await log_collector.LogCollectorClient().stop_logs(
+            await mlrun.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
                 project_to_run_uids_dict=project_to_run_uids,
             )
         except Exception as exc:

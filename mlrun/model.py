@@ -1358,6 +1358,7 @@ class DataSource(ModelObj):
         "max_age",
         "start_time",
         "end_time",
+        "credentials_prefix",
     ]
     kind = None
 
@@ -1372,7 +1373,6 @@ class DataSource(ModelObj):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
-
         self.name = name
         self.path = str(path) if path is not None else None
         self.attributes = attributes or {}
@@ -1409,6 +1409,7 @@ class DataTargetBase(ModelObj):
         "storage_options",
         "run_id",
         "schema",
+        "credentials_prefix",
     ]
 
     @classmethod
@@ -1437,6 +1438,7 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
         schema: Dict[str, Any] = None,
+        credentials_prefix=None,
     ):
         self.name = name
         self.kind: str = kind
@@ -1453,6 +1455,7 @@ class DataTargetBase(ModelObj):
         self.storage_options = storage_options
         self.run_id = None
         self.schema = schema
+        self.credentials_prefix = credentials_prefix
 
 
 class FeatureSetProducer(ModelObj):
@@ -1484,6 +1487,7 @@ class DataTarget(DataTargetBase):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "credentials_prefix",
     ]
 
     def __init__(

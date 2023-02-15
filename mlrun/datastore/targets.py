@@ -378,7 +378,6 @@ class BaseStoreTarget(DataTargetBase):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
@@ -1448,7 +1447,6 @@ class SQLTarget(BaseStoreTarget):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
@@ -1478,7 +1476,6 @@ class SQLTarget(BaseStoreTarget):
         :param key_bucketing_number:
         :param partition_cols:
         :param time_partitioning_granularity:
-        :param after_state:
         :param max_events:
         :param flush_after_seconds:
         :param storage_options:
@@ -1539,7 +1536,6 @@ class SQLTarget(BaseStoreTarget):
             max_events=max_events,
             flush_after_seconds=flush_after_seconds,
             storage_options=storage_options,
-            after_state=after_state,
             schema=schema,
         )
 

@@ -43,7 +43,7 @@ Click on the step names in the following sections to see the full usage.
 | [mlrun.feature_store.Imputer](../api/mlrun.feature_store.html#mlrun.feature_store.steps.Imputer) | Replace None values with default values. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.MapValues](../api/mlrun.feature_store.html#mlrun.feature_store.steps.MapValues) | Map column values to new values. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.html#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded). Supported also by the Pandas and Spark engines. | 
-| [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.html#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body. Supported also by the Pandas and Spark engines.|
+| [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.html#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body. |
 
 
 ## External IO and data enrichment

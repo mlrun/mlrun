@@ -1033,7 +1033,13 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact = {"import_from": artifact, "key": key}
+            artifact_path, _ = self.get_item_absolute_path(
+                artifact, check_path_in_context=True
+            )
+            artifact = {
+                "import_from": artifact_path,
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:
@@ -1098,17 +1104,30 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
-        in_context = False
+    def get_item_absolute_path(
+        self,
+        url: str,
+        check_path_in_context: bool = False,
+    ) -> typing.Tuple[str, bool]:
+        """
+        Get the absolute path of the artifact or function file
+        :param url:                   remote url, absolute path or relative path
+        :param check_path_in_context: if True, will check if the path exists when in the context
+                                      (temporary parameter to allow for backwards compatibility)
+        :returns:                     absolute path / url, whether the path is in the project context
+        """
         # If the URL is for a remote location, we do not want to change it
-        if url and "://" not in url:
-            # We don't want to change the url if the project has no cntext or if it is already absolute
-            if self.spec.context and not url.startswith("/"):
-                in_context = True
-                url = path.normpath(path.join(self.spec.get_code_path(), url))
-                return url, in_context
-            if not path.isfile(url):
-                raise OSError(f"{url} not found")
+        if not url or "://" in url:
+            return url, False
+
+        # We don't want to change the url if the project has no context or if it is already absolute
+        in_context = self.spec.context and not url.startswith("/")
+        if in_context:
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
+
+        if (not in_context or check_path_in_context) and not path.isfile(url):
+            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+
         return url, in_context
 
     def log_artifact(
@@ -1525,21 +1544,6 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def func(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
-        """get function object by name
-
-        :param sync:  will reload/reinit the function
-
-        :returns: function object
-        """
-        warnings.warn(
-            "This will be deprecated in future releases, use  get_function() instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
-        return self.get_function(key, sync)
-
     def get_function(
         self,
         key,
@@ -1855,7 +1859,7 @@ class MlrunProject(ModelObj):
 
         if ttl:
             warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead",
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,
@@ -2085,6 +2089,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2108,7 +2113,9 @@ class MlrunProject(ModelObj):
         :param selector:        selection criteria for hyper params e.g. "max.accuracy"
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                                 see: :py:class:`~mlrun.model.HyperParamOptions`
-        :param inputs:          input objects (dict of key: path)
+        :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
+                                parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param workdir:         default input artifacts path
         :param labels:          labels to tag the job/run with ({key:val, ..})
@@ -2123,6 +2130,17 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param returns:         List of log hints - configurations for how to log the returning values from the
+                                handler's run (as artifacts or results). The list's length must be equal to the amount
+                                of returning objects. A log hint may be given as:
+
+                                * A string of the key to use to log the returning value as result or as an artifact. To
+                                  specify The artifact type, it is possible to pass a string in the following structure:
+                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                                  artifact type is specified, the object's default artifact type will be used.
+                                * A dictionary of configurations to use when logging. Further info per object type and
+                                  artifact type can be given there. The artifact key must appear in the dictionary as
+                                  "key": "the_key".
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2146,6 +2164,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            returns=returns,
         )
 
     def build_function(

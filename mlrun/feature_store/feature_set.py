@@ -457,9 +457,10 @@ class FeatureSet(ModelObj):
         """
         if default_final_state:
             warnings.warn(
-                "The default_final_state parameter is deprecated. Use default_final_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
+                "The 'default_final_state' parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
+                "Use 'default_final_step' instead.",
+                # TODO: remove in 1.5.0
+                FutureWarning,
             )
             default_final_step = default_final_step or default_final_state
 
@@ -720,9 +721,10 @@ class FeatureSet(ModelObj):
             )
         if state_name:
             warnings.warn(
-                "The state_name parameter is deprecated. Use step_name instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
+                "The 'state_name' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "Use 'step_name' instead.",
+                # TODO: remove in 1.5.0
+                FutureWarning,
             )
             step_name = step_name or state_name
 

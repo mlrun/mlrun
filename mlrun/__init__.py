@@ -24,7 +24,6 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import json
 import warnings
 from os import environ, path
 
@@ -35,7 +34,7 @@ from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
-from .model import NewTask, RunObject, RunTemplate, new_task
+from .model import RunObject, RunTemplate, new_task
 from .platforms import (
     VolumeMount,
     auto_mount,
@@ -56,7 +55,6 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
-    ArtifactType,
     code_to_function,
     function_to_module,
     get_dataitem,
@@ -70,7 +68,7 @@ from .run import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
-from .runtimes import new_model_server
+from .runtimes import ArtifactType, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
 

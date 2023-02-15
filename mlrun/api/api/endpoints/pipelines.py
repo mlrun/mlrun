@@ -161,8 +161,7 @@ async def _create_pipeline(
         )
 
     arguments = {}
-    # TODO: stop reading "pipeline-arguments" header when 0.6.6 is no longer relevant
-    arguments_data = request.headers.get("pipeline-arguments") or request.headers.get(
+    arguments_data = request.headers.get(
         mlrun.api.schemas.HeaderNames.pipeline_arguments
     )
     if arguments_data:

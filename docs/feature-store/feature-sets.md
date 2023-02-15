@@ -9,7 +9,7 @@ along with the data pipeline definitions used to produce the features.
  
 The feature set object contains the following information:
 - **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
-- **Key attributes** &mdash; Entity (the join key), timestamp key (optional), label column.
+- **Key attributes** &mdash; Entity, timestamp key (optional), label column.
 - **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
 - **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](../serving/available-steps.html#sources).
 - **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
@@ -29,15 +29,19 @@ The feature set object contains the following information:
    
 ## Create a feature set
 
-Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
+Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
-* **name**&mdash;The feature set name is a unique name within a project. 
-* **entities**&mdash;Each feature set must be associated with one or more index column. When joining feature sets, the entity is used as the key column.
-* **timestamp_key**&mdash;(optional) Used for specifying the time field when joining by time.
-* **engine**&mdash;The processing engine type:
+* **name** &mdash; The feature set name is a unique name within a project. 
+* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the key columns 
+   are determined by the the relations field if it exists, and otherwise by the entities.
+* **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
+* **engine** &mdash; The processing engine type:
    - Spark
    - pandas
-   - storey (some advanced functionalities are in the Beta state)
+   - storey. Default. (Some advanced functionalities are in the Beta state.)
+* **label_column** &mdash; Name of the label column (the one holding the target (y) values).
+* **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
+   See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
    
 Example:
 ```python
@@ -120,4 +124,19 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-See more details in {ref}`transformations`.
+See more details in [Feature set transformations](transformations.html) and See more details in {ref}`transformations`.
+
+## Simulate and debug the data pipeline with a small dataset
+During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before 
+ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
+This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `preview`. It previews in the source 
+data schema, as well as processing the graph logic (assuming there is one) on a small subset of data. 
+The preview operation also learns the feature set schema and does statistical analysis on the result by default.
+  
+```python
+df = fstore.preview(quotes_set, quotes)
+
+# print the featue statistics
+print(quotes_set.get_stats_table())
+```
+

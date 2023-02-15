@@ -40,13 +40,15 @@ class Functions(
         auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
-        function_obj = mlrun.new_function(runtime=function)
+        function_obj = mlrun.new_function(
+            name=name, project=project, runtime=function, tag=tag
+        )
         if auth_info:
             mlrun.api.api.utils.mask_function_sensitive_data(function_obj, auth_info)
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
             function_obj.to_dict(),
-            name,
+            name or function_obj.metadata.name,
             project,
             tag,
             versioned,

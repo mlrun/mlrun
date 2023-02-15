@@ -14,7 +14,6 @@
 import enum
 import getpass
 import http
-import os
 import traceback
 import typing
 import uuid

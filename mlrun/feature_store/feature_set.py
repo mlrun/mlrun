@@ -144,7 +144,12 @@ class FeatureSetSpec(ModelObj):
             for i, entity in enumerate(entities):
                 if isinstance(entity, str):
                     entities[i] = Entity(entity)
-                elif entity.name is None:
+                elif isinstance(entity, Entity) and entity.name is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
+                elif isinstance(entity, dict) and ('name' not in entity or ('name' in entity and entity['name'] is None)):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "You have to provide an "
                         "Entity with valid name of string type"

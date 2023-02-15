@@ -464,8 +464,8 @@ def test_set_artifact_validates_file_exists(
             artifact_key,
             artifact_path,
         )
-        assert project.artifacts[0]["key"] == artifact_key
-        assert project.artifacts[0]["import_from"] == str(assets_path() / artifact_path)
+        assert project.spec.artifacts[0]["key"] == artifact_key
+        assert project.spec.artifacts[0]["import_from"] == str(assets_path() / artifact_path)
 
 
 def test_import_artifact_using_relative_path():

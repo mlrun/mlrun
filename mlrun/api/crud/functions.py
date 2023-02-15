@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
@@ -36,11 +37,15 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         versioned: bool = False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
+        function_obj = mlrun.new_function(runtime=function)
+        if auth_info:
+            mlrun.api.api.utils.mask_function_sensitive_data(function_obj, auth_info)
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
-            function,
+            function_obj.to_dict(),
             name,
             project,
             tag,

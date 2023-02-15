@@ -102,5 +102,5 @@ Click on the step names in the following sections to see the full usage.
 ## Other
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|-----------------------------------------------------------|
-| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas and Spark engines. | 
+| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
 | ReduceToDataFrame | Builds a pandas DataFrame from events and returns that DataFrame on flow termination. |

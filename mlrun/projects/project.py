@@ -1033,7 +1033,13 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact = {"import_from": artifact, "key": key}
+            artifact_path, _ = self.get_item_absolute_path(
+                artifact, check_path_in_context=True
+            )
+            artifact = {
+                "import_from": artifact_path,
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:
@@ -1098,17 +1104,30 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
-        in_context = False
+    def get_item_absolute_path(
+        self,
+        url: str,
+        check_path_in_context: bool = False,
+    ) -> typing.Tuple[str, bool]:
+        """
+        Get the absolute path of the artifact or function file
+        :param url:                   remote url, absolute path or relative path
+        :param check_path_in_context: if True, will check if the path exists when in the context
+                                      (temporary parameter to allow for backwards compatibility)
+        :returns:                     absolute path / url, whether the path is in the project context
+        """
         # If the URL is for a remote location, we do not want to change it
-        if url and "://" not in url:
-            # We don't want to change the url if the project has no cntext or if it is already absolute
-            if self.spec.context and not url.startswith("/"):
-                in_context = True
-                url = path.normpath(path.join(self.spec.get_code_path(), url))
-                return url, in_context
-            if not path.isfile(url):
-                raise OSError(f"{url} not found")
+        if not url or "://" in url:
+            return url, False
+
+        # We don't want to change the url if the project has no context or if it is already absolute
+        in_context = self.spec.context and not url.startswith("/")
+        if in_context:
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
+
+        if (not in_context or check_path_in_context) and not path.isfile(url):
+            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+
         return url, in_context
 
     def log_artifact(

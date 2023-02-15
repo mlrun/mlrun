@@ -41,8 +41,8 @@ class Entity(ModelObj):
 
     def __init__(
         self,
-        name: str,
-        value_type: ValueType = None,
+        name: str = None,
+        value_type: Union[ValueType, str] = None,
         description: str = None,
         labels: Optional[Dict[str, str]] = None,
     ):
@@ -54,9 +54,10 @@ class Entity(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name
-        self.value_type = ValueType(value_type) if value_type else ValueType.STRING
         self.description = description
-        self.value_type = value_type
+        self.value_type = ValueType(value_type) if value_type else None
+        if name and not value_type:
+            self.value_type = ValueType.STRING
         self.labels = labels or {}
 
     def __eq__(self, other):
@@ -80,11 +81,11 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
-        value_type: Union[str, ValueType] = None,
+        value_type: Union[ValueType, str] = None,
         dims: List[int] = None,
         description: str = None,
         aggregate: bool = None,
+        name: str = None,
         validator=None,
         default: str = None,
         labels: Dict[str, str] = None,
@@ -93,12 +94,12 @@ class Feature(ModelObj):
 
         Features can be specified manually or inferred automatically (during ingest/preview)
 
-        :param name:        name of the feature
         :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
                             ValueType.INT (default ValueType.STRING)
         :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
         :param description: text description of the feature
         :param aggregate:   is it an aggregated value
+        :param name:        name of the feature
         :param validator:   feature validation policy
         :param default:     default value
         :param labels:      a set of key/value labels (tags)

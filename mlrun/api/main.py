@@ -151,7 +151,7 @@ async def move_api_to_online():
     # In general it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
-    initialize_project_member()
+    await initialize_project_member()
 
     # maintenance periodic functions should only run on the chief instance
     if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:

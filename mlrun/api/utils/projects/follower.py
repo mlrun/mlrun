@@ -46,7 +46,7 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def initialize(self):
+    async def initialize(self):
         logger.info("Initializing projects follower")
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
@@ -81,7 +81,7 @@ class Member(
                 mlrun.mlconf.httpdb.clusterization.role
                 == mlrun.api.schemas.ClusterizationRole.chief
             )
-            self._sync_projects(full_sync=full_sync)
+            await self._sync_projects(full_sync=full_sync)
         except Exception as exc:
             logger.warning(
                 "Initial projects sync failed",
@@ -204,8 +204,7 @@ class Member(
                 db_session, name, deletion_strategy
             )
         else:
-            return await run_in_threadpool(
-                self._leader_client.delete_project,
+            return self._leader_client.delete_project(
                 auth_info.session,
                 name,
                 deletion_strategy,
@@ -298,7 +297,7 @@ class Member(
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
-    def _sync_projects(self, full_sync=False):
+    async def _sync_projects(self, full_sync=False):
         """
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
         also sync deletions that may occur without updating us the follower
@@ -317,8 +316,10 @@ class Member(
 
         db_session = mlrun.api.db.session.create_session()
         try:
-            db_projects = mlrun.api.crud.Projects().list_projects(
-                db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+            db_projects = await run_in_threadpool(
+                mlrun.api.crud.Projects().list_projects,
+                db_session,
+                format_=mlrun.api.schemas.ProjectsFormat.name_only,
             )
             # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
             filtered_projects = []
@@ -332,8 +333,11 @@ class Member(
                 filtered_projects.append(leader_project)
 
             for project in filtered_projects:
-                mlrun.api.crud.Projects().store_project(
-                    db_session, project.metadata.name, project
+                await run_in_threadpool(
+                    mlrun.api.crud.Projects().store_project,
+                    db_session,
+                    project.metadata.name,
+                    project,
                 )
             if full_sync:
                 logger.info("Performing full sync")
@@ -362,7 +366,10 @@ class Member(
                     latest_updated_at = epoch
                 self._synced_until_datetime = latest_updated_at
         finally:
-            mlrun.api.db.session.close_session(db_session)
+            await run_in_threadpool(
+                mlrun.api.db.session.close_session,
+                db_session,
+            )
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]

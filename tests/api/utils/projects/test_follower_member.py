@@ -40,7 +40,7 @@ async def projects_follower() -> typing.Generator[
     logger.info("Creating projects follower")
     mlrun.config.config.httpdb.projects.leader = "nop"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
+    await mlrun.api.utils.singletons.project_member.initialize_project_member()
     projects_follower = mlrun.api.utils.singletons.project_member.get_project_member()
     yield projects_follower
     logger.info("Stopping projects follower")
@@ -56,7 +56,8 @@ async def nop_leader(
     return projects_follower._leader_client
 
 
-def test_sync_projects(
+@pytest.mark.asyncio
+async def test_sync_projects(
     db: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
@@ -105,7 +106,7 @@ def test_sync_projects(
         )
     )
     nop_leader.list_projects = nop_leader_list_projects_mock
-    projects_follower._sync_projects()
+    await projects_follower._sync_projects()
     _assert_list_projects(
         db,
         projects_follower,
@@ -119,10 +120,10 @@ def test_sync_projects(
     )
 
     # ensure after full sync project that is not in leader is removed
-    mlrun.api.crud.Projects().delete_project_resources = unittest.mock.Mock(
+    mlrun.api.crud.Projects().delete_project_resources = unittest.mock.AsyncMock(
         return_value=None
     )
-    projects_follower._sync_projects(full_sync=True)
+    await projects_follower._sync_projects(full_sync=True)
     _assert_list_projects(
         db,
         projects_follower,
@@ -202,7 +203,8 @@ def test_patch_project(
     _assert_project_in_follower(db, projects_follower, expected_patched_project)
 
 
-def test_delete_project(
+@pytest.mark.asyncio
+async def test_delete_project(
     db: sqlalchemy.orm.Session,
     # k8s_secrets_mock fixture uses the client fixture which intializes the project member so must be declared
     # before the projects follower
@@ -219,14 +221,14 @@ def test_delete_project(
     mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = (
         unittest.mock.Mock(return_value=None)
     )
-    projects_follower.delete_project(
+    await projects_follower.delete_project(
         db,
         project.metadata.name,
     )
     _assert_project_not_in_follower(db, projects_follower, project.metadata.name)
 
     # make sure another delete doesn't fail
-    projects_follower.delete_project(
+    await projects_follower.delete_project(
         db,
         project.metadata.name,
     )

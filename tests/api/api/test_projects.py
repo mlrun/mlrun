@@ -61,16 +61,16 @@ ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
 
 
 @pytest.fixture(params=["leader", "follower"])
-def project_member_mode(request, db: Session) -> str:
+async def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        await mlrun.api.utils.singletons.project_member.initialize_project_member()
         mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
             db
         )
     elif request.param == "leader":
         mlrun.config.config.httpdb.projects.leader = "mlrun"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        await mlrun.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
             f"Provided project member mode is not supported. mode={request.param}"
@@ -161,6 +161,7 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.mark.asyncio
 def test_delete_project_with_resources(
     db: Session,
     client: TestClient,
@@ -262,6 +263,7 @@ def test_delete_project_with_resources(
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
 
+@pytest.mark.asyncio
 def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
@@ -392,6 +394,7 @@ def test_list_and_get_project_summaries(
     )
 
 
+@pytest.mark.asyncio
 def test_list_project_summaries_different_installation_modes(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
@@ -498,6 +501,7 @@ def test_list_project_summaries_different_installation_modes(
     )
 
 
+@pytest.mark.asyncio
 def test_delete_project_deletion_strategy_check(
     db: Session,
     client: TestClient,
@@ -546,6 +550,7 @@ def test_delete_project_deletion_strategy_check(
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
 
 
+@pytest.mark.asyncio
 def test_delete_project_not_deleting_versioned_objects_multiple_times(
     db: Session,
     client: TestClient,
@@ -626,6 +631,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
 
 
+@pytest.mark.asyncio
 def test_delete_project_deletion_strategy_check_external_resource(
     db: Session,
     client: TestClient,
@@ -666,6 +672,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     assert response
 
 
+@pytest.mark.asyncio
 # leader format is only relevant to follower mode
 @pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
 def test_list_projects_leader_format(
@@ -705,6 +712,7 @@ def test_list_projects_leader_format(
     )
 
 
+@pytest.mark.asyncio
 def test_projects_crud(
     db: Session,
     client: TestClient,

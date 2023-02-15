@@ -37,7 +37,7 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-def db() -> Generator:
+async def db() -> Generator:
     """
     This fixture initialize the db singleton (so it will be accessible using mlrun.api.singletons.get_db()
     and generates a db session that can be used by the test
@@ -56,7 +56,7 @@ def db() -> Generator:
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
     initialize_db()
-    initialize_project_member()
+    await initialize_project_member()
 
     # we're also running client code in tests so set dbpath as well
     # note that setting this attribute triggers connection to the run db therefore must happen after the initialization

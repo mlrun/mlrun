@@ -88,8 +88,10 @@ class Projects(
                 session, name
             ):
                 return
-            mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
-                session, name
+            await fastapi.concurrency.run_in_threadpool(
+                mlrun.api.utils.singletons.db.get_db().verify_project_has_no_related_resources,
+                session,
+                name,
             )
             self._verify_project_has_no_external_resources(name)
             if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:

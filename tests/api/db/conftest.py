@@ -33,7 +33,7 @@ dbs = [
 
 
 @pytest.fixture(params=dbs)
-def db(request) -> Generator:
+async def db(request) -> Generator:
     if request.param == "sqldb":
         dsn = "sqlite:///:memory:?check_same_thread=false"
         config.httpdb.dsn = dsn
@@ -46,7 +46,7 @@ def db(request) -> Generator:
             db = SQLDB(dsn)
             db.initialize(db_session)
             initialize_db(db)
-            initialize_project_member()
+            await initialize_project_member()
             yield db
         finally:
             close_session(db_session)

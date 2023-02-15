@@ -110,7 +110,7 @@ def aioresponses_mock():
 
 
 @pytest.fixture
-def db():
+async def db():
     global session_maker
     dsn = "sqlite:///:memory:?check_same_thread=false"
     db_session = None
@@ -126,7 +126,7 @@ def db():
         if db_session is not None:
             db_session.close()
     mlrun.api.utils.singletons.db.initialize_db(db)
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
+    await mlrun.api.utils.singletons.project_member.initialize_project_member()
     return db
 
 

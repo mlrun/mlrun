@@ -41,7 +41,7 @@ class Member(
     mlrun.api.utils.projects.member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def initialize(self):
+    async def initialize(self):
         logger.info("Initializing projects leader")
         self._initialize_followers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
@@ -49,7 +49,7 @@ class Member(
         )
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
-        self._sync_projects()
+        await self._sync_projects()
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -194,14 +194,14 @@ class Member(
     def _stop_periodic_sync(self):
         mlrun.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
-    def _sync_projects(self):
+    async def _sync_projects(self):
         db_session = mlrun.api.db.session.create_session()
         try:
             # re-generating all of the maps every time since _ensure_follower_projects_synced might cause changes
             leader_projects: mlrun.api.schemas.ProjectsOutput
             follower_projects_map: typing.Dict[str, mlrun.api.schemas.ProjectsOutput]
-            leader_projects, follower_projects_map = self._run_on_all_followers(
-                True, "list_projects", db_session
+            leader_projects, follower_projects_map = await run_in_threadpool(
+                self._run_on_all_followers, True, "list_projects", db_session
             )
             leader_project_names = {
                 project.metadata.name for project in leader_projects.projects
@@ -233,7 +233,8 @@ class Member(
             for project in all_project:
                 if project in self._projects_in_deletion:
                     continue
-                self._ensure_project_synced(
+                await run_in_threadpool(
+                    self._ensure_project_synced,
                     db_session,
                     leader_project_names,
                     project_follower_names_map[project],

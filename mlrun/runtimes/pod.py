@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 import os
+import traceback
 import typing
 import uuid
 from enum import Enum
@@ -902,6 +903,9 @@ class KubeResource(BaseRuntime):
             if "env" in spec and spec["env"]:
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):
+                        print(f"stripping env var {ev['name']}")
+                        for line in traceback.format_stack():
+                            print(line.strip())
                         ev["value"] = ""
             # Reset this, since mounts and env variables were cleared.
             spec["disable_auto_mount"] = False

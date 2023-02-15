@@ -144,7 +144,7 @@ def _mount_v3io_extended(
     ):
         raise TypeError("mounts should be a list of Mount")
 
-    def _mount(container_op: kfp.dsl.ContainerOp):
+    def _mount_is_this_name_taken(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
@@ -160,7 +160,7 @@ def _mount_v3io_extended(
             container_op = v3io_cred(access_key=access_key, user=user)(container_op)
         return container_op
 
-    return _mount
+    return _mount_is_this_name_taken
 
 
 def _resolve_mount_user(user=None):

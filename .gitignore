@@ -29,6 +29,6 @@ tests/system/env.yml
 .python-version
 *.bak
 CONTRIBUTING.md
-docs/CONTRIBUTING.md
+docs\contributing-to-docs.md
 mlrun/api/proto/*pb2*.py
-docs/tutorial/colab/01-mlrun-basics-colab.ipynb
+tutorial/colab/01-mlrun-basics-colab.ipynb

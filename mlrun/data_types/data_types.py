@@ -13,11 +13,13 @@
 # limitations under the License.
 
 # this module is WIP
+from enum import Enum
+
 import pyarrow
 from pyarrow.lib import TimestampType
 
 
-class ValueType:
+class ValueType(str, Enum):
     """Feature value type. Used to define data types in Feature Tables."""
 
     UNKNOWN = ""

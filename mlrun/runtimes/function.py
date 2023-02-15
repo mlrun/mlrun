@@ -1242,11 +1242,10 @@ def compile_function_config(
             # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
-    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
     # Our code is counting on the strings to be decoded, so add the needed env var for those versions
     if (
-        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
-        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        is_nuclio_version_in_range("1.6.0", "1.8.0")
         and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
     ):
         env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"

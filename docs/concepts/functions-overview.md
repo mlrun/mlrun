@@ -44,13 +44,9 @@ The limits methods are different for Spark and Dask:
 - Spark
    - with_driver_limits(mem, cpu, gpu_type)
    - with_executor_limits(mem, cpu, gpu_type)
-   - with_driver_resources(mem, cpu, gpu_type)
-   - with_executor_resources(mem, cpu, gpu_type)
 - Dask
    - with_scheduler_limits(mem, cpu, gpu_type)
    - with_worker_limits(mem, cpu, gpu_type)
-   - with_driver_resources(mem, cpu, gpu_type)
-   - with_worker_resources(mem, cpu, gpu_type)
 
 **In this section**
 ```{toctree}

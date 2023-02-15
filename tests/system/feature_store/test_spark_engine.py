@@ -921,9 +921,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",

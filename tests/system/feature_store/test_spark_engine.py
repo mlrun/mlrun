@@ -83,7 +83,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -545,6 +545,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             },
         ]
 
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
+
         name_spark = f"{name}_spark"
 
         data_set = fstore.FeatureSet(
@@ -697,6 +707,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "time_window": "1h",
             },
         ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"

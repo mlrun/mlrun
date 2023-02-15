@@ -203,6 +203,7 @@ setup(
         "mlrun.projects",
         "mlrun.runtimes",
         "mlrun.runtimes.mpijob",
+        "mlrun.runtimes.package",
         "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.utils",

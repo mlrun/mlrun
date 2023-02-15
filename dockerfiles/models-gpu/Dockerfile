@@ -15,6 +15,9 @@ ARG MLRUN_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.0-base-ubuntu20.04
 
 FROM ${MLRUN_BASE_IMAGE}
 
+# install opencv dependencies - putting it here to avoid rebuilding prebaked images
+RUN apt-get install ffmpeg libsm6 libxext6  -y
+
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context

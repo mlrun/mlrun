@@ -1621,7 +1621,7 @@ class TestFeatureStore(TestMLRunSystem):
         non_default_target_name = "side-target"
         quotes_set.set_targets(
             targets=[
-                CSVTarget(name=non_default_target_name, after_state=side_step_name)
+                CSVTarget(name=non_default_target_name, after_step=side_step_name)
             ],
             default_final_step="FeaturesetValidator",
         )

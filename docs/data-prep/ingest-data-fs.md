@@ -177,6 +177,49 @@ source = SqlDBSource(table_name='my_table',
  df = fs.ingest(feature_set, source=source)
 ```
 
+### Confluent Kafka data source
+
+```{admonition} Note
+Tech Preview 
+```
+
+Example:
+
+```
+from mlrun.datastore.sources import KafkaSource
+
+
+with open('/v3io/bigdata/name.crt') as x: 
+    caCert = x.read()  
+caCert
+
+
+kafka_source = KafkaSource(
+        brokers=['server-1:9092', 
+        'server-2:9092', 
+        'server-3:9092', 
+        'server-4:9092', 
+        'server-5:9092'],
+        topics=["topic-name"],
+        initial_offset="earliest",
+        group="test",
+        attributes={"sasl" : {
+                      "enable": True,
+                      "password" : "pword",
+                      "user" : "user",
+                      "handshake" : True,
+                      "mechanism" : "SCRAM-SHA-256"},
+                    "tls" : {
+                      "enable": True,
+                      "insecureSkipVerify" : False
+                    },            
+                   "caCert" : caCert}
+    )
+    
+run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
+
+stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+```
 
 
 ## Target stores
@@ -207,6 +250,9 @@ For example: `rediss://localhost:6379` creates a redis target, where:
 `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where <prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter.
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
+    
+The K8s secrets are not available when executing locally (from the sdk). Therefore, if RedisNoSqlTarget with secret is used, 
+You must add the secret as an env-var.
 
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
 explicitly each time with the path parameter, for example:</br>

@@ -78,3 +78,6 @@ ARG HOROVOD_VERSION=0.25.0
 RUN HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install horovod~=${HOROVOD_VERSION} && \
     horovodrun --check-build
+
+# install opencv dependencies - putting it here to reuse cache
+RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y

@@ -555,7 +555,7 @@ class RemoteRuntime(KubeResource):
         if not dashboard:
             # Attempt auto-mounting, before sending to remote build
             self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+            self._fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)

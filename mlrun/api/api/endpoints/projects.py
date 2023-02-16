@@ -194,6 +194,8 @@ async def delete_project(
         chief_client = mlrun.api.utils.clients.chief.Client()
         return await chief_client.delete_project(name=name, request=request)
 
+    # deletion_report = {}
+
     is_running_in_background = await run_in_threadpool(
         get_project_member().delete_project,
         db_session,
@@ -202,9 +204,12 @@ async def delete_project(
         auth_info.projects_role,
         auth_info,
         wait_for_completion=wait_for_completion,
+        # deletion_report=deletion_report,
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+    # _on_after_project_deletion(name, auth_info)
+    # await get_project_member().on_after_delete(deletion_report)
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 

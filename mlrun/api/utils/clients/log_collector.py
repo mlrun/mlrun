@@ -28,9 +28,26 @@ class LogCollectorErrorCode(enum.Enum):
     ErrCodeInternal = 1
 
 
+_log_collector_client = None
+
+
+def get_log_collector_client(reuse=True) -> "LogCollectorClient":
+    """
+    Returns a singleton instance of the log collector client, unless reuse is set to False
+    :param reuse: Whether to reuse the singleton instance
+    :return: The log collector client
+    """
+    if not reuse:
+        return LogCollectorClient()
+
+    global _log_collector_client
+    if not _log_collector_client:
+        _log_collector_client = LogCollectorClient()
+    return _log_collector_client
+
+
 class LogCollectorClient(
     mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
-    metaclass=mlrun.utils.singleton.Singleton,
 ):
     name = "log_collector"
 
@@ -191,3 +208,37 @@ class LogCollectorClient(
                     f"{msg},error= {response.errorMessage}"
                 )
         return response.hasLogs
+
+    async def stop_logs(
+        self,
+        project_to_run_uids_dict: typing.Dict[str, typing.List[str]],
+        verbose: bool = False,
+        raise_on_error: bool = True,
+    ) -> None:
+        """
+        PLACEHOLDER UNTIL PR #3082 IS MERGED
+        """
+        # convert the dict to a map with protobuf StringArray
+        request_dict = {}
+        for project, runs in project_to_run_uids_dict.items():
+            request_dict[project] = self._log_collector_pb2.StringArray(values=runs)
+
+        request = self._log_collector_pb2.StopLogRequest(
+            projectToRunUIDs=request_dict,
+        )
+
+        logger.debug("Stopping logs", project_to_run_uids_dict=project_to_run_uids_dict)
+
+        try:
+            await self._call("StopLog", request)
+
+        except Exception as exc:
+            logger.warning(
+                "Failed to stop logs",
+                exc=mlrun.errors.err_to_str(exc),
+            )
+        finally:
+            logger.debug(
+                "Stopped logs successfully",
+                project_to_run_uids_dict=project_to_run_uids_dict,
+            )

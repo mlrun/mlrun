@@ -311,9 +311,13 @@ async def _start_log_for_run(
     # using semaphore to limit the number of concurrent log collection requests
     # this is to prevent opening too many connections to many connections
     async with start_logs_limit:
+        # logs_collector_client = (
+        #     mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        # )
         logs_collector_client = (
             mlrun.api.utils.clients.log_collector.LogCollectorClient()
         )
+
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)

@@ -144,7 +144,9 @@ class Logs(
         size: int = -1,
         offset: int = 0,
     ) -> typing.AsyncIterable[bytes]:
-        async for log in log_collector.LogCollectorClient().get_logs(
+        # log_collector_client = log_collector.get_log_collector_client()
+        log_collector_client = log_collector.LogCollectorClient()
+        async for log in log_collector_client.get_logs(
             run_uid=run_uid,
             project=project,
             size=size,

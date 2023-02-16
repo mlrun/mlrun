@@ -397,6 +397,10 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 		}
 	}
 
+	s.Logger.DebugWithCtx(ctx,
+		"DELETE ME - Successfully stopped log streaming",
+		"ProjectToRunUIDsMap", request.ProjectToRunUIDs)
+
 	return &empty.Empty{}, nil
 }
 

@@ -292,10 +292,12 @@ def test_bearer_auth(create_server):
     db.token = token
     db.list_runs()
 
+
 def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:
     runtime = mlrun.runtimes.KubejobRuntime()
     runtime.metadata.name = name
     return runtime
+
 
 def test_set_get_function(create_server):
     server: Server = create_server()

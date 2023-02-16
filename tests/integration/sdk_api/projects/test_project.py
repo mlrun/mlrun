@@ -54,18 +54,16 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             "name": "value",
             "name2": "value2",
         }
-        function = {
-            "test": "function",
-            "metadata": {"labels": labels},
-            "spec": {"asd": "asdasd"},
-            "status": {"bla": "blabla"},
-        }
-        function_names = ["function_name_1", "function_name_2", "function_name_3"]
+        function = mlrun.runtimes.KubejobRuntime()
+        for label_name, label_value in labels.items():
+            function.set_label(label_name, label_value)
+
+        function_names = ["function-name-1", "function-name-2", "function-name-3"]
         function_tags = ["some-tag", "some-tag2", "some-tag3"]
         for function_name in function_names:
             for function_tag in function_tags:
                 db.store_function(
-                    function,
+                    function.to_dict(),
                     function_name,
                     project.metadata.name,
                     tag=function_tag,
@@ -74,8 +72,8 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # create several artifacts
         artifact = {
-            "test": "artifact",
-            "labels": labels,
+            "kind": "artifact",
+            "metadata": {"labels": labels},
             "status": {"bla": "blabla"},
         }
         artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]

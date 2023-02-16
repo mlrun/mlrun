@@ -131,6 +131,7 @@ def test_requirement_specifiers_convention():
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
+        "gitpython": {"~=3.1, >= 3.1.30"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},

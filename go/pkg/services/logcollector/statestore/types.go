@@ -114,5 +114,5 @@ type StateStore interface {
 }
 
 func GenerateKey(runUID, project string) string {
-	return fmt.Sprintf("%s-%s", runUID, project)
+	return fmt.Sprintf("%s/%s", runUID, project)
 }

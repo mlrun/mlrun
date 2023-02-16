@@ -48,6 +48,12 @@ from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
 
+def print_full_df(df: pd.DataFrame, df_name: str, passthrough: str) -> None:
+    with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        print(f"{df_name}-passthrough_{passthrough}:")
+        print(df)
+
+
 def read_and_assert(csv_path_spark, csv_path_storey):
     read_back_df_spark = None
     file_system = fsspec.filesystem("v3io")
@@ -497,21 +503,63 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         df = fstore.ingest(data_set, source, targets=[])
 
-        assert df.to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "bid_sqr_1h": {("moshe", "cohen"): 4000144, ("yosi", "levi"): 477},
-            "bid_stdvar_1h": {
-                ("moshe", "cohen"): 1976072,
-                ("yosi", "levi"): 10.333333333333334,
+        assert df.fillna("NaN-was-here").to_dict("records") == [
+            {
+                "bid": 2000,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000000,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 2000,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:40:00+0000", tz="UTC"),
             },
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+            {
+                "bid": 10,
+                "bid_max_1h": 10,
+                "bid_sqr_1h": 100,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 10,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:41:00+0000", tz="UTC"),
             },
-        }
+            {
+                "bid": 11,
+                "bid_max_1h": 11,
+                "bid_sqr_1h": 221,
+                "bid_stdvar_1h": 0.5,
+                "bid_sum_1h": 21,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:42:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:43:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:44:00+0000", tz="UTC"),
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
         name_spark = f"{name}_spark"
 
@@ -543,22 +591,146 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
-        assert resp.to_dataframe().to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "bid_sqr_1h": {("moshe", "cohen"): 4000144, ("yosi", "levi"): 477},
-            "bid_stdvar_1h": {
-                ("moshe", "cohen"): 1976072,
-                ("yosi", "levi"): 10.333333333333334,
+
+        # We can't count on the order when reading the results back
+        result_records = (
+            resp.to_dataframe()
+            .sort_values(["first_name", "last_name", "time"])
+            .to_dict("records")
+        )
+
+        assert result_records == [
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
             },
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:40:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:40:00"),
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
             },
-            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
-        }
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -970,6 +1142,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
+        print_full_df(df=resp_df, df_name="resp_df", passthrough=passthrough)
+        print_full_df(df=target_df, df_name="target_df", passthrough=passthrough)
+        print_full_df(df=expected_df, df_name="expected_df", passthrough=passthrough)
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 

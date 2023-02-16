@@ -561,10 +561,10 @@ async def _stop_logs_for_runs(runs: list):
         run_uid = run.get("metadata", {}).get("uid", None)
         project_to_run_uids.setdefault(project_name, []).append(run_uid)
 
-    if project_to_run_uids:
+    for project_name, run_uids in project_to_run_uids.items():
         try:
             await mlrun.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
-                project_to_run_uids_dict=project_to_run_uids,
+                project_name, run_uids
             )
         except Exception as exc:
             logger.warning(

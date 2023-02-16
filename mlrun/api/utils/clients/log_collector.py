@@ -200,24 +200,22 @@ class LogCollectorClient(
 
     async def stop_logs(
         self,
-        project_to_run_uids_dict: typing.Dict[str, typing.List[str]],
+        project: str,
+        run_uids: typing.List[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
         """
         Stop logs streaming from the log collector service
-        :param project_to_run_uids_dict: a dict of run uids per project to stop logs for
+        :param project: The project name
+        :param run_uids: The run uids to stop logs for, if not provided will stop logs for all runs in the project
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
         :return: None
         """
-        # convert the dict to a map with protobuf StringArray
-        request_dict = {}
-        for project, runs in project_to_run_uids_dict.items():
-            request_dict[project] = self._log_collector_pb2.StringArray(values=runs)
 
         request = self._log_collector_pb2.StopLogRequest(
-            projectToRunUIDs=request_dict,
+            project=project, runUIDs=run_uids
         )
 
         response = await self._call("StopLog", request)

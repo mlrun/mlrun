@@ -103,6 +103,9 @@ type StateStore interface {
 	// RemoveLogItem removes a log item from the state store
 	RemoveLogItem(runUID, project string) error
 
+	// RemoveProject removes all log items for a project from the state store
+	RemoveProject(project string) error
+
 	// WriteState writes the state to persistent storage
 	WriteState(state *State) error
 

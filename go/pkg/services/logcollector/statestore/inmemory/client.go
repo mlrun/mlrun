@@ -19,6 +19,8 @@ import (
 	"sync"
 
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+
+	"github.com/nuclio/errors"
 )
 
 type Store struct {
@@ -52,6 +54,16 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 func (s *Store) RemoveLogItem(runUID, project string) error {
 	key := statestore.GenerateKey(runUID, project)
 	s.inProgress.Delete(key)
+	return nil
+}
+
+func (s *Store) RemoveProject(project string) error {
+	if project == "" {
+		return errors.New("Project name is empty")
+	}
+
+	// delete is a no-op if the key doesn't exist
+	delete(s.state.InProgress, project)
 	return nil
 }
 

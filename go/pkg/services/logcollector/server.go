@@ -394,32 +394,66 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
 			"Server is not the chief, ignoring stop log request",
-			"requestRuns", request.ProjectToRunUIDs)
-		return nil, nil
+			"project", request.Project,
+			"numRunIDs", len(request.RunUIDs))
+		return s.successfulBaseResponse(), nil
 	}
 
-	for project, runUIDs := range request.ProjectToRunUIDs {
-		for _, runUID := range runUIDs.Values {
+	if request.Project == "" {
+		message := "Project name must be provided"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    0,
+			ErrorMessage: message,
+		}, errors.New(message)
+	}
 
-			// remove item from persistent state
-			if err := s.stateStore.RemoveLogItem(runUID, project); err != nil {
-				message := fmt.Sprintf("Failed to remove item from persistent state for run id %s", runUID)
-				return &protologcollector.BaseResponse{
-					Success:      false,
-					ErrorCode:    0,
-					ErrorMessage: message,
-				}, errors.Wrap(err, message)
-			}
+	if len(request.RunUIDs) == 0 {
 
-			// remove item from in-memory state
-			if err := s.inMemoryState.RemoveLogItem(runUID, project); err != nil {
-				message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
-				return &protologcollector.BaseResponse{
-					Success:      false,
-					ErrorCode:    0,
-					ErrorMessage: message,
-				}, errors.Wrap(err, message)
-			}
+		// remove entire project from persistent state
+		if err := s.stateStore.RemoveProject(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove project %s from persistent state", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		// remove entire project from in-memory state
+		if err := s.inMemoryState.RemoveProject(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove project %s from in memory state", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		return s.successfulBaseResponse(), nil
+	}
+
+	for _, runUID := range request.RunUIDs {
+
+		// remove item from persistent state
+		if err := s.stateStore.RemoveLogItem(runUID, request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove item from persistent state for run id %s", runUID)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		// remove item from in-memory state
+		if err := s.inMemoryState.RemoveLogItem(runUID, request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
 		}
 	}
 

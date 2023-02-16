@@ -112,7 +112,7 @@ extras_require = {
     "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.2"],
     "kafka": [
         "kafka-python~=2.0",
-        "avro==1.11.1",
+        "avro~=1.11",
     ],
     "redis": ["redis~=4.3"],
 }

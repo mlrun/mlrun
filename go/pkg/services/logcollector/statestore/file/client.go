@@ -40,7 +40,7 @@ type Store struct {
 func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
 	return &Store{
 		state: &statestore.State{
-			InProgress: &sync.Map{},
+			InProgress: map[string]*sync.Map{},
 		},
 		logger: logger.GetChild("filestatestore"),
 		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
@@ -77,22 +77,32 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		Project:       project,
 	}
 
-	key := statestore.GenerateKey(runUID, project)
-	if existingItem, exists := s.state.InProgress.Load(key); exists {
-		s.logger.DebugWithCtx(ctx,
-			"Item already exists in state file. Overwriting label selector",
-			"runUID", runUID,
-			"existingItem", existingItem)
+	if projectRunUIDsInProgress, projectExists := s.state.InProgress[project]; projectExists {
+		if existingItem, exists := projectRunUIDsInProgress.Load(runUID); exists {
+			s.logger.DebugWithCtx(ctx,
+				"Item already exists in state file. Overwriting label selector",
+				"runUID", runUID,
+				"existingItem", existingItem)
+		}
+	} else {
+		s.state.InProgress[project] = &sync.Map{}
 	}
 
-	s.state.InProgress.Store(key, logItem)
+	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
 func (s *Store) RemoveLogItem(runUID, project string) error {
-	key := statestore.GenerateKey(runUID, project)
-	s.state.InProgress.Delete(key)
+	if _, projectExists := s.state.InProgress[project]; !projectExists {
+		return errors.New("Project does not exist in state file")
+	}
+	s.state.InProgress[project].Delete(runUID)
+
+	// if the project is empty, remove it from the map
+	if common.SyncMapLength(s.state.InProgress[project]) == 0 {
+		delete(s.state.InProgress, project)
+	}
 	return nil
 }
 
@@ -102,7 +112,7 @@ func (s *Store) WriteState(state *statestore.State) error {
 }
 
 // GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (*sync.Map, error) {
+func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 	var err error
 
 	// set the state in the file state store
@@ -187,7 +197,7 @@ func (s *Store) readStateFile() (*statestore.State, error) {
 
 		// if file is empty, return the empty state instance
 		return &statestore.State{
-			InProgress: &sync.Map{},
+			InProgress: map[string]*sync.Map{},
 		}, nil
 	}
 

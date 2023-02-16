@@ -18,16 +18,21 @@ import (
 	"context"
 	"sync"
 
+	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+
+	"github.com/nuclio/errors"
 )
 
 type Store struct {
-	inProgress *sync.Map
+	state *statestore.State
 }
 
 func NewInMemoryStore() *Store {
 	return &Store{
-		inProgress: &sync.Map{},
+		state: &statestore.State{
+			InProgress: map[string]*sync.Map{},
+		},
 	}
 }
 
@@ -43,15 +48,25 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		LabelSelector: selector,
 		Project:       project,
 	}
-	key := statestore.GenerateKey(runUID, project)
-	s.inProgress.Store(key, logItem)
+	if _, projectExists := s.state.InProgress[project]; !projectExists {
+		s.state.InProgress[project] = &sync.Map{}
+	}
+	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
 func (s *Store) RemoveLogItem(runUID, project string) error {
-	key := statestore.GenerateKey(runUID, project)
-	s.inProgress.Delete(key)
+	if _, exists := s.state.InProgress[project]; !exists {
+		return errors.New("Project not found")
+	}
+	s.state.InProgress[project].Delete(runUID)
+
+	// if the project is empty, remove it from the map
+	if common.SyncMapLength(s.state.InProgress[project]) == 0 {
+		delete(s.state.InProgress, project)
+	}
+
 	return nil
 }
 
@@ -61,13 +76,11 @@ func (s *Store) WriteState(state *statestore.State) error {
 }
 
 // GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (*sync.Map, error) {
-	return s.inProgress, nil
+func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
+	return s.state.InProgress, nil
 }
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
-	return &statestore.State{
-		InProgress: s.inProgress,
-	}
+	return s.state
 }

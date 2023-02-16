@@ -410,8 +410,14 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 			runUID := uuid.New().String()
 			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
 			selector := fmt.Sprintf("run=%s", runUID)
+
+			// Add state to the log collector's persistent state store
 			err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector, projectName)
 			suite.Require().NoError(err, "Failed to add log item to state store")
+
+			// Add state to the log collector's in-memory state
+			err = suite.LogCollectorServer.inMemoryState.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to in-memory state")
 		}
 	}
 
@@ -423,9 +429,12 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
-	suite.Require().Equal(logItemsNum*projectNum,
-		common.SyncMapLength(logItemsInProgress),
-		"Expected items to be in progress")
+	suite.Require().Equal(projectNum, len(logItemsInProgress), "Expected items to be in progress")
+	for _, runUIDsInProgress := range logItemsInProgress {
+		suite.Require().Equal(logItemsNum,
+			common.SyncMapLength(runUIDsInProgress),
+			"Expected items to be in progress")
+	}
 
 	// stop log
 	request := &log_collector.StopLogRequest{
@@ -450,7 +459,7 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(0,
-		common.SyncMapLength(logItemsInProgress),
+		len(logItemsInProgress),
 		"Expected no items in progress")
 }
 

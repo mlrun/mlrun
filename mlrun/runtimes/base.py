@@ -296,9 +296,21 @@ class BaseRuntime(ModelObj):
 
     def _fill_credentials(self):
         """
-        Fill $generate so that the API will handle filling of the credentials
-        We rely on the HTTPDB to send the access key session and the API to mask that access key
+        If access key is not mask (starts with secret prefix) then fill $generate so that the API will handle filling
+         of the credentials.
+        We rely on the HTTPDB to send the access key session through the request header and that the API will mask
+         the access key, that way we won't even store any plain access key in the function.
         """
+        if self.metadata.credentials.access_key and (
+            # if contains secret reference or $generate then no need to overwrite the access key
+            self.metadata.credentials.access_key.startswith(
+                mlrun.model.Credentials.secret_reference_prefix
+            )
+            or self.metadata.credentials.access_key.startswith(
+                mlrun.model.Credentials.generate_access_key
+            )
+        ):
+            return
         self.metadata.credentials.access_key = (
             mlrun.model.Credentials.generate_access_key
         )

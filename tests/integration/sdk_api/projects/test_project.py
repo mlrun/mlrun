@@ -74,6 +74,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifact = {
             "kind": "artifact",
             "metadata": {"labels": labels},
+            "spec": {"src_path": "/some/path"},
             "status": {"bla": "blabla"},
         }
         artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]

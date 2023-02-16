@@ -15,6 +15,7 @@
 
 import asyncio
 import subprocess
+import time
 import typing
 
 import aiohttp
@@ -37,11 +38,17 @@ def main():
 def docker_images(registry_url: str, registry_container_name: str, images: str):
     images = images.split(",")
     loop = asyncio.get_event_loop()
-    click.echo(
-        "Restarting datanode docker registry, to make sure everything is up to date in the registry cache"
-    )
+    try:
+        _run_registry_garbage_collection(registry_container_name)
+    except Exception as exc:
+        click.echo(f"Unable to run garbage collection: {exc}, continuing anyway")
+
+    # to make sure everything is up-to-date in the registry cache
+    click.echo("Restarting datanode docker registry and sleeping for 30 seconds")
     _restart_docker_registry(registry_container_name)
 
+    # give the registry some time to start
+    time.sleep(30)
     tags = loop.run_until_complete(_collect_image_tags(registry_url, images))
     loop.run_until_complete(_delete_image_tags(registry_url, tags))
 
@@ -80,7 +87,10 @@ async def _delete_image_tags(
     for image, image_tags in tags.items():
         click.echo(f"Deleting {image} tags")
         for tag in image_tags:
-            await _delete_image_tag(registry, image, tag)
+            try:
+                await _delete_image_tag(registry, image, tag)
+            except Exception as exc:
+                click.echo(f"Unable to delete {image}:{tag}: {exc}")
 
 
 async def _delete_image_tag(registry: str, image: str, tag: str) -> None:

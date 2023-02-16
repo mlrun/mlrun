@@ -1658,8 +1658,9 @@ class MlrunProject(ModelObj):
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
                     )
-                    logger.error(warning_message)
-                    return
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        warning_message
+                    ) from exc
                 raise exc
 
         if not branch:

@@ -269,7 +269,7 @@ class ParallelRun(BaseModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         extend_event=None,
-        executor_type: ParallelRunnerModes = None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -304,6 +304,7 @@ class ParallelRun(BaseModelRouter):
                               * array - running one by one
                               * process - running in separated process
                               * thread - running in separated threads
+                              by default `threads`
         :param extend_event:  True will add the event body to the result
         :param kwargs:        extra arguments
         """
@@ -323,7 +324,7 @@ class ParallelRun(BaseModelRouter):
             logger.warn(
                 "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
                 # TODO: In 1.5.0 to remove ExecutorTypes
-                PendingDeprecationWarning,
+                FutureWarning,
             )
         self.executor_type = ParallelRunnerModes(executor_type)
         self._pool: Union[
@@ -505,7 +506,7 @@ class VotingEnsemble(ParallelRun):
         health_prefix: str = None,
         vote_type: str = None,
         weights: Dict[str, float] = None,
-        executor_type: ParallelRunnerModes = ParallelRunnerModes.thread,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
         **kwargs,
@@ -1204,8 +1205,8 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        executor_type=None,
-        prediction_col_name=None,
+        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        prediction_col_name: str = None,
         feature_vector_uri: str = "",
         impute_policy: dict = {},
         **kwargs,
@@ -1301,15 +1302,15 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         :param kwargs:        extra arguments
         """
         super().__init__(
-            context,
-            name,
-            routes,
-            protocol,
-            url_prefix,
-            health_prefix,
-            vote_type,
-            executor_type,
-            prediction_col_name,
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            vote_type=vote_type,
+            executor_type=executor_type,
+            prediction_col_name=prediction_col_name,
             **kwargs,
         )
 

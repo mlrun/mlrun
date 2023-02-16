@@ -24,7 +24,7 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import json
+import warnings
 from os import environ, path
 
 import dotenv
@@ -34,7 +34,7 @@ from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
-from .model import NewTask, RunObject, RunTemplate, new_task
+from .model import RunObject, RunTemplate, new_task
 from .platforms import (
     VolumeMount,
     auto_mount,
@@ -55,7 +55,6 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
-    ArtifactType,
     code_to_function,
     function_to_module,
     get_dataitem,
@@ -69,7 +68,7 @@ from .run import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
-from .runtimes import new_model_server
+from .runtimes import ArtifactType, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
 
@@ -116,9 +115,11 @@ def set_environment(
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
-    :param project:        default project name
+    :param project:        default project name (deprecated in 1.3.0 and will be removed in 1.5.0) - use project
+                           APIs such as `get_or_create_project`, `load_project` to configure the active project
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
+                           (deprecated in 1.3.0 and will be removed in 1.5.0)
     :param username:       name of the user to authenticate
     :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
     :param mock_functions: set to True to create local/mock functions instead of real containers,
@@ -127,6 +128,14 @@ def set_environment(
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
+    if user_project or project:
+        warnings.warn(
+            "'user_project' and 'project' are deprecated in 1.3.0, and will be removed in 1.5.0, use project "
+            "APIs such as 'get_or_create_project', 'load_project' to configure the active project.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
+
     if env_file:
         set_env_from_file(env_file)
 

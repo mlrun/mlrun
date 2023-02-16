@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import os
 import typing
 import unittest
@@ -29,6 +30,7 @@ import mlrun.runtimes.pod
 import tests.api.runtimes.base
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
+from mlrun.feature_store.retrieval.job import _default_merger_handler
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
@@ -84,6 +86,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
         expected_cores: dict = None,
+        expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -112,6 +115,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
+
+        if expected_code:
+            body = self._get_custom_object_creation_body()
+            code = None
+            for envvar in body["spec"]["driver"]["env"]:
+                if envvar["name"] == "MLRUN_EXEC_CODE":
+                    code = envvar["value"]
+                    break
+            if code:
+                code = base64.b64decode(code).decode("UTF-8")
+            assert code == expected_code
 
     def _assert_volume_and_mounts(
         self,
@@ -583,8 +597,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         fv = fstore.FeatureVector("my-vector", features=[])
         fv.save = unittest.mock.Mock()
 
-        self._reset_mocks()
         runtime = self._generate_runtime()
+        runtime.with_igz_spark = unittest.mock.Mock()
+
+        self._reset_mocks()
 
         mlrun.config.config.artifact_path = "v3io:///mypath"
 
@@ -622,8 +638,27 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@0f4fef1da6f72c229b33fefbff0e5b58d87263c7",
+            "function": "None/my-vector_merger@b1bb6dd86fd4eb95cff8f6231b260dcc71fbeaa0",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",
         }
+
+        self.name = "my-vector_merger"
+        self.project = "default"
+
+        expected_code = _default_merger_handler.replace(
+            "{{{engine}}}", "SparkFeatureMerger"
+        )
+
+        self._assert_custom_object_creation_config(
+            expected_driver_resources={
+                "requests": {"cpu": "1", "mem": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_executor_resources={
+                "requests": {"cpu": "1", "mem": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_code=expected_code,
+        )

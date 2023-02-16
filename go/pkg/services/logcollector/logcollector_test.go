@@ -81,6 +81,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		&suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
+		bufferSizeBytes,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
@@ -233,10 +234,10 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	}
 
 	// verify log file content
-	suite.Require().Equal("fake logs", string(logFileContent))
+	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
-func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
+func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
 	podName := "my-pod"
@@ -392,6 +393,65 @@ func (suite *LogCollectorTestSuite) TestHasLogs() {
 	suite.Require().NoError(err, "Failed to check if has logs")
 	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
 	suite.Require().True(hasLogsResponse.HasLogs, "Expected run to have logs")
+}
+
+func (suite *LogCollectorTestSuite) TestStopLog() {
+	var err error
+
+	logItemsNum := 5
+	projectNum := 2
+	var projectToRuns = map[string][]string{}
+
+	for i := 0; i < projectNum; i++ {
+		projectName := fmt.Sprintf("project-%d", i)
+
+		// add log item to the server's state
+		for j := 0; j < logItemsNum; j++ {
+			runUID := uuid.New().String()
+			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
+			selector := fmt.Sprintf("run=%s", runUID)
+			err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to state store")
+		}
+	}
+
+	// write state
+	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	suite.Require().NoError(err, "Failed to write state")
+
+	// verify all items are in progress
+	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	suite.Require().NoError(err, "Failed to get items in progress")
+
+	suite.Require().Equal(logItemsNum*projectNum,
+		common.SyncMapLength(logItemsInProgress),
+		"Expected items to be in progress")
+
+	// stop log
+	request := &log_collector.StopLogRequest{
+		ProjectToRunUIDs: map[string]*log_collector.StringArray{},
+	}
+	for project, runs := range projectToRuns {
+		request.ProjectToRunUIDs[project] = &log_collector.StringArray{
+			Values: runs,
+		}
+	}
+
+	response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to stop log")
+	suite.logger.DebugWith("Stop log response", "response", response)
+
+	// write state again
+	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	suite.Require().NoError(err, "Failed to write state")
+
+	// verify no items in progress
+	logItemsInProgress, err = suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	suite.Require().NoError(err, "Failed to get items in progress")
+
+	suite.Require().Equal(0,
+		common.SyncMapLength(logItemsInProgress),
+		"Expected no items in progress")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

@@ -41,7 +41,13 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
+from ..platforms.iguazio import (
+    VolumeMount,
+    mount_v3io,
+    parse_path,
+    split_path,
+    v3io_cred,
+)
 from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -372,24 +378,28 @@ class RemoteRuntime(KubeResource):
         :param remote: v3io path
         """
         if local and remote:
-            self.apply(mount_v3io(remote=remote, mount_path=local))
+            self.apply(
+                mount_v3io(
+                    remote=remote, volume_mounts=[VolumeMount(path=local, sub_path="")]
+                )
+            )
         else:
             self.apply(v3io_cred())
         return self
 
     def with_http(
         self,
-        workers=8,
-        port=0,
-        host=None,
-        paths=None,
-        canary=None,
-        secret=None,
-        worker_timeout: int = None,
-        gateway_timeout: int = None,
-        trigger_name=None,
-        annotations=None,
-        extra_attributes=None,
+        workers: typing.Optional[int] = 8,
+        port: typing.Optional[int] = None,
+        host: typing.Optional[str] = None,
+        paths: typing.Optional[typing.List[str]] = None,
+        canary: typing.Optional[float] = None,
+        secret: typing.Optional[str] = None,
+        worker_timeout: typing.Optional[int] = None,
+        gateway_timeout: typing.Optional[int] = None,
+        trigger_name: typing.Optional[str] = None,
+        annotations: typing.Optional[typing.Mapping[str, str]] = None,
+        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -397,10 +407,12 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8)
-        :param port:       TCP port
-        :param host:       hostname
-        :param paths:      list of sub paths
+        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
+                           the function service is NodePort. if the function service is ClusterIP, the port
+                           is ignored.
+        :param host:       Ingress hostname
+        :param paths:      list of Ingress sub paths
         :param canary:     k8s ingress canary (% traffic value between 0 and 100)
         :param secret:     k8s secret name for SSL certificate
         :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
@@ -414,6 +426,8 @@ class RemoteRuntime(KubeResource):
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
+        if workers is None:
+            workers = 0
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -430,7 +444,7 @@ class RemoteRuntime(KubeResource):
             ] = f"{gateway_timeout}"
 
         trigger = nuclio.HttpTrigger(
-            workers,
+            workers=workers,
             port=port,
             host=host,
             paths=paths,
@@ -545,7 +559,7 @@ class RemoteRuntime(KubeResource):
         if not dashboard:
             # Attempt auto-mounting, before sending to remote build
             self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+            self._fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
@@ -1197,7 +1211,8 @@ def compile_function_config(
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
-        function.set_config(f"metadata.labels.{key}", value)
+        # Adding escaping to the key to prevent it from being split by dots if it contains any
+        function.set_config(f"metadata.labels.\\{key}\\", value)
 
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -1227,11 +1242,10 @@ def compile_function_config(
             # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
-    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
     # Our code is counting on the strings to be decoded, so add the needed env var for those versions
     if (
-        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
-        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        is_nuclio_version_in_range("1.6.0", "1.8.0")
         and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
     ):
         env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
@@ -1360,6 +1374,7 @@ def compile_function_config(
         config = nuclio.config.extend_config(
             config, nuclio_spec, tag, function.spec.build.code_origin
         )
+
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = (

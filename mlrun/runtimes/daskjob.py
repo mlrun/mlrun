@@ -18,6 +18,7 @@ import time
 from os import environ
 from typing import Dict, List, Optional, Union
 
+from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -250,7 +251,7 @@ class DaskCluster(KubejobRuntime):
     def _start(self, watch=True):
         if self._is_remote_api():
             self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+            self._fill_credentials()
             db = self._get_db()
             if not self.is_deployed():
                 raise RunError(
@@ -407,10 +408,15 @@ class DaskCluster(KubejobRuntime):
             show_on_failure=show_on_failure,
         )
 
+    # TODO: Remove in 1.5.0
+    @deprecated(
+        version="1.3.0",
+        reason="'Dask gpus' will be removed in 1.5.0, use 'with_scheduler_limits' / 'with_worker_limits' instead",
+        category=FutureWarning,
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        raise NotImplementedError(
-            "Use with_scheduler_limits/with_worker_limits to set GPU resources",
-        )
+        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
+        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
     def with_limits(
         self,

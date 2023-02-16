@@ -490,23 +490,70 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
 
         df = fstore.ingest(data_set, source, targets=[])
 
-        assert df.to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+        assert df.fillna("NaN-was-here").to_dict("records") == [
+            {
+                "bid": 2000,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000000,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 2000,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:40:00+0000", tz="UTC"),
             },
-        }
+            {
+                "bid": 10,
+                "bid_max_1h": 10,
+                "bid_sqr_1h": 100,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 10,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:41:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 11,
+                "bid_max_1h": 11,
+                "bid_sqr_1h": 221,
+                "bid_stdvar_1h": 0.5,
+                "bid_sum_1h": 21,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:42:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:43:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:44:00+0000", tz="UTC"),
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
         name_spark = f"{name}_spark"
 
@@ -518,7 +565,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
@@ -538,17 +585,138 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
-        assert resp.to_dataframe().to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+        assert resp.to_dataframe().to_dict("records") == [
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
             },
-            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
-        }
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"

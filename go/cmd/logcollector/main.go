@@ -40,7 +40,8 @@ func StartServer() error {
 	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__MONITORING_INTERVAL", "10s"), "Periodic interval for monitoring the goroutines collecting logs (default 10s)")
 	logCollectionBufferPoolSize := flag.Int("log-collection-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_COLLECTION_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for collecting logs (default: 512 buffers)")
 	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs (default: 512 buffers)")
-	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__BUFFER_SIZE_BYTES", 10*1024*1024), "Size of buffers in the buffer pool, in bytes (default: 10MB)")
+	logCollectionBufferSizeBytes := flag.Int("log-collection-buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_COLLECTION_BUFFER_SIZE_BYTES", common.DefaultLogCollectionBufferSize), "Size of buffers in the log collection buffer pool, in bytes (default: 10MB)")
+	getLogsBufferSizeBytes := flag.Int("get-logs-buffer-buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_SIZE_BYTES", common.DefaultGetLogsBufferSize), "Size of buffers in the buffer pool for getting logs, in bytes (default: 3.75MB)")
 	clusterizationRole := flag.String("clusterization-role", common.GetEnvOrDefaultString("MLRUN_HTTPDB__CLUSTERIZATION__ROLE", "chief"), "The role of the log collector in the cluster (chief, worker)")
 
 	// if namespace is not passed, it will be taken from env
@@ -74,7 +75,8 @@ func StartServer() error {
 		kubeClientSet,
 		*logCollectionBufferPoolSize,
 		*getLogsBufferPoolSize,
-		*bufferSizeBytes)
+		*logCollectionBufferSizeBytes,
+		*getLogsBufferSizeBytes)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}

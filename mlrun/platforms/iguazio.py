@@ -15,7 +15,6 @@
 import json
 import os
 import urllib
-import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
@@ -26,6 +25,7 @@ import requests
 import semver
 import urllib3
 import v3io
+from deprecated import deprecated
 
 import mlrun.errors
 from mlrun.config import config as mlconf
@@ -37,7 +37,80 @@ _cached_control_session = None
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
+# TODO: Remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'mount_v3io_extended' will be removed in 1.5.0, use 'mount_v3io' instead",
+    category=FutureWarning,
+)
 def mount_v3io_extended(
+    name="v3io", remote="", mounts=None, access_key="", user="", secret=None
+):
+    return _mount_v3io_extended(
+        name=name,
+        remote=remote,
+        mounts=mounts,
+        access_key=access_key,
+        user=user,
+        secret=secret,
+    )
+
+
+def mount_v3io(
+    name="v3io",
+    remote="",
+    access_key="",
+    user="",
+    secret=None,
+    volume_mounts=None,
+):
+    """Modifier function to apply to a Container Op to volume mount a v3io path
+
+    :param name:            the volume name
+    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
+    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
+    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
+    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
+    :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
+    """
+    return _mount_v3io_extended(
+        name=name,
+        remote=remote,
+        mounts=volume_mounts,
+        access_key=access_key,
+        user=user,
+        secret=secret,
+    )
+
+
+# TODO: Remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'mount_v3io_legacy' will be removed in 1.5.0, use 'mount_v3io' instead",
+    category=FutureWarning,
+)
+def mount_v3io_legacy(
+    name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
+):
+    """Modifier function to apply to a Container Op to volume mount a v3io path
+    :param name:            the volume name
+    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
+    :param mount_path:      the volume mount path
+    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
+    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
+    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
+    """
+    return _mount_v3io_extended(
+        name=name,
+        remote=remote,
+        mounts=[VolumeMount(path=mount_path, sub_path="")],
+        access_key=access_key,
+        user=user,
+        secret=secret,
+    )
+
+
+def _mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
 ):
     """Modifier function to apply to a Container Op to volume mount a v3io path
@@ -71,7 +144,7 @@ def mount_v3io_extended(
     ):
         raise TypeError("mounts should be a list of Mount")
 
-    def _mount_v3io_extended(container_op: kfp.dsl.ContainerOp):
+    def _mount(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
@@ -87,108 +160,11 @@ def mount_v3io_extended(
             container_op = v3io_cred(access_key=access_key, user=user)(container_op)
         return container_op
 
-    return _mount_v3io_extended
+    return _mount
 
 
 def _resolve_mount_user(user=None):
     return user or os.environ.get("V3IO_USERNAME")
-
-
-def mount_v3io(
-    name="v3io",
-    remote="",
-    mount_path="",
-    access_key="",
-    user="",
-    secret=None,
-    volume_mounts=None,
-):
-    """Modifier function to apply to a Container Op to volume mount a v3io path
-
-    :param name:            the volume name
-    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
-    :param mount_path:      the volume mount path (deprecated, exists for backwards compatibility, prefer to
-                            use mounts instead)
-    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
-    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
-    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
-    :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
-    """
-    if mount_path and volume_mounts:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "mount_path and mounts can not be given together"
-        )
-
-    if mount_path:
-        warnings.warn(
-            "mount_path is pending deprecation, use mounts instead"
-            "This will be deprecated in 0.8.0, and will be removed in 0.10.0",
-            # TODO: In 0.8.0 do changes in examples & demos In 0.10.0 remove
-            PendingDeprecationWarning,
-        )
-
-    # For backwards compatibility with version<0.6.0 when multi mount wasn't an option (there was no mounts)
-    if not volume_mounts:
-        if mount_path:
-            if remote:
-                # If both remote and mount_path given, no default behavior is expected, we can't assume anything
-                # therefore we don't add the v3io volume mount and default to legacy behavior
-                return mount_v3io_legacy(
-                    name, remote, mount_path, access_key, user, secret
-                )
-            else:
-                # If mount path but no remote, it means the user "counted" on the default remote
-                # Back then remote default was ~/ which is /users/<username>, but since we now use multi mount, we're
-                # using subpath instead
-                user = _resolve_mount_user(user)
-                if not user:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "user name/env must be specified when using empty remote and mount_path"
-                    )
-                volume_mounts = [
-                    VolumeMount(path="/v3io", sub_path=""),
-                    VolumeMount(path=mount_path, sub_path="users/" + user),
-                ]
-        else:
-            if remote:
-                # If remote but no mount path, it means the user "counted" on the default mount path
-                # Back then mount_path default was /User, but since the remote was given we can't assume anything
-                # therefore we don't add the v3io volume mount and default to legacy behavior
-                return mount_v3io_legacy(
-                    name, remote, access_key=access_key, user=user, secret=secret
-                )
-            # not remote and not mounts (and not mount_path) handled by the extended handler
-
-    return mount_v3io_extended(
-        name=name,
-        remote=remote,
-        mounts=volume_mounts,
-        access_key=access_key,
-        user=user,
-        secret=secret,
-    )
-
-
-def mount_v3io_legacy(
-    name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
-):
-    """Modifier function to apply to a Container Op to volume mount a v3io path
-    :param name:            the volume name
-    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
-    :param mount_path:      the volume mount path
-    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
-    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
-    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
-    """
-
-    return mount_v3io_extended(
-        name=name,
-        remote=remote,
-        mounts=[VolumeMount(path=mount_path, sub_path="")],
-        access_key=access_key,
-        user=user,
-        secret=secret,
-    )
 
 
 def mount_spark_conf():

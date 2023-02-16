@@ -24,6 +24,7 @@ service LogCollector {
   rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
   rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
+  rpc StopLog(StopLogRequest) returns (google.protobuf.Empty) {}
 }
 
 message StartLogRequest {
@@ -62,4 +63,13 @@ message HasLogsResponse {
   bool hasLogs = 2;
   int32 errorCode = 3;
   string errorMessage = 4;
+}
+
+message StopLogRequest {
+  map<string, StringArray> projectToRunUIDs = 1;
+}
+
+// StringArray is a wrapper around a repeated string field, used in map values.
+message StringArray {
+  repeated string values = 1;
 }

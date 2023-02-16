@@ -20,6 +20,7 @@ from enum import Enum
 import dotenv
 import kfp.dsl
 import kubernetes.client as k8s_client
+from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -908,7 +909,7 @@ class KubeResource(BaseRuntime):
 
     def apply(self, modify):
         """
-        Apply a modifier to the runtime which is used to change the runtime's k8s object's spec.
+        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
         Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
         a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
         one after the other.
@@ -996,6 +997,12 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
+    # TODO: Remove in 1.5.0
+    @deprecated(
+        version="1.3.0",
+        reason="'Job gpus' will be removed in 1.5.0, use 'with_limits' instead",
+        category=FutureWarning,
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 

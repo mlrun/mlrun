@@ -310,7 +310,7 @@ def test_set_get_function(create_server):
     proj_obj = mlrun.new_project(project, save=False)
     db.create_project(proj_obj)
 
-    db.store_function(func, name, project, tag=tag)
+    db.store_function(func.to_dict(), name, project, tag=tag)
     db_func = db.get_function(name, project, tag=tag)
 
     assert db_func["metadata"]["name"] == name

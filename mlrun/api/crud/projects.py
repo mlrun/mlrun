@@ -24,6 +24,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -138,9 +139,6 @@ class Projects(
             label_selector=f"mlrun/project={name}",
             force=True,
         )
-
-        # stop logs in the log collector
-        self._stop_logs_for_project(session, name)
 
         mlrun.api.crud.Logs().delete_logs(name)
 
@@ -323,67 +321,3 @@ class Projects(
             if pipeline["status"] not in mlrun.run.RunStatuses.stable_statuses():
                 project_to_running_pipelines_count[pipeline["project"]] += 1
         return project_to_running_pipelines_count
-
-    def _stop_logs_for_project(self, session, name) -> None:
-
-        logger.debug("Stopping logs for project's runs", project=name)
-
-        # get all project runs' uids
-        run_uids = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
-            session, project=name, only_uids=True
-        )
-
-        # stop all project runs' logs
-        project_to_run_uids = {
-            name: run_uids,
-        }
-
-        try:
-            main_event_loop = asyncio.get_event_loop()
-            if main_event_loop.is_running():
-                logger.debug(
-                    "Event loop is already running. Adding stop_logs to the loop and running it."
-                )
-
-                # If running from the api or from jupyter notebook, we are already in an event loop.
-                # We add the async stop_logs function to the loop and run it.
-                asyncio.run_coroutine_threadsafe(
-                    self._stop_now(project_to_run_uids),
-                    main_event_loop,
-                )
-            else:
-                logger.debug(
-                    "Event loop is not running. Creating new event loop and running stop_logs in it."
-                )
-
-                # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
-                # We create a new event loop and run the async stop_logs function in it.
-                main_event_loop.run_until_complete(
-                    self._stop_now(project_to_run_uids, reuse=False),
-                )
-
-        except Exception as exc:
-            logger.warning(
-                "Failed stopping logs for project's runs. Ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-                project=name,
-                project_to_run_uids=project_to_run_uids,
-            )
-
-    async def _stop_now(self, project_to_run_uids, reuse=True):
-        logger.debug(
-            "Stopping logs for project's runs",
-            project_to_run_uids=project_to_run_uids,
-            reuse=reuse,
-        )
-        # log_collector_client = (
-        #     mlrun.api.utils.clients.log_collector.get_log_collector_client(
-        #         reuse=reuse,
-        #     )
-        # )
-        log_collector_client = (
-            mlrun.api.utils.clients.log_collector.LogCollectorClient()
-        )
-        await log_collector_client.stop_logs(
-            project_to_run_uids_dict=project_to_run_uids,
-        )

@@ -19,7 +19,9 @@ import sqlalchemy.orm
 
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.clients.log_collector
 import mlrun.utils.singleton
+from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -147,3 +149,36 @@ class Member(abc.ABC):
         name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         pass
+
+    async def on_after_delete_project(
+        self,
+        project_name: str,
+    ):
+        logger.debug(
+            "Running on_after_delete_project",
+            project=project_name,
+        )
+        await self._stop_logs_for_project(project_name)
+
+    @staticmethod
+    async def _stop_logs_for_project(
+        name: str,
+    ) -> None:
+
+        logger.debug("Stopping logs for project", project=name)
+
+        try:
+            log_collector_client = (
+                mlrun.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.stop_logs(
+                project=name,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed stopping logs for project's runs. Ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+                project=name,
+            )
+
+        logger.debug("Finished stopping logs for project's runs", project=name)

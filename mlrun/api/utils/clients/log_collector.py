@@ -48,6 +48,7 @@ def get_log_collector_client(reuse=True) -> "LogCollectorClient":
 
 class LogCollectorClient(
     mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
+    metaclass=mlrun.utils.singleton.Singleton,
 ):
     name = "log_collector"
 
@@ -211,23 +212,26 @@ class LogCollectorClient(
 
     async def stop_logs(
         self,
-        project_to_run_uids_dict: typing.Dict[str, typing.List[str]],
+        project: str,
+        run_uids: typing.List[str] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
         """
         PLACEHOLDER UNTIL PR #3082 IS MERGED
         """
-        # convert the dict to a map with protobuf StringArray
-        request_dict = {}
-        for project, runs in project_to_run_uids_dict.items():
-            request_dict[project] = self._log_collector_pb2.StringArray(values=runs)
-
-        request = self._log_collector_pb2.StopLogRequest(
-            projectToRunUIDs=request_dict,
+        logger.debug(
+            "Got stop logs request",
+            project=project,
+            run_uids=run_uids,
         )
 
-        logger.debug("Stopping logs", project_to_run_uids_dict=project_to_run_uids_dict)
+        request = self._log_collector_pb2.StopLogRequest(
+            project=project,
+            runUIDs=run_uids,
+        )
+
+        logger.debug("Stopping logs", project=project, run_uids=run_uids)
 
         try:
             await self._call("StopLog", request)
@@ -240,5 +244,6 @@ class LogCollectorClient(
         finally:
             logger.debug(
                 "Stopped logs successfully",
-                project_to_run_uids_dict=project_to_run_uids_dict,
+                project=project,
+                run_uids=run_uids,
             )

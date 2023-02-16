@@ -22,6 +22,7 @@ import sqlalchemy.orm.session
 import mlrun
 import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
+import mlrun.api.utils.projects.member
 
 
 class StartLogResponse:
@@ -148,3 +149,31 @@ class TestLogCollector:
         )
         async for log in log_stream:
             assert log == b""
+
+    @pytest.mark.asyncio
+    async def test_stop_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uid = "123"
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=StartLogResponse(True, "")
+        )
+
+        # await log_collector.stop_logs(
+        #     project=project_name, run_uids=[run_uid],
+        # )
+        # assert success is True and not error
+        #
+        # log_collector._call = unittest.mock.AsyncMock(
+        #     return_value=StartLogResponse(False, "Failed to stop logs")
+        # )
+        # with pytest.raises(mlrun.errors.MLRunInternalServerError):
+        #     await log_collector.stop_logs(run_uid=run_uid, project=project_name)
+        #
+        # success, error = await log_collector.stop_logs(
+        #     run_uid=run_uid, project=project_name, raise_on_error=False
+        # )
+        # assert success is False and error == "Failed to stop logs"

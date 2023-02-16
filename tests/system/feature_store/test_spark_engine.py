@@ -585,7 +585,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
-        assert resp.to_dataframe().to_dict("records") == [
+
+        # We can't count on the order when reading the results back
+        result_records = (
+            resp.to_dataframe()
+            .sort_values(["first_name", "last_name", "time"])
+            .to_dict("records")
+        )
+
+        assert result_records == [
             {
                 "bid": 12,
                 "bid_max_1h": 2000,

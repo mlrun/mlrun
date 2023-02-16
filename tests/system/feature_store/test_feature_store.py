@@ -3838,7 +3838,8 @@ class TestFeatureStore(TestMLRunSystem):
             ],
         )
         expected_df.set_index(["first_name", "last_name"], inplace=True)
-        assert res_df.equals(expected_df), f"unexpected result: {res_df}"
+        # allow change of order in aggregation columns
+        pd.testing.assert_frame_equal(res_df, expected_df, check_like=True)
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
     def test_ingest_with_validator_from_uri(self, engine):

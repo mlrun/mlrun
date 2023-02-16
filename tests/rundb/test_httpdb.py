@@ -292,23 +292,27 @@ def test_bearer_auth(create_server):
     db.token = token
     db.list_runs()
 
+def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:
+    runtime = mlrun.runtimes.KubejobRuntime()
+    runtime.metadata.name = name
+    return runtime
 
 def test_set_get_function(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
-
-    func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
+    name = "test"
+    project = "project"
+    func = _generate_runtime(name)
+    func.set_label("new", "label")
     tag = uuid4().hex
-    proj_obj = mlrun.new_project(proj, save=False)
+    proj_obj = mlrun.new_project(project, save=False)
     db.create_project(proj_obj)
 
-    db.store_function(func, name, proj, tag=tag)
-    db_func = db.get_function(name, proj, tag=tag)
+    db.store_function(func, name, project, tag=tag)
+    db_func = db.get_function(name, project, tag=tag)
 
-    # db methods enriches metadata and status
-    del db_func["metadata"]
-    del db_func["status"]
-    assert db_func == func, "wrong func"
+    assert db_func["metadata"]["name"] == name
+    assert db_func["metadata"]["labels"]["new"] == "label"
 
 
 def test_list_functions(create_server):

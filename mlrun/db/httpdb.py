@@ -803,7 +803,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_function(self, function, name, project="", tag=None, versioned=False):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
-
+        name = mlrun.utils.normalize_name(name)
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
         path = self._path_of("func", project, name)

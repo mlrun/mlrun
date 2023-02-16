@@ -427,7 +427,7 @@ class RemoteRuntime(KubeResource):
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
         if workers is None:
-            workers = 8
+            workers = 0
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(

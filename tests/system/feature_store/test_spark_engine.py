@@ -48,6 +48,12 @@ from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
 
+def print_full_df(df: pd.DataFrame, df_name: str, passthrough: str) -> None:
+    with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        print(f"{df_name}-passthrough_{passthrough}:")
+        print(df)
+
+
 def read_and_assert(csv_path_spark, csv_path_storey):
     read_back_df_spark = None
     file_system = fsspec.filesystem("v3io")
@@ -1136,6 +1142,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
+        print_full_df(df=resp_df, df_name="resp_df", passthrough=passthrough)
+        print_full_df(df=target_df, df_name="target_df", passthrough=passthrough)
+        print_full_df(df=expected_df, df_name="expected_df", passthrough=passthrough)
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 

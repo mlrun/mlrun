@@ -21,7 +21,9 @@ from mlrun.runtimes.utils import resolve_mpijob_crd_version, resolve_nuclio_vers
 class ClientSpec(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def get_client_spec(self):
+    def get_client_spec(
+        self, client_version: str = None, client_python_version: str = None
+    ):
         mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
         return mlrun.api.schemas.ClientSpec(
             version=config.version,
@@ -34,9 +36,13 @@ class ClientSpec(
             spark_app_image=config.spark_app_image,
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
-            kfp_image=config.kfp_image,
+            kfp_image=self._resolve_image_by_client_versions(
+                config.kfp_image, client_version, client_python_version
+            ),
             kfp_url=config.resolve_kfp_url(),
-            dask_kfp_image=config.dask_kfp_image,
+            dask_kfp_image=self._resolve_image_by_client_versions(
+                config.dask_kfp_image, client_version, client_python_version
+            ),
             api_url=config.httpdb.api_url,
             nuclio_version=resolve_nuclio_version(),
             spark_operator_version=config.spark_operator_version,
@@ -95,6 +101,25 @@ class ClientSpec(
             feature_store_data_prefixes=self._get_config_value_if_not_default(
                 "feature_store.data_prefixes"
             ),
+        )
+
+    @staticmethod
+    def _resolve_image_by_client_versions(
+        image: str, client_version: str = None, client_python_version=None
+    ):
+        """
+        This method main purpose is to provide enriched images for deployment processes which are being executed on
+        client side, such as building a workflow. The whole enrichment and construction of a workflow is being done on
+        client side unlike submitting job where the main enrichment and construction of the resource runtime is being
+        applied on the backend side. Therefore for the workflow case we need to provide it with already enriched
+        images.
+        :param image: image name
+        :param client_version: the client mlrun version
+        :param client_python_version: the client python version
+        :return: enriched image url
+        """
+        return mlrun.utils.helpers.enrich_image_url(
+            image, client_version, client_python_version
         )
 
     @staticmethod

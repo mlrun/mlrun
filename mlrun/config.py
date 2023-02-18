@@ -58,6 +58,7 @@ default_config = {
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
+    "api_version": "",
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
@@ -66,8 +67,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
-    "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -840,40 +841,6 @@ class Config:
 
         return Version().get()["version"]
 
-    @property
-    def kfp_image(self):
-        """
-        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
-        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
-        module inside this function (and not on initialization), and then calculate this property value here.
-        """
-        if not self._kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
-        return self._kfp_image
-
-    @kfp_image.setter
-    def kfp_image(self, value):
-        self._kfp_image = value
-
-    @property
-    def dask_kfp_image(self):
-        """
-        See kfp_image property docstring for why we're defining this property
-        """
-        if not self._dask_kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/ml-base")
-        return self._dask_kfp_image
-
-    @dask_kfp_image.setter
-    def dask_kfp_image(self, value):
-        self._dask_kfp_image = value
-
     @staticmethod
     def resolve_ui_url():
         # ui_url is deprecated in favor of the ui.url (we created the ui block)
@@ -995,10 +962,6 @@ def _do_populate(env=None, skip_errors=False):
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
     # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
     # underscore
-    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
-    del config._cfg["kfp_image"]
-    config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
-    del config._cfg["dask_kfp_image"]
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 

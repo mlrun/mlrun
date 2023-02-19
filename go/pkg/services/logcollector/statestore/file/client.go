@@ -142,8 +142,8 @@ func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
-	s.fileLock.Lock()
-	defer s.fileLock.Unlock()
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
 	return s.state
 }
 
@@ -186,6 +186,10 @@ func (s *Store) StateUnlock() {
 
 // writeStateToFile writes the state to file
 func (s *Store) writeStateToFile(state *statestore.State) error {
+
+	// lock state before marshaling, as it might cause race conditions
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
 
 	// marshal state file
 	encodedState, err := json.Marshal(state)

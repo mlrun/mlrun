@@ -1379,8 +1379,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp = fstore.get_offline_features(vec, engine="local")
         local_engine_res = resp.to_dataframe()
-        print(local_engine_res)
-        print(1)
 
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(
@@ -1390,10 +1388,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_service=self.spark_service,
             target=target,
         )
-        print(1)
         spark_engine_res = resp.to_dataframe()
-
-        print(spark_engine_res)
 
         assert local_engine_res.sort_index(axis=1).equals(
             spark_engine_res.sort_index(axis=1)

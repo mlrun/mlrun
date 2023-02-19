@@ -1091,9 +1091,9 @@ class RemoteRuntime(KubeResource):
             )
 
     def get_url(
-            self,
-            force_external_address: bool = False,
-            auth_info: AuthInfo = None,
+        self,
+        force_external_address: bool = False,
+        auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
@@ -1111,6 +1111,7 @@ class RemoteRuntime(KubeResource):
                 )
 
         return self._resolve_invocation_url("", force_external_address)
+
 
 def parse_logs(logs):
     logs = json.loads(logs)

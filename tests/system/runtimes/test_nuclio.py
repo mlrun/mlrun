@@ -59,7 +59,6 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 
         assert deployment == function.get_url()  # check function url
 
-
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):
         code_path = str(self.assets_path / "nuclio_function_to_print_type.py")

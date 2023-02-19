@@ -16,7 +16,6 @@ import inspect
 import os
 import shutil
 from collections import OrderedDict
-from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Type, Union
 
@@ -29,23 +28,7 @@ from mlrun.errors import MLRunInvalidArgumentError, MLRunRuntimeError
 from mlrun.execution import MLClientCtx
 from mlrun.utils import logger
 
-
-# TODO: Move the `ArtifactType` to constants.py
-class ArtifactType(Enum):
-    """
-    Possible artifact types to log using the MLRun `context` decorator.
-    """
-
-    # Types:
-    DATASET = "dataset"
-    DIRECTORY = "directory"
-    FILE = "file"
-    OBJECT = "object"
-    PLOT = "plot"
-    RESULT = "result"
-
-    # Constants:
-    DEFAULT = RESULT
+from .constants import ArtifactType
 
 
 class InputsParser:

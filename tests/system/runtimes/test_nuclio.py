@@ -55,7 +55,10 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         graph.error_handler("catcher")
 
         self._logger.debug("Deploying nuclio function")
-        function.deploy()
+        deployment = function.deploy()
+
+        assert deployment == function.get_url()  # check function url
+
 
     # Nuclio sometimes passes b'' instead of None due to dirty memory
     def test_workaround_for_nuclio_bug(self):

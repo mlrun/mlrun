@@ -1026,8 +1026,8 @@ class RemoteRuntime(KubeResource):
 
     def _resolve_invocation_url(self, path, force_external_address):
 
-        if path.startswith("/"):
-            path = path[1:]
+        if not path.startswith("/") and path != "":
+            path = f"/{path}"
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
@@ -1039,12 +1039,12 @@ class RemoteRuntime(KubeResource):
                 silent=True, log=False
             ).is_running_inside_kubernetes_cluster()
         ):
-            return f"http://{self.status.internal_invocation_urls[0]}/{path}"
+            return f"http://{self.status.internal_invocation_urls[0]}{path}"
 
         if self.status.external_invocation_urls:
-            return f"http://{self.status.external_invocation_urls[0]}/{path}"
+            return f"http://{self.status.external_invocation_urls[0]}{path}"
         else:
-            return f"http://{self.status.address}/{path}"
+            return f"http://{self.status.address}{path}"
 
     def _update_credentials_from_remote_build(self, remote_data):
         self.metadata.credentials = remote_data.get("metadata", {}).get(

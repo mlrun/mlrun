@@ -856,9 +856,14 @@ class RemoteRuntime(KubeResource):
         self._mock_server = None
 
         if "://" not in path:
-            path = self.get_url(
-                path, auth_info=auth_info, force_external_address=force_external_address
-            )
+            if not self.status.address:
+                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
+                if state != "ready" or not self.status.address:
+                    raise ValueError(
+                        "no function address or not ready, first run .deploy()"
+                    )
+
+            path = self._resolve_invocation_url(path, force_external_address)
 
         if headers is None:
             headers = {}
@@ -1086,14 +1091,13 @@ class RemoteRuntime(KubeResource):
             )
 
     def get_url(
-        self,
-        path: str = "",
-        force_external_address: bool = False,
-        auth_info: AuthInfo = None,
+            self,
+            force_external_address: bool = False,
+            auth_info: AuthInfo = None,
     ):
         """
         This method returns function's url.
-        :param path:                     request sub path (e.g. /images)
+
         :param force_external_address:   use the external ingress URL
         :param auth_info:                service AuthInfo
 
@@ -1106,8 +1110,7 @@ class RemoteRuntime(KubeResource):
                     "no function address or not ready, first run .deploy()"
                 )
 
-        return self._resolve_invocation_url(path, force_external_address)
-
+        return self._resolve_invocation_url("", force_external_address)
 
 def parse_logs(logs):
     logs = json.loads(logs)

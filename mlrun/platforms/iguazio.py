@@ -46,10 +46,10 @@ VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
 ):
-    return _mount_v3io_extended(
+    return mount_v3io(
         name=name,
         remote=remote,
-        mounts=mounts,
+        volume_mounts=mounts,
         access_key=access_key,
         user=user,
         secret=secret,
@@ -73,14 +73,29 @@ def mount_v3io(
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
     """
-    return _mount_v3io_extended(
-        name=name,
+    mounts, user = _enrich_and_validate_v3io_mounts(
         remote=remote,
         mounts=volume_mounts,
-        access_key=access_key,
         user=user,
-        secret=secret,
     )
+
+    def _attach_volume_mounts_and_creds(container_op: kfp.dsl.ContainerOp):
+        from kubernetes import client as k8s_client
+
+        vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
+        container_op.add_volume(vol)
+        for mount in mounts:
+            container_op.container.add_volume_mount(
+                k8s_client.V1VolumeMount(
+                    mount_path=mount.path, sub_path=mount.sub_path, name=name
+                )
+            )
+
+        if not secret:
+            container_op = v3io_cred(access_key=access_key, user=user)(container_op)
+        return container_op
+
+    return _attach_volume_mounts_and_creds
 
 
 # TODO: Remove in 1.5.0
@@ -100,27 +115,22 @@ def mount_v3io_legacy(
     :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
-    return _mount_v3io_extended(
+    return mount_v3io(
         name=name,
         remote=remote,
-        mounts=[VolumeMount(path=mount_path, sub_path="")],
+        volume_mounts=[VolumeMount(path=mount_path, sub_path="")],
         access_key=access_key,
         user=user,
         secret=secret,
     )
 
 
-def _mount_v3io_extended(
-    name="v3io", remote="", mounts=None, access_key="", user="", secret=None
-):
+def _enrich_and_validate_v3io_mounts(remote="", mounts=None, user=""):
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
-    :param name:            the volume name
     :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
     :param mounts:          list of mount & volume sub paths (type Mount). empty mounts & remote mount /v3io & /User
-    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
     :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
-    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
     if remote and not mounts:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -144,23 +154,7 @@ def _mount_v3io_extended(
     ):
         raise TypeError("mounts should be a list of Mount")
 
-    def _mount_is_this_name_taken(container_op: kfp.dsl.ContainerOp):
-        from kubernetes import client as k8s_client
-
-        vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
-        container_op.add_volume(vol)
-        for mount in mounts:
-            container_op.container.add_volume_mount(
-                k8s_client.V1VolumeMount(
-                    mount_path=mount.path, sub_path=mount.sub_path, name=name
-                )
-            )
-
-        if not secret:
-            container_op = v3io_cred(access_key=access_key, user=user)(container_op)
-        return container_op
-
-    return _mount_is_this_name_taken
+    return mounts, user
 
 
 def _resolve_mount_user(user=None):

@@ -857,7 +857,7 @@ def _ingest_with_spark(
             wrong_path = False
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
-            elif type(target) is not DataTargetBase and target.path is None:
+            elif target.path is None:
                 wrong_path = True
             if featureset.spec.passthrough and target.is_offline:
                 continue

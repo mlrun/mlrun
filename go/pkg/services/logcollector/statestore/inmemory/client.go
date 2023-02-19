@@ -26,6 +26,7 @@ import (
 
 type Store struct {
 	state *statestore.State
+	lock  sync.Locker
 }
 
 func NewInMemoryStore() *Store {
@@ -33,6 +34,7 @@ func NewInMemoryStore() *Store {
 		state: &statestore.State{
 			InProgress: map[string]*sync.Map{},
 		},
+		lock: &sync.Mutex{},
 	}
 }
 
@@ -51,6 +53,9 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 	if _, projectExists := s.state.InProgress[project]; !projectExists {
 		s.state.InProgress[project] = &sync.Map{}
 	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
 }
@@ -60,6 +65,9 @@ func (s *Store) RemoveLogItem(runUID, project string) error {
 	if _, exists := s.state.InProgress[project]; !exists {
 		return errors.New("Project not found")
 	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	s.state.InProgress[project].Delete(runUID)
 
 	// if the project is empty, remove it from the map

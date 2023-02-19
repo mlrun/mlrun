@@ -34,7 +34,8 @@ type Store struct {
 	logger                  logger.Logger
 	stateFilePath           string
 	stateFileUpdateInterval time.Duration
-	lock                    sync.Locker
+	fileLock                sync.Locker
+	stateLock               sync.Locker
 }
 
 func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
@@ -46,7 +47,8 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
 		stateFilePath:           path.Join(baseDirPath, "_metadata", "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
-		lock:                    &sync.Mutex{},
+		fileLock:                &sync.Mutex{},
+		stateLock:               &sync.Mutex{},
 	}
 }
 
@@ -54,8 +56,8 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 func (s *Store) Initialize(ctx context.Context) error {
 	var err error
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
 	// load state from file before starting the update loop
 	// state file is our source of truth
 	s.state, err = s.readStateFile()
@@ -88,6 +90,9 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		s.state.InProgress[project] = &sync.Map{}
 	}
 
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+
 	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
 }
@@ -97,6 +102,10 @@ func (s *Store) RemoveLogItem(runUID, project string) error {
 	if _, projectExists := s.state.InProgress[project]; !projectExists {
 		return errors.New("Project does not exist in state file")
 	}
+
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+
 	s.state.InProgress[project].Delete(runUID)
 
 	// if the project is empty, remove it from the map
@@ -116,8 +125,8 @@ func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 	var err error
 
 	// set the state in the file state store
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
 	s.state, err = s.readStateFile()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read state file")
@@ -128,8 +137,8 @@ func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
 	return s.state
 }
 
@@ -172,8 +181,8 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 	}
 
 	// get lock, unlock later
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

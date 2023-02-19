@@ -1026,11 +1026,17 @@ class SQLDB(DBInterface):
             if hasattr(labeled_class, "project"):
                 self._delete(session, labeled_class, project=project)
 
-    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self, session, name=None, project=None, tag=None, labels=None, hash_key=None
+    ):
         project = project or config.default_project
         uids = None
         if tag:
             uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
+            if hash_key:
+                uids = [uid for uid in uids if uid == hash_key] or None
+        if not tag and hash_key:
+            uids = [hash_key]
         functions = FunctionList()
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct

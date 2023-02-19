@@ -193,26 +193,6 @@ def test_list_functions_no_tags(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
 )
-def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
-    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
-    function_name_1 = "function_name_1"
-
-    tags = ["some_tag", "some_tag2", "some_tag3"]
-    for tag in tags:
-        db.store_function(
-            db_session, function_1, function_name_1, tag=tag, versioned=True
-        )
-    functions = db.list_functions(db_session, function_name_1)
-    assert len(functions) == len(tags)
-    for function in functions:
-        function_tag = function["metadata"]["tag"]
-        tags.remove(function_tag)
-    assert len(tags) == 0
-
-
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     tag = "function_name_1"
 
@@ -320,3 +300,61 @@ def test_delete_function(db: DBInterface, db_session: Session):
 
     assert number_of_tags == 0
     assert number_of_labels == 0
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+@pytest.mark.parametrize("use_hash_key", [True, False])
+def test_list_functions_multiple_tags(
+    db: DBInterface, db_session: Session, use_hash_key: bool
+):
+    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
+    function_name_1 = "function_name_1"
+
+    tags = ["some_tag", "some_tag2", "some_tag3"]
+    for tag in tags:
+        function_hash_key = db.store_function(
+            db_session, function_1, function_name_1, tag=tag, versioned=True
+        )
+    functions = db.list_functions(
+        db_session,
+        function_name_1,
+        hash_key=function_hash_key if use_hash_key else None,
+    )
+    assert len(functions) == len(tags)
+    for function in functions:
+        if use_hash_key:
+            assert function["metadata"]["hash"] == function_hash_key
+        function_tag = function["metadata"]["tag"]
+        tags.remove(function_tag)
+    assert len(tags) == 0
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
+    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
+    function_2 = {"blabla": "bla", "status": {"blabla": "bla"}}
+
+    function_name_1 = "function_name_1"
+    function_name_2 = "function_name_2"
+    tag_name = "some_tag"
+
+    function_1_hash_key = db.store_function(
+        db_session, function_1, function_name_1, tag=tag_name, versioned=True
+    )
+
+    # Storing another function with the same tag,
+    # to ensure that filtering by tag and hash key works, and that not both are returned
+    db.store_function(
+        db_session, function_2, function_name_2, tag=tag_name, versioned=True
+    )
+
+    functions = db.list_functions(
+        db_session, function_name_1, tag=tag_name, hash_key=function_1_hash_key
+    )
+    assert (
+        len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
+    )

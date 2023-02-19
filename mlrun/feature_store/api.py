@@ -854,7 +854,6 @@ def _ingest_with_spark(
         featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
 
         for target in targets_to_ingest or []:
-            wrong_path = False
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
             elif target.path is None:

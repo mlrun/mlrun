@@ -993,7 +993,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ],
     )
     def test_different_paths_for_ingest_on_spark_engines(
-            self, should_succeed, is_parquet, is_partitioned, target_path
+        self, should_succeed, is_parquet, is_partitioned, target_path
     ):
         fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="spark")
 

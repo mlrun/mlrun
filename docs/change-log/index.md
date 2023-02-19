@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.0](#v1.3.0)
 - [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
@@ -13,6 +14,125 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
+## v1.3.0
+
+### Client/server matrix
+
+
+
+- Base images mlrun/mlrun:1.3.0 etc. are based on python 3.9.16. <br>
+      For Iguazio <=3.5.2:
+	  
+	1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
+    2. Within the Jupyter service, open a terminal and run:
+     
+	```
+	 conda create -n python39 python=3.9 ipykernel -y
+      conda activate python39
+      ./align_mlrun.sh
+	```
+	  
+- v1.3.0 retains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
+
+### New and updated features
+
+
+#### APIs
+
+- New APIs may require a new version of the MLRun client/server **ML-3266**
+
+**Modified APIs**
+- These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
+ 
+- See also **[Deprecated APIs](#api-130)**.
+ 
+ 
+#### Infrastructure
+
+- MLRun supports Python 3.9.16
+
+
+#### Feature store
+
+- Spark engine supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step.
+- Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector)
+- Supports SQLSource for batch ingestion and real time ingestion in the feature store, and SQLTarget (supports storey, does not support Spark). 
+   See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store)
+- The RedisNoSqlTarget now supports the Spark engine.
+- The username and password for the RedisNoSqlTarget aare now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where <prefix> is optional 
+   RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store)
+- Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets#create-a-feature-set-without-ingesting-its-data).
+
+#### Projects
+
+- When defining a new project from scratch, there is now a default` context` directory, by default, "./", which is the directory that the MLRun client runs from.  
+
+#### Serving graphs
+
+- ML-2506 Allow providing a list of steps for the "after" argument in the `add_step()` method
+- ML-1167 Add support for graphs that split and merge (DAG)
+- ML-2507 Supports configuring of consumer group name for steps following QueueSteps
+
+#### Storey
+- The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/storey/pull/394).
+
+
+#### Third party integrations
+- Supports Confluent Kafka as a feature store data-source. See [Confluent Kafka data source](../data-prep/ingest-data-fs.html#confluent-kafka-data-source) (Tech Preview).
+
+#### UI
+- The new **Projects** home page provides easy and intuitive access to the common project tasks.
+
+
+<a id="api-130"></a>
+### Deprecated and removed APIs
+Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
+
+**Deprecated and removed from v1.3.0 code**<br>
+The following MLRun APIs have been deprecated since at least v1.0.0. Until now, a warning appeared if you attempted to use theצ. 
+They are now removed from the code:
+- project.workflows`
+- project.functions`
+- project.artifacts`
+- pod_status header` from response to get_log REST API
+- client-spec` from response to health API 
+- submit_pipeline_legacy` REST API
+- get_pipeline_legacy` REST API
+- Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
+- `project.func()` (instead, use `project.get_function()`)
+- `project.create_vault_secrets()` (instead, use `project.set_secrets()`)
+- `project.get_vault_secret()`
+- `MlrunProjectLegacy` class
+- Feature-store: usage of state in graph (replaced by step). For example, in targets.py: add_writer_state, and the after_state parameter in _init_ methods.
+- httpdb runtime-related APIs using the deprecated runtimes REST APIs: `delete_runtime_object` etc.
+- `mount_path` parameter in mount_v3io(). Instead, use the `volume_mounts` parameter
+- Dask properties: `gpus`, `with_limits`, `with_requests`
+- `NewTask`
+
+**Deprecated, will be removed in v1.5.0**<br>
+These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0:
+- project-related parameters of `set_environment`. 
+- `AbstractSparkJobSpec.gpus`, `KubeResource.gpus`, `DaskCluster.gpus`. Use the `with_limits` method instead.
+- `mount_v3io_legacy` (mount_v3io no longer calls it)
+- `mount_v3io_extended `
+- class `LegacyArtifact`
+- `init_functions` in pipelines 
+- The entire `mlrun/mlutils` library
+
+### Closed issues
+- Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/
+- Fix: Project page was displaying an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611)
+- Jobs and Workflows pages now display the tag of the executed job as defined in the API **ML-2534**
+- Fix: Ingestion with add_aggregation over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3062).
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.3.0)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)
+
+
+
+
+
 ## v1.2.1
 
 ### New and updated features
@@ -22,7 +142,7 @@
 
 ### Closed issues
 
-- Fix: the  **Projects | Jobs | Monitor Workflows** view is now accurate when filtering for > 1 hour. [View in Git](https://github.com/mlrun/mlrun/pull/2786).
+- Fix: the **Projects | Jobs | Monitor Workflows** view is now accurate when filtering for > 1 hour. [View in Git](https://github.com/mlrun/mlrun/pull/2786).
 - The Kubernetes **Pods** tab in **Monitor Workflows** now shows the complete pod details. [View in Git](https://github.com/mlrun/mlrun/pull/1576).
 - Update the tooltips in **Projects | Jobs | Schedule** to explain that day 0 (for cron jobs) is Monday, and not Sunday. 
 [View in Git](https://github.com/mlrun/ui/pull/1571).
@@ -61,7 +181,7 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - Fully supports ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
-- Add new step: `DropFeatures` for pandas, storey and spark engines. (TechPreview)
+- Add new step: `DropFeature` for pandas and storey engines. (TechPreview)
 - Add param query for `get_offline_feature` for filtering the output.
 
 #### Frameworks
@@ -169,7 +289,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 improve handling of high workloads against the MLRun DB. You can configure the number of workers for an MLRun 
 service, which is applied to the service's user-created pods. The default is 2. 
    - v1.1.0 cannot run on top of 3.0.x.
-   - For Iguazio v <3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
+   - For Iguazio <v3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
    - Multi-instance is not supported for MLrun running on SQLite.
 -  Supports pipeline scheduling.
       
@@ -310,7 +430,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID   | Description                                            | Workaround                                    | Opened |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
-| 2489 | Cannot pickle a class inside an mlrun function.        | Use cloudpickle instead of pickle             | 1.2.0  |
 | 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | 1.0.0  |
 | 2199 | Spark operator job fails with default requests args.       | NA                                         | 1.0.0 |
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
@@ -331,4 +450,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
     
 | In v.  | ID |Description                                                          |
 |------ | ---- | --------------------------------------------------------------------|
-| 1.0.0 |     | MLRun / Nuclio do not support python 3.6                             |
+| 1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
+| 1.3.0 |     | See [Deprecated APIs](#api-130).|
+| |  | |

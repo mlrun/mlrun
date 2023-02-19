@@ -24,14 +24,14 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 )
 
 type Store struct {
-	state                   *statestore.State
-	logger                  logger.Logger
+	*abstract.Store
 	stateFilePath           string
 	stateFileUpdateInterval time.Duration
 	fileLock                sync.Locker
@@ -39,11 +39,9 @@ type Store struct {
 }
 
 func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
+	abstractClient := abstract.NewAbstractClient(logger)
 	return &Store{
-		state: &statestore.State{
-			InProgress: map[string]*sync.Map{},
-		},
-		logger: logger.GetChild("filestatestore"),
+		Store: abstractClient,
 		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
 		stateFilePath:           path.Join(baseDirPath, "_metadata", "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
@@ -58,9 +56,10 @@ func (s *Store) Initialize(ctx context.Context) error {
 
 	s.fileLock.Lock()
 	defer s.fileLock.Unlock()
+
 	// load state from file before starting the update loop
 	// state file is our source of truth
-	s.state, err = s.readStateFile()
+	s.State, err = s.readStateFile()
 	if err != nil {
 		return errors.Wrap(err, "Failed to read state file")
 	}
@@ -71,57 +70,13 @@ func (s *Store) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
-	logItem := statestore.LogItem{
-		RunUID:        runUID,
-		LabelSelector: selector,
-		Project:       project,
-	}
-
-	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
-
-	if projectRunUIDsInProgress, projectExists := s.state.InProgress[project]; projectExists {
-		if existingItem, exists := projectRunUIDsInProgress.Load(runUID); exists {
-			s.logger.DebugWithCtx(ctx,
-				"Item already exists in state file. Overwriting label selector",
-				"runUID", runUID,
-				"existingItem", existingItem)
-		}
-	} else {
-		s.state.InProgress[project] = &sync.Map{}
-	}
-
-	s.state.InProgress[project].Store(runUID, logItem)
-	return nil
-}
-
-// RemoveLogItem removes a log item from the state store
-func (s *Store) RemoveLogItem(runUID, project string) error {
-	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
-
-	if _, projectExists := s.state.InProgress[project]; !projectExists {
-		return errors.New("Project does not exist in state file")
-	}
-
-	s.state.InProgress[project].Delete(runUID)
-
-	// if the project is empty, remove it from the map
-	if common.SyncMapLength(s.state.InProgress[project]) == 0 {
-		delete(s.state.InProgress, project)
-	}
-	return nil
-}
-
 // WriteState writes the state to file, used mainly for testing
 func (s *Store) WriteState(state *statestore.State) error {
 	return s.writeStateToFile(state)
 }
 
 // GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
+func (s *Store) GetItemsInProgress() (*sync.Map, error) {
 	var err error
 
 	s.fileLock.Lock()
@@ -132,19 +87,19 @@ func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 	}()
 
 	// set the state in the file state store
-	s.state, err = s.readStateFile()
+	s.State, err = s.readStateFile()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read state file")
 	}
 
-	return s.state.InProgress, nil
+	return s.State.InProgress, nil
 }
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
 	s.stateLock.Lock()
 	defer s.stateLock.Unlock()
-	return s.state
+	return s.State
 }
 
 // stateFileUpdateLoop updates the state file periodically
@@ -166,7 +121,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 		if err := s.writeStateToFile(state); err != nil {
 			if errCount%5 == 0 {
 				errCount = 0
-				s.logger.WarnWithCtx(ctx,
+				s.Logger.WarnWithCtx(ctx,
 					"Failed to write state file",
 					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 				)
@@ -174,14 +129,6 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 			errCount++
 		}
 	}
-}
-
-func (s *Store) StateLock() {
-	s.fileLock.Lock()
-}
-
-func (s *Store) StateUnlock() {
-	s.fileLock.Unlock()
 }
 
 // writeStateToFile writes the state to file
@@ -223,7 +170,7 @@ func (s *Store) readStateFile() (*statestore.State, error) {
 
 		// if file is empty, return the empty state instance
 		return &statestore.State{
-			InProgress: map[string]*sync.Map{},
+			InProgress: &sync.Map{},
 		}, nil
 	}
 

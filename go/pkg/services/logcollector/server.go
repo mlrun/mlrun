@@ -103,7 +103,9 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to create state store")
 	}
 
-	inMemoryState, err := factory.CreateStateStore(statestore.KindInMemory, &statestore.Config{})
+	inMemoryState, err := factory.CreateStateStore(statestore.KindInMemory, &statestore.Config{
+		Logger: logger,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create in-memory state")
 	}
@@ -693,27 +695,26 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 	for range monitoringTicker.C {
 
 		// if there are already log items in progress, call StartLog for each of them
-		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
+		projectRunUIDsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
-			for _, runUIDsToLogItems := range logItemsInProgress {
-				logItemsToStart := s.getLogItemsToStart(ctx, runUIDsToLogItems)
 
-				for _, logItem := range logItemsToStart {
-					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
-					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-						RunUID:      logItem.RunUID,
-						Selector:    logItem.LabelSelector,
-						ProjectName: logItem.Project,
-					}); err != nil {
+			logItemsToStart := s.getLogItemsToStart(ctx, projectRunUIDsInProgress)
 
-						// we don't fail here, as there might be other items to start log for, just log it
-						s.Logger.WarnWithCtx(ctx,
-							"Failed to start log collection for log item",
-							"runUID", logItem.RunUID,
-							"project", logItem.Project,
-							"err", common.GetErrorStack(err, 10),
-						)
-					}
+			for _, logItem := range logItemsToStart {
+				s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
+				if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
+					RunUID:      logItem.RunUID,
+					Selector:    logItem.LabelSelector,
+					ProjectName: logItem.Project,
+				}); err != nil {
+
+					// we don't fail here, as there might be other items to start log for, just log it
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to start log collection for log item",
+						"runUID", logItem.RunUID,
+						"project", logItem.Project,
+						"err", common.GetErrorStack(err, 10),
+					)
 				}
 			}
 		} else {
@@ -742,11 +743,13 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project str
 		return false
 	}
 
-	if _, exists := inMemoryInProgress[project]; !exists {
+	if projectMap, exists := inMemoryInProgress.Load(project); !exists {
 		return false
+	} else {
+		projectRunUIDsInProgress := projectMap.(*sync.Map)
+		_, running := projectRunUIDsInProgress.Load(runUID)
+		return running
 	}
-	_, running := inMemoryInProgress[project].Load(runUID)
-	return running
 }
 
 // getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
@@ -778,26 +781,28 @@ func (s *Server) isPodPendingError(err error) bool {
 	return false
 }
 
-func (s *Server) getLogItemsToStart(ctx context.Context, runUIDsToLogItems *sync.Map) []statestore.LogItem {
+func (s *Server) getLogItemsToStart(ctx context.Context, projectRunUIDsInProgress *sync.Map) []statestore.LogItem {
 	var logItemsToStart []statestore.LogItem
 
-	// get state store lock, so we won't have race conditions with adding/removing items
-	s.stateStore.StateLock()
-	defer s.stateStore.StateUnlock()
+	projectRunUIDsInProgress.Range(func(projectKey, runUIDsToLogItemsValue interface{}) bool {
+		runUIDsToLogItems := runUIDsToLogItemsValue.(*sync.Map)
 
-	runUIDsToLogItems.Range(func(key, value interface{}) bool {
-		logItem, ok := value.(statestore.LogItem)
-		if !ok {
-			s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+		runUIDsToLogItems.Range(func(key, value interface{}) bool {
+			logItem, ok := value.(statestore.LogItem)
+			if !ok {
+				s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+				return true
+			}
+
+			// check if the log streaming is already running for this runUID
+			if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
+
+				// if not, add it to the list of log items to start
+				logItemsToStart = append(logItemsToStart, logItem)
+			}
+
 			return true
-		}
-
-		// check if the log streaming is already running for this runUID
-		if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
-			// if not, add it to the list of log items to start
-			logItemsToStart = append(logItemsToStart, logItem)
-		}
-
+		})
 		return true
 	})
 	return logItemsToStart

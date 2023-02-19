@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -429,12 +430,14 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
-	suite.Require().Equal(projectNum, len(logItemsInProgress), "Expected items to be in progress")
-	for _, runUIDsInProgress := range logItemsInProgress {
+	suite.Require().Equal(projectNum, common.SyncMapLength(logItemsInProgress), "Expected items to be in progress")
+	logItemsInProgress.Range(func(key, value interface{}) bool {
+		runUIDsInProgress := value.(*sync.Map)
 		suite.Require().Equal(logItemsNum,
 			common.SyncMapLength(runUIDsInProgress),
 			"Expected items to be in progress")
-	}
+		return true
+	})
 
 	// stop log
 	request := &log_collector.StopLogRequest{
@@ -459,7 +462,7 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(0,
-		len(logItemsInProgress),
+		common.SyncMapLength(logItemsInProgress),
 		"Expected no items in progress")
 }
 

@@ -18,65 +18,27 @@ import (
 	"context"
 	"sync"
 
-	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
 
-	"github.com/nuclio/errors"
+	"github.com/nuclio/logger"
 )
 
 type Store struct {
-	state *statestore.State
-	lock  sync.Locker
+	*abstract.Store
+	lock sync.Locker
 }
 
-func NewInMemoryStore() *Store {
+func NewInMemoryStore(logger logger.Logger) *Store {
+	abstractClient := abstract.NewAbstractClient(logger)
 	return &Store{
-		state: &statestore.State{
-			InProgress: map[string]*sync.Map{},
-		},
-		lock: &sync.Mutex{},
+		Store: abstractClient,
+		lock:  &sync.Mutex{},
 	}
 }
 
 // Initialize initializes the state store
 func (s *Store) Initialize(ctx context.Context) error {
-	return nil
-}
-
-// AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
-	logItem := statestore.LogItem{
-		RunUID:        runUID,
-		LabelSelector: selector,
-		Project:       project,
-	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if _, projectExists := s.state.InProgress[project]; !projectExists {
-		s.state.InProgress[project] = &sync.Map{}
-	}
-
-	s.state.InProgress[project].Store(runUID, logItem)
-	return nil
-}
-
-// RemoveLogItem removes a log item from the state store
-func (s *Store) RemoveLogItem(runUID, project string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if _, exists := s.state.InProgress[project]; !exists {
-		return errors.New("Project not found")
-	}
-
-	s.state.InProgress[project].Delete(runUID)
-
-	// if the project is empty, remove it from the map
-	if common.SyncMapLength(s.state.InProgress[project]) == 0 {
-		delete(s.state.InProgress, project)
-	}
-
 	return nil
 }
 
@@ -86,19 +48,6 @@ func (s *Store) WriteState(state *statestore.State) error {
 }
 
 // GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
-	return s.state.InProgress, nil
-}
-
-// GetState returns the state store state
-func (s *Store) GetState() *statestore.State {
-	return s.state
-}
-
-func (s *Store) StateLock() {
-	s.lock.Lock()
-}
-
-func (s *Store) StateUnlock() {
-	s.lock.Unlock()
+func (s *Store) GetItemsInProgress() (*sync.Map, error) {
+	return s.State.InProgress, nil
 }

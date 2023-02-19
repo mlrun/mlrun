@@ -43,8 +43,9 @@ type marshalledState struct {
 }
 
 type State struct {
+
 	// InProgress is a map of project to a map of runUID to LogItem
-	InProgress map[string]*sync.Map `json:"inProgress"`
+	InProgress *sync.Map `json:"inProgress"`
 }
 
 // UnmarshalJSON is a custom unmarshaler for the state
@@ -53,16 +54,17 @@ func (s *State) UnmarshalJSON(data []byte) error {
 		InProgress: map[string]map[string]LogItem{},
 	}
 
-	s.InProgress = map[string]*sync.Map{}
+	s.InProgress = &sync.Map{}
 
 	if err := json.Unmarshal(data, &tempState); err != nil {
 		return errors.Wrap(err, "Failed to unmarshal data")
 	}
 	for project, runUIDtoLogItem := range tempState.InProgress {
-		s.InProgress[project] = &sync.Map{}
+		projectMap := &sync.Map{}
 		for runUID, logItem := range runUIDtoLogItem {
-			s.InProgress[project].Store(runUID, logItem)
+			projectMap.Store(runUID, logItem)
 		}
+		s.InProgress.Store(project, projectMap)
 	}
 	return nil
 }
@@ -74,21 +76,34 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		InProgress: map[string]map[string]LogItem{},
 	}
 
-	for project, runUIDtoLogItem := range s.InProgress {
-		tempState.InProgress[project] = map[string]LogItem{}
-		runUIDtoLogItem.Range(func(key, value interface{}) bool {
-			runUIDString, ok := key.(string)
+	s.InProgress.Range(func(projectNameKey, runsToLogItemsMapValue interface{}) bool {
+		projectName, ok := projectNameKey.(string)
+		if !ok {
+			return false
+		}
+		runsToLogItemsMap, ok := runsToLogItemsMapValue.(*sync.Map)
+		if !ok {
+			return false
+		}
+		runsToLogItemsMap.Range(func(runUIDKey, logItemValue interface{}) bool {
+			runUID, ok := runUIDKey.(string)
 			if !ok {
 				return false
 			}
-			valueLogItem, ok := value.(LogItem)
+			logItem, ok := logItemValue.(LogItem)
 			if !ok {
 				return false
 			}
-			tempState.InProgress[project][runUIDString] = valueLogItem
+			if _, ok := tempState.InProgress[projectName]; !ok {
+				tempState.InProgress[projectName] = map[string]LogItem{}
+			}
+			tempState.InProgress[projectName][runUID] = logItem
 			return true
 		})
-	}
+
+		return true
+	})
+
 	return json.Marshal(tempState)
 }
 
@@ -113,12 +128,8 @@ type StateStore interface {
 	WriteState(state *State) error
 
 	// GetItemsInProgress returns the in progress log items
-	GetItemsInProgress() (map[string]*sync.Map, error)
+	GetItemsInProgress() (*sync.Map, error)
 
 	// GetState returns the state store state
 	GetState() *State
-
-	StateLock()
-
-	StateUnlock()
 }

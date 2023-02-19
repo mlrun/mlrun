@@ -77,7 +77,7 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify no items in progress
-	suite.Require().Equal(0, len(logItemsInProgress))
+	suite.Require().Equal(0, common.SyncMapLength(logItemsInProgress))
 
 	// add a log item to the state file
 	runId := "abc123"
@@ -86,8 +86,9 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 		RunUID:        runId,
 		LabelSelector: "app=test",
 	}
-	logItemsInProgress[project] = &sync.Map{}
-	logItemsInProgress[project].Store(runId, item)
+	projectMap := &sync.Map{}
+	projectMap.Store(runId, item)
+	logItemsInProgress.Store(project, projectMap)
 
 	// write state file
 	err = suite.stateStore.WriteState(&statestore.State{
@@ -100,12 +101,14 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify item is in progress
-	suite.Require().Equal(1, len(logItemsInProgress))
-	projectRunUIDsInProgress, ok := logItemsInProgress[project]
+	suite.Require().Equal(1, common.SyncMapLength(logItemsInProgress))
+	projectRunUIDsInProgress, ok := logItemsInProgress.Load(project)
 	suite.Require().True(ok)
-	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgress))
+	projectRunUIDsInProgressMap, ok := projectRunUIDsInProgress.(*sync.Map)
+	suite.Require().True(ok)
+	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgressMap))
 
-	storedItem, ok := projectRunUIDsInProgress.Load(runId)
+	storedItem, ok := projectRunUIDsInProgressMap.Load(runId)
 	suite.Require().True(ok)
 	suite.Require().Equal(item, storedItem.(statestore.LogItem))
 }
@@ -127,11 +130,13 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify item is in progress
-	suite.Require().Equal(1, len(itemsInProgress))
-	projectRunUIDsInProgress, ok := itemsInProgress[project]
+	suite.Require().Equal(1, common.SyncMapLength(itemsInProgress))
+	projectRunUIDsInProgress, ok := itemsInProgress.Load(project)
 	suite.Require().True(ok)
-	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgress))
-	storedItem, ok := projectRunUIDsInProgress.Load(runId)
+	projectRunUIDsInProgressMap, ok := projectRunUIDsInProgress.(*sync.Map)
+	suite.Require().True(ok)
+	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgressMap))
+	storedItem, ok := projectRunUIDsInProgressMap.Load(runId)
 	suite.Require().True(ok)
 	suite.Require().Equal(runId, storedItem.(statestore.LogItem).RunUID)
 	suite.Require().Equal(labelSelector, storedItem.(statestore.LogItem).LabelSelector)
@@ -149,7 +154,7 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify item is not in progress
-	suite.Require().Equal(0, len(itemsInProgress))
+	suite.Require().Equal(0, common.SyncMapLength(itemsInProgress))
 }
 
 func TestFileStateStoreTestSuite(t *testing.T) {

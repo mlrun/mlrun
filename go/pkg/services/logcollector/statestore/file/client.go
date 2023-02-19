@@ -124,9 +124,14 @@ func (s *Store) WriteState(state *statestore.State) error {
 func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 	var err error
 
-	// set the state in the file state store
 	s.fileLock.Lock()
-	defer s.fileLock.Unlock()
+	s.stateLock.Lock()
+	defer func() {
+		s.fileLock.Unlock()
+		s.stateLock.Unlock()
+	}()
+
+	// set the state in the file state store
 	s.state, err = s.readStateFile()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read state file")

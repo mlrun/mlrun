@@ -94,3 +94,11 @@ func (s *Store) GetItemsInProgress() (map[string]*sync.Map, error) {
 func (s *Store) GetState() *statestore.State {
 	return s.state
 }
+
+func (s *Store) StateLock() {
+	s.lock.Lock()
+}
+
+func (s *Store) StateUnlock() {
+	s.lock.Unlock()
+}

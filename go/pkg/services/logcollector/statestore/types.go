@@ -117,4 +117,8 @@ type StateStore interface {
 
 	// GetState returns the state store state
 	GetState() *State
+
+	StateLock()
+
+	StateUnlock()
 }

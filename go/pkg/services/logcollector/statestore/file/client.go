@@ -171,6 +171,14 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 	}
 }
 
+func (s *Store) StateLock() {
+	s.fileLock.Lock()
+}
+
+func (s *Store) StateUnlock() {
+	s.fileLock.Unlock()
+}
+
 // writeStateToFile writes the state to file
 func (s *Store) writeStateToFile(state *statestore.State) error {
 

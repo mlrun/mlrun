@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
@@ -695,35 +696,25 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
 			for _, runUIDsToLogItems := range logItemsInProgress {
-				runUIDsToLogItems.Range(func(key, value interface{}) bool {
-					logItem, ok := value.(statestore.LogItem)
-					if !ok {
-						s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
-						return true
+				logItemsToStart := s.getLogItemsToStart(ctx, runUIDsToLogItems)
+
+				for _, logItem := range logItemsToStart {
+					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
+					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
+						RunUID:      logItem.RunUID,
+						Selector:    logItem.LabelSelector,
+						ProjectName: logItem.Project,
+					}); err != nil {
+
+						// we don't fail here, as there might be other items to start log for, just log it
+						s.Logger.WarnWithCtx(ctx,
+							"Failed to start log collection for log item",
+							"runUID", logItem.RunUID,
+							"project", logItem.Project,
+							"err", common.GetErrorStack(err, 10),
+						)
 					}
-
-					// check if the log streaming is already running for this runUID
-					if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
-
-						s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
-						if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-							RunUID:      logItem.RunUID,
-							Selector:    logItem.LabelSelector,
-							ProjectName: logItem.Project,
-						}); err != nil {
-
-							// we don't fail here, as there might be other items to start log for, just log it
-							s.Logger.WarnWithCtx(ctx,
-								"Failed to start log collection for log item",
-								"runUID", logItem.RunUID,
-								"project", logItem.Project,
-								"err", common.GetErrorStack(err, 10),
-							)
-						}
-					}
-
-					return true
-				})
+				}
 			}
 		} else {
 
@@ -785,4 +776,29 @@ func (s *Server) isPodPendingError(err error) bool {
 	}
 
 	return false
+}
+
+func (s *Server) getLogItemsToStart(ctx context.Context, runUIDsToLogItems *sync.Map) []statestore.LogItem {
+	var logItemsToStart []statestore.LogItem
+
+	// get state store lock, so we won't have race conditions with adding/removing items
+	s.stateStore.StateLock()
+	defer s.stateStore.StateUnlock()
+
+	runUIDsToLogItems.Range(func(key, value interface{}) bool {
+		logItem, ok := value.(statestore.LogItem)
+		if !ok {
+			s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+			return true
+		}
+
+		// check if the log streaming is already running for this runUID
+		if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
+			// if not, add it to the list of log items to start
+			logItemsToStart = append(logItemsToStart, logItem)
+		}
+
+		return true
+	})
+	return logItemsToStart
 }

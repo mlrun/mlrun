@@ -85,7 +85,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = "https://github.com/davesh0812/mlrun.git@as_of_spark"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -1332,3 +1332,69 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+    def test_as_of_join_result(self):
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        left_path = "v3io:///bigdata/asof_join/df_left.parquet"
+        right_path = "v3io:///bigdata/asof_join/df_right.parquet"
+
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df_left.to_parquet(path=left_path, filesystem=fsys)
+        df_right.to_parquet(path=right_path, filesystem=fsys)
+
+        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts")
+        fset1.set_targets(["parquet"], with_defaults=False)
+        fset2 = fstore.FeatureSet("fs2", entities=["ent"], timestamp_key="ts")
+        fset2.set_targets(["parquet"], with_defaults=False)
+
+        source_left = ParquetSource("pq1", path=left_path)
+        source_right = ParquetSource("pq2", path=right_path)
+
+        fstore.ingest(fset1, source_left)
+        fstore.ingest(fset2, source_right)
+
+        vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+
+        resp = fstore.get_offline_features(vec, engine="local")
+        local_engine_res = resp.to_dataframe()
+        print(local_engine_res)
+        print(1)
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vec,
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
+            target=target,
+        )
+        print(1)
+        spark_engine_res = resp.to_dataframe()
+
+        print(spark_engine_res)
+
+        assert local_engine_res.sort_index(axis=1).equals(
+            spark_engine_res.sort_index(axis=1)
+        )

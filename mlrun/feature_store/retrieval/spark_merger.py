@@ -172,9 +172,7 @@ class SparkFeatureMerger(BaseMerger):
         # The fix, BTW, should be to only partition by the __row_nr, and not drop the ft__ts until the end.
         # The partition - by window function should use ft_ts as sorting key instead of ts .Once this is done the logic"
 
-        entity_with_id = entity_df.orderBy(
-            col(entity_timestamp_column).desc(),
-        ).withColumn("_row_nr", monotonically_increasing_id())
+        entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         indexes = list(featureset.spec.entities.keys())
 
         # get columns for projection

@@ -169,9 +169,6 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql import Window
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
-        # The fix, BTW, should be to only partition by the __row_nr, and not drop the ft__ts until the end.
-        # The partition - by window function should use ft_ts as sorting key instead of ts .Once this is done the logic"
-
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         indexes = list(featureset.spec.entities.keys())
 
@@ -203,7 +200,7 @@ class SparkFeatureMerger(BaseMerger):
             aliased_featureset_df, join_cond, "leftOuter"
         )
 
-        window = Window.partitionBy("_row_nr", *indexes).orderBy(
+        window = Window.partitionBy("_row_nr").orderBy(
             col(f"ft__{entity_timestamp_column}").desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(

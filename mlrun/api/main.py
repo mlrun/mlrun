@@ -413,19 +413,22 @@ async def _verify_log_collection_stopped_on_startup():
         "Getting all runs which have reached terminal state and have logs requested",
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-    runs = await fastapi.concurrency.run_in_threadpool(
-        get_db().list_distinct_runs_uids,
-        db_session,
-        requested_logs_modes=[True],
-        only_uids=False,
-        states=mlrun.runtimes.constants.RunStates.terminal_states(),
-    )
+    try:
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        )
 
-    logger.debug(
-        "Stopping logs for runs which reached terminal state before startup",
-        runs_count=len(runs),
-    )
-    await _stop_logs_for_runs(runs)
+        logger.debug(
+            "Stopping logs for runs which reached terminal state before startup",
+            runs_count=len(runs),
+        )
+        await _stop_logs_for_runs(runs)
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 def _start_chief_clusterization_spec_sync_loop():
@@ -537,21 +540,24 @@ async def _stop_logs():
         "Getting all runs which reached terminal state in the past hour",
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-    runs = await fastapi.concurrency.run_in_threadpool(
-        get_db().list_distinct_runs_uids,
-        db_session,
-        requested_logs_modes=[True],
-        only_uids=False,
-        states=mlrun.runtimes.constants.RunStates.terminal_states(),
-        last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-        - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
-    )
+    try:
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
+        )
 
-    logger.debug(
-        "Stopping logs for runs which reached terminal state in the past hour",
-        runs_count=len(runs),
-    )
-    await _stop_logs_for_runs(runs)
+        logger.debug(
+            "Stopping logs for runs which reached terminal state in the past hour",
+            runs_count=len(runs),
+        )
+        await _stop_logs_for_runs(runs)
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 async def _stop_logs_for_runs(runs: list):

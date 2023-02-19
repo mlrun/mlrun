@@ -50,11 +50,12 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		LabelSelector: selector,
 		Project:       project,
 	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	if _, projectExists := s.state.InProgress[project]; !projectExists {
 		s.state.InProgress[project] = &sync.Map{}
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
@@ -62,11 +63,12 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 
 // RemoveLogItem removes a log item from the state store
 func (s *Store) RemoveLogItem(runUID, project string) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	if _, exists := s.state.InProgress[project]; !exists {
 		return errors.New("Project not found")
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	s.state.InProgress[project].Delete(runUID)
 

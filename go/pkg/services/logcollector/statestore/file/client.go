@@ -79,6 +79,9 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		Project:       project,
 	}
 
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+
 	if projectRunUIDsInProgress, projectExists := s.state.InProgress[project]; projectExists {
 		if existingItem, exists := projectRunUIDsInProgress.Load(runUID); exists {
 			s.logger.DebugWithCtx(ctx,
@@ -90,21 +93,18 @@ func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string
 		s.state.InProgress[project] = &sync.Map{}
 	}
 
-	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
-
 	s.state.InProgress[project].Store(runUID, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
 func (s *Store) RemoveLogItem(runUID, project string) error {
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+
 	if _, projectExists := s.state.InProgress[project]; !projectExists {
 		return errors.New("Project does not exist in state file")
 	}
-
-	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
 
 	s.state.InProgress[project].Delete(runUID)
 

@@ -85,7 +85,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/davesh0812/mlrun.git@as_of_spark"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):

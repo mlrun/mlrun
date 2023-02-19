@@ -411,9 +411,7 @@ def apply_kfp(modify, cop, runtime):
         env_names = [
             e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
         ]
-        print(cop.container.env)
         for e in api.sanitize_for_serialization(cop.container.env):
-            print(e)
             name = e["name"]
             if name in env_names:
                 runtime.spec.env[env_names.index(name)] = e

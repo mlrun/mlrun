@@ -126,8 +126,8 @@ def mount_v3io_legacy(
 
 
 def _enrich_and_validate_v3io_mounts(remote="", mounts=None, user=""):
-    """Modifier function to apply to a Container Op to volume mount a v3io path
-
+    """
+    Enrich and validate v3io mounts
     :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
     :param mounts:          list of mount & volume sub paths (type Mount). empty mounts & remote mount /v3io & /User
     :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used

@@ -856,7 +856,7 @@ class RemoteRuntime(KubeResource):
         self._mock_server = None
 
         if "://" not in path:
-            self.get_url(
+            path = self.get_url(
                 path, auth_info=auth_info, force_external_address=force_external_address
             )
 

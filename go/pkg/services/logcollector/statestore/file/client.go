@@ -70,16 +70,6 @@ func (s *Store) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) RemoveProject(project string) error {
-	if project == "" {
-		return errors.New("Project name is empty")
-	}
-
-	// delete is a no-op if the key doesn't exist
-	delete(s.state.InProgress, project)
-	return nil
-}
-
 // WriteState writes the state to file, used mainly for testing
 func (s *Store) WriteState(state *statestore.State) error {
 	return s.writeStateToFile(state)

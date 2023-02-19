@@ -35,16 +35,6 @@ func NewInMemoryStore(logger logger.Logger) *Store {
 	}
 }
 
-func (s *Store) RemoveProject(project string) error {
-	if project == "" {
-		return errors.New("Project name is empty")
-	}
-
-	// delete is a no-op if the key doesn't exist
-	delete(s.state.InProgress, project)
-	return nil
-}
-
 // Initialize initializes the state store
 func (s *Store) Initialize(ctx context.Context) error {
 	return nil

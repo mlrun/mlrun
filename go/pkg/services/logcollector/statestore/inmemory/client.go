@@ -26,14 +26,12 @@ import (
 
 type Store struct {
 	*abstract.Store
-	lock sync.Locker
 }
 
 func NewInMemoryStore(logger logger.Logger) *Store {
 	abstractClient := abstract.NewAbstractClient(logger)
 	return &Store{
 		Store: abstractClient,
-		lock:  &sync.Mutex{},
 	}
 }
 

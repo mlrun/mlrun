@@ -37,6 +37,7 @@ from .utils import (
     is_legacy_artifact,
     logger,
     run_keys,
+    version,
 )
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
@@ -438,6 +439,10 @@ def mlrun_op(
             image = f"{registry}/{image[1:]}"
         else:
             raise ValueError("local image registry env not found")
+
+    image = mlrun.utils.enrich_image_url(
+        image, mlrun.get_version(), str(version.Version().get_python_version())
+    )
 
     cop = dsl.ContainerOp(
         name=name,

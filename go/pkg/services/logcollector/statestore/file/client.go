@@ -24,29 +24,29 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 )
 
 type Store struct {
-	state                   *statestore.State
-	logger                  logger.Logger
+	*abstract.Store
 	stateFilePath           string
 	stateFileUpdateInterval time.Duration
-	lock                    sync.Locker
+	fileLock                sync.Locker
+	stateLock               sync.Locker
 }
 
 func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
+	abstractClient := abstract.NewAbstractClient(logger)
 	return &Store{
-		state: &statestore.State{
-			InProgress: &sync.Map{},
-		},
-		logger: logger.GetChild("filestatestore"),
+		Store: abstractClient,
 		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
 		stateFilePath:           path.Join(baseDirPath, "_metadata", "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
-		lock:                    &sync.Mutex{},
+		fileLock:                &sync.Mutex{},
+		stateLock:               &sync.Mutex{},
 	}
 }
 
@@ -54,11 +54,12 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 func (s *Store) Initialize(ctx context.Context) error {
 	var err error
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
+
 	// load state from file before starting the update loop
 	// state file is our source of truth
-	s.state, err = s.readStateFile()
+	s.State, err = s.readStateFile()
 	if err != nil {
 		return errors.Wrap(err, "Failed to read state file")
 	}
@@ -66,33 +67,6 @@ func (s *Store) Initialize(ctx context.Context) error {
 	// spawn a goroutine that will update the state file periodically
 	go s.stateFileUpdateLoop(ctx)
 
-	return nil
-}
-
-// AddLogItem adds a log item to the state store
-func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
-	logItem := statestore.LogItem{
-		RunUID:        runUID,
-		LabelSelector: selector,
-		Project:       project,
-	}
-
-	key := statestore.GenerateKey(runUID, project)
-	if existingItem, exists := s.state.InProgress.Load(key); exists {
-		s.logger.DebugWithCtx(ctx,
-			"Item already exists in state file. Overwriting label selector",
-			"runUID", runUID,
-			"existingItem", existingItem)
-	}
-
-	s.state.InProgress.Store(key, logItem)
-	return nil
-}
-
-// RemoveLogItem removes a log item from the state store
-func (s *Store) RemoveLogItem(runUID, project string) error {
-	key := statestore.GenerateKey(runUID, project)
-	s.state.InProgress.Delete(key)
 	return nil
 }
 
@@ -115,22 +89,27 @@ func (s *Store) WriteState(state *statestore.State) error {
 func (s *Store) GetItemsInProgress() (*sync.Map, error) {
 	var err error
 
+	s.fileLock.Lock()
+	s.stateLock.Lock()
+	defer func() {
+		s.fileLock.Unlock()
+		s.stateLock.Unlock()
+	}()
+
 	// set the state in the file state store
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.state, err = s.readStateFile()
+	s.State, err = s.readStateFile()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read state file")
 	}
 
-	return s.state.InProgress, nil
+	return s.State.InProgress, nil
 }
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.state
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+	return s.State
 }
 
 // stateFileUpdateLoop updates the state file periodically
@@ -152,7 +131,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 		if err := s.writeStateToFile(state); err != nil {
 			if errCount%5 == 0 {
 				errCount = 0
-				s.logger.WarnWithCtx(ctx,
+				s.Logger.WarnWithCtx(ctx,
 					"Failed to write state file",
 					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 				)
@@ -165,6 +144,10 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 // writeStateToFile writes the state to file
 func (s *Store) writeStateToFile(state *statestore.State) error {
 
+	// lock state before marshaling, as it might cause race conditions
+	s.stateLock.Lock()
+	defer s.stateLock.Unlock()
+
 	// marshal state file
 	encodedState, err := json.Marshal(state)
 	if err != nil {
@@ -172,8 +155,8 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 	}
 
 	// get lock, unlock later
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

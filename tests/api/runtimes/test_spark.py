@@ -609,6 +609,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_limits(cpu="1")
         runtime.with_executor_requests(cpu="1", mem="1G")
 
+        # remote-spark is not a merge engine but a runtime
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fstore.get_offline_features(
+                fv,
+                with_indexes=True,
+                entity_timestamp_column="timestamp",
+                engine="remote-spark",
+                run_config=RunConfig(local=False, function=runtime, watch=False),
+                target=ParquetTarget(),
+            )
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,

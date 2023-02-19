@@ -58,7 +58,6 @@ default_config = {
     "remote_host": "",
     "api_base_version": "v1",
     "version": "",  # will be set to current version
-    "api_version": "",
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
     "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this

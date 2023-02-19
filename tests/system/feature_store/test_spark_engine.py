@@ -35,6 +35,7 @@ from mlrun.datastore.targets import (
     RedisNoSqlTarget,
 )
 from mlrun.feature_store import FeatureSet
+from mlrun.feature_store.api import ENTITIES_DROPPED_MESSAGE
 from mlrun.feature_store.steps import (
     DateExtractor,
     DropFeatures,
@@ -992,7 +993,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ],
     )
     def test_different_paths_for_ingest_on_spark_engines(
-        self, should_succeed, is_parquet, is_partitioned, target_path
+            self, should_succeed, is_parquet, is_partitioned, target_path
     ):
         fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="spark")
 
@@ -1187,6 +1188,25 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+            fstore.ingest(
+                measurements,
+                source,
+                targets,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+        assert str(ml_run_exception.value) == ENTITIES_DROPPED_MESSAGE
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"

@@ -854,11 +854,14 @@ def _ingest_with_spark(
         featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
 
         for target in targets_to_ingest or []:
+            wrong_path = False
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
+            elif type(target) is not DataTargetBase and target.path is None:
+                wrong_path = True
             if featureset.spec.passthrough and target.is_offline:
                 continue
-            if target.path and urlparse(target.path).scheme == "":
+            if (target.path and urlparse(target.path).scheme == "") or wrong_path:
                 if mlrun_context:
                     mlrun_context.logger.error(
                         "Paths for spark ingest must contain schema, i.e v3io, s3, az"

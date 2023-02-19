@@ -16,7 +16,6 @@ import datetime
 import os
 from sys import executable
 
-import kubernetes
 import pytest
 
 import mlrun

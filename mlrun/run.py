@@ -1274,9 +1274,9 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     Parse a given type hint from string to its actual hinted type class object. The string must be one of the following:
 
-    * Python builtin type - one of `tuple`, `list`, `set`, `dict` and `bytearray`.
-    * Full module import path. An alias (if import pandas as pd is used, the type hint cannot be `pd.DataFrame`) is
-      not allowed.
+    * Python builtin type - one of ``tuple``, ``list``, ``set``, ``dict`` and ``bytearray``.
+    * Full module import path. An alias is not allowed (if ``import pandas as pd`` is used, the type hint cannot be
+      ``pd.DataFrame``).
 
     The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
     handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
@@ -1294,6 +1294,11 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     if not isinstance(type_hint, str):
         return type_hint
+
+    # TODO: Remove once Packager is implemented (it will support typing hints)
+    # If a typing hint is provided, we return a dummy Union type so the parser will skip the data item:
+    if type_hint.startswith("typing."):
+        return Union[int, str]
 
     # Validate the type hint is a valid module path:
     if not bool(
@@ -1458,6 +1463,7 @@ def handler(
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
 
+                   **Notice**: `typing` hints like `Optional`, `Union` and `List` are currently not supported.
                    Default: True.
 
     Example::

@@ -598,6 +598,8 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+        print(is_single_file)
+        print(self._resource)
         return self.get_path() or (
             TargetPathObject(
                 _get_target_path(self, self._resource, self.run_id is not None),

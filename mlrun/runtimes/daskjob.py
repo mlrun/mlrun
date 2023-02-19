@@ -609,7 +609,7 @@ def enrich_dask_cluster(
         worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
         worker_args.extend(spec.args)
-    scheduler_args = ["dask-scheduler"]
+    scheduler_args = ["dask", "scheduler"]
 
     container_kwargs = {
         "name": "base",

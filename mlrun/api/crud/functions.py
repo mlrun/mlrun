@@ -44,7 +44,17 @@ class Functions(
             name=name, project=project, runtime=function, tag=tag
         )
         if auth_info:
-            mlrun.api.api.utils.mask_function_sensitive_data(function_obj, auth_info)
+            # only need to ensure auth and sensitive data is masked
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                function_obj,
+                auth_info,
+                ensure_auth=True,
+                mask_sensitive_data=True,
+                # below is not needed as part of storing the function but rather validated when running the function
+                perform_auto_mount=False,
+                validate_service_account=False,
+                ensure_security_context=False,
+            )
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
             function_obj.to_dict(),

@@ -279,9 +279,6 @@ class KubeResourceSpec(FunctionSpec):
                 + f"service accounts {allowed_service_accounts}"
             )
 
-    def _get_affinity_as_k8s_class_instance(self):
-        pass
-
     def _set_volume_mount(
         self, volume_mount, volume_mounts_field_name="_volume_mounts"
     ):
@@ -952,10 +949,11 @@ class KubeResource(BaseRuntime):
         If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
         for env_var in self.spec.env:
             if get_item_name(env_var) == name:
-                value = get_item_name(env_var, "value")
-                if value is not None:
-                    return value
-                return get_item_name(env_var, "value_from")
+                # valueFrom is a workaround for now, for some reason the envs aren't getting sanitized
+                for value_key in ["value", "value_from", "valueFrom"]:
+                    value = get_item_name(env_var, value_key)
+                    if value is not None:
+                        return value
         return default
 
     def is_env_exists(self, name):

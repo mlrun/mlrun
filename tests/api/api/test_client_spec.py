@@ -202,3 +202,16 @@ def test_client_spec_response_based_on_client_version(
         response_body = response.json()
         assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc20"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc20"
+
+        # verify that we are falling back to resolve only by server
+        response = client.get(
+            "client-spec",
+            headers={
+                mlrun.api.schemas.HeaderNames.client_version: "test-integration",
+                mlrun.api.schemas.HeaderNames.python_version: "3.9.13",
+            },
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+        response_body = response.json()
+        assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc23"
+        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc23"

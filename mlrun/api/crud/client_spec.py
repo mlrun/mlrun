@@ -118,9 +118,13 @@ class ClientSpec(
         :param client_python_version: the client python version
         :return: enriched image url
         """
-        return mlrun.utils.helpers.enrich_image_url(
-            image, client_version, client_python_version
-        )
+        try:
+            return mlrun.utils.helpers.enrich_image_url(
+                image, client_version, client_python_version
+            )
+        # if for some reason the user provided un-parsable versions, fall back to resolve version only by server
+        except ValueError:
+            return mlrun.utils.helpers.enrich_image_url(image)
 
     @staticmethod
     def _get_config_value_if_not_default(config_key):

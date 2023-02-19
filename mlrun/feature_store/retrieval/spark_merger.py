@@ -169,7 +169,12 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql import Window
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
-        entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
+        # The fix, BTW, should be to only partition by the __row_nr, and not drop the ft__ts until the end.
+        # The partition - by window function should use ft_ts as sorting key instead of ts .Once this is done the logic"
+
+        entity_with_id = entity_df.orderBy(
+            col(entity_timestamp_column).desc(),
+        ).withColumn("_row_nr", monotonically_increasing_id())
         indexes = list(featureset.spec.entities.keys())
 
         # get columns for projection
@@ -199,17 +204,20 @@ class SparkFeatureMerger(BaseMerger):
         conditional_join = entity_with_id.join(
             aliased_featureset_df, join_cond, "leftOuter"
         )
-        for key in indexes + [entity_timestamp_column]:
-            conditional_join = conditional_join.drop(
-                aliased_featureset_df[f"ft__{key}"]
-            )
 
         window = Window.partitionBy("_row_nr", *indexes).orderBy(
-            col(entity_timestamp_column).desc(),
+            col(f"ft__{entity_timestamp_column}").desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
+
+        for key in indexes + [entity_timestamp_column]:
+            filter_most_recent_feature_timestamp = (
+                filter_most_recent_feature_timestamp.drop(
+                    aliased_featureset_df[f"ft__{key}"]
+                )
+            )
 
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
 

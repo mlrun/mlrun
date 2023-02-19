@@ -603,13 +603,13 @@ def enrich_dask_cluster(
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    worker_args = ["dask", "worker", "--nthreads", str(spec.nthreads)]
+    worker_args = ["dask worker", "--nthreads", str(spec.nthreads)]
     memory_limit = spec.worker_resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
         worker_args.extend(spec.args)
-    scheduler_args = ["dask", "scheduler"]
+    scheduler_args = ["dask scheduler"]
 
     container_kwargs = {
         "name": "base",

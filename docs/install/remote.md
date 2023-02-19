@@ -1,10 +1,11 @@
 (install-remote)=
-# Set up your remote environment <!-- omit in toc -->
+# Set up your environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
 **In this section**
-- [Prerequisite: set up your client](#prerequisite-set-up-your-client)
+- [Prerequisites](#prerequisites)
+- [Set up client environment](#set-up-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using environment file and `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
    - [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrun-set-env-from-file-command-in-mlrun-sdk)
@@ -12,45 +13,40 @@ You can write your code on a local machine while running your functions on a rem
    - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
-## Prerequisite: set up your client
+## Prerequisites: 
 
 Before you begin, ensure that the following prerequisites are met:
 
-1. Applications:
-   - Python 3.9 
-   - Recommended pip 22.x+
+Applications:
+- Python 3.9 
+- Recommended pip 22.x+
 
-2. Install MLRun locally.
+## Set up client environment 
 
-    You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun 
-    service version. Install a specific version using the following command; replace the `<version>`  placeholder 
-    with the MLRun version number:
- 
-    ```sh
-    pip install mlrun==<version>
-    ```
-	
-	There are a two `pip install` options:
-   - To install the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt), run:<br>
-     ```pip install mlrun```
-   - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. 
-      This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the 
-      dependencies and the size of the installation. The additional packages include:
-      - pip install mlrun[s3] # Install requirements for S3 
-      - pip install mlrun[azure-blob-storage] # install requirements for Azure blob storage
-      - pip install mlrun[google-cloud-storage] # install requirements for Google cloud storage
+1.  **Basic** <br> 
+Run ```pip install mlrun```
+It will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
+
+```{admonition} Note
+To install a specific version, use the following command: pip install mlrun==<version>. Replace the `<version>` placeholder with the MLRun version number.
+```
+
+2. **Advanced** <br> 
+   - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size of the installation. The additional packages include:
+    -```pip install mlrun[s3]``` Install requirements for S3 
+    -```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
+    -```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
    
-      See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
-      To install all extras, run:<br>
-      ```pip install mlrun[complete]```
+      
+   - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
      
-3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
+2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
     pip install -U mlrun==<version>
     ```
 
-4. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+3. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
 
 ## Configure remote environment
 You have a few options to configure your remote environment:
@@ -64,16 +60,16 @@ You have a few options to configure your remote environment:
 **Example1**<br>
 Run this command in MLRun CLI:
  ```
- mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+ mlrun config set -a http://localhost:8080
  ```
 
 It will create the following environment file:
 ```
 # this is an env file
-MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+MLRUN_DBPATH=http://localhost:8080
 ```
 
-MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint <br>
+MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
 
 **Example2**<br>
 Note: only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**) <br>

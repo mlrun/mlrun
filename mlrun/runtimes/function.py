@@ -389,17 +389,17 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers=8,
-        port=0,
-        host=None,
-        paths=None,
-        canary=None,
-        secret=None,
-        worker_timeout: int = None,
-        gateway_timeout: int = None,
-        trigger_name=None,
-        annotations=None,
-        extra_attributes=None,
+        workers: typing.Optional[int] = 8,
+        port: typing.Optional[int] = None,
+        host: typing.Optional[str] = None,
+        paths: typing.Optional[typing.List[str]] = None,
+        canary: typing.Optional[float] = None,
+        secret: typing.Optional[str] = None,
+        worker_timeout: typing.Optional[int] = None,
+        gateway_timeout: typing.Optional[int] = None,
+        trigger_name: typing.Optional[str] = None,
+        annotations: typing.Optional[typing.Mapping[str, str]] = None,
+        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -407,10 +407,12 @@ class RemoteRuntime(KubeResource):
         if the max time a request will wait for until it will start processing, gateway_timeout must be greater than
         the worker_timeout.
 
-        :param workers:    number of worker processes (default=8)
-        :param port:       TCP port
-        :param host:       hostname
-        :param paths:      list of sub paths
+        :param workers:    number of worker processes (default=8). set 0 to use Nuclio's default workers count
+        :param port:       TCP port to listen on. by default, nuclio will choose a random port as long as
+                           the function service is NodePort. if the function service is ClusterIP, the port
+                           is ignored.
+        :param host:       Ingress hostname
+        :param paths:      list of Ingress sub paths
         :param canary:     k8s ingress canary (% traffic value between 0 and 100)
         :param secret:     k8s secret name for SSL certificate
         :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
@@ -424,6 +426,8 @@ class RemoteRuntime(KubeResource):
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
+        if workers is None:
+            workers = 0
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -440,7 +444,7 @@ class RemoteRuntime(KubeResource):
             ] = f"{gateway_timeout}"
 
         trigger = nuclio.HttpTrigger(
-            workers,
+            workers=workers,
             port=port,
             host=host,
             paths=paths,
@@ -555,7 +559,7 @@ class RemoteRuntime(KubeResource):
         if not dashboard:
             # Attempt auto-mounting, before sending to remote build
             self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+            self._fill_credentials()
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
@@ -1022,8 +1026,8 @@ class RemoteRuntime(KubeResource):
 
     def _resolve_invocation_url(self, path, force_external_address):
 
-        if path.startswith("/"):
-            path = path[1:]
+        if not path.startswith("/") and path != "":
+            path = f"/{path}"
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
@@ -1035,12 +1039,12 @@ class RemoteRuntime(KubeResource):
                 silent=True, log=False
             ).is_running_inside_kubernetes_cluster()
         ):
-            return f"http://{self.status.internal_invocation_urls[0]}/{path}"
+            return f"http://{self.status.internal_invocation_urls[0]}{path}"
 
         if self.status.external_invocation_urls:
-            return f"http://{self.status.external_invocation_urls[0]}/{path}"
+            return f"http://{self.status.external_invocation_urls[0]}{path}"
         else:
-            return f"http://{self.status.address}/{path}"
+            return f"http://{self.status.address}{path}"
 
     def _update_credentials_from_remote_build(self, remote_data):
         self.metadata.credentials = remote_data.get("metadata", {}).get(
@@ -1085,6 +1089,28 @@ class RemoteRuntime(KubeResource):
                 "Mock (simulation) is currently not supported for Nuclio, Turn off the mock (mock=False) "
                 "and make sure Nuclio is installed for real deployment to Nuclio"
             )
+
+    def get_url(
+        self,
+        force_external_address: bool = False,
+        auth_info: AuthInfo = None,
+    ):
+        """
+        This method returns function's url.
+
+        :param force_external_address:   use the external ingress URL
+        :param auth_info:                service AuthInfo
+
+        :return: returns function's url
+        """
+        if not self.status.address:
+            state, _, _ = self._get_state(auth_info=auth_info)
+            if state != "ready" or not self.status.address:
+                raise ValueError(
+                    "no function address or not ready, first run .deploy()"
+                )
+
+        return self._resolve_invocation_url("", force_external_address)
 
 
 def parse_logs(logs):
@@ -1204,7 +1230,6 @@ def compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
-
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
@@ -1239,11 +1264,10 @@ def compile_function_config(
             # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
-    # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
+    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
     # Our code is counting on the strings to be decoded, so add the needed env var for those versions
     if (
-        nuclio_runtime in ["python:3.7", "python:3.8", "python"]
-        and is_nuclio_version_in_range("1.6.0", "1.8.0")
+        is_nuclio_version_in_range("1.6.0", "1.8.0")
         and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
     ):
         env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"

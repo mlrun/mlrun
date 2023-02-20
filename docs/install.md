@@ -3,7 +3,7 @@
 
 This guide outlines the steps for installing and running MLRun. 
 
-MLRun has two main components, the service and the client (SDK):
+MLRun has two main components, the service and the client (SDK and UI):
 
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
 - MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 

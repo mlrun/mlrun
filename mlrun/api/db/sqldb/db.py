@@ -1034,7 +1034,7 @@ class SQLDB(DBInterface):
         tag: str = None,
         labels: List[str] = None,
         hash_key: str = None,
-    ) -> typing.Union[FunctionList, list[dict]]:
+    ) -> typing.Union[FunctionList, List[dict]]:
         project = project or config.default_project
         uids = None
         if tag:

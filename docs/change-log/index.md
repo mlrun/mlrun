@@ -435,7 +435,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | 2199 | Spark operator job fails with default requests args.       | NA                                         | 1.0.0 |
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | 1.1.0 |
-| 2407 | Kafka ingestion service on empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | 1.1.0 |
+| 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | 1.1.0 |
+|  | The feature store does not support schema evolution nor does it have schema enforcement. | NA | v1.2.1 |
 
 ## Limitations
 
@@ -443,6 +444,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                                    | Workaround                           | Opened | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
+| 3315 | The feature store does not support an aggregation of aggregations | NA | v1.2.1 |
 
  
 

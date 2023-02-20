@@ -830,9 +830,7 @@ with ctx:
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
-    class_modes = {
-        RuntimeClassMode.run: "spark",
-    }
+    class_modes = {RuntimeClassMode.run: "spark", RuntimeClassMode.build: "build"}
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object

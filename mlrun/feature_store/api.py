@@ -67,7 +67,7 @@ from .steps import DropFeatures
 
 _v3iofs = None
 spark_transform_handler = "transform"
-ENTITIES_DROPPED_MESSAGE = "Dropping features is illegal on entities keys"
+ENTITIES_DROPPED_MESSAGE = "DropFeatures can only drop features, not entities"
 
 
 def _features_to_vector_and_check_permissions(features, update_stats):

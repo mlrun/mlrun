@@ -17,7 +17,6 @@ package statestore
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -40,17 +39,19 @@ type LogItem struct {
 
 // MarshalledState is a helper struct for marshalling the state
 type marshalledState struct {
-	InProgress map[string]LogItem `json:"inProgress"`
+	InProgress map[string]map[string]LogItem `json:"inProgress"`
 }
 
 type State struct {
+
+	// InProgress is a map of project to a map of runUID to LogItem
 	InProgress *sync.Map `json:"inProgress"`
 }
 
 // UnmarshalJSON is a custom unmarshaler for the state
 func (s *State) UnmarshalJSON(data []byte) error {
 	tempState := marshalledState{
-		InProgress: map[string]LogItem{},
+		InProgress: map[string]map[string]LogItem{},
 	}
 
 	s.InProgress = &sync.Map{}
@@ -58,8 +59,12 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tempState); err != nil {
 		return errors.Wrap(err, "Failed to unmarshal data")
 	}
-	for key, value := range tempState.InProgress {
-		s.InProgress.Store(key, value)
+	for project, runUIDtoLogItem := range tempState.InProgress {
+		projectMap := &sync.Map{}
+		for runUID, logItem := range runUIDtoLogItem {
+			projectMap.Store(runUID, logItem)
+		}
+		s.InProgress.Store(project, projectMap)
 	}
 	return nil
 }
@@ -68,21 +73,37 @@ func (s *State) UnmarshalJSON(data []byte) error {
 func (s *State) MarshalJSON() ([]byte, error) {
 
 	tempState := marshalledState{
-		InProgress: map[string]LogItem{},
+		InProgress: map[string]map[string]LogItem{},
 	}
 
-	s.InProgress.Range(func(key, value interface{}) bool {
-		keyString, ok := key.(string)
+	s.InProgress.Range(func(projectNameKey, runsToLogItemsMapValue interface{}) bool {
+		projectName, ok := projectNameKey.(string)
 		if !ok {
 			return false
 		}
-		valueLogItem, ok := value.(LogItem)
+		runsToLogItemsMap, ok := runsToLogItemsMapValue.(*sync.Map)
 		if !ok {
 			return false
 		}
-		tempState.InProgress[keyString] = valueLogItem
+		runsToLogItemsMap.Range(func(runUIDKey, logItemValue interface{}) bool {
+			runUID, ok := runUIDKey.(string)
+			if !ok {
+				return false
+			}
+			logItem, ok := logItemValue.(LogItem)
+			if !ok {
+				return false
+			}
+			if _, ok := tempState.InProgress[projectName]; !ok {
+				tempState.InProgress[projectName] = map[string]LogItem{}
+			}
+			tempState.InProgress[projectName][runUID] = logItem
+			return true
+		})
+
 		return true
 	})
+
 	return json.Marshal(tempState)
 }
 
@@ -111,8 +132,4 @@ type StateStore interface {
 
 	// GetState returns the state store state
 	GetState() *State
-}
-
-func GenerateKey(runUID, project string) string {
-	return fmt.Sprintf("%s/%s", runUID, project)
 }

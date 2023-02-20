@@ -162,23 +162,23 @@ class Member(abc.ABC):
 
     @staticmethod
     async def _stop_logs_for_project(
-        name: str,
+        project_name: str,
     ) -> None:
 
-        logger.debug("Stopping logs for project", project=name)
+        logger.debug("Stopping logs for project", project=project_name)
 
         try:
             log_collector_client = (
                 mlrun.api.utils.clients.log_collector.LogCollectorClient()
             )
             await log_collector_client.stop_logs(
-                project=name,
+                project=project_name,
             )
         except Exception as exc:
             logger.warning(
                 "Failed stopping logs for project's runs. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
-                project=name,
+                project=project_name,
             )
 
-        logger.debug("Finished stopping logs for project's runs", project=name)
+        logger.debug("Finished stopping logs for project's runs", project=project_name)

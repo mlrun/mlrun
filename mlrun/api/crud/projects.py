@@ -24,7 +24,6 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
-import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s

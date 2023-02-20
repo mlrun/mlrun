@@ -19,7 +19,6 @@ from mlrun.config import config as mlconf
 from mlrun.model import DataTargetBase, new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
-from mlrun.utils.helpers import normalize_name
 
 from ...runtimes import RuntimeKinds
 from ..common import RunConfig

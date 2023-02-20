@@ -46,6 +46,15 @@ VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
 ):
+    """Modifier function to apply to a Container Op to volume mount a v3io path
+    :param name:            the volume name
+    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
+    :param mounts:          list of mount & volume sub paths (type VolumeMount).
+                            empty mounts & remote will default to mount /v3io & /User.
+    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
+    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
+    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
+    """
     return mount_v3io(
         name=name,
         remote=remote,
@@ -73,9 +82,9 @@ def mount_v3io(
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
     """
-    mounts, user = _enrich_and_validate_v3io_mounts(
+    volume_mounts, user = _enrich_and_validate_v3io_mounts(
         remote=remote,
-        mounts=volume_mounts,
+        volume_mounts=volume_mounts,
         user=user,
     )
 
@@ -84,10 +93,12 @@ def mount_v3io(
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
         container_op.add_volume(vol)
-        for mount in mounts:
+        for volume_mount in volume_mounts:
             container_op.container.add_volume_mount(
                 k8s_client.V1VolumeMount(
-                    mount_path=mount.path, sub_path=mount.sub_path, name=name
+                    mount_path=volume_mount.path,
+                    sub_path=volume_mount.sub_path,
+                    name=name,
                 )
             )
 
@@ -125,36 +136,30 @@ def mount_v3io_legacy(
     )
 
 
-def _enrich_and_validate_v3io_mounts(remote="", mounts=None, user=""):
-    """
-    Enrich and validate v3io mounts
-    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
-    :param mounts:          list of mount & volume sub paths (type Mount). empty mounts & remote mount /v3io & /User
-    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
-    """
-    if remote and not mounts:
+def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
+    if remote and not volume_mounts:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "mounts must be specified when remote is given"
+            "volume_mounts must be specified when remote is given"
         )
 
-    # Empty remote & mounts defaults are mounts of /v3io and /User
-    if not remote and not mounts:
+    # Empty remote & volume_mounts defaults are volume mounts of /v3io and /User
+    if not remote and not volume_mounts:
         user = _resolve_mount_user(user)
         if not user:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "user name/env must be specified when using empty remote and mounts"
+                "user name/env must be specified when using empty remote and volume_mounts"
             )
-        mounts = [
+        volume_mounts = [
             VolumeMount(path="/v3io", sub_path=""),
             VolumeMount(path="/User", sub_path="users/" + user),
         ]
 
-    if not isinstance(mounts, list) and any(
-        [not isinstance(x, VolumeMount) for x in mounts]
+    if not isinstance(volume_mounts, list) and any(
+        [not isinstance(x, VolumeMount) for x in volume_mounts]
     ):
         raise TypeError("mounts should be a list of Mount")
 
-    return mounts, user
+    return volume_mounts, user
 
 
 def _resolve_mount_user(user=None):

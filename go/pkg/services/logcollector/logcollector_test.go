@@ -453,19 +453,16 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 		return true
 	})
 
-	// stop log
-	request := &log_collector.StopLogRequest{
-		ProjectToRunUIDs: map[string]*log_collector.StringArray{},
-	}
+	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request.ProjectToRunUIDs[project] = &log_collector.StringArray{
-			Values: runs,
+		request := &log_collector.StopLogRequest{
+			Project: project,
+			RunUIDs: runs,
 		}
+		response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+		suite.Require().NoError(err, "Failed to stop log")
+		suite.Require().True(response.Success, "Expected stop log request to succeed")
 	}
-
-	response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to stop log")
-	suite.logger.DebugWith("Stop log response", "response", response)
 
 	// write state again
 	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())

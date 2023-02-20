@@ -40,10 +40,10 @@ class Functions(
         auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
-        function_obj = mlrun.new_function(
-            name=name, project=project, runtime=function, tag=tag
-        )
         if auth_info:
+            function_obj = mlrun.new_function(
+                name=name, project=project, runtime=function, tag=tag
+            )
             # only need to ensure auth and sensitive data is masked
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                 function_obj,
@@ -55,10 +55,12 @@ class Functions(
                 validate_service_account=False,
                 ensure_security_context=False,
             )
+            function = function_obj.to_dict()
+
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
-            function_obj.to_dict(),
-            name or function_obj.metadata.name,
+            function,
+            name,
             project,
             tag,
             versioned,

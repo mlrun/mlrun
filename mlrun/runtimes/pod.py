@@ -50,6 +50,7 @@ from .utils import (
     verify_requests,
 )
 
+# TODO: add env attribute to the sanitized types
 sanitized_types = {
     "affinity": {
         "attribute_type_name": "V1Affinity",
@@ -152,6 +153,7 @@ class KubeResourceSpec(FunctionSpec):
         self._volume_mounts = {}
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
+        # TODO: add env attribute to the sanitized types
         self.env = env or []
         self._resources = self.enrich_resources_with_default_pod_resources(
             "resources", resources
@@ -950,6 +952,8 @@ class KubeResource(BaseRuntime):
         for env_var in self.spec.env:
             if get_item_name(env_var) == name:
                 # valueFrom is a workaround for now, for some reason the envs aren't getting sanitized
+                # TODO: add env to sanitized attributes and then remove the valueFrom as the sanitized env will have
+                #   value_from key and not valueFrom
                 for value_key in ["value", "value_from", "valueFrom"]:
                     value = get_item_name(env_var, value_key)
                     if value is not None:

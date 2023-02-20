@@ -90,6 +90,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert masked_function_obj.metadata.credentials.access_key.startswith(
             mlrun.model.Credentials.secret_reference_prefix
         )
+        # TODO: once env is sanitized attribute no need to use the camelCase anymore and rather access it is k8s class
         assert (
             masked_function_obj.get_env("V3IO_ACCESS_KEY")["secretKeyRef"] is not None
         )

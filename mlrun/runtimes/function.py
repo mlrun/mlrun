@@ -427,7 +427,7 @@ class RemoteRuntime(KubeResource):
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
         if workers is None:
-            workers = 8
+            workers = 0
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
                 raise ValueError(
@@ -1026,8 +1026,8 @@ class RemoteRuntime(KubeResource):
 
     def _resolve_invocation_url(self, path, force_external_address):
 
-        if path.startswith("/"):
-            path = path[1:]
+        if not path.startswith("/") and path != "":
+            path = f"/{path}"
 
         # internal / external invocation urls is a nuclio >= 1.6.x feature
         # try to infer the invocation url from the internal and if not exists, use external.
@@ -1039,12 +1039,12 @@ class RemoteRuntime(KubeResource):
                 silent=True, log=False
             ).is_running_inside_kubernetes_cluster()
         ):
-            return f"http://{self.status.internal_invocation_urls[0]}/{path}"
+            return f"http://{self.status.internal_invocation_urls[0]}{path}"
 
         if self.status.external_invocation_urls:
-            return f"http://{self.status.external_invocation_urls[0]}/{path}"
+            return f"http://{self.status.external_invocation_urls[0]}{path}"
         else:
-            return f"http://{self.status.address}/{path}"
+            return f"http://{self.status.address}{path}"
 
     def _update_credentials_from_remote_build(self, remote_data):
         self.metadata.credentials = remote_data.get("metadata", {}).get(
@@ -1089,6 +1089,28 @@ class RemoteRuntime(KubeResource):
                 "Mock (simulation) is currently not supported for Nuclio, Turn off the mock (mock=False) "
                 "and make sure Nuclio is installed for real deployment to Nuclio"
             )
+
+    def get_url(
+        self,
+        force_external_address: bool = False,
+        auth_info: AuthInfo = None,
+    ):
+        """
+        This method returns function's url.
+
+        :param force_external_address:   use the external ingress URL
+        :param auth_info:                service AuthInfo
+
+        :return: returns function's url
+        """
+        if not self.status.address:
+            state, _, _ = self._get_state(auth_info=auth_info)
+            if state != "ready" or not self.status.address:
+                raise ValueError(
+                    "no function address or not ready, first run .deploy()"
+                )
+
+        return self._resolve_invocation_url("", force_external_address)
 
 
 def parse_logs(logs):

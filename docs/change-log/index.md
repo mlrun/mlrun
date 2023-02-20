@@ -51,7 +51,6 @@
 
 - MLRun supports Python 3.9.16
 
-
 #### Feature store
 
 - Spark engine supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step.
@@ -443,7 +442,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID   | Description                                                    | Workaround                           | Opened | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
-| 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less (Kubernetes limitation). |  v1.0.0  |
+| 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 
  
 

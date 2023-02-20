@@ -407,7 +407,7 @@ def ingest(
         )
 
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
-    if run_config:
+    if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal in conjunction with run_config"

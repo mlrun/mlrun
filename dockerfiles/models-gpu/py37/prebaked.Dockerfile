@@ -93,3 +93,6 @@ RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install horovod~=${HOROVOD_VERSION} && \
     ldconfig
+
+# install opencv dependencies - putting it here to reuse cache
+RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y

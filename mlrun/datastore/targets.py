@@ -277,7 +277,6 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     table = None
 
     for target in targets:
-
         # if fset is in passthrough mode, ingest skips writing the data to offline targets
         if resource.spec.passthrough and kind_to_driver[target.kind].is_offline:
             continue
@@ -397,6 +396,7 @@ class BaseStoreTarget(DataTargetBase):
             max_events,
             flush_after_seconds,
             schema=schema,
+            credentials_prefix=credentials_prefix,
         )
 
         self.name = name or self.kind
@@ -412,18 +412,18 @@ class BaseStoreTarget(DataTargetBase):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.schema = schema or {}
+        self.credentials_prefix = credentials_prefix
 
         self._target = None
         self._resource = None
         self._secrets = {}
-        self._credentials_prefix = credentials_prefix
 
     def _get_credential(self, key, default_value=None):
         return mlrun.get_secret_or_env(
             key,
             secret_provider=self._secrets,
             default=default_value,
-            prefix=self._credentials_prefix,
+            prefix=self.credentials_prefix,
         )
 
     def _get_store(self):
@@ -559,12 +559,11 @@ class BaseStoreTarget(DataTargetBase):
         driver.path = spec.path
         driver.attributes = spec.attributes
         driver.schema = spec.schema
+        driver.credentials_prefix = spec.credentials_prefix
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
 
-        if hasattr(spec, "_credentials_prefix"):
-            driver._credentials_prefix = spec._credentials_prefix
         if hasattr(spec, "_secrets"):
             driver._secrets = spec._secrets
 
@@ -577,6 +576,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
         driver.storage_options = spec.storage_options
+        driver.credentials_prefix = spec.credentials_prefix
 
         driver._resource = resource
         driver.run_id = spec.run_id
@@ -628,6 +628,7 @@ class BaseStoreTarget(DataTargetBase):
         target.key_bucketing_number = self.key_bucketing_number
         target.partition_cols = self.partition_cols
         target.time_partitioning_granularity = self.time_partitioning_granularity
+        target.credentials_prefix = self.credentials_prefix
 
         self._resource.status.update_target(target)
         return target
@@ -724,7 +725,6 @@ class ParquetTarget(BaseStoreTarget):
         flush_after_seconds: Optional[int] = 900,
         storage_options: Dict[str, str] = None,
     ):
-
         self.path = path
         if partitioned is None:
             partitioned = not self.is_single_file()
@@ -1163,7 +1163,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
 

@@ -76,6 +76,7 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
+        hash_key: str = "",
         labels: typing.List[str] = None,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
@@ -86,5 +87,6 @@ class Functions(
             name,
             project,
             tag,
+            hash_key,
             labels,
         )

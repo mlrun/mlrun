@@ -23,7 +23,7 @@ from mlrun.utils import logger
 from ...runtimes import RuntimeKinds
 from ..common import RunConfig
 from .base import BaseMerger
-
+from mlrun.utils.helpers import normalize_name
 
 def run_merge_job(
     vector,
@@ -43,7 +43,7 @@ def run_merge_job(
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
-    name = f"{name}-merger"
+    name = normalize_name(f"{name}-merger")
     run_config = run_config or RunConfig()
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind

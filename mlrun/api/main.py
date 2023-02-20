@@ -574,9 +574,10 @@ async def _stop_logs_for_runs(runs: list):
             )
         except Exception as exc:
             logger.warning(
-                "Failed stopping logs for run. Ignoring",
+                "Failed stopping logs for runs. Ignoring",
                 exc=err_to_str(exc),
-                project_to_run_uids=project_to_run_uids,
+                project=project_name,
+                run_uids=run_uids,
             )
 
 

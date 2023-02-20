@@ -412,6 +412,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 		}, errors.New(message)
 	}
 
+	// if no run uids were provided, remove the entire project from the state
 	if len(request.RunUIDs) == 0 {
 
 		// remove entire project from persistent state
@@ -437,6 +438,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 		return s.successfulBaseResponse(), nil
 	}
 
+	// remove each run uid from the state
 	for _, runUID := range request.RunUIDs {
 
 		// remove item from persistent state

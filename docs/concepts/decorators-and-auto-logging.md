@@ -87,7 +87,8 @@ def train_and_predict(train_data: pd.DataFrame,
 ...
 ```
 
-**Notice**: `typing` hints like `Optional`, `Union` and `List` are currently not supported but will be in the future. 
+**Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`, `typing.List` etc.) are 
+currently not supported but will be in the future.
 
 > **Note:** If the inputs does not have a type input, the decorator assumes the parameter type in {py:class}`mlrun.datastore.DataItem`. If you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`. You also have the option to specify a dictionary where each key is the name of the input and the value is the type.
 

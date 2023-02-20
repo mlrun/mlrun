@@ -1276,7 +1276,7 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
 
     * Python builtin type - one of ``tuple``, ``list``, ``set``, ``dict`` and ``bytearray``.
     * Full module import path. An alias is not allowed (if ``import pandas as pd`` is used, the type hint cannot be
-      ``pd.DataFrame``).
+      ``pd.DataFrame`` but ``pandas.DataFrame``).
 
     The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
     handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
@@ -1463,7 +1463,9 @@ def handler(
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
 
-                   **Notice**: `typing` hints like `Optional`, `Union` and `List` are currently not supported.
+                   **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`,
+                   `typing.List` etc.) are currently not supported but will be in the future.
+
                    Default: True.
 
     Example::

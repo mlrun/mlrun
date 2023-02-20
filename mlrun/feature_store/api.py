@@ -323,6 +323,17 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
+def validate(featureset: Union[FeatureSet, str]):
+    entities_keys = [entity.name for entity in featureset.spec.entities]
+    for step_name, step_value in featureset.graph.steps.items():
+        if step_name == DropFeatures.__name__:
+            dropped_features = step_value.class_args["features"]
+            if set(dropped_features).intersection(entities_keys):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "DropFeatures can only drop features, not entities"
+                )
+
+
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -406,14 +417,7 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    entities_keys = [e.name for e in featureset.spec.entities]
-    for step_name, step_value in featureset.graph.steps.items():
-        if step_name == DropFeatures.__name__:
-            dropped_features = step_value.class_args["features"]
-            if set(dropped_features).intersection(entities_keys):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "DropFeatures can only drop features, not entities"
-                )
+    validate(featureset=featureset)
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):

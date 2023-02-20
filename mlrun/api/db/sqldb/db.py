@@ -1027,8 +1027,14 @@ class SQLDB(DBInterface):
                 self._delete(session, labeled_class, project=project)
 
     def list_functions(
-        self, session, name=None, project=None, tag=None, labels=None, hash_key=None
-    ):
+        self,
+        session: Session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
+    ) -> typing.Union[FunctionList, list[dict]]:
         project = project or config.default_project
         uids = None
         if tag:

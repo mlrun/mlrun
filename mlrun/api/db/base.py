@@ -216,7 +216,13 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_functions(
-        self, session, name=None, project="", tag="", labels=None, hash_key=None
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
     ):
         pass
 

@@ -21,7 +21,6 @@ import pandas as pd
 
 import mlrun
 import mlrun.errors
-from mlrun.serving.states import get_name
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource

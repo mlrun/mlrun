@@ -27,7 +27,8 @@ def extra_requirements():
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
     #       corresponding line there.
-    #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it there as well
+    #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it
+    #       there as well
     extras_require = {
         # from 1.17.107 boto3 requires botocore>=1.20.107,<1.21.0 which
         # conflicts with s3fs 2021.8.1 that has aiobotocore~=1.4.0

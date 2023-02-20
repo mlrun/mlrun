@@ -402,6 +402,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 		return s.successfulBaseResponse(), nil
 	}
 
+	// validate project name
 	if request.Project == "" {
 		message := "Project name must be provided"
 		s.Logger.ErrorWithCtx(ctx, message)

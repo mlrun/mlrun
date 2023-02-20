@@ -87,7 +87,8 @@ func (s *Store) RemoveLogItem(runUID, project string) error {
 	)
 
 	if projectRunUIDsInProgress, projectExists := s.State.InProgress.Load(project); !projectExists {
-		s.Logger.DebugWith("Project already doesn't exist in state file", "project", project)
+
+		// Project already doesn't exist in state file, nothing to do
 		return nil
 	} else {
 		projectSyncMap, ok = projectRunUIDsInProgress.(*sync.Map)

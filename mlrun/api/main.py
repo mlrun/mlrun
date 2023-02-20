@@ -422,11 +422,12 @@ async def _verify_log_collection_stopped_on_startup():
             states=mlrun.runtimes.constants.RunStates.terminal_states(),
         )
 
-        logger.debug(
-            "Stopping logs for runs which reached terminal state before startup",
-            runs_count=len(runs),
-        )
-        await _stop_logs_for_runs(runs)
+        if len(runs) > 0:
+            logger.debug(
+                "Stopping logs for runs which reached terminal state before startup",
+                runs_count=len(runs),
+            )
+            await _stop_logs_for_runs(runs)
     finally:
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
@@ -551,11 +552,12 @@ async def _stop_logs():
             - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
         )
 
-        logger.debug(
-            "Stopping logs for runs which reached terminal state in the past hour",
-            runs_count=len(runs),
-        )
-        await _stop_logs_for_runs(runs)
+        if len(runs) > 0:
+            logger.debug(
+                "Stopping logs for runs which reached terminal state in the past hour",
+                runs_count=len(runs),
+            )
+            await _stop_logs_for_runs(runs)
     finally:
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 

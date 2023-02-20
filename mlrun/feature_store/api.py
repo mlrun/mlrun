@@ -411,8 +411,8 @@ def ingest(
     entities_keys = [e.name for e in featureset.spec.entities]
     for step_name, step_value in featureset.graph.steps.items():
         if step_name == get_name(name=None, class_name=DropFeatures):
-            dropped_features = step_value.class_args.get("features")
-            if set(dropped_features).intersection(set(entities_keys)):
+            dropped_features = step_value.class_args["features"]
+            if set(dropped_features).intersection(entities_keys):
                 raise mlrun.errors.MLRunInvalidArgumentError(ENTITIES_DROPPED_MESSAGE)
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:

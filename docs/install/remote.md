@@ -7,13 +7,12 @@ You can write your code on a local machine while running your functions on a rem
 - [Prerequisites](#prerequisites)
 - [Set up client environment](#set-up-client-environment)
 - [Configure remote environment](#configure-remote-environment)
-   - [Using environment file and `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-   - [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrun-set-env-from-file-command-in-mlrun-sdk)
+   - [Using `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
    - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
    - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
-## Prerequisites: 
+## Prerequisites
 
 Before you begin, ensure that the following prerequisites are met:
 
@@ -25,17 +24,17 @@ Applications:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-It will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
+<br>This will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
 
 ```{admonition} Note
-To install a specific version, use the following command: pip install mlrun==<version>. Replace the `<version>` placeholder with the MLRun version number.
+To install a specific version, use the following command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size of the installation. The additional packages include:
-    -```pip install mlrun[s3]``` Install requirements for S3 
-    -```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
-    -```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
+     1. ```pip install mlrun[s3]``` Install requirements for S3 
+     2. ```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
+     3. ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
    
       
    - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
@@ -50,12 +49,11 @@ To install a specific version, use the following command: pip install mlrun==<ve
 
 ## Configure remote environment
 You have a few options to configure your remote environment:
-- [Using environment file and `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-- [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrun-set-env-from-file-command-in-mlrun-sdk)
+- [Using `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
 - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
 - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
-### Using environment file and `mlrun config set` command in MLRun CLI
+### Using `mlrun config set` command in MLRun CLI
 
 **Example1**<br>
 Run this command in MLRun CLI:
@@ -72,7 +70,7 @@ MLRUN_DBPATH=http://localhost:8080
 MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
 
 **Example2**<br>
-Note: only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**) <br>
+**Note:** only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**) <br>
 Run this command in MLRun CLI:
  ```
  mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
@@ -106,15 +104,19 @@ The `set` command can work with the following parameters:
 - `--artifact-path` or `-p` to set the [artifact path](https://docs.mlrun.org/en/latest/store/artifacts.html?highlight=artifact_path#artifact-path)
 - `--env-vars` or `-e` to set additional environment variables, e.g. -e `ENV_NAME=<value>`
 
-### Using environment file and `mlrun.set_env_from_file` command in MLRun SDK
+### Using `mlrun.set_environment` command in MLRun SDK
 
-You can also set the environment variables from the environment file via MLRun SDK
-Examples:
+You can set the environment using `mlrun.set_environment` command in MLRun SDK and either use the `env_file` parameter that saves the path/url to the `.env` file (which holds MLRun config and other env vars) or use `args` (without uploading from the environment file), for example:
 
+```python
+# Use local service
+mlrun.set_environment("http://localhost:8080", artifact_path="./")
+# Use remote service
+mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
-# set the env vars from a file and return the results as a dict (e.g. for using in a function)
-env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
 
+Additional examples:
+```python
 # read env vars from dict or file and set as project secrets (plus set the local env)
 project.set_secrets({"SECRET1": "value"})
 project.set_secrets(file_path=env_file)
@@ -123,23 +125,11 @@ project.set_secrets(file_path=env_file)
 function.set_envs(file_path=env_file)
 ```
 
-Explanations:
+Explanations to the examples:
 
-   - `set_env_from_file()` for reading environment files, setting the OS environment and reloading MLRun config
    - `project.set_secrets()` reads dict or secrets env file and stores it in the [project secrets](https://docs.mlrun.org/en/latest/secrets.html?highlight=working)
       (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
    - `function.set_envs()` set the pod environment variables from key/value dict or environment file
-
-### Using `mlrun.set_environment` command in MLRun SDK
-
-**You can set the environment using MLRun SDK, without uploading it from the environment file, for example:**
-
-```python
-# Use local service
-mlrun.set_environment("http://localhost:8080", artifact_path="./")
-# Use remote service
-mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
-```
 
 For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment)
 

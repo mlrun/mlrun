@@ -241,6 +241,10 @@ async def _verify_log_collection_started_on_startup(
             "Found runs which require logs collection",
             runs_uids=runs,
         )
+
+        # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
+        # where the log collection failed (e.g. when the pod is not found for runs that might have reached terminal
+        # state while the API was down)
         await _start_log_and_update_runs(
             start_logs_limit, db_session, runs, best_effort=True
         )
@@ -535,10 +539,11 @@ def _cleanup_runtimes():
 
 async def _stop_logs():
     """
-    Stop logs for runs that are in terminal state and last updated in the last hour
+    Stop logs for runs that are in terminal state and last updated in the previous interval
     """
     logger.debug(
-        "Getting all runs which reached terminal state in the past hour",
+        "Getting all runs which reached terminal state in the previous interval and have logs requested",
+        interval_seconds=int(config.log_collector.stop_logs_interval),
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
@@ -554,7 +559,7 @@ async def _stop_logs():
 
         if len(runs) > 0:
             logger.debug(
-                "Stopping logs for runs which reached terminal state in the past hour",
+                "Stopping logs for runs which reached terminal state in the previous interval",
                 runs_count=len(runs),
             )
             await _stop_logs_for_runs(runs)

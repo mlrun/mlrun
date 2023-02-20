@@ -24,7 +24,7 @@ Applications:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br> This will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
+<br>This will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
 
 ```{admonition} Note
 To install a specific version, use the following command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.

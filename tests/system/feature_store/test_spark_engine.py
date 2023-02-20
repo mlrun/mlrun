@@ -35,7 +35,6 @@ from mlrun.datastore.targets import (
     RedisNoSqlTarget,
 )
 from mlrun.feature_store import FeatureSet
-from mlrun.feature_store.api import ENTITIES_DROPPED_MESSAGE
 from mlrun.feature_store.steps import (
     DateExtractor,
     DropFeatures,
@@ -1206,7 +1205,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fstore.RunConfig(local=False),
             )
-        assert str(ml_run_exception.value) == ENTITIES_DROPPED_MESSAGE
+        assert str(ml_run_exception.value) == "DropFeatures can only drop features, not entities"
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"

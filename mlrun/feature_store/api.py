@@ -67,7 +67,6 @@ from .steps import DropFeatures
 
 _v3iofs = None
 spark_transform_handler = "transform"
-ENTITIES_DROPPED_MESSAGE = "DropFeatures can only drop features, not entities"
 
 
 def _features_to_vector_and_check_permissions(features, update_stats):
@@ -410,10 +409,10 @@ def ingest(
         )
     entities_keys = [e.name for e in featureset.spec.entities]
     for step_name, step_value in featureset.graph.steps.items():
-        if step_name == get_name(name=None, class_name=DropFeatures):
+        if step_name == DropFeatures.__name__:
             dropped_features = step_value.class_args["features"]
             if set(dropped_features).intersection(entities_keys):
-                raise mlrun.errors.MLRunInvalidArgumentError(ENTITIES_DROPPED_MESSAGE)
+                raise mlrun.errors.MLRunInvalidArgumentError("DropFeatures can only drop features, not entities")
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):

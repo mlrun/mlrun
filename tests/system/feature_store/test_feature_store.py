@@ -54,7 +54,6 @@ from mlrun.datastore.targets import (
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
-from mlrun.feature_store.api import ENTITIES_DROPPED_MESSAGE
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder, DropFeatures
@@ -3890,7 +3889,7 @@ class TestFeatureStore(TestMLRunSystem):
                 infer_options=fstore.InferOptions.schema() + fstore.InferOptions.Stats,
                 run_config=fstore.RunConfig(local=True),
             )
-            assert str(ml_run_exception.value) == ENTITIES_DROPPED_MESSAGE
+            assert str(ml_run_exception.value) == "DropFeatures can only drop features, not entities"
 
 
 def verify_purge(fset, targets):

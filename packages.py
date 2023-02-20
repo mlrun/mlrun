@@ -15,11 +15,6 @@
 import os
 import typing
 
-_EXCLUDED_PACKAGES = {
-    "mlrun.api.migrations_sqlite.tests",
-    "mlrun.api.proto",
-}
-
 
 def packages(exclude_packages: typing.List[str] = None) -> typing.List[str]:
     """Get list of project packages"""

@@ -111,6 +111,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + self.pq_target
         return path
 
+    @staticmethod
+    def get_remote_target_dir_path(without_prefix=False):
+        path = "v3io://"
+        if without_prefix:
+            path = ""
+        path += "/bigdata/testdata_target/"
+        return path
+
     @classmethod
     def get_local_csv_source_path(cls):
         return os.path.relpath(str(cls.get_assets_path() / cls.csv_source))
@@ -964,7 +972,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type("mytarget", path=self.get_remote_target_dir_path())
         resp = fstore.get_offline_features(
             fv_name,
             target=target,

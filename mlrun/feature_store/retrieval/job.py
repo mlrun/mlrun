@@ -147,8 +147,11 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
+        file_format = kwargs.get("format")
+        if not file_format:
+            file_format = self.run.status.results["target"]["kind"]
         return mlrun.get_dataitem(self.target_uri).as_df(
-            columns=columns, df_module=df_module, **kwargs
+            columns=columns, df_module=df_module, format=file_format, **kwargs
         )
 
     @property

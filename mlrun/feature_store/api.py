@@ -411,7 +411,9 @@ def ingest(
         if step_name == DropFeatures.__name__:
             dropped_features = step_value.class_args["features"]
             if set(dropped_features).intersection(entities_keys):
-                raise mlrun.errors.MLRunInvalidArgumentError("DropFeatures can only drop features, not entities")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "DropFeatures can only drop features, not entities"
+                )
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):

@@ -26,11 +26,12 @@ from os import environ, makedirs, path, remove
 from typing import Dict, List, Optional, Union
 
 import dotenv
+import git
+import git.exc
 import inflection
 import kfp
 import nuclio
 import yaml
-from git import Repo
 
 import mlrun.api.schemas
 import mlrun.db
@@ -87,11 +88,11 @@ def init_repo(context, url, init_git):
     elif not context_path.is_dir():
         raise ValueError(f"context {context} is not a dir path")
     try:
-        repo = Repo(context)
+        repo = git.Repo(context)
         url = get_repo_url(repo)
     except Exception:
         if init_git:
-            repo = Repo.init(context)
+            repo = git.Repo.init(context)
     return repo, url
 
 
@@ -1647,7 +1648,20 @@ class MlrunProject(ModelObj):
         if repo.is_dirty():
             if not message:
                 raise ValueError("please specify the commit message")
-            repo.git.commit(m=message)
+            try:
+                repo.git.commit(m=message)
+            except git.exc.GitCommandError as exc:
+                if "Please tell me who you are" in str(exc):
+                    warning_message = (
+                        "Git is not configured, please run the following commands and try again:\n"
+                        '\tgit config --global user.email "<my@email.com>"\n'
+                        '\tgit config --global user.name "<name>"\n'
+                        "\tgit config --global credential.helper store\n"
+                    )
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        warning_message
+                    ) from exc
+                raise exc
 
         if not branch:
             raise ValueError("please specify the remote branch")

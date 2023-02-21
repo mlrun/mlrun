@@ -23,7 +23,7 @@ def current_version():
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
 
-            # __version__ = '0.4.6'
+            # __version__ = '1.3.0'
             match = re.search(r"__version__\s*=\s*'([^']+)'", line)
             if match:
                 return match.group(1)
@@ -81,7 +81,15 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "**.ipynb_checkpoints",
+    "CONTRIBUTING.md.",
+    "contributing-to-docs.md",
+    "tutorial/colab/01-mlrun-basics-colab.ipynb",
+]
 
 source_suffix = {
     ".rst": "restructuredtext",

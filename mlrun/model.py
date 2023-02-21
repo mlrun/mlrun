@@ -30,7 +30,6 @@ from .utils import (
     get_artifact_target,
     is_legacy_artifact,
     logger,
-    normalize_name,
 )
 
 # Changing {run_id} will break and will not be backward compatible.
@@ -1261,7 +1260,7 @@ def new_task(
         run = deepcopy(base)
     else:
         run = RunTemplate()
-    run.metadata.name = normalize_name(name or run.metadata.name or "")
+    run.metadata.name = name or run.metadata.name or ""
     run.metadata.project = project or run.metadata.project
     run.spec.handler = handler or run.spec.handler
     run.spec.parameters = params or run.spec.parameters

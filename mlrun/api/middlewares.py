@@ -147,6 +147,7 @@ def _log_headers(request_response):
         "x-v3io-session-key",
         "x-v3io-access-key",
     ]
-    request_headers = request_response.headers.mutablecopy()
+    headers = request_response.headers.mutablecopy()
     for header in headers_to_omit:
-        del request_headers[header]
+        del headers[header]
+    return headers

@@ -324,8 +324,8 @@ def _rename_source_dataframe_columns(df):
 
 
 def validate_graph_steps(featureset: FeatureSet):
-    entities_keys = [entity.name for entity in featureset.spec.entities]
     if DropFeatures.__name__ in featureset.graph.steps:
+        entities_keys = [entity.name for entity in featureset.spec.entities]
         step = featureset.graph.steps[DropFeatures.__name__]
         dropped_features = step.class_args["features"]
         if set(dropped_features).intersection(entities_keys):

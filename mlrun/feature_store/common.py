@@ -200,7 +200,7 @@ class RunConfig:
     ):
         """class for holding function and run specs for jobs and serving functions
 
-        when running feature ingestion or merging tasks we use the RunConfig class to pass
+        When running feature ingestion or merging tasks we use the RunConfig class to pass
         the desired function and job configuration.
         the apply() method is used to set resources like volumes, the with_secret() method adds secrets
 

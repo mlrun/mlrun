@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import numpy as np
+import pandas as pd
 from cloudpickle import load
 
 from mlrun.serving.v2_serving import V2ModelServer
@@ -36,11 +37,15 @@ class PickleModelServer(V2ModelServer):
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        :param body: The request of the model. The input to the model will be read from the "inputs" key.
 
         :return: The model's prediction on the given input.
         """
-        x = np.asarray(body["inputs"])
+        inputs = body["inputs"]
+        if inputs and isinstance(inputs[0], dict):
+            x = pd.DataFrame(inputs[0])
+        else:
+            x = np.asarray(inputs)
 
         y_pred: np.ndarray = self.model.predict(x)
 

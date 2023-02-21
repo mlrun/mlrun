@@ -423,8 +423,10 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
         function: mlrun.runtimes.pod.KubeResource
+        # if no access key is defined then we will try to enrich it using the auth info access key
         if (
-            function.metadata.credentials.access_key
+            not function.metadata.credentials.access_key
+            or function.metadata.credentials.access_key
             == mlrun.model.Credentials.generate_access_key
         ):
             if not auth_info.access_key:
@@ -438,10 +440,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 ]
 
             function.metadata.credentials.access_key = auth_info.access_key
-        if not function.metadata.credentials.access_key:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Function access key must be set (function.metadata.credentials.access_key)"
-            )
+        # after access key was passed or enriched with the condition above, we mask it with creating auth secret
         if not function.metadata.credentials.access_key.startswith(
             mlrun.model.Credentials.secret_reference_prefix
         ):

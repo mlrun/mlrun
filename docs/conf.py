@@ -81,7 +81,15 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints", "CONTRIBUTING.md.", "contributing-to-docs.md", "tutorial/colab/01-mlrun-basics-colab.ipynb"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "**.ipynb_checkpoints",
+    "CONTRIBUTING.md.",
+    "contributing-to-docs.md",
+    "tutorial/colab/01-mlrun-basics-colab.ipynb",
+]
 
 source_suffix = {
     ".rst": "restructuredtext",

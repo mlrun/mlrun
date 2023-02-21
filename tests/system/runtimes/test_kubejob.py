@@ -19,8 +19,8 @@ from sys import executable
 import pytest
 
 import mlrun
+import mlrun.model
 import tests.system.base
-from mlrun.model import new_task
 
 
 def exec_run(args):
@@ -322,8 +322,10 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         )
         function.with_code(str(self.assets_path / "handler.py"))
 
-        task = new_task(name="ASC_merger", handler="set_labels_and_annotations_handler")
+        task = mlrun.model.new_task(
+            name="ASC_merger", handler="set_labels_and_annotations_handler"
+        )
         run = function.run(task, project=self.project_name)
 
-        # Before the change of ML-3265 this test should fail because un normalized test
+        # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
         assert run.metadata.name == "asc-merger"

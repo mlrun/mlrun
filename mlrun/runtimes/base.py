@@ -1497,7 +1497,7 @@ class BaseRuntimeHandler(ABC):
                 force,
                 grace_period,
             )
-        self._delete_resources(
+        self._delete_extra_resources(
             db,
             db_session,
             namespace,
@@ -1718,7 +1718,7 @@ class BaseRuntimeHandler(ABC):
         """
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,
@@ -2054,6 +2054,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        # TODO: don't wait for pods to be deleted, client should poll the deletion status
         self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
         return deleted_pods
 

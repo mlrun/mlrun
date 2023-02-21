@@ -87,7 +87,8 @@ func (s *Store) RemoveLogItem(runUID, project string) error {
 	)
 
 	if projectRunUIDsInProgress, projectExists := s.State.InProgress.Load(project); !projectExists {
-		s.Logger.DebugWith("Project already doesn't exist in state file", "project", project)
+
+		// Project already doesn't exist in state file, nothing to do
 		return nil
 	} else {
 		projectSyncMap, ok = projectRunUIDsInProgress.(*sync.Map)
@@ -104,6 +105,16 @@ func (s *Store) RemoveLogItem(runUID, project string) error {
 	if projectSyncMap != nil && common.SyncMapLength(projectSyncMap) == 0 {
 		s.State.InProgress.Delete(project)
 	}
+	return nil
+}
+
+func (s *Store) RemoveProject(project string) error {
+	if project == "" {
+		return errors.New("Project name is empty")
+	}
+
+	// delete is a no-op if the key doesn't exist
+	s.State.InProgress.Delete(project)
 	return nil
 }
 

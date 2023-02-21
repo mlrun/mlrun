@@ -19,6 +19,7 @@ from sys import executable
 import pytest
 
 import mlrun
+import mlrun.feature_store.common
 import mlrun.model
 import tests.system.base
 
@@ -314,9 +315,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.metadata.annotations.get("annotation1") == "annotation-value1"
 
     def test_normalize_run_name(self):
-        from mlrun.feature_store.common import RunConfig
-
-        function = RunConfig().to_function(
+        function = mlrun.feature_store.common.RunConfig().to_function(
             default_kind="job",
             default_image="mlrun/mlrun",
         )

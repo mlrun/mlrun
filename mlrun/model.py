@@ -1261,7 +1261,7 @@ def new_task(
         run = deepcopy(base)
     else:
         run = RunTemplate()
-    run.metadata.name = name or run.metadata.name or ""
+    run.metadata.name = normalize_name(name or run.metadata.name or "")
     run.metadata.project = project or run.metadata.project
     run.spec.handler = handler or run.spec.handler
     run.spec.parameters = params or run.spec.parameters

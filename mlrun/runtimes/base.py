@@ -65,9 +65,9 @@ from ..utils import (
     get_ui_url,
     is_ipython,
     logger,
+    normalize_name,
     now_date,
     update_in,
-    normalize_name
 )
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
@@ -692,7 +692,9 @@ class BaseRuntime(ModelObj):
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
-        runspec.metadata.name =normalize_name(name or runspec.metadata.name or def_name)
+        runspec.metadata.name = normalize_name(
+            name or runspec.metadata.name or def_name
+        )
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )

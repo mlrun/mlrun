@@ -53,7 +53,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     ):
         logger.debug(
             "Received request",
-            headers=request.headers,
+            headers=_log_headers(request),
             method=request.method,
             client_address=_resolve_client_address(request.scope),
             http_version=request.scope["http_version"],
@@ -90,7 +90,7 @@ async def log_request_response(request: fastapi.Request, call_next):
                 elapsed_time_in_ms=elapsed_time_in_ms,
                 uri=path_with_query_string,
                 method=request.method,
-                headers=response.headers,
+                headers=_log_headers(response),
             )
         return response
 
@@ -138,3 +138,15 @@ def _resolve_client_address(scope):
     if isinstance(scope.get("client"), list):
         scope["client"] = tuple(scope.get("client"))
     return uvicorn.protocols.utils.get_client_addr(scope)
+
+
+def _log_headers(request_response):
+    headers_to_omit = [
+        "authorization",
+        "cookie",
+        "x-v3io-session-key",
+        "x-v3io-access-key",
+    ]
+    request_headers = request_response.headers.mutablecopy()
+    for header in headers_to_omit:
+        del request_headers[header]

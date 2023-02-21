@@ -286,3 +286,12 @@ jobs:
       run: make install-complete-requirements
     - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements
+
+  verify-docs-builds:
+    name: "Pull Request Docs Check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: ammaraskar/sphinx-action@master
+        with:
+          docs-folder: "docs/"

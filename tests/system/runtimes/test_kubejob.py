@@ -20,6 +20,7 @@ import pytest
 
 import mlrun
 import tests.system.base
+from mlrun.model import new_task
 
 
 def exec_run(args):
@@ -282,3 +283,18 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run()
         assert run.metadata.labels.get("label1") == "label-value1"
         assert run.metadata.annotations.get("annotation1") == "annotation-value1"
+
+    def test_normalize_run_name(self):
+        from mlrun.feature_store.common import RunConfig
+
+        function = RunConfig().to_function(
+            default_kind="job",
+            default_image="mlrun/mlrun",
+        )
+        function.with_code(str(self.assets_path / "handler.py"))
+
+        task = new_task(name="ASC_merger", handler="set_labels_and_annotations_handler")
+        run = function.run(task, project=self.project_name)
+
+        # Before the change of ML-3265 this test should fail because un normalized test
+        assert run.metadata.name == "asc-merger"

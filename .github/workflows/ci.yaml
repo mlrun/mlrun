@@ -288,7 +288,7 @@ jobs:
       run: make install-all-requirements
 
   verify-docs-builds:
-    name: "Pull Request Docs Check"
+    name: "Verify Docs builds"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1

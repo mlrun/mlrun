@@ -1196,12 +1196,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         measurements.graph.to(DropFeatures(features=[key]))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
             fstore.ingest(
                 measurements,
                 source,
-                targets,
                 spark_context=self.spark_service,
                 run_config=fstore.RunConfig(local=False),
             )

@@ -3884,16 +3884,11 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
-            fstore.ingest(
-                measurements,
-                source,
-                infer_options=fstore.InferOptions.schema() + fstore.InferOptions.Stats,
-                run_config=fstore.RunConfig(local=True),
-            )
-            assert (
-                str(ml_run_exception.value)
-                == "DropFeatures can only drop features, not entities"
-            )
+            fstore.ingest(measurements, source)
+        assert (
+            str(ml_run_exception.value)
+            == "DropFeatures can only drop features, not entities"
+        )
 
 
 def verify_purge(fset, targets):

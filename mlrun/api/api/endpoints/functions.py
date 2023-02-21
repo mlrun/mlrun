@@ -159,9 +159,9 @@ async def list_functions(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
+    hash_key: str = None,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    hash_key: str = None,
 ):
     if project is None:
         project = config.default_project
@@ -172,12 +172,12 @@ async def list_functions(
     )
     functions = await run_in_threadpool(
         mlrun.api.crud.Functions().list_functions,
-        db_session,
-        project,
-        name,
-        tag,
-        hash_key,
-        labels,
+        db_session=db_session,
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        hash_key=hash_key,
     )
     functions = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,

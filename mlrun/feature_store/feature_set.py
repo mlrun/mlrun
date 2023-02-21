@@ -144,6 +144,19 @@ class FeatureSetSpec(ModelObj):
             for i, entity in enumerate(entities):
                 if isinstance(entity, str):
                     entities[i] = Entity(entity)
+                elif isinstance(entity, Entity) and entity.name is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
+                elif isinstance(entity, dict) and (
+                    "name" not in entity
+                    or ("name" in entity and entity["name"] is None)
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -1009,6 +1022,18 @@ class SparkAggregateByKey(StepToDict):
         )
         return name, column, operations, windows, spark_period
 
+    @staticmethod
+    def _get_aggr(operation, column):
+        import pyspark.sql.functions as funcs
+
+        if operation == "sqr":
+            return funcs.sum(funcs.expr(f"{column} * {column}"))
+        elif operation == "stdvar":
+            return funcs.variance(column)
+        else:
+            func = getattr(funcs, operation)
+            return func(column)
+
     def do(self, event):
         import pyspark.sql.functions as funcs
         from pyspark.sql import Window
@@ -1037,13 +1062,7 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
                     for operation in operations:
-                        if operation == "sqr":
-                            agg = funcs.sum(funcs.expr(f"{column} * {column}"))
-                        elif operation == "stdvar":
-                            agg = funcs.variance(column)
-                        else:
-                            func = getattr(funcs, operation)
-                            agg = func(column)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
                         agg = agg.alias(agg_name)
                         aggs.append(agg)
@@ -1102,11 +1121,9 @@ class SparkAggregateByKey(StepToDict):
                     window_counter += 1
 
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        win_df = win_df.withColumn(
-                            agg_name, func(column).over(function_window)
-                        )
+                        win_df = win_df.withColumn(agg_name, agg.over(function_window))
 
                     union_df = (
                         union_df.unionByName(win_df, allowMissingColumns=True)

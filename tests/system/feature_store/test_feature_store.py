@@ -171,14 +171,6 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fstore.ingest(
-                stocks_set,
-                stocks,
-                infer_options=fstore.InferOptions.default(),
-                run_config=fstore.RunConfig(local=True),
-            )
-
         df = fstore.ingest(
             stocks_set, stocks, infer_options=fstore.InferOptions.default()
         )
@@ -1621,7 +1613,7 @@ class TestFeatureStore(TestMLRunSystem):
         non_default_target_name = "side-target"
         quotes_set.set_targets(
             targets=[
-                CSVTarget(name=non_default_target_name, after_state=side_step_name)
+                CSVTarget(name=non_default_target_name, after_step=side_step_name)
             ],
             default_final_step="FeaturesetValidator",
         )

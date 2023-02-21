@@ -130,6 +130,7 @@ class run_keys:
     input_path = "input_path"
     output_path = "output_path"
     inputs = "inputs"
+    returns = "returns"
     artifacts = "artifacts"
     outputs = "outputs"
     data_stores = "data_stores"

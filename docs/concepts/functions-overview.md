@@ -21,7 +21,7 @@ Batch runtimes:
 
 **Common attributes for Kubernetes based functions** 
 
-All the Kubernetes based runtimes (Job, Dask, Spark, Nuclio, MPIJob, Serving) support a common 
+All the Kubernetes-based runtimes (Job, Dask, Spark, Nuclio, MPIJob, Serving) support a common 
 set of spec attributes and methods for setting the Pods:
 
 function.spec attributes (similar to k8s pod spec attributes):
@@ -38,9 +38,15 @@ common function methods:
 * set_env(name, value)
 * set_envs(env_vars)
 * gpus(gpus, gpu_type)
-* with_limits(mem, cpu, gpus, gpu_type)
-* with_requests(mem, cpu)
 * set_env_from_secret(name, secret, secret_key)
+
+The limits methods are different for Spark and Dask:
+- Spark
+   - with_driver_limits(mem, cpu, gpu_type)
+   - with_executor_limits(mem, cpu, gpu_type)
+- Dask
+   - with_scheduler_limits(mem, cpu, gpu_type)
+   - with_worker_limits(mem, cpu, gpu_type)
 
 **In this section**
 ```{toctree}

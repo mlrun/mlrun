@@ -935,7 +935,8 @@ class SQLDB(DBInterface):
         body_name = function.get("metadata", {}).get("name")
         if body_name and body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested name and name in function body"
+                f"Conflict between requested name and name in function body, function name is {name} while body_name is"
+                f" {body_name}"
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
@@ -1280,10 +1281,10 @@ class SQLDB(DBInterface):
         ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
-        # found a bug in here, which is being exposed for when have multi-param execution, this because each
-        # artifact key is being concatenated with the key and the iteration, this because problemtic in this query
+        # found a bug in here, which is being exposed for when have multi-param execution.
+        # each artifact key is being concatenated with the key and the iteration, this is problematic in this query
         # because we are filtering by the key+iteration and not just the key ( which would require some regex )
-        # this would be fixed as part of the refactoring of the new artifact table structure where we would have
+        # it would be fixed as part of the refactoring of the new artifact table structure where we would have
         # column for iteration as well.
         for artifact in artifacts:
             query = (

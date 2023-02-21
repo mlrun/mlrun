@@ -53,7 +53,7 @@ such as `{{project}}` for the name of the running project or `{{run.uid}}` for t
 (The default artifacts path uses `{{project}}`.) The following example configures the artifacts path to an 
 artifacts directory in the current active directory (`./artifacts`)
 
-    set_environment(project=project_name, artifact_path='./artifacts')
+    set_environment(artifact_path='./artifacts')
 
 ```{admonition} For Iguazio MLOps Platform users
 In the platform, the default artifacts path is a <project name>/artifacts directory in the 

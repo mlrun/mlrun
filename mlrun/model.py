@@ -16,7 +16,6 @@ import inspect
 import pathlib
 import re
 import time
-import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -281,7 +280,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key=None,
+        access_key: str = None,
     ):
         self.access_key = access_key
 
@@ -491,12 +490,27 @@ class RunSpec(ModelObj):
         scrape_metrics=None,
         hyper_param_options=None,
         allow_empty_resources=None,
+        inputs_type_hints=None,
+        returns=None,
     ):
+        # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
+        # keys (parameter names) and the values are the type hint given in the input keys after the colon.
+        # Notice: We set it first as empty dictionary as setting the inputs will set it as well in case the type hints
+        # were passed in the input keys.
+        self._inputs_type_hints = {}
 
         self._hyper_param_options = None
-        self._inputs = inputs
-        self._outputs = outputs
 
+        # Initialize the inputs and returns properties first and then use their setter methods:
+        self._inputs = None
+        self.inputs = inputs
+        if inputs_type_hints:
+            # Override the empty dictionary only if the user passed the parameter:
+            self._inputs_type_hints = inputs_type_hints
+        self._returns = None
+        self.returns = returns
+
+        self._outputs = outputs
         self.hyper_param_options = hyper_param_options
         self.parameters = parameters or {}
         self.hyperparams = hyperparams or {}
@@ -524,12 +538,87 @@ class RunSpec(ModelObj):
         return param_file or self.hyperparams
 
     @property
-    def inputs(self):
+    def inputs(self) -> Dict[str, str]:
+        """
+        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
+
+        :return: The inputs dictionary.
+        """
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs):
+    def inputs(self, inputs: Dict[str, str]):
+        """
+        Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
+        following this structure: "<input key : type hint>".
+
+        :exmaple:
+
+        >>> run_spec.inputs = {
+        ...     "my_input": "...",
+        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ... }
+
+        :param inputs: The inputs to set.
+        """
+        # Check if None, then set and return:
+        if inputs is None:
+            self._inputs = None
+            return
+
+        # Verify it's a dictionary:
         self._inputs = self._verify_dict(inputs, "inputs")
+
+    @property
+    def inputs_type_hints(self) -> Dict[str, str]:
+        """
+        Get the input type hints. A dictionary of parameter names as keys and their type hints as values.
+
+        :return: The input type hints dictionary.
+        """
+        return self._inputs_type_hints
+
+    @inputs_type_hints.setter
+    def inputs_type_hints(self, inputs_type_hints: Dict[str, str]):
+        """
+        Set the inputs type hints to parse during a run.
+
+        :param inputs_type_hints: The type hints to set.
+        """
+        # Verify the given value is a dictionary or None:
+        self._inputs_type_hints = self._verify_dict(
+            inputs_type_hints, "inputs_type_hints"
+        )
+
+    @property
+    def returns(self):
+        """
+        Get the returns list. A list of log hints for returning values.
+
+        :return: The returns list.
+        """
+        return self._returns
+
+    @returns.setter
+    def returns(self, returns: List[Union[str, Dict[str, str]]]):
+        """
+        Set the returns list to log the returning values at the end of a run.
+
+        :param returns: The return list to set.
+
+        :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
+        """
+        if returns is None:
+            self._returns = None
+            return
+        self._verify_list(returns, "returns")
+
+        # Validate:
+        for log_hint in returns:
+            mlrun.run._parse_log_hint(log_hint=log_hint)
+
+        # Store the results:
+        self._returns = returns
 
     @property
     def hyper_param_options(self) -> HyperParamOptions:
@@ -542,11 +631,23 @@ class RunSpec(ModelObj):
         )
 
     @property
-    def outputs(self):
-        return self._outputs
+    def outputs(self) -> List[str]:
+        """
+        Get the expected outputs. The list is constructed from keys of both the `outputs` and `returns` properties.
+
+        :return: The expected outputs list.
+        """
+        return self.join_outputs_and_returns(
+            outputs=self._outputs, returns=self.returns
+        )
 
     @outputs.setter
     def outputs(self, outputs):
+        """
+        Set the expected outputs list.
+
+        :param outputs: A list of expected output keys.
+        """
         self._verify_list(outputs, "outputs")
         self._outputs = outputs
 
@@ -576,6 +677,100 @@ class RunSpec(ModelObj):
             else:
                 return str(self.handler)
         return ""
+
+    def extract_type_hints_from_inputs(self):
+        """
+        This method extracts the type hints from the inputs keys in the input dictionary.
+
+        As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
+        values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
+        hints dictionary - a dictionary of parameter names as keys and their type hints as values. If a parameter is
+        not in the type hints dictionary, its type hint will be `mlrun.DataItem` by default.
+        """
+        # Validate there are inputs to read:
+        if self.inputs is None:
+            return
+
+        # Prepare dictionaries to hold the cleared inputs and type hints:
+        cleared_inputs = {}
+        extracted_inputs_type_hints = {}
+
+        # Clear the inputs from parsing configurations:
+        for input_key, input_value in self.inputs.items():
+            # Look for type hinted in input key:
+            if ":" in input_key:
+                # Separate the user input by colon:
+                input_key, input_type = RunSpec._separate_type_hint_from_input_key(
+                    input_key=input_key
+                )
+                # Collect the type hint:
+                extracted_inputs_type_hints[input_key] = input_type
+            # Collect the cleared input key:
+            cleared_inputs[input_key] = input_value
+
+        # Set the now configuration free inputs and extracted type hints:
+        self.inputs = cleared_inputs
+        self.inputs_type_hints = extracted_inputs_type_hints
+
+    @staticmethod
+    def join_outputs_and_returns(
+        outputs: List[str], returns: List[Union[str, Dict[str, str]]]
+    ) -> List[str]:
+        """
+        Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
+        that were set by the user.
+
+        :param outputs: A spec outputs property - list of output keys.
+        :param returns: A spec returns property - list of key and configuration of how to log returning values.
+
+        :return: The joined 'outputs' and 'returns' list.
+        """
+        # Collect the 'returns' property keys:
+        cleared_returns = []
+        if returns:
+            for return_value in returns:
+                # Check if the return entry is a configuration dictionary or a key-type structure string (otherwise its
+                # just a key string):
+                if isinstance(return_value, dict):
+                    # Set it to the artifact key:
+                    return_value = return_value["key"]
+                elif ":" in return_value:
+                    # Take only the key name (returns values pattern is validated when set in the spec):
+                    return_value = return_value.replace(" ", "").split(":")[0]
+                # Collect it:
+                cleared_returns.append(return_value)
+
+        # Use `set` join to combine the two lists without duplicates:
+        outputs = list(set(outputs if outputs else []) | set(cleared_returns))
+
+        return outputs
+
+    @staticmethod
+    def _separate_type_hint_from_input_key(input_key: str) -> Tuple[str, str]:
+        """
+        An input key in the `inputs` dictionary parameter of a task (or `Runtime.run` method) or the docs setting of a
+        `Runtime` handler can be provided with a colon to specify its type hint in the following structure:
+        "<parameter_key> : <type_hint>".
+
+        This method parses the provided value by the user.
+
+        :param input_key: A string entry in the inputs dictionary keys.
+
+        :return: The value as key and type hint tuple.
+
+        :raise MLRunInvalidArgumentError: If an incorrect pattern was provided.
+        """
+        # Validate correct pattern:
+        if input_key.count(":") > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"the input will be parsed as. Given: {input_key}."
+            )
+
+        # Split into key and type:
+        value_key, value_type = input_key.replace(" ", "").split(":")
+
+        return value_key, value_type
 
 
 class RunStatus(ModelObj):
@@ -1023,6 +1218,7 @@ def new_task(
     artifact_path=None,
     secrets=None,
     base=None,
+    returns=None,
 ) -> RunTemplate:
     """Creates a new task
 
@@ -1047,6 +1243,17 @@ def new_task(
     :param secrets:         extra secrets specs, will be injected into the runtime
                             e.g. ['file=<filename>', 'env=ENV_KEY1,ENV_KEY2']
     :param base:            task instance to use as a base instead of a fresh new task instance
+    :param returns:         List of log hints - configurations for how to log the returning values from the handler's
+                            run (as artifacts or results). The list's length must be equal to the amount of returning
+                            objects. A log hint may be given as:
+
+                            * A string of the key to use to log the returning value as result or as an artifact. To
+                              specify The artifact type, it is possible to pass a string in the following structure:
+                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                              artifact type is specified, the object's default artifact type will be used.
+                            * A dictionary of configurations to use when logging. Further info per object type and
+                              artifact type can be given there. The artifact key must appear in the dictionary as
+                              "key": "the_key".
     """
 
     if base:
@@ -1058,6 +1265,7 @@ def new_task(
     run.spec.handler = handler or run.spec.handler
     run.spec.parameters = params or run.spec.parameters
     run.spec.inputs = inputs or run.spec.inputs
+    run.spec.returns = returns or run.spec.returns
     run.spec.outputs = outputs or run.spec.outputs or []
     run.spec.input_path = in_path or run.spec.input_path
     run.spec.output_path = artifact_path or out_path or run.spec.output_path
@@ -1150,6 +1358,7 @@ class DataSource(ModelObj):
         "max_age",
         "start_time",
         "end_time",
+        "credentials_prefix",
     ]
     kind = None
 
@@ -1164,7 +1373,6 @@ class DataSource(ModelObj):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
-
         self.name = name
         self.path = str(path) if path is not None else None
         self.attributes = attributes or {}
@@ -1201,14 +1409,12 @@ class DataTargetBase(ModelObj):
         "storage_options",
         "run_id",
         "schema",
+        "credentials_prefix",
     ]
 
-    # TODO - remove once "after_state" is fully deprecated
     @classmethod
     def from_dict(cls, struct=None, fields=None):
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields={"after_state": "after_step"}
-        )
+        return super().from_dict(struct, fields=fields)
 
     def get_path(self):
         if self.path:
@@ -1230,19 +1436,10 @@ class DataTargetBase(ModelObj):
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        after_state=None,
         storage_options: Dict[str, str] = None,
         schema: Dict[str, Any] = None,
+        credentials_prefix=None,
     ):
-        if after_state:
-            warnings.warn(
-                "The 'after_state' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use 'after_step' instead",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            after_step = after_step or after_state
-
         self.name = name
         self.kind: str = kind
         self.path = path
@@ -1258,6 +1455,7 @@ class DataTargetBase(ModelObj):
         self.storage_options = storage_options
         self.run_id = None
         self.schema = schema
+        self.credentials_prefix = credentials_prefix
 
 
 class FeatureSetProducer(ModelObj):
@@ -1289,6 +1487,7 @@ class DataTarget(DataTargetBase):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "credentials_prefix",
     ]
 
     def __init__(

@@ -272,26 +272,26 @@ class TestServingRuntime(TestNuclioRuntime):
             name="s4",
             class_name="ChildChain",
             after="s3",
-            function="child_function",
+            function="child-function",
             secret="inline_secret2",
         )
         graph.add_step(
             name="s5",
             class_name="ChildChain",
             after="s4",
-            function="child_function",
+            function="child-function",
             secret="AWS_KEY",
         )
         child_function_path = str(self.assets_path / "serving_child_functions.py")
         function.add_child_function(
-            "child_function", child_function_path, self.image_name
+            "child-function", child_function_path, self.image_name
         )
 
         function.deploy(verbose=True)
         # Child function is deployed before main function
         expected_deploy_params = [
             {
-                "function_name": f"{self.project}-{self.name}-child_function",
+                "function_name": f"{self.project}-{self.name}-child-function",
                 "file_name": child_function_path,
                 "parent_function": function.metadata.name,
             },

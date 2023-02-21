@@ -26,11 +26,12 @@ from os import environ, makedirs, path, remove
 from typing import Dict, List, Optional, Union
 
 import dotenv
+import git
+import git.exc
 import inflection
 import kfp
 import nuclio
 import yaml
-from git import Repo
 
 import mlrun.api.schemas
 import mlrun.db
@@ -87,11 +88,11 @@ def init_repo(context, url, init_git):
     elif not context_path.is_dir():
         raise ValueError(f"context {context} is not a dir path")
     try:
-        repo = Repo(context)
+        repo = git.Repo(context)
         url = get_repo_url(repo)
     except Exception:
         if init_git:
-            repo = Repo.init(context)
+            repo = git.Repo.init(context)
     return repo, url
 
 
@@ -1033,7 +1034,13 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact = {"import_from": artifact, "key": key}
+            artifact_path, _ = self.get_item_absolute_path(
+                artifact, check_path_in_context=True
+            )
+            artifact = {
+                "import_from": artifact_path,
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:
@@ -1098,17 +1105,30 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
-        in_context = False
+    def get_item_absolute_path(
+        self,
+        url: str,
+        check_path_in_context: bool = False,
+    ) -> typing.Tuple[str, bool]:
+        """
+        Get the absolute path of the artifact or function file
+        :param url:                   remote url, absolute path or relative path
+        :param check_path_in_context: if True, will check if the path exists when in the context
+                                      (temporary parameter to allow for backwards compatibility)
+        :returns:                     absolute path / url, whether the path is in the project context
+        """
         # If the URL is for a remote location, we do not want to change it
-        if url and "://" not in url:
-            # We don't want to change the url if the project has no cntext or if it is already absolute
-            if self.spec.context and not url.startswith("/"):
-                in_context = True
-                url = path.normpath(path.join(self.spec.get_code_path(), url))
-                return url, in_context
-            if not path.isfile(url):
-                raise OSError(f"{url} not found")
+        if not url or "://" in url:
+            return url, False
+
+        # We don't want to change the url if the project has no context or if it is already absolute
+        in_context = self.spec.context and not url.startswith("/")
+        if in_context:
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
+
+        if (not in_context or check_path_in_context) and not path.isfile(url):
+            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+
         return url, in_context
 
     def log_artifact(
@@ -1461,7 +1481,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
-        :tag:             function version tag (none for 'latest', can only be set with .py/.ipynb files)
+        :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
         :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
@@ -1628,7 +1648,20 @@ class MlrunProject(ModelObj):
         if repo.is_dirty():
             if not message:
                 raise ValueError("please specify the commit message")
-            repo.git.commit(m=message)
+            try:
+                repo.git.commit(m=message)
+            except git.exc.GitCommandError as exc:
+                if "Please tell me who you are" in str(exc):
+                    warning_message = (
+                        "Git is not configured, please run the following commands and try again:\n"
+                        '\tgit config --global user.email "<my@email.com>"\n'
+                        '\tgit config --global user.name "<name>"\n'
+                        "\tgit config --global credential.helper store\n"
+                    )
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        warning_message
+                    ) from exc
+                raise exc
 
         if not branch:
             raise ValueError("please specify the remote branch")
@@ -2070,6 +2103,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2093,7 +2127,9 @@ class MlrunProject(ModelObj):
         :param selector:        selection criteria for hyper params e.g. "max.accuracy"
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                                 see: :py:class:`~mlrun.model.HyperParamOptions`
-        :param inputs:          input objects (dict of key: path)
+        :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
+                                parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param workdir:         default input artifacts path
         :param labels:          labels to tag the job/run with ({key:val, ..})
@@ -2108,6 +2144,17 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param returns:         List of log hints - configurations for how to log the returning values from the
+                                handler's run (as artifacts or results). The list's length must be equal to the amount
+                                of returning objects. A log hint may be given as:
+
+                                * A string of the key to use to log the returning value as result or as an artifact. To
+                                  specify The artifact type, it is possible to pass a string in the following structure:
+                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                                  artifact type is specified, the object's default artifact type will be used.
+                                * A dictionary of configurations to use when logging. Further info per object type and
+                                  artifact type can be given there. The artifact key must appear in the dictionary as
+                                  "key": "the_key".
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2131,6 +2178,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            returns=returns,
         )
 
     def build_function(

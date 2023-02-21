@@ -655,6 +655,8 @@ class ContextHandler:
 
         :raises MLRunRuntimeError: If an error was raised during the parsing function.
         """
+        if str(type_hint).startswith("typing."):
+            return data_item
         try:
             return self._INPUTS_PARSING_MAP.get(
                 type_hint, self._INPUTS_PARSING_MAP[object]

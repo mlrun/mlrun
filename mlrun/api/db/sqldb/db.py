@@ -935,7 +935,8 @@ class SQLDB(DBInterface):
         body_name = function.get("metadata", {}).get("name")
         if body_name and body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested name and name in function body"
+                f"Conflict between requested name and name in function body, function name is {name} while body_name is"
+                f" {body_name}"
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name

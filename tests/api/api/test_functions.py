@@ -84,28 +84,33 @@ async def test_list_functions_with_hash_key_versioned(
 ):
     await tests.api.api.utils.create_project_async(async_client, PROJECT)
 
+    function_tag = "function-tag"
+    function_project = "project-name"
+    function_name = "function-name"
+
     function = {
         "kind": "job",
         "metadata": {
-            "name": "function-name",
-            "project": "project-name",
-            "tag": "some-tag",
+            "name": function_name,
+            "project": function_project,
+            "tag": function_tag,
         },
         "spec": {"image": "mlrun/mlrun"},
     }
 
+    another_tag = "another-tag"
     function2 = {
         "kind": "job",
         "metadata": {
-            "name": "function-name",
-            "project": "project-name",
-            "tag": "some-tag2",
+            "name": function_name,
+            "project": function_project,
+            "tag": "another-tag",
         },
     }
 
     post_function1_response = await async_client.post(
-        f"func/{function['metadata']['project']}/"
-        f"{function['metadata']['name']}?tag={function['metadata']['tag']}&versioned={True}",
+        f"func/{function_project}/"
+        f"{function_name}?tag={function_tag}&versioned={True}",
         json=function,
     )
 
@@ -114,14 +119,14 @@ async def test_list_functions_with_hash_key_versioned(
 
     # Store another function with the same project and name but different tag and hash key
     post_function2_response = await async_client.post(
-        f"func/{function2['metadata']['project']}/"
-        f"{function2['metadata']['name']}?tag={function2['metadata']['tag']}&versioned={True}",
+        f"func/{function_project}/"
+        f"{function_name}?tag={another_tag}&versioned={True}",
         json=function2,
     )
     assert post_function2_response.status_code == HTTPStatus.OK.value
 
     list_functions_by_hash_key_response = await async_client.get(
-        f"funcs?project={function['metadata']['project']}&name={function['metadata']['name']}&hash_key={hash_key}"
+        f"funcs?project={function_project}&name={function_name}&hash_key={hash_key}"
     )
 
     list_functions_results = list_functions_by_hash_key_response.json()["funcs"]

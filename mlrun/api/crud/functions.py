@@ -76,8 +76,8 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         name: str = "",
         tag: str = "",
-        hash_key: str = "",
         labels: typing.List[str] = None,
+        hash_key: str = "",
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:

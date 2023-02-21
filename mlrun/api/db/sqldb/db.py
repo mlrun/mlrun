@@ -1027,8 +1027,8 @@ class SQLDB(DBInterface):
         name: str = None,
         project: str = None,
         tag: str = None,
-        hash_key: str = None,
         labels: List[str] = None,
+        hash_key: str = None,
     ) -> typing.Union[FunctionList, List[dict]]:
         project = project or config.default_project
         uids = None

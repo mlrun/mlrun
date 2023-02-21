@@ -158,10 +158,10 @@ async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
-    hash_key: str = None,
     labels: List[str] = Query([], alias="label"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    hash_key: str = None,
 ):
     if project is None:
         project = config.default_project

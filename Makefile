@@ -280,7 +280,6 @@ models-core: base-core ## Build models core docker image
 
 .PHONY: models
 models: models-core ## Build models docker image
-	$(MLRUN_MODELS_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
@@ -749,7 +748,7 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	targets="$(MAKECMDGOALS)" ; \
 	for target in $$targets; do \
 		image_name=$${target#"push-"} ; \
-		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG) ; \
+		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) ; \
 		case "$$image_name" in \
 		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \

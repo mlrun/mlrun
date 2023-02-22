@@ -455,10 +455,12 @@ def ensure_function_has_auth_set(
 
             function.metadata.credentials.access_key = auth_info.access_key
 
-        if raise_on_access_key_not_set and not function.metadata.credentials.access_key:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Function access key must be set (function.metadata.credentials.access_key)"
-            )
+        if not function.metadata.credentials.access_key:
+            if raise_on_access_key_not_set:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Function access key must be set (function.metadata.credentials.access_key)"
+                )
+            return
 
         # after access key was passed or enriched with the condition above, we mask it with creating auth secret
         if not function.metadata.credentials.access_key.startswith(

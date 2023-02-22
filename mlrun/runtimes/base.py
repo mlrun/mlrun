@@ -65,6 +65,7 @@ from ..utils import (
     get_ui_url,
     is_ipython,
     logger,
+    normalize_name,
     now_date,
     update_in,
 )
@@ -691,7 +692,9 @@ class BaseRuntime(ModelObj):
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
-        runspec.metadata.name = name or runspec.metadata.name or def_name
+        runspec.metadata.name = normalize_name(
+            name or runspec.metadata.name or def_name
+        )
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
@@ -1071,6 +1074,7 @@ class BaseRuntime(ModelObj):
         verbose=None,
         scrape_metrics=False,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        auto_build: bool = False,
     ):
         """Run a local or remote task.
 
@@ -1094,16 +1098,20 @@ class BaseRuntime(ModelObj):
         :param use_db:          save function spec in the db (vs the workflow file)
         :param verbose:         add verbose prints/logs
         :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts
-                        or results). The list's length must be equal to the amount of returning objects. A
-                        configuration may be given as:
+        :param returns:         List of configurations for how to log the returning values from the handler's run
+                                (as artifacts or results). The list's length must be equal to the amount of returning
+                                objects. A configuration may be given as:
 
-                        * A string of the key to use to log the returning value as result or as an artifact. To specify
-                          The artifact type, it is possible to pass a string in the following structure:
-                          "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                          artifact type is specified, the object's default artifact type will be used.
-                        * A dictionary of configurations to use when logging. Further info per object type and artifact
-                          type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+                                * A string of the key to use to log the returning value as result or as an artifact.
+                                  To specify The artifact type, it is possible to pass a string in the following
+                                  structure:
+                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                                  artifact type is specified, the object's default artifact type will be used.
+                                * A dictionary of configurations to use when logging. Further info per object type and
+                                  artifact type can be given there. The artifact key must appear in the dictionary as
+                                  "key": "the_key".
+        :param auto_build:      when set to True and the function require build it will be built on the first
+                                function run, use only if you dont plan on changing the build config between runs
         :return: KubeFlow containerOp
         """
 
@@ -1143,6 +1151,7 @@ class BaseRuntime(ModelObj):
             in_path=workdir,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
+            auto_build=auto_build,
         )
 
     def with_code(self, from_file="", body=None, with_doc=True):
@@ -1491,7 +1500,7 @@ class BaseRuntimeHandler(ABC):
                 force,
                 grace_period,
             )
-        self._delete_resources(
+        self._delete_extra_resources(
             db,
             db_session,
             namespace,
@@ -1660,6 +1669,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
+                run.setdefault("status", {})[
+                    "status_text"
+                ] = "A runtime resource related to this tun could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
@@ -1712,7 +1724,7 @@ class BaseRuntimeHandler(ABC):
         """
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,
@@ -2048,6 +2060,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        # TODO: don't wait for pods to be deleted, client should poll the deletion status
         self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
         return deleted_pods
 

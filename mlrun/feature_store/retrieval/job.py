@@ -43,7 +43,7 @@ def run_merge_job(
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
-    name = f"{name}_merger"
+    name = f"{name}-merger"
     run_config = run_config or RunConfig()
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind

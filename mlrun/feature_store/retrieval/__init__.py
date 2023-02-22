@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.errors
 
 from .dask_merger import DaskFeatureMerger
 from .job import run_merge_job  # noqa
@@ -28,4 +29,9 @@ mergers = {
 def get_merger(kind):
     if not kind:
         return LocalFeatureMerger
-    return mergers.get(kind)
+    merger = mergers.get(kind)
+    if not merger:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"No merger was found for engine '{kind}'. Supported engines: {', '.join(mergers)}."
+        )
+    return merger

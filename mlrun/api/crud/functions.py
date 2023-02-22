@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
@@ -36,8 +37,26 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         versioned: bool = False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
+        if auth_info:
+            function_obj = mlrun.new_function(
+                name=name, project=project, runtime=function, tag=tag
+            )
+            # only need to ensure auth and sensitive data is masked
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                function_obj,
+                auth_info,
+                ensure_auth=True,
+                mask_sensitive_data=True,
+                # below is not needed as part of storing the function but rather validated when running the function
+                perform_auto_mount=False,
+                validate_service_account=False,
+                ensure_security_context=False,
+            )
+            function = function_obj.to_dict()
+
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
             function,
@@ -77,14 +96,16 @@ class Functions(
         name: str = "",
         tag: str = "",
         labels: typing.List[str] = None,
+        hash_key: str = "",
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         return mlrun.api.utils.singletons.db.get_db().list_functions(
-            db_session,
-            name,
-            project,
-            tag,
-            labels,
+            session=db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            hash_key=hash_key,
         )

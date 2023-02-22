@@ -766,7 +766,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
@@ -780,7 +780,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
-        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+        result_dict = (
+            data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .sort_values("time")
+            .to_dict(orient="list")
+        )
 
         expected_results = df.to_dict(orient="list")
         expected_results.update(
@@ -788,6 +793,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
+                "bid_sqr_2h": [4000000, 100, 4000144, 356, 420],
+                "bid_stdvar_2h": [
+                    "NaN-was-here",
+                    "NaN-was-here",
+                    1976072,
+                    18,
+                    17.333333333333332,
+                ],
             }
         )
         assert result_dict == expected_results
@@ -803,13 +816,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
         )
         fstore.ingest(storey_data_set, source)
 
-        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        storey_df = (
+            storey_data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .reset_index()
+            .sort_values("time")
+        )
         print(f"Storey results:\n{storey_df.to_string()}\n")
         storey_result_dict = storey_df.to_dict(orient="list")
 

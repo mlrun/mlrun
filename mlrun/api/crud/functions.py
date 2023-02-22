@@ -49,7 +49,7 @@ class Functions(
             # want to enrich if user didn't requested.
             # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
             mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
-                function_obj, auth_info, raise_on_auth_not_set=False
+                function_obj, auth_info, allow_empty_access_key=True
             )
             function = function_obj.to_dict()
 

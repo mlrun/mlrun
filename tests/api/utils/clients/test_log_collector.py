@@ -22,7 +22,6 @@ import sqlalchemy.orm.session
 import mlrun
 import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
-import mlrun.api.utils.projects.member
 
 
 class BaseLogCollectorResponse:

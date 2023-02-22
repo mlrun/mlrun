@@ -21,6 +21,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
 import mlrun.utils.singleton
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -150,18 +151,15 @@ class Member(abc.ABC):
     ) -> mlrun.api.schemas.ProjectOwner:
         pass
 
-    async def on_after_delete_project(
+    async def post_delete_project(
         self,
         project_name: str,
     ):
-        logger.debug(
-            "Running on_after_delete_project",
-            project=project_name,
-        )
-        await self._stop_logs_for_project(project_name)
+        if config.log_collector.mode != mlrun.api.schemas.LogsCollectorMode.legacy:
+            await self._stop_logs_for_project(project_name)
 
-    @staticmethod
     async def _stop_logs_for_project(
+        self,
         project_name: str,
     ) -> None:
 

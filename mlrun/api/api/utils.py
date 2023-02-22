@@ -230,7 +230,9 @@ def apply_enrichment_and_validation_on_function(
 
 
 def ensure_function_auth_and_sensitive_data_is_masked(
-    function, auth_info: mlrun.api.schemas.AuthInfo, allow_empty_access_key: bool = False
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    allow_empty_access_key: bool = False,
 ):
     ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
     mask_function_sensitive_data(function, auth_info)

@@ -700,9 +700,6 @@ def test_delete_project_with_stop_logs(
         # deletion strategy - cascading - should succeed and remove all related resources
         response = client.delete(
             f"projects/{project_name}",
-            headers={
-                mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
-            },
         )
         assert response.status_code == HTTPStatus.NO_CONTENT.value
 

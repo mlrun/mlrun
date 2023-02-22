@@ -247,6 +247,7 @@ def test_marketplace_source_manager(
     )
 
 
+# TODO: Unskip when fixed
 @pytest.mark.skip("fails intermittently in CI")
 def test_marketplace_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,

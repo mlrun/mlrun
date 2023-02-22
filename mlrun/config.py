@@ -94,7 +94,7 @@ default_config = {
     # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
-    # before deleting them
+    # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
     "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter

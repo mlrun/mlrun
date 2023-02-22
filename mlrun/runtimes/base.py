@@ -1666,10 +1666,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
-                run.setdefault("status", {})["status_text"] = (
-                    "Were not able to find a runtime resource related to the run, "
-                    "therefore assuming run status as Error"
-                )
+                run.setdefault("status", {})[
+                    "status_text"
+                ] = "A runtime resource related to this tun could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 

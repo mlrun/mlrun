@@ -28,24 +28,6 @@ class LogCollectorErrorCode(enum.Enum):
     ErrCodeInternal = 1
 
 
-_log_collector_client = None
-
-
-def get_log_collector_client(reuse=True) -> "LogCollectorClient":
-    """
-    Returns a singleton instance of the log collector client, unless reuse is set to False
-    :param reuse: Whether to reuse the singleton instance
-    :return: The log collector client
-    """
-    if not reuse:
-        return LogCollectorClient()
-
-    global _log_collector_client
-    if not _log_collector_client:
-        _log_collector_client = LogCollectorClient()
-    return _log_collector_client
-
-
 class LogCollectorClient(
     mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
     metaclass=mlrun.utils.singleton.Singleton,

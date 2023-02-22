@@ -81,7 +81,7 @@ class TestLogCollector:
         run_uid = "123"
         project_name = "some-project"
         selector = f"mlrun/project={project_name},mlrun/uid={run_uid}"
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -113,7 +113,7 @@ class TestLogCollector:
     ):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         log_byte_string = b"some log"
 

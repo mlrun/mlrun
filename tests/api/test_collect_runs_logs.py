@@ -37,7 +37,7 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -86,7 +86,7 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
@@ -115,7 +115,7 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -170,7 +170,7 @@ class TestCollectRunSLogs:
     async def test_collect_logs_with_runs_fails(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -205,7 +205,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_local_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -220,7 +220,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_job_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -235,7 +235,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_failure(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = mlrun.api.utils.clients.log_collector.get_log_collector_client()
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "some error")
         )

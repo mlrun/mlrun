@@ -15,15 +15,15 @@ import os
 import typing
 
 
-def install_requirements():
+def base_requirements() -> typing.List[str]:
     return list(_load_dependencies_from_file("requirements.txt"))
 
 
-def dev_requirements():
+def dev_requirements() -> typing.List[str]:
     return list(_load_dependencies_from_file("dev-requirements.txt"))
 
 
-def extra_requirements():
+def extra_requirements() -> typing.Dict[str, typing.List[str]]:
 
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
@@ -136,11 +136,8 @@ def _get_extra_dependencies(
     exclude = exclude or []
     base_deps = base_deps or []
     extras_require = extras_require or {}
-    extra_deps = {
-        requirement
-        for extra_key, requirement_list in extras_require.items()
-        for requirement in requirement_list
-        if extra_key not in exclude and (not include or extra_key in include)
-    }
-    extra_deps.update(base_deps)
+    extra_deps = set(base_deps)
+    for extra_key, requirement_list in extras_require.items():
+        if extra_key not in exclude and (not include or extra_key in include):
+            extra_deps.update(requirement_list)
     return list(sorted(extra_deps))

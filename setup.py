@@ -59,7 +59,7 @@ setup(
             "mlrun.api.proto",
         ]
     ),
-    install_requires=dependencies.install_requirements(),
+    install_requires=dependencies.base_requirements(),
     tests_require=dependencies.dev_requirements(),
     extras_require=dependencies.extra_requirements(),
     classifiers=[

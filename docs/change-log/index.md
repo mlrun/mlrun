@@ -20,7 +20,7 @@
 
 
 
-- The base images mlrun/mlrun:1.3.0 etc. are based on python 3.9.16. <br>
+- The base images mlrun/mlrun:1.3.0 etc. are based on python 3.9. <br>
       For Iguazio <=3.5.2:
 	1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
     2. Within the Jupyter service, open a terminal and run:
@@ -39,26 +39,26 @@
 #### APIs
 
 - New APIs may require a new version of the MLRun client/server **ML-3266**
+APIs for logs??
 
 **Modified APIs**
 - **[Deprecated APIs](#api-130)**.
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
-- New APIs may require new version of MLRun client/server.
-
  
  
 #### Infrastructure
 
-- MLRun supports Python 3.9.16
+- MLRun supports Python 3.9.
 
 #### Feature store
 
 - Spark engine supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step.
-- Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector)
-- Supports SQLSource for batch ingestion and real time ingestion in the feature store, and SQLTarget (supports storey, does not support Spark). 
-   See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store)
+- Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
+- Supports SQLSource for batch ingestion and real time ingestion in the feature store
+- Supports SQLTarget for storey engine. (Spark is nor yet supported.) 
+   See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
 - The RedisNoSqlTarget now supports the Spark engine.
-- The username and password for the RedisNoSqlTarget aare now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where "<prefix>" is the optional 
+- The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where "<prefix>" is the optional 
    RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
@@ -78,10 +78,10 @@
 
 
 #### Third party integrations
-- Supports Confluent Kafka as a feature store data-source (Tech Preview). See [Confluent Kafka data source](../data-prep/ingest-data-fs.html#confluent-kafka-data-source).
+- Supports private repo as a function hub. See []()
 
 #### UI
-- The new **Projects** home page provides easy and intuitive access to the common project tasks.
+- The new and improved  **Projects** home page provides easy and intuitive access to the common project tasks.
 
 
 <a id="api-130"></a>
@@ -89,8 +89,7 @@
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
 
 **Deprecated and removed from v1.3.0 code**<br>
-The following MLRun APIs have been deprecated since at least v1.0.0. Until now, a warning appeared if you attempted to use them. 
-They are now removed from the code:
+The following MLRun APIs have been deprecated since at least v1.0.0 and are now removed from the code:
 - `project.workflows`
 - `project.functions`
 - `project.artifacts`
@@ -128,7 +127,7 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 - Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
 - `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
 - Dask CLI worker memory limit argument fixed. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
-    
+- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down.
     
     
 ### See more
@@ -146,6 +145,9 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 #### Feature store
 - Supports ingesting Avro-encoded Kafka records. [View in Git](https://github.com/mlrun/mlrun/issues/2649).
 
+#### Third party integrations
+- Supports Confluent Kafka as a feature store data-source (Tech Preview). See [Confluent Kafka data source](../data-prep/ingest-data-fs.html#confluent-kafka-data-source).
+    
 ### Closed issues
 
 - Fix: the **Projects | Jobs | Monitor Workflows** view is now accurate when filtering for > 1 hour. [View in Git](https://github.com/mlrun/mlrun/pull/2786).

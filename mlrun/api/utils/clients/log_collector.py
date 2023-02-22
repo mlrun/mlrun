@@ -71,6 +71,7 @@ class LogCollectorClient(
         run_uid: str,
         selector: str,
         project: str = "",
+        best_effort: bool = False,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> (bool, str):
@@ -80,12 +81,17 @@ class LogCollectorClient(
         :param selector: The selector to filter the logs by (e.g. "application=mlrun,job-name=job")
             format is key1=value1,key2=value2
         :param project: The project name
+        :param best_effort: Whether to start logs collection in best-effort mode, meaning that success will be returned
+            even if the logs collection failed to start (e.g. if the pod doesn't exist)
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
         :return: A tuple of (success, error)
         """
         request = self._log_collector_pb2.StartLogRequest(
-            runUID=run_uid, selector=selector, projectName=project
+            runUID=run_uid,
+            selector=selector,
+            projectName=project,
+            bestEffort=best_effort,
         )
         logger.debug(
             "Starting logs", run_uid=run_uid, selector=selector, project=project
@@ -158,12 +164,12 @@ class LogCollectorClient(
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
-                        if verbose:
-                            logger.warning(msg, error=chunk.errorMessage)
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
                                 f"{msg},error= {chunk.errorMessage}"
                             )
+                        if verbose:
+                            logger.warning(msg, error=chunk.errorMessage)
                     yield chunk.logs
                 return
             except Exception as exc:
@@ -218,32 +224,24 @@ class LogCollectorClient(
         raise_on_error: bool = True,
     ) -> None:
         """
-        PLACEHOLDER UNTIL PR #3082 IS MERGED
+        Stop logs streaming from the log collector service
+        :param project: The project name
+        :param run_uids: The run uids to stop logs for, if not provided will stop logs for all runs in the project
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: None
         """
-        logger.debug(
-            "Got stop logs request",
-            project=project,
-            run_uids=run_uids,
-        )
 
         request = self._log_collector_pb2.StopLogRequest(
-            project=project,
-            runUIDs=run_uids,
+            project=project, runUIDs=run_uids
         )
 
-        logger.debug("Stopping logs", project=project, run_uids=run_uids)
-
-        try:
-            await self._call("StopLog", request)
-
-        except Exception as exc:
-            logger.warning(
-                "Failed to stop logs",
-                exc=mlrun.errors.err_to_str(exc),
-            )
-        finally:
-            logger.debug(
-                "Stopped logs successfully",
-                project=project,
-                run_uids=run_uids,
-            )
+        response = await self._call("StopLog", request)
+        if not response.success:
+            msg = "Failed to stop logs"
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)

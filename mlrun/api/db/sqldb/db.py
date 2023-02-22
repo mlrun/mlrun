@@ -235,7 +235,7 @@ class SQLDB(DBInterface):
         project: str = None,
         requested_logs_modes: typing.List[bool] = None,
         only_uids=True,
-        last_start_time_from: datetime = None,
+        last_update_time_from: datetime = None,
         states: typing.List[str] = None,
     ) -> typing.Union[typing.List[str], RunList]:
         """
@@ -245,7 +245,7 @@ class SQLDB(DBInterface):
         :param requested_logs_modes: If not `None`, will return only runs with the given requested logs modes
         :param only_uids: If True, will return only the uids of the runs as list of strings
                           If False, will return the full run objects as RunList
-        :param last_start_time_from: If not `None`, will return only runs created after this time
+        :param last_update_time_from: If not `None`, will return only runs updated after this time
         :param states: If not `None`, will return only runs with the given states
         :return: List of runs uids or RunList
         """
@@ -261,8 +261,8 @@ class SQLDB(DBInterface):
         if states:
             query = query.filter(Run.state.in_(states))
 
-        if last_start_time_from is not None:
-            query = query.filter(Run.start_time >= last_start_time_from)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
@@ -935,7 +935,8 @@ class SQLDB(DBInterface):
         body_name = function.get("metadata", {}).get("name")
         if body_name and body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested name and name in function body"
+                f"Conflict between requested name and name in function body, function name is {name} while body_name is"
+                f" {body_name}"
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name

@@ -68,7 +68,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert function.spec.image == expected_spec_image
         function.run()
 
-    def test_store_function_is_getting_masked(self):
+    def test_store_function_is_not_failing_if_generate_access_key_not_requested(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         function_name = "simple-function"
         function = mlrun.code_to_function(

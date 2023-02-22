@@ -674,12 +674,6 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
-    log_collector._call = unittest.mock.AsyncMock(
-        return_value=tests.api.utils.clients.test_log_collector.BaseLogCollectorResponse(
-            True, ""
-        )
-    )
     mlrun.config.config.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
@@ -695,17 +689,25 @@ def test_delete_project_with_stop_logs(
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
-    # deletion strategy - cascading - should succeed and remove all related resources
-    response = client.delete(
-        f"projects/{project_name}",
-        headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
-        },
-    )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
+    log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+    with unittest.mock.patch.object(
+        mlrun.api.utils.clients.log_collector.LogCollectorClient,
+        "_call",
+        return_value=tests.api.utils.clients.test_log_collector.BaseLogCollectorResponse(
+            True, ""
+        ),
+    ):
+        # deletion strategy - cascading - should succeed and remove all related resources
+        response = client.delete(
+            f"projects/{project_name}",
+            headers={
+                mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
+            },
+        )
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert log_collector._call.call_count == 1
-    assert log_collector._call.call_args[0][0] == "StopLog"
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "StopLog"
 
 
 # leader format is only relevant to follower mode

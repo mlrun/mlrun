@@ -1022,16 +1022,23 @@ class SQLDB(DBInterface):
         for tagged_class in _tagged:
             self._delete(session, tagged_class, project=project)
 
-    def _delete_resources_labels(self, session: Session, project: str):
-        for labeled_class in _labeled:
-            if hasattr(labeled_class, "project"):
-                self._delete(session, labeled_class, project=project)
-
-    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self,
+        session: Session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
+    ) -> typing.Union[FunctionList, List[dict]]:
         project = project or config.default_project
         uids = None
         if tag:
             uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
+            if hash_key:
+                uids = [uid for uid in uids if uid == hash_key] or None
+        if not tag and hash_key:
+            uids = [hash_key]
         functions = FunctionList()
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
@@ -1061,6 +1068,11 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = tag
                 functions.append(function_dict)
         return functions
+
+    def _delete_resources_labels(self, session: Session, project: str):
+        for labeled_class in _labeled:
+            if hasattr(labeled_class, "project"):
+                self._delete(session, labeled_class, project=project)
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
         query = session.query(Function.Tag).filter(

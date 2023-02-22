@@ -96,14 +96,16 @@ class Functions(
         name: str = "",
         tag: str = "",
         labels: typing.List[str] = None,
+        hash_key: str = "",
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         return mlrun.api.utils.singletons.db.get_db().list_functions(
-            db_session,
-            name,
-            project,
-            tag,
-            labels,
+            session=db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            hash_key=hash_key,
         )

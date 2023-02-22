@@ -158,9 +158,9 @@ def run_local(
     :param artifact_path: default artifact output path
     :param mode:    Runtime mode for more details head to `mlrun.new_function`
     :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                    (allows to have function which don't depend on having targets,
-                                    e.g a function which accepts a feature vector uri and generate
-                                     the offline vector e.g. parquet_ for it if it doesn't exist)
+                                    (allows to have function that doesn't depend on having targets,
+                                    e.g a function that accepts a feature vector uri and generates
+                                    the offline vector for it, e.g. parquet, if it doesn't exist)
     :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
                      results). The list's length must be equal to the amount of returning objects. A configuration may
                      be given as:
@@ -1274,9 +1274,9 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     Parse a given type hint from string to its actual hinted type class object. The string must be one of the following:
 
-    * Python builtin type - one of `tuple`, `list`, `set`, `dict` and `bytearray`.
-    * Full module import path. An alias (if import pandas as pd is used, the type hint cannot be `pd.DataFrame`) is
-      not allowed.
+    * Python builtin type - one of ``tuple``, ``list``, ``set``, ``dict`` and ``bytearray``.
+    * Full module import path. An alias is not allowed (if ``import pandas as pd`` is used, the type hint cannot be
+      ``pd.DataFrame`` but ``pandas.DataFrame``).
 
     The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
     handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
@@ -1294,6 +1294,11 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     if not isinstance(type_hint, str):
         return type_hint
+
+    # TODO: Remove once Packager is implemented (it will support typing hints)
+    # If a typing hint is provided, we return a dummy Union type so the parser will skip the data item:
+    if type_hint.startswith("typing."):
+        return Union[int, str]
 
     # Validate the type hint is a valid module path:
     if not bool(
@@ -1457,6 +1462,9 @@ def handler(
                    * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
+
+                   **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`,
+                   `typing.List` etc.) are currently not supported but will be in the future.
 
                    Default: True.
 

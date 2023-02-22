@@ -766,7 +766,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
@@ -780,7 +780,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
-        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+        result_dict = (
+            data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .sort_values("time")
+            .to_dict(orient="list")
+        )
 
         expected_results = df.to_dict(orient="list")
         expected_results.update(
@@ -788,6 +793,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
+                "bid_sqr_2h": [4000000, 100, 4000144, 356, 420],
+                "bid_stdvar_2h": [
+                    "NaN-was-here",
+                    "NaN-was-here",
+                    1976072,
+                    18,
+                    17.333333333333332,
+                ],
             }
         )
         assert result_dict == expected_results
@@ -803,13 +816,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
         )
         fstore.ingest(storey_data_set, source)
 
-        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        storey_df = (
+            storey_data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .reset_index()
+            .sort_values("time")
+        )
         print(f"Storey results:\n{storey_df.to_string()}\n")
         storey_result_dict = storey_df.to_dict(orient="list")
 
@@ -1092,9 +1110,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1127,7 +1153,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -1187,6 +1216,26 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+        assert (
+            str(ml_run_exception.value)
+            == "DropFeatures can only drop features, not entities"
+        )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"

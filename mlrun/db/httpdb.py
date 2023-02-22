@@ -16,6 +16,7 @@ import http
 import tempfile
 import time
 import traceback
+import typing
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -801,8 +802,18 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()["tags"]
 
-    def store_function(self, function, name, project="", tag=None, versioned=False):
+    def store_function(
+        self,
+        function: typing.Union[mlrun.runtimes.BaseRuntime, dict],
+        name,
+        project="",
+        tag=None,
+        versioned=False,
+    ):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
+        name = mlrun.utils.normalize_name(name)
+        if hasattr(function, "to_dict"):
+            function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project

@@ -152,6 +152,30 @@ class DataStore:
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
+            filesystem = self.get_filesystem()
+            if filesystem:
+                if filesystem.isdir(url):
+
+                    def reader(*args, **kwargs):
+                        base_path = args[0]
+                        file_entries = filesystem.listdir(base_path)
+                        filenames = []
+                        for file_entry in file_entries:
+                            if (
+                                file_entry["name"].endswith(".csv")
+                                and file_entry["size"] > 0
+                                and file_entry["type"] == "file"
+                            ):
+                                filename = file_entry["name"]
+                                filename = filename.split("/")[-1]
+                                filenames.append(filename)
+                        dfs = []
+                        for filename in filenames:
+                            updated_args = [f"{base_path}/{filename}"]
+                            updated_args.extend(args[1:])
+                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        return pd.concat(dfs)
+
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns

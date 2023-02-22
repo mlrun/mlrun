@@ -83,7 +83,7 @@ class MySQLUtil(object):
         try:
             with connection.cursor() as cursor:
                 for check_table in self.check_tables:
-                    cursor.execute(f"SELECT COUNT(*) FROM `{check_table}`;")
+                    cursor.execute("SELECT COUNT(*) FROM %s;", (check_table,))
                     if cursor.fetchone()[0] > 0:
                         return True
             return False

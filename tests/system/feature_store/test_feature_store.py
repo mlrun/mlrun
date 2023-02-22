@@ -56,7 +56,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
+from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
@@ -1370,7 +1370,7 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    @pytest.mark.parametrize("engine", ["pandas", "storey", None])
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_ingest_default_targets_for_engine(self, engine):
         data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 
@@ -3873,6 +3873,22 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert isinstance(df, pd.DataFrame)
+
+    def test_ingest_with_steps_drop_features(self):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+            fstore.ingest(measurements, source)
+        assert (
+            str(ml_run_exception.value)
+            == "DropFeatures can only drop features, not entities"
+        )
 
 
 def verify_purge(fset, targets):

@@ -19,6 +19,8 @@ from sys import executable
 import pytest
 
 import mlrun
+import mlrun.feature_store.common
+import mlrun.model
 import tests.system.base
 
 
@@ -65,6 +67,50 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.deploy()
         assert function.spec.image == expected_spec_image
         function.run()
+
+    def test_store_function_is_not_failing_if_generate_access_key_not_requested(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        function_name = "simple-function"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+        hash_key = function.save(versioned=True)
+        function = mlrun.get_run_db().get_function(
+            function_name, project=self.project_name, tag="latest", hash_key=hash_key
+        )
+        assert not function["metadata"]["credentials"]["access_key"]
+
+    def test_store_function_after_run_local_verify_credentials_are_masked(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        function_name = "simple-function"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+        function.run(local=True)
+        assert function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.generate_access_key
+        )
+
+        hash_key = mlrun.get_run_db().store_function(
+            function.to_dict(), function_name, self.project_name
+        )
+        masked_function = mlrun.get_run_db().get_function(
+            function.metadata.name, self.project_name, tag="latest", hash_key=hash_key
+        )
+        masked_function_obj = mlrun.new_function(runtime=masked_function)
+        assert masked_function_obj.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        )
+        # TODO: once env is sanitized attribute no need to use the camelCase anymore and rather access it is k8s class
+        assert (
+            masked_function_obj.get_env("V3IO_ACCESS_KEY")["secretKeyRef"] is not None
+        )
 
     def test_deploy_function_after_deploy(self):
         # ML-2701
@@ -282,3 +328,18 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run()
         assert run.metadata.labels.get("label1") == "label-value1"
         assert run.metadata.annotations.get("annotation1") == "annotation-value1"
+
+    def test_normalize_run_name(self):
+        function = mlrun.feature_store.common.RunConfig().to_function(
+            default_kind="job",
+            default_image="mlrun/mlrun",
+        )
+        function.with_code(str(self.assets_path / "handler.py"))
+
+        task = mlrun.model.new_task(
+            name="ASC_merger", handler="set_labels_and_annotations_handler"
+        )
+        run = function.run(task, project=self.project_name)
+
+        # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
+        assert run.metadata.name == "asc-merger"

@@ -20,9 +20,8 @@
 
 
 
-- Base images mlrun/mlrun:1.3.0 etc. are based on python 3.9.16. <br>
+- The base images mlrun/mlrun:1.3.0 etc. are based on python 3.9.16. <br>
       For Iguazio <=3.5.2:
-	  
 	1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
     2. Within the Jupyter service, open a terminal and run:
      
@@ -32,7 +31,7 @@
       ./align_mlrun.sh
 	```
 	  
-- v1.3.0 retains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
+- v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
 
 ### New and updated features
 
@@ -42,9 +41,10 @@
 - New APIs may require a new version of the MLRun client/server **ML-3266**
 
 **Modified APIs**
+- **[Deprecated APIs](#api-130)**.
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
- 
-- See also **[Deprecated APIs](#api-130)**.
+- New APIs may require new version of MLRun client/server.
+
  
  
 #### Infrastructure
@@ -58,26 +58,27 @@
 - Supports SQLSource for batch ingestion and real time ingestion in the feature store, and SQLTarget (supports storey, does not support Spark). 
    See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store)
 - The RedisNoSqlTarget now supports the Spark engine.
-- The username and password for the RedisNoSqlTarget aare now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where <prefix> is optional 
-   RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store)
-- Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets#create-a-feature-set-without-ingesting-its-data).
+- The username and password for the RedisNoSqlTarget aare now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where "<prefix>" is the optional 
+   RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
+- Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default` context` directory, by default, "./", which is the directory that the MLRun client runs from.  
+- When defining a new project from scratch, there is now a default` context` directory: "./", which is the directory that the MLRun 
+    client runs from unless otherwise specified.  
 
 #### Serving graphs
 
-- ML-2506 Allow providing a list of steps for the "after" argument in the `add_step()` method
-- ML-1167 Add support for graphs that split and merge (DAG)
-- ML-2507 Supports configuring of consumer group name for steps following QueueSteps
+- Add support for graphs that split and merge (DAG), including a list of steps for the "after" argument in the add_step() method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
+- Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming).
 
 #### Storey
-- The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/storey/pull/394).
+- The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the 
+    time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/storey/pull/394).
 
 
 #### Third party integrations
-- Supports Confluent Kafka as a feature store data-source. See [Confluent Kafka data source](../data-prep/ingest-data-fs.html#confluent-kafka-data-source) (Tech Preview).
+- Supports Confluent Kafka as a feature store data-source (Tech Preview). See [Confluent Kafka data source](../data-prep/ingest-data-fs.html#confluent-kafka-data-source).
 
 #### UI
 - The new **Projects** home page provides easy and intuitive access to the common project tasks.
@@ -88,29 +89,29 @@
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
 
 **Deprecated and removed from v1.3.0 code**<br>
-The following MLRun APIs have been deprecated since at least v1.0.0. Until now, a warning appeared if you attempted to use theצ. 
+The following MLRun APIs have been deprecated since at least v1.0.0. Until now, a warning appeared if you attempted to use them. 
 They are now removed from the code:
-- project.workflows`
-- project.functions`
-- project.artifacts`
-- pod_status header` from response to get_log REST API
-- client-spec` from response to health API 
-- submit_pipeline_legacy` REST API
-- get_pipeline_legacy` REST API
+- `project.workflows`
+- `project.functions`
+- `project.artifacts`
+- `pod_status header` from response to get_log REST API
+- `client-spec` from response to health API 
+- `submit_pipeline_legacy` REST API
+- `get_pipeline_legacy` REST API
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - `project.func()` (instead, use `project.get_function()`)
 - `project.create_vault_secrets()` (instead, use `project.set_secrets()`)
 - `project.get_vault_secret()`
 - `MlrunProjectLegacy` class
-- Feature-store: usage of state in graph (replaced by step). For example, in targets.py: add_writer_state, and the after_state parameter in _init_ methods.
-- httpdb runtime-related APIs using the deprecated runtimes REST APIs: `delete_runtime_object` etc.
+- Feature-store: usage of state in graph (instead, use `step`). For example, there were deprecated: `add_writer_state`, and the `after_state` parameter in `_init_` methods.
+- httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 - `mount_path` parameter in mount_v3io(). Instead, use the `volume_mounts` parameter
 - Dask properties: `gpus`, `with_limits`, `with_requests`
 - `NewTask`
 
-**Deprecated, will be removed in v1.5.0**<br>
+**Deprecated APIs, will be removed in v1.5.0**<br>
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0:
-- project-related parameters of `set_environment`. 
+- project-related parameters of `set_environment`
 - `AbstractSparkJobSpec.gpus`, `KubeResource.gpus`, `DaskCluster.gpus`. Use the `with_limits` method instead.
 - `mount_v3io_legacy` (mount_v3io no longer calls it)
 - `mount_v3io_extended `
@@ -119,11 +120,17 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 - The entire `mlrun/mlutils` library
 
 ### Closed issues
-- Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/
-- Fix: Project page was displaying an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611)
-- Jobs and Workflows pages now display the tag of the executed job as defined in the API **ML-2534**
-- Fix: Ingestion with add_aggregation over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3062).
-
+- Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
+- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/mlrun/pull/2983).
+- Jobs and Workflows pages now display the tag of the executed job (as defined in the API).
+- Fix: Ingestion with `add_aggregation` over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3062).
+- Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).
+- Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
+- `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
+- Dask CLI worker memory limit argument fixed. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
+    
+    
+    
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.3.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)

@@ -247,7 +247,7 @@ For example: `rediss://localhost:6379` creates a redis target, where:
    - The server location is localhost port 6379.
 - If the path parameter is not set, it tries to fetch it from the MLRUN_REDIS__URL environment variable.
 - You cannot pass the username/password as part of the URL. If you want to provide the username/password, use secrets as:
-`<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where <prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter.
+`<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where "<prefix>" is the optional RedisNoSqlTarget `credentials_prefix` parameter.
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
     

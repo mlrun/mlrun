@@ -35,6 +35,7 @@ import mlrun.api.crud
 import mlrun.api.main
 import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.log_collector
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -44,6 +45,7 @@ import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
 import tests.api.conftest
+import tests.api.utils.clients.test_log_collector
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
@@ -664,6 +666,46 @@ def test_delete_project_deletion_strategy_check_external_resource(
         },
     )
     assert response
+
+
+def test_delete_project_with_stop_logs(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+    log_collector._call = unittest.mock.AsyncMock(
+        return_value=tests.api.utils.clients.test_log_collector.BaseLogCollectorResponse(
+            True, ""
+        )
+    )
+    mlrun.config.config.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
+
+    project_name = "project-name"
+
+    mlrun.mlconf.namespace = "test-namespace"
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.api.schemas.ProjectSpec(),
+    )
+
+    # create
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # deletion strategy - cascading - should succeed and remove all related resources
+    response = client.delete(
+        f"projects/{project_name}",
+        headers={
+            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
+        },
+    )
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    assert log_collector._call.call_count == 1
+    assert log_collector._call.call_args[0][0] == "StopLog"
 
 
 # leader format is only relevant to follower mode

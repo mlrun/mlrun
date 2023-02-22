@@ -1370,7 +1370,7 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    @pytest.mark.parametrize("engine", ["pandas", "storey", None])
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_ingest_default_targets_for_engine(self, engine):
         data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 

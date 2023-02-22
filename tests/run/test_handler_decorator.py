@@ -15,7 +15,7 @@
 import os
 import tempfile
 import zipfile
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import cloudpickle
 import matplotlib.pyplot as plt
@@ -610,11 +610,13 @@ def parse_inputs_from_type_hints(
     my_encoder: Pipeline,
     data_2,
     data_3: mlrun.DataItem,
+    data_4: List[int],
     add,
     mul: int = 2,
 ):
     assert data_2 is None or isinstance(data_2, mlrun.DataItem)
     assert data_3 is None or isinstance(data_3, mlrun.DataItem)
+    assert data_4 is None or isinstance(data_4, mlrun.DataItem)
 
     return (my_encoder.transform(my_data) + add * mul).tolist()
 
@@ -626,7 +628,7 @@ def test_parse_inputs_from_type_hints_without_mlrun():
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
     result = parse_inputs_from_type_hints(
-        my_data, my_encoder=my_encoder, data_2=None, data_3=None, add=1
+        my_data, my_encoder=my_encoder, data_2=None, data_3=None, data_4=None, add=1
     )
     assert isinstance(result, list)
     assert result == [[2], [3], [4]]
@@ -659,6 +661,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
             "my_encoder": log_object_run.outputs["my_object"],
             "data_2": log_dataset_run.outputs["my_array"],
             "data_3": log_dataset_run.outputs["my_dict"],
+            "data_4": log_dataset_run.outputs["my_list"],
         },
         params={"add": 1},
         artifact_path=artifact_path.name,
@@ -675,8 +678,16 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.handler(inputs={"my_data": np.ndarray})
-def parse_inputs_from_wrapper_using_types(my_data, my_encoder, add, mul: int = 2):
+@mlrun.handler(
+    inputs={"my_data": np.ndarray, "my_union": Union[np.ndarray, pd.DataFrame]}
+)
+def parse_inputs_from_wrapper_using_types(
+    my_data, my_encoder, my_union, add, mul: int = 2
+):
+    if my_union is not None:
+        assert isinstance(my_union, mlrun.DataItem)
+        my_union = my_union.as_df()
+        assert my_union.shape == (20, 10)
     if isinstance(my_encoder, mlrun.DataItem):
         my_encoder = my_encoder.local()
         with open(my_encoder, "rb") as pickle_file:
@@ -691,7 +702,7 @@ def test_parse_inputs_from_wrapper_using_types_without_mlrun():
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
     result = parse_inputs_from_wrapper_using_types(
-        pd.DataFrame(my_data), my_encoder=my_encoder, add=1
+        pd.DataFrame(my_data), my_encoder=my_encoder, my_union=None, add=1
     )
     assert isinstance(result, list)
     assert result == [[2], [3], [4]]
@@ -722,6 +733,7 @@ def test_parse_inputs_from_wrapper_using_types_with_mlrun():
         inputs={
             "my_data": log_dataset_run.outputs["my_list"],
             "my_encoder": log_object_run.outputs["my_object"],
+            "my_union": log_dataset_run.outputs["my_df"],
         },
         params={"add": 1},
         artifact_path=artifact_path.name,
@@ -743,12 +755,17 @@ def test_parse_inputs_from_wrapper_using_types_with_mlrun():
         "my_list": "list",
         "my_array": "numpy.ndarray",
         "my_encoder": "sklearn.pipeline.Pipeline",
+        "my_union": "typing.Union[numpy.array, pandas.DataFrame]",
     },
     outputs=["result"],
 )
 def parse_inputs_from_wrapper_using_strings(
-    my_list, my_array, my_df, my_encoder, add, mul: int = 2
+    my_list, my_array, my_df, my_encoder, my_union, add, mul: int = 2
 ):
+    if my_union is not None:
+        assert isinstance(my_union, mlrun.DataItem)
+        my_union = my_union.as_df()
+        assert my_union.shape == (20, 10)
     if isinstance(my_df, mlrun.DataItem):
         my_df = my_df.as_df()
     assert my_list == [["A"], ["B"], [""]]
@@ -763,7 +780,7 @@ def test_parse_inputs_from_wrapper_using_strings_without_mlrun():
     my_array, my_df, _, my_list = log_dataset()
     my_encoder = log_object()
     result = parse_inputs_from_wrapper_using_strings(
-        my_list, my_array, my_df=my_df, my_encoder=my_encoder, add=1
+        my_list, my_array, my_df=my_df, my_encoder=my_encoder, my_union=None, add=1
     )
     assert isinstance(result, int)
     assert result == 402
@@ -796,6 +813,7 @@ def test_parse_inputs_from_wrapper_using_strings_with_mlrun():
             "my_array": log_dataset_run.outputs["my_array"],
             "my_df": log_dataset_run.outputs["my_df"],
             "my_encoder": log_object_run.outputs["my_object"],
+            "my_union": log_dataset_run.outputs["my_df"],
         },
         params={"add": 1},
         artifact_path=artifact_path.name,
@@ -820,8 +838,7 @@ def raise_error_while_logging():
 
 def test_raise_error_while_logging_with_mlrun():
     """
-    Run the `log_from_function_and_wrapper` function with MLRun to see the wrapper is logging the returned values
-    among the other values logged via the context manually inside the function.
+    Run the `raise_error_while_logging` function with MLRun to see the wrapper is raising the relevant error.
     """
     # Create the function:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")

@@ -18,25 +18,24 @@ package mlrun;
 
 option go_package = "proto/build/log_collector";
 
-import "google/protobuf/empty.proto";
-
 service LogCollector {
-  rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
+  rpc StartLog(StartLogRequest) returns (BaseResponse) {}
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
   rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
-  rpc StopLog(StopLogRequest) returns (google.protobuf.Empty) {}
+  rpc StopLog(StopLogRequest) returns (BaseResponse) {}
+}
+
+message BaseResponse {
+  bool success = 1;
+  int32 errorCode = 2;
+  string errorMessage = 3;
 }
 
 message StartLogRequest {
   string runUID = 1;
   string selector = 2;
   string projectName = 3;
-}
-
-message StartLogResponse {
-  bool success = 1;
-  int32 errorCode = 2;
-  string errorMessage = 3;
+  bool bestEffort = 4;
 }
 
 message GetLogsRequest {
@@ -66,7 +65,8 @@ message HasLogsResponse {
 }
 
 message StopLogRequest {
-  map<string, StringArray> projectToRunUIDs = 1;
+  string project = 1;
+  repeated string runUIDs = 2;
 }
 
 // StringArray is a wrapper around a repeated string field, used in map values.

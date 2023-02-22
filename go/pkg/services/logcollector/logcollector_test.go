@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -237,6 +238,20 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
+func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
+
+	// call start log for a non-existent pod, and expect no error
+	request := &log_collector.StartLogRequest{
+		RunUID:      "some-run-id",
+		ProjectName: "some-project",
+		Selector:    "app=some-app",
+		BestEffort:  true,
+	}
+	response, err := suite.LogCollectorServer.StartLog(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to start log")
+	suite.Require().True(response.Success, "Failed to start log")
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
@@ -410,8 +425,14 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 			runUID := uuid.New().String()
 			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
 			selector := fmt.Sprintf("run=%s", runUID)
+
+			// Add state to the log collector's persistent state store
 			err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector, projectName)
 			suite.Require().NoError(err, "Failed to add log item to state store")
+
+			// Add state to the log collector's in-memory state
+			err = suite.LogCollectorServer.inMemoryState.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to in-memory state")
 		}
 	}
 
@@ -423,23 +444,25 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
-	suite.Require().Equal(logItemsNum*projectNum,
-		common.SyncMapLength(logItemsInProgress),
-		"Expected items to be in progress")
+	suite.Require().Equal(projectNum, common.SyncMapLength(logItemsInProgress), "Expected items to be in progress")
+	logItemsInProgress.Range(func(key, value interface{}) bool {
+		runUIDsInProgress := value.(*sync.Map)
+		suite.Require().Equal(logItemsNum,
+			common.SyncMapLength(runUIDsInProgress),
+			"Expected items to be in progress")
+		return true
+	})
 
-	// stop log
-	request := &log_collector.StopLogRequest{
-		ProjectToRunUIDs: map[string]*log_collector.StringArray{},
-	}
+	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request.ProjectToRunUIDs[project] = &log_collector.StringArray{
-			Values: runs,
+		request := &log_collector.StopLogRequest{
+			Project: project,
+			RunUIDs: runs,
 		}
+		response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+		suite.Require().NoError(err, "Failed to stop log")
+		suite.Require().True(response.Success, "Expected stop log request to succeed")
 	}
-
-	response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to stop log")
-	suite.logger.DebugWith("Stop log response", "response", response)
 
 	// write state again
 	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())

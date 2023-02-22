@@ -228,7 +228,9 @@ class FileDB(DBInterface):
     def delete_function(self, session, project: str, name: str):
         raise NotImplementedError()
 
-    def list_functions(self, session, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, session, name=None, project="", tag="", labels=None, hash_key=None
+    ):
         return self._transform_run_db_error(
             self.db.list_functions, name, project, tag, labels
         )

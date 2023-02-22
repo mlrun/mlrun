@@ -766,7 +766,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
@@ -780,7 +780,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
-        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+        result_dict = (
+            data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .sort_values("time")
+            .to_dict(orient="list")
+        )
 
         expected_results = df.to_dict(orient="list")
         expected_results.update(
@@ -788,6 +793,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
+                "bid_sqr_2h": [4000000, 100, 4000144, 356, 420],
+                "bid_stdvar_2h": [
+                    "NaN-was-here",
+                    "NaN-was-here",
+                    1976072,
+                    18,
+                    17.333333333333332,
+                ],
             }
         )
         assert result_dict == expected_results
@@ -803,13 +816,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
         )
         fstore.ingest(storey_data_set, source)
 
-        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        storey_df = (
+            storey_data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .reset_index()
+            .sort_values("time")
+        )
         print(f"Storey results:\n{storey_df.to_string()}\n")
         storey_result_dict = storey_df.to_dict(orient="list")
 
@@ -1092,9 +1110,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1127,7 +1153,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -1352,3 +1381,64 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+    def test_as_of_join_result(self):
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        left_path = "v3io:///bigdata/asof_join/df_left.parquet"
+        right_path = "v3io:///bigdata/asof_join/df_right.parquet"
+
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df_left.to_parquet(path=left_path, filesystem=fsys)
+        df_right.to_parquet(path=right_path, filesystem=fsys)
+
+        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts")
+        fset1.set_targets(["parquet"], with_defaults=False)
+        fset2 = fstore.FeatureSet("fs2", entities=["ent"], timestamp_key="ts")
+        fset2.set_targets(["parquet"], with_defaults=False)
+
+        source_left = ParquetSource("pq1", path=left_path)
+        source_right = ParquetSource("pq2", path=right_path)
+
+        fstore.ingest(fset1, source_left)
+        fstore.ingest(fset2, source_right)
+
+        vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+
+        resp = fstore.get_offline_features(vec, engine="local")
+        local_engine_res = resp.to_dataframe()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vec,
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
+            target=target,
+        )
+        spark_engine_res = resp.to_dataframe()
+
+        assert local_engine_res.sort_index(axis=1).equals(
+            spark_engine_res.sort_index(axis=1)
+        )

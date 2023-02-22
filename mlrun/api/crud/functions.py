@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
@@ -36,8 +37,22 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         versioned: bool = False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
+        if auth_info:
+            function_obj = mlrun.new_function(
+                name=name, project=project, runtime=function, tag=tag
+            )
+            # not raising exception if no access key was provided as the store of the function can be part of
+            # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
+            # want to enrich if user didn't requested.
+            # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
+            mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
+                function_obj, auth_info, allow_empty_access_key=True
+            )
+            function = function_obj.to_dict()
+
         return mlrun.api.utils.singletons.db.get_db().store_function(
             db_session,
             function,
@@ -77,14 +92,16 @@ class Functions(
         name: str = "",
         tag: str = "",
         labels: typing.List[str] = None,
+        hash_key: str = "",
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
         return mlrun.api.utils.singletons.db.get_db().list_functions(
-            db_session,
-            name,
-            project,
-            tag,
-            labels,
+            session=db_session,
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            hash_key=hash_key,
         )

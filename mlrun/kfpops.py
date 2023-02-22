@@ -37,6 +37,7 @@ from .utils import (
     is_legacy_artifact,
     logger,
     run_keys,
+    version,
 )
 
 # default KFP artifacts and output (ui metadata, metrics etc.)
@@ -196,6 +197,7 @@ def mlrun_op(
     verbose=None,
     scrape_metrics=False,
     returns: List[Union[str, Dict[str, str]]] = None,
+    auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
@@ -244,6 +246,8 @@ def mlrun_op(
                       type is specified, the object's default artifact type will be used.
                     * A dictionary of configurations to use when logging. Further info per object type and artifact
                       type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+    :param auto_build: when set to True and the function require build it will be built on the first
+                       function run, use only if you dont plan on changing the build config between runs
 
     :returns: KFP step operation
 
@@ -429,6 +433,8 @@ def mlrun_op(
         cmd += ["--verbose"]
     if scrape_metrics:
         cmd += ["--scrape-metrics"]
+    if auto_build:
+        cmd += ["--auto-build"]
     if more_args:
         cmd += more_args
 
@@ -438,6 +444,10 @@ def mlrun_op(
             image = f"{registry}/{image[1:]}"
         else:
             raise ValueError("local image registry env not found")
+
+    image = mlrun.utils.enrich_image_url(
+        image, mlrun.get_version(), str(version.Version().get_python_version())
+    )
 
     cop = dsl.ContainerOp(
         name=name,

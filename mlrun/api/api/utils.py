@@ -229,6 +229,13 @@ def apply_enrichment_and_validation_on_function(
         ensure_function_security_context(function, auth_info)
 
 
+def ensure_function_auth_and_sensitive_data_is_masked(
+    function, auth_info: mlrun.api.schemas.AuthInfo, raise_on_auth_not_set: bool = True
+):
+    ensure_function_has_auth_set(function, auth_info, raise_on_auth_not_set)
+    mask_function_sensitive_data(function, auth_info)
+
+
 def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
@@ -417,7 +424,16 @@ def _mask_v3io_access_key_env_var(
         )
 
 
-def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
+def ensure_function_has_auth_set(
+    function: mlrun.runtimes.BaseRuntime,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    raise_on_access_key_not_set: bool = True,
+):
+    """
+    :param function:    Function object.
+    :param auth_info:   The auth info of the request.
+    :param raise_on_access_key_not_set: Whether to raise an error if access key wasn't set or requested to get generated
+    """
     if (
         not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
@@ -438,10 +454,13 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 ]
 
             function.metadata.credentials.access_key = auth_info.access_key
-        if not function.metadata.credentials.access_key:
+
+        if raise_on_access_key_not_set and not function.metadata.credentials.access_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"
             )
+
+        # after access key was passed or enriched with the condition above, we mask it with creating auth secret
         if not function.metadata.credentials.access_key.startswith(
             mlrun.model.Credentials.secret_reference_prefix
         ):

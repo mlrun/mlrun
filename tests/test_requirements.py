@@ -266,7 +266,7 @@ def _import_extras_requirements():
     setuptools.setup = lambda *args, **kwargs: 0
     builtins.open = mock_file_open
 
-    import setup
+    import dependencies
 
     setuptools.setup = original_setup
     builtins.open = original_open
@@ -274,7 +274,7 @@ def _import_extras_requirements():
     ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
-    for extra_name, extra_requirements in setup.extras_require.items():
+    for extra_name, extra_requirements in dependencies.extra_requirements().items():
         if extra_name not in ignored_extras:
             extras_requirements.extend(extra_requirements)
 

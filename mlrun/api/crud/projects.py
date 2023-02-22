@@ -139,6 +139,8 @@ class Projects(
             force=True,
         )
 
+        # TODO: implement delete logs in the log collector service, and call it in post_delete_project.
+        # once implemented, run the following line only if the log collector mode is "legacy"
         mlrun.api.crud.Logs().delete_logs(name)
 
         # delete db resources

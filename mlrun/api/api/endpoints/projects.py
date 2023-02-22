@@ -205,6 +205,7 @@ async def delete_project(
     )
     if is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+    await get_project_member().post_delete_project(name)
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 

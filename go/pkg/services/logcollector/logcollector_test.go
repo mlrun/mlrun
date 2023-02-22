@@ -238,6 +238,20 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().Contains(string(logFileContent), "fake logs")
 }
 
+func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
+
+	// call start log for a non-existent pod, and expect no error
+	request := &log_collector.StartLogRequest{
+		RunUID:      "some-run-id",
+		ProjectName: "some-project",
+		Selector:    "app=some-app",
+		BestEffort:  true,
+	}
+	response, err := suite.LogCollectorServer.StartLog(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to start log")
+	suite.Require().True(response.Success, "Failed to start log")
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
@@ -439,19 +453,16 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 		return true
 	})
 
-	// stop log
-	request := &log_collector.StopLogRequest{
-		ProjectToRunUIDs: map[string]*log_collector.StringArray{},
-	}
+	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request.ProjectToRunUIDs[project] = &log_collector.StringArray{
-			Values: runs,
+		request := &log_collector.StopLogRequest{
+			Project: project,
+			RunUIDs: runs,
 		}
+		response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+		suite.Require().NoError(err, "Failed to stop log")
+		suite.Require().True(response.Success, "Expected stop log request to succeed")
 	}
-
-	response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to stop log")
-	suite.logger.DebugWith("Stop log response", "response", response)
 
 	// write state again
 	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())

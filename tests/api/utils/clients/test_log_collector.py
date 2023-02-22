@@ -24,7 +24,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
 
 
-class StartLogResponse:
+class BaseLogCollectorResponse:
     def __init__(self, success, error):
         self.success = success
         self.errorMessage = error
@@ -83,7 +83,7 @@ class TestLogCollector:
         log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=StartLogResponse(True, "")
+            return_value=BaseLogCollectorResponse(True, "")
         )
         success, error = await log_collector.start_logs(
             run_uid=run_uid, project=project_name, selector=selector
@@ -91,7 +91,7 @@ class TestLogCollector:
         assert success is True and not error
 
         log_collector._call = unittest.mock.AsyncMock(
-            return_value=StartLogResponse(False, "Failed to start logs")
+            return_value=BaseLogCollectorResponse(False, "Failed to start logs")
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
             await log_collector.start_logs(
@@ -148,3 +148,30 @@ class TestLogCollector:
         )
         async for log in log_stream:
             assert log == b""
+
+    @pytest.mark.asyncio
+    async def test_stop_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uids = ["123"]
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        # test successful stop logs
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        await log_collector.stop_logs(run_uids=run_uids, project=project_name)
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "StopLog"
+
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert stop_log_request.project == project_name
+        assert stop_log_request.runUIDs == run_uids
+
+        # test failed stop logs
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(False, "Failed to stop logs")
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            await log_collector.stop_logs(run_uids=run_uids, project=project_name)

@@ -1110,9 +1110,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1145,7 +1153,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -1205,6 +1216,26 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+        assert (
+            str(ml_run_exception.value)
+            == "DropFeatures can only drop features, not entities"
+        )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"

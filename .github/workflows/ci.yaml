@@ -291,7 +291,11 @@ jobs:
     name: "Verify Docs builds"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+          cache: 'pip'
       - uses: ammaraskar/sphinx-action@master
         with:
           docs-folder: "docs/"

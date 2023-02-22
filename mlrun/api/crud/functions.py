@@ -44,16 +44,12 @@ class Functions(
             function_obj = mlrun.new_function(
                 name=name, project=project, runtime=function, tag=tag
             )
-            # only need to ensure auth and sensitive data is masked
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                function_obj,
-                auth_info,
-                ensure_auth=True,
-                mask_sensitive_data=True,
-                # below is not needed as part of storing the function but rather validated when running the function
-                perform_auto_mount=False,
-                validate_service_account=False,
-                ensure_security_context=False,
+            # not raising exception if no access key was provided as the store of the function can be part of
+            # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
+            # want to enrich if user didn't requested.
+            # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
+            mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
+                function_obj, auth_info, allow_empty_access_key=True
             )
             function = function_obj.to_dict()
 

@@ -68,6 +68,21 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert function.spec.image == expected_spec_image
         function.run()
 
+    def test_store_function_is_not_failing_if_generate_access_key_not_requested(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        function_name = "simple-function"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+        hash_key = function.save(versioned=True)
+        function = mlrun.get_run_db().get_function(
+            function_name, project=self.project_name, tag="latest", hash_key=hash_key
+        )
+        assert not function["metadata"]["credentials"]["access_key"]
+
     def test_store_function_after_run_local_verify_credentials_are_masked(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         function_name = "simple-function"

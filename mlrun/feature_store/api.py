@@ -324,7 +324,7 @@ def _rename_source_dataframe_columns(df):
 
 
 def _validate_graph_steps(featureset: FeatureSet):
-    if DropFeatures is None:
+    if featureset is None:
         return
     if DropFeatures.__name__ in featureset.graph.steps:
         entities_keys = [entity.name for entity in featureset.spec.entities]

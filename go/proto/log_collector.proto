@@ -23,6 +23,7 @@ service LogCollector {
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
   rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
   rpc StopLog(StopLogRequest) returns (BaseResponse) {}
+  rpc DeleteLogs(StopLogRequest) returns (BaseResponse) {}
 }
 
 message BaseResponse {

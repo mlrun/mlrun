@@ -477,6 +477,98 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 		"Expected no items in progress")
 }
 
+func (suite *LogCollectorTestSuite) TestDeleteLogs() {
+
+	projectCount := 0
+
+	for _, testCase := range []struct {
+		name                string
+		logsNumToCreate     int
+		expectedLogsNumLeft int
+	}{
+		{
+			name:                "Delete some logs",
+			logsNumToCreate:     5,
+			expectedLogsNumLeft: 2,
+		},
+		{
+			name:                "Delete all logs",
+			logsNumToCreate:     5,
+			expectedLogsNumLeft: 0,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+
+			// create some log files
+			projectName := fmt.Sprintf("test-project-%d", projectCount)
+			projectCount++
+			var runUIDs []string
+			for i := 0; i < testCase.logsNumToCreate; i++ {
+				runUID := uuid.New().String()
+				runUIDs = append(runUIDs, runUID)
+				logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+				err := common.WriteToFile(logFilePath, []byte("some log"), false)
+				suite.Require().NoError(err, "Failed to write to file")
+			}
+
+			// verify files exist
+			dirPath := path.Join(suite.LogCollectorServer.baseDir, projectName)
+			dirEntries, err := os.ReadDir(dirPath)
+			suite.Require().NoError(err, "Failed to read dir")
+			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
+
+			// delete all logs except the first one
+			request := &log_collector.StopLogRequest{
+				Project: projectName,
+				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],
+			}
+			response, err := suite.LogCollectorServer.DeleteLogs(suite.ctx, request)
+			suite.Require().NoError(err, "Failed to stop log")
+			suite.Require().True(response.Success, "Expected stop log request to succeed")
+
+			// verify files deleted
+			dirEntries, err = os.ReadDir(dirPath)
+			suite.Require().NoError(err, "Failed to read dir")
+			suite.Require().Equal(testCase.expectedLogsNumLeft, len(dirEntries), "Expected logs to be deleted")
+		})
+	}
+}
+
+func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
+
+	// create some log files
+	projectName := "test-project"
+	logsNum := 5
+	var runUIDs []string
+	for i := 0; i < logsNum; i++ {
+		runUID := uuid.New().String()
+		runUIDs = append(runUIDs, runUID)
+		logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+		err := common.WriteToFile(logFilePath, []byte("some log"), false)
+		suite.Require().NoError(err, "Failed to write to file")
+	}
+
+	// verify files exist
+	dirPath := path.Join(suite.LogCollectorServer.baseDir, projectName)
+	dirEntries, err := os.ReadDir(dirPath)
+	suite.Require().NoError(err, "Failed to read dir")
+	suite.Require().Equal(logsNum, len(dirEntries), "Expected logs to exist")
+
+	// delete all logs except the first one
+	request := &log_collector.StopLogRequest{
+		Project: projectName,
+		RunUIDs: runUIDs[1:],
+	}
+	response, err := suite.LogCollectorServer.DeleteLogs(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to stop log")
+	suite.Require().True(response.Success, "Expected stop log request to succeed")
+
+	// verify files deleted
+	dirEntries, err = os.ReadDir(dirPath)
+	suite.Require().NoError(err, "Failed to read dir")
+	suite.Require().Equal(1, len(dirEntries), "Expected logs to be deleted")
+}
+
 func TestLogCollectorTestSuite(t *testing.T) {
 	suite.Run(t, new(LogCollectorTestSuite))
 }

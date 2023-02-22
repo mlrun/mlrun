@@ -466,6 +466,60 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 	return s.successfulBaseResponse(), nil
 }
 
+// DeleteLogs deletes the log file for a given run id or project
+func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogRequest) (*protologcollector.BaseResponse, error) {
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring delete logs request",
+			"project", request.Project,
+			"numRunIDs", len(request.RunUIDs))
+		return s.successfulBaseResponse(), nil
+	}
+
+	// validate project name
+	if request.Project == "" {
+		message := "Project name must be provided"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    0,
+			ErrorMessage: message,
+		}, errors.New(message)
+	}
+
+	// if no run uids were provided, delete the entire project's logs
+	if len(request.RunUIDs) == 0 {
+
+		// remove entire project from persistent state
+		if err := s.deleteProjectLogs(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to delete project logs for project %s", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		return s.successfulBaseResponse(), nil
+	}
+
+	// remove each run uid from the state
+	for _, runUID := range request.RunUIDs {
+
+		// delete the run's log file
+		if failedToDeleteRunUIDs, err := s.deleteRunLogFiles(ctx, runUID, request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove run logs for runs: %v", failedToDeleteRunUIDs)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    0,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+	}
+
+	return s.successfulBaseResponse(), nil
+}
+
 // startLogStreaming streams logs from a pod and writes them into a file
 func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
@@ -875,4 +929,47 @@ func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
 	return &protologcollector.BaseResponse{
 		Success: true,
 	}
+}
+
+func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) ([]string, error) {
+
+	// get all files that have the runUID as a prefix
+	pattern := path.Join(s.baseDir, project, fmt.Sprintf("%s_*", runUID))
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return []string{}, errors.Wrap(err, "Failed to get log files")
+	}
+
+	// delete all matched files
+	var failedToDelete []string
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+
+			// don't fail now so the rest of the files will be deleted, just log it
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to delete log file",
+				"file", file,
+				"err", common.GetErrorStack(err, 10))
+			failedToDelete = append(failedToDelete, file)
+		}
+	}
+
+	if len(failedToDelete) > 0 {
+		return failedToDelete, errors.Errorf("Failed to delete log files: %v", failedToDelete)
+	}
+
+	return failedToDelete, nil
+}
+
+func (s *Server) deleteProjectLogs(project string) error {
+
+	// resolve the project logs directory
+	projectLogsDir := path.Join(s.baseDir, project)
+
+	// delete the project logs directory (idempotent)
+	if err := os.RemoveAll(projectLogsDir); err != nil {
+		return errors.Wrapf(err, "Failed to delete project logs directory for project %s", project)
+	}
+
+	return nil
 }

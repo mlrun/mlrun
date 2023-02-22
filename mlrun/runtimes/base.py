@@ -65,6 +65,7 @@ from ..utils import (
     get_ui_url,
     is_ipython,
     logger,
+    normalize_name,
     now_date,
     update_in,
 )
@@ -691,7 +692,9 @@ class BaseRuntime(ModelObj):
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
-        runspec.metadata.name = name or runspec.metadata.name or def_name
+        runspec.metadata.name = normalize_name(
+            name or runspec.metadata.name or def_name
+        )
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
@@ -1497,7 +1500,7 @@ class BaseRuntimeHandler(ABC):
                 force,
                 grace_period,
             )
-        self._delete_resources(
+        self._delete_extra_resources(
             db,
             db_session,
             namespace,
@@ -1666,6 +1669,9 @@ class BaseRuntimeHandler(ABC):
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
                 run.setdefault("status", {})["state"] = RunStates.error
+                run.setdefault("status", {})[
+                    "status_text"
+                ] = "A runtime resource related to this tun could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
@@ -1718,7 +1724,7 @@ class BaseRuntimeHandler(ABC):
         """
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,
@@ -2054,6 +2060,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+        # TODO: don't wait for pods to be deleted, client should poll the deletion status
         self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
         return deleted_pods
 

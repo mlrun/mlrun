@@ -235,7 +235,7 @@ class SQLDB(DBInterface):
         project: str = None,
         requested_logs_modes: typing.List[bool] = None,
         only_uids=True,
-        last_start_time_from: datetime = None,
+        last_update_time_from: datetime = None,
         states: typing.List[str] = None,
     ) -> typing.Union[typing.List[str], RunList]:
         """
@@ -245,7 +245,7 @@ class SQLDB(DBInterface):
         :param requested_logs_modes: If not `None`, will return only runs with the given requested logs modes
         :param only_uids: If True, will return only the uids of the runs as list of strings
                           If False, will return the full run objects as RunList
-        :param last_start_time_from: If not `None`, will return only runs created after this time
+        :param last_update_time_from: If not `None`, will return only runs updated after this time
         :param states: If not `None`, will return only runs with the given states
         :return: List of runs uids or RunList
         """
@@ -261,8 +261,8 @@ class SQLDB(DBInterface):
         if states:
             query = query.filter(Run.state.in_(states))
 
-        if last_start_time_from is not None:
-            query = query.filter(Run.start_time >= last_start_time_from)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
@@ -1022,16 +1022,23 @@ class SQLDB(DBInterface):
         for tagged_class in _tagged:
             self._delete(session, tagged_class, project=project)
 
-    def _delete_resources_labels(self, session: Session, project: str):
-        for labeled_class in _labeled:
-            if hasattr(labeled_class, "project"):
-                self._delete(session, labeled_class, project=project)
-
-    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self,
+        session: Session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
+    ) -> typing.Union[FunctionList, List[dict]]:
         project = project or config.default_project
         uids = None
         if tag:
             uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
+            if hash_key:
+                uids = [uid for uid in uids if uid == hash_key] or None
+        if not tag and hash_key:
+            uids = [hash_key]
         functions = FunctionList()
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
@@ -1061,6 +1068,11 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = tag
                 functions.append(function_dict)
         return functions
+
+    def _delete_resources_labels(self, session: Session, project: str):
+        for labeled_class in _labeled:
+            if hasattr(labeled_class, "project"):
+                self._delete(session, labeled_class, project=project)
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
         query = session.query(Function.Tag).filter(

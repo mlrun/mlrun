@@ -33,11 +33,12 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 
 ## Verify a feature set with a small dataset by inferring data 
 
-Ingesting an entire dataset can take a fair amount of time. Therefore, you may want to first check the feature set definition by 
-simulating the creation of the feature set (before ingesting the entire dataset). <br>
+Ingesting an entire dataset can take a fair amount of time. Before ingesting the entire dataset,  you can check the feature 
+set definition by 
+simulating the creation of the feature set. <br>
 This gives a preview of the results (in the returned dataframe). The simulation method is called `infer`. 
 It infers the source data schema, and processes the graph logic (assuming there is one) on a small subset of data. 
-The infer operation also learns the feature set schema and does statistical analysis on the result by default.
+The infer operation also learns the feature set schema and, by default, does statistical analysis on the result.
   
 ```python
 df = fstore.preview(quotes_set, quotes)
@@ -88,7 +89,7 @@ targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 ingest(measurements, source, targets)
 ```
 
-To learn more about ingest go to {py:class}`~mlrun.feature_store.ingest`.
+To learn more about ingest, go to {py:class}`~mlrun.feature_store.ingest`.
 
 ## Ingest data using an MLRun job
 
@@ -177,6 +178,31 @@ source = SqlDBSource(table_name='my_table',
  df = fs.ingest(feature_set, source=source)
 ```
 
+### Apache Kafka data source
+
+Example:
+
+```
+from mlrun.datastore.sources import KafkaSource
+
+
+with open('/v3io/bigdata/name.crt') as x: 
+    caCert = x.read()  
+caCert
+
+kafka_source = KafkaSource(
+            brokers=['default-tenant.app.vmdev76.lab.iguazeng.com:9092'],
+            topics="stocks-topic",
+            initial_offset="earliest",
+            group="my_group",
+        )
+        
+run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
+
+stocks_set_endpoint = fstore.deploy_ingestion_service(featureset=stocks_set, source=kafka_source,run_config=run_config)
+```        
+       
+
 ### Confluent Kafka data source
 
 ```{admonition} Note
@@ -247,7 +273,7 @@ For example: `rediss://localhost:6379` creates a redis target, where:
    - The server location is localhost port 6379.
 - If the path parameter is not set, it tries to fetch it from the MLRUN_REDIS__URL environment variable.
 - You cannot pass the username/password as part of the URL. If you want to provide the username/password, use secrets as:
-`<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where <prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter.
+`<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where "prefix" is the optional RedisNoSqlTarget `credentials_prefix` parameter.
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
     
@@ -260,7 +286,7 @@ explicitly each time with the path parameter, for example:</br>
 
 ### SQL target store
 
-The `SQLTarget` online target supports storey but does not support spark.<br>
+The `SQLTarget` online target supports storey but does not support Spark.<br>
 To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 

@@ -323,7 +323,7 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
-def validate_graph_steps(featureset: FeatureSet):
+def _validate_graph_steps(featureset: FeatureSet):
     if DropFeatures.__name__ in featureset.graph.steps:
         entities_keys = [entity.name for entity in featureset.spec.entities]
         step = featureset.graph.steps[DropFeatures.__name__]
@@ -417,7 +417,7 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    validate_graph_steps(featureset=featureset)
+    _validate_graph_steps(featureset=featureset)
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):

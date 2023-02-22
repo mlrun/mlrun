@@ -95,7 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.3.10"},
+        "storey": {"~=1.3.11"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
@@ -126,7 +126,7 @@ def test_requirement_specifiers_convention():
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=3,<12"},
+        "pyarrow": {">=10,<12"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
@@ -266,7 +266,7 @@ def _import_extras_requirements():
     setuptools.setup = lambda *args, **kwargs: 0
     builtins.open = mock_file_open
 
-    import setup
+    import dependencies
 
     setuptools.setup = original_setup
     builtins.open = original_open
@@ -274,7 +274,7 @@ def _import_extras_requirements():
     ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
-    for extra_name, extra_requirements in setup.extras_require.items():
+    for extra_name, extra_requirements in dependencies.extra_requirements().items():
         if extra_name not in ignored_extras:
             extras_requirements.extend(extra_requirements)
 

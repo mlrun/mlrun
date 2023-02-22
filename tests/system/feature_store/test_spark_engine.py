@@ -1110,9 +1110,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1145,7 +1153,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,

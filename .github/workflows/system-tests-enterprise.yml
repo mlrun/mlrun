@@ -93,7 +93,7 @@ jobs:
               docker-images \
               http://localhost:8009 \
               igz0.docker_registry.0 \
-              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"
+              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base,ghcr.io/mlrun/log-collector"
 
 
   prepare-system-tests-enterprise-ci:
@@ -207,7 +207,7 @@ jobs:
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
 
 
     outputs:

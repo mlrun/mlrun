@@ -23,7 +23,6 @@ import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
-import mlrun.api.utils.projects.member
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.utils import logger
 

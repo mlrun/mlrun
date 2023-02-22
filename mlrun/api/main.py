@@ -334,7 +334,6 @@ async def _start_log_for_run(
         logs_collector_client = (
             mlrun.api.utils.clients.log_collector.LogCollectorClient()
         )
-
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)

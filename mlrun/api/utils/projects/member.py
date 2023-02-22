@@ -21,7 +21,6 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
 import mlrun.utils.singleton
-from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -155,7 +154,10 @@ class Member(abc.ABC):
         self,
         project_name: str,
     ):
-        if config.log_collector.mode != mlrun.api.schemas.LogsCollectorMode.legacy:
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.api.schemas.LogsCollectorMode.legacy
+        ):
             await self._stop_logs_for_project(project_name)
 
     async def _stop_logs_for_project(

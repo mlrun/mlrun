@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import typing
 
 
@@ -107,9 +108,10 @@ def _extract_package_from_egg(line: str) -> str:
     return line
 
 
-def _load_dependencies_from_file(path: str) -> typing.List[str]:
+def _load_dependencies_from_file(path: str, parent_dir: str = None) -> typing.List[str]:
     """Load dependencies from requirements file"""
-    with open(path) as fp:
+    parent_dir = parent_dir or os.path.dirname(__file__)
+    with open(f"{parent_dir}/{path}") as fp:
         return [
             _extract_package_from_egg(line.strip())
             for line in fp

@@ -19,7 +19,9 @@ import typing
 def packages(exclude_packages: typing.List[str] = None) -> typing.List[str]:
     """Get list of project packages"""
     _exclude_packages = set(exclude_packages or [])
-    all_packages = _flatten_packages(_get_package_dict("./mlrun"), parent_key="mlrun")
+    all_packages = _flatten_packages(
+        _get_package_dict(f"{os.path.dirname(__file__)}/mlrun"), parent_key="mlrun"
+    )
     return list(sorted(all_packages.difference(_exclude_packages)))
 
 

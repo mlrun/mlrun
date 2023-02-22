@@ -844,7 +844,6 @@ class FileRunDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -855,7 +854,6 @@ class FileRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,

@@ -23,7 +23,7 @@ from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
 
 
-# Defining a different base class (not ObjectMetadata), as there's no project and it differs enough to
+# Defining a different base class (not ObjectMetadata), as there's no project, and it differs enough to
 # justify a new class
 class MarketplaceObjectMetadata(BaseModel):
     name: str
@@ -46,6 +46,9 @@ class MarketplaceSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
     credentials: Optional[dict] = None
+    object_type: MarketplaceSourceType = Field(
+        MarketplaceSourceType.functions, const=True
+    )
 
 
 class MarketplaceSource(BaseModel):
@@ -55,8 +58,11 @@ class MarketplaceSource(BaseModel):
     status: Optional[ObjectStatus] = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path):
-        return "{base}/{channel}/{relative_path}".format(
-            base=self.spec.path, channel=self.spec.channel, relative_path=relative_path
+        return "{base}/{object_type}/{channel}/{relative_path}".format(
+            base=self.spec.path,
+            object_type=self.spec.object_type,
+            channel=self.spec.channel,
+            relative_path=relative_path,
         )
 
     def get_catalog_uri(self):
@@ -79,6 +85,9 @@ class MarketplaceSource(BaseModel):
             spec=MarketplaceSourceSpec(
                 path=config.marketplace.default_source.url,
                 channel=config.marketplace.default_source.channel,
+                object_type=MarketplaceSourceType(
+                    config.marketplace.default_source.object_type
+                ),
             ),
             status=ObjectStatus(state="created"),
         )
@@ -88,14 +97,13 @@ last_source_index = -1
 
 
 class IndexedMarketplaceSource(BaseModel):
-    index: int = last_source_index  # Default last. Otherwise must be > 0
+    index: int = last_source_index  # Default last. Otherwise, must be > 0
     source: MarketplaceSource
 
 
 # Item-related objects
 class MarketplaceItemMetadata(MarketplaceObjectMetadata):
     source: MarketplaceSourceType = Field(MarketplaceSourceType.functions, const=True)
-    channel: str
     version: str
     tag: Optional[str]
 
@@ -103,9 +111,9 @@ class MarketplaceItemMetadata(MarketplaceObjectMetadata):
         if self.source == MarketplaceSourceType.functions:
             # This is needed since the marketplace deployment script modifies the paths to use _ instead of -.
             modified_name = self.name.replace("-", "_")
-            # Prefer using the tag if exists. Otherwise use version.
+            # Prefer using the tag if exists. Otherwise, use version.
             version = self.tag or self.version
-            return f"{self.source.value}/{self.channel}/{modified_name}/{version}/"
+            return f"{modified_name}/{version}/"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Bad source for marketplace item - {self.source}"
@@ -125,4 +133,5 @@ class MarketplaceItem(BaseModel):
 
 class MarketplaceCatalog(BaseModel):
     kind: ObjectKind = Field(ObjectKind.marketplace_catalog, const=True)
+    channel: str
     catalog: List[MarketplaceItem]

@@ -2795,7 +2795,6 @@ class HTTPRunDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -2805,7 +2804,6 @@ class HTTPRunDB(RunDBInterface):
         The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
-        :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
         :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
@@ -2817,7 +2815,6 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
@@ -2829,7 +2826,6 @@ class HTTPRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,
@@ -2839,7 +2835,6 @@ class HTTPRunDB(RunDBInterface):
 
         :param source_name: Name of source.
         :param item_name: Name of the item to retrieve, as it appears in the catalog.
-        :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
         :param force_refresh: Make the server fetch the information from the actual marketplace
@@ -2849,7 +2844,6 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items/{item_name}",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,

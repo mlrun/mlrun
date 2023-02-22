@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import json
+from typing import Any, Dict, List, Optional
 
 import mlrun.errors
 import mlrun.utils.singleton
@@ -121,42 +122,37 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         return source_secrets
 
     @staticmethod
-    def _transform_catalog_dict_to_schema(source, catalog_dict):
-        catalog_dict = catalog_dict.get("functions")
-        if not catalog_dict:
-            raise mlrun.errors.MLRunInternalServerError(
-                "Invalid catalog file - no 'functions' section found."
-            )
-
-        catalog = MarketplaceCatalog(catalog=[])
-        # Loop over channels, then per function extract versions.
-        for channel_name in catalog_dict:
-            channel_dict = catalog_dict[channel_name]
-            for function_name in channel_dict:
-                function_dict = channel_dict[function_name]
-                for version_tag in function_dict:
-                    version_dict = function_dict[version_tag]
-                    function_details_dict = version_dict.copy()
-                    spec_dict = function_details_dict.pop("spec", None)
-                    metadata = MarketplaceItemMetadata(
-                        channel=channel_name, tag=version_tag, **function_details_dict
-                    )
-                    item_uri = source.get_full_uri(metadata.get_relative_path())
-                    spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
-                    item = MarketplaceItem(
-                        metadata=metadata, spec=spec, status=ObjectStatus()
-                    )
-                    catalog.catalog.append(item)
+    def _transform_catalog_dict_to_schema(
+        source: MarketplaceSource, catalog_dict: Dict[str, Any]
+    ):
+        catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
+        # Loop over objects, then over object versions.
+        for object_name in catalog_dict:
+            object_dict = catalog_dict[object_name]
+            for version_tag in object_dict:
+                version_dict = object_dict[version_tag]
+                object_details_dict = version_dict.copy()
+                spec_dict = object_details_dict.pop("spec", None)
+                metadata = MarketplaceItemMetadata(
+                    tag=version_tag, **object_details_dict
+                )
+                item_uri = source.get_full_uri(metadata.get_relative_path())
+                spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
+                item = MarketplaceItem(
+                    metadata=metadata,
+                    spec=spec,
+                    status=ObjectStatus(),
+                )
+                catalog.catalog.append(item)
 
         return catalog
 
     def get_source_catalog(
         self,
         source: MarketplaceSource,
-        channel=None,
-        version=None,
-        tag=None,
-        force_refresh=False,
+        version: Optional[str] = None,
+        tag: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> MarketplaceCatalog:
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
@@ -169,12 +165,10 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog = self._catalogs[source_name]
 
-        result_catalog = MarketplaceCatalog(catalog=[])
+        result_catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
         for item in catalog.catalog:
-            if (
-                (channel is None or item.metadata.channel == channel)
-                and (tag is None or item.metadata.tag == tag)
-                and (version is None or item.metadata.version == version)
+            if (tag is None or item.metadata.tag == tag) and (
+                version is None or item.metadata.version == version
             ):
                 result_catalog.catalog.append(item)
 
@@ -183,22 +177,37 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def get_item(
         self,
         source: MarketplaceSource,
-        item_name,
-        channel,
-        version=None,
-        tag=None,
-        force_refresh=False,
+        item_name: str,
+        version: Optional[str] = None,
+        tag: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> MarketplaceItem:
-        catalog = self.get_source_catalog(source, channel, version, tag, force_refresh)
-        items = [item for item in catalog.catalog if item.metadata.name == item_name]
+        catalog = self.get_source_catalog(source, version, tag, force_refresh)
+        return self._get_item_from_catalog(catalog.catalog, item_name, version, tag)
+
+    @staticmethod
+    def _get_item_from_catalog(
+        catalog: List[MarketplaceItem], item_name, version, tag
+    ) -> MarketplaceItem:
+        """
+        Retrieve item from catalog, assuming that the catalog is already filtered by tags and versions.
+        Raise errors if the number of collected items from catalog is not exactly one.
+        Use when expected to get exactly one item.
+        :param catalog:     list of items
+        :param item_name:   item name
+        :param version:     item version
+        :param tag:         item tag
+        :return:   item object from catalog
+        """
+        items = [item for item in catalog if item.metadata.name == item_name]
         if not items:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Item not found. source={item_name}, channel={channel}, version={version}"
+                f"Item not found. source={item_name}, version={version}"
             )
         if len(items) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Query resulted in more than 1 catalog items. "
-                + f"source={item_name}, channel={channel}, version={version}, tag={tag}"
+                + f"source={item_name}, version={version}, tag={tag}"
             )
         return items[0]
 

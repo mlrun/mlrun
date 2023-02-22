@@ -36,7 +36,7 @@ def _generate_source_dict(index, name, credentials=None):
         "source": {
             "kind": "MarketplaceSource",
             "metadata": {"name": name, "description": "A test", "labels": None},
-            "spec": {"path": path, "channel": "catalog", "credentials": credentials},
+            "spec": {"path": path, "channel": "channel", "credentials": credentials},
             "status": {"state": "created"},
         },
     }
@@ -46,6 +46,7 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
     exclude_paths = exclude_paths or [
         "root['metadata']['updated']",
         "root['metadata']['created']",
+        "root['spec']['object_type']",
     ]
     response = client.get("marketplace/sources")
     assert response.status_code == HTTPStatus.OK.value
@@ -88,7 +89,11 @@ def test_marketplace_source_apis(
     source_1["source"]["metadata"]["something_new"] = 42
     response = client.put("marketplace/sources/source_1", json=source_1)
     assert response.status_code == HTTPStatus.OK.value
-    exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
+    exclude_paths = [
+        "root['metadata']['updated']",
+        "root['metadata']['created']",
+        "root['spec']['object_type']",
+    ]
     assert (
         deepdiff.DeepDiff(
             response.json()["source"], source_1["source"], exclude_paths=exclude_paths
@@ -161,7 +166,11 @@ def test_marketplace_credentials_removed_from_db(
 
     expected_response = source_1["source"]
     expected_response["spec"]["credentials"] = None
-    exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
+    exclude_paths = [
+        "root['metadata']['updated']",
+        "root['metadata']['created']",
+        "root['spec']['object_type']",
+    ]
     assert (
         deepdiff.DeepDiff(
             expected_response, object_dict["source"], exclude_paths=exclude_paths
@@ -218,20 +227,15 @@ def test_marketplace_source_manager(
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) == 5
 
-    catalog = manager.get_source_catalog(source_object, channel="dev")
-    assert len(catalog.catalog) == 1
-    for item in catalog.catalog:
-        assert item.metadata.name == "dev_function"
+    catalog = manager.get_source_catalog(source_object, tag="latest")
+    assert len(catalog.catalog) == 3
 
-    catalog = manager.get_source_catalog(source_object, channel="prod")
-    assert len(catalog.catalog) == 4
+    catalog = manager.get_source_catalog(source_object, version="0.0.1")
+    assert len(catalog.catalog) == 3
     for item in catalog.catalog:
-        assert item.metadata.name in [
-            "prod_function",
-            "prod_function_2",
-        ] and item.metadata.version in ["0.0.1", "1.0.0"]
+        assert item.metadata.version == "0.0.1"
 
-    catalog = manager.get_source_catalog(source_object, channel="prod", version="1.0.0")
+    catalog = manager.get_source_catalog(source_object, version="1.0.0")
     assert len(catalog.catalog) == 2
     for item in catalog.catalog:
         assert (
@@ -239,12 +243,8 @@ def test_marketplace_source_manager(
             and item.metadata.version == "1.0.0"
         )
 
-    item = manager.get_item(source_object, "prod_function", "prod", "1.0.0")
-    assert (
-        item.metadata.name == "prod_function"
-        and item.metadata.version == "1.0.0"
-        and item.metadata.channel == "prod"
-    )
+    item = manager.get_item(source_object, "prod_function", "1.0.0")
+    assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
 
 
 # TODO: Unskip when fixed
@@ -263,7 +263,7 @@ def test_marketplace_default_source(
     for i in range(10):
         function = random.choice(catalog.catalog)
         print(
-            f"Selected the following: function = {function.metadata.name}, channel = {function.metadata.channel},"
+            f"Selected the following: function = {function.metadata.name},"
             + f" tag = {function.metadata.tag}, version = {function.metadata.version}"
         )
 

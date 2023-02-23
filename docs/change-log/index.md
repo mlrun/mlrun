@@ -101,7 +101,7 @@ The following MLRun APIs have been deprecated since at least v1.0.0 and are now 
 - `project.func()` (instead, use `project.get_function()`)
 - `project.create_vault_secrets()` (instead, use `project.set_secrets()`)
 - `project.get_vault_secret()`
-- `MlrunProjectLegacy` class
+- `MlrunProjectLegacy` class, instead ->MlrunProject
 - Feature-store: usage of state in graph (instead, use `step`). For example, there were deprecated: `add_writer_state`, and the `after_state` parameter in `_init_` methods.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 - `mount_path` parameter in mount_v3io(). Instead, use the `volume_mounts` parameter
@@ -122,12 +122,17 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 - Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
 - Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/mlrun/pull/2983).
 - Jobs and Workflows pages now display the tag of the executed job (as defined in the API).
-- Fix: Ingestion with `add_aggregation` over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3062).
+- Fix: Ingestion with `add_aggregation` over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
 - Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).
 - Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
 - `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
-- Dask CLI worker memory limit argument fixed. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
-- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down.
+- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/mlrun/pull/1613).
+- `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and 
+    docstrings were added for httpdb and for MLRunProject methods: both list_artifacts and list_models. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
+-      [View in Git](https://github.com/mlrun/mlrun/pull/).
+-  [View in Git](https://github.com/mlrun/mlrun/pull/).
+    
+     same as above 3234
     
     
 ### See more
@@ -445,16 +450,22 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | 1.1.0 |
 | 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | 1.1.0 |
-|  | The feature store does not support schema evolution nor does it have schema enforcement. | NA | v1.2.1 |
+|  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
+| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | 1.2.1 |
+| 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector  | ??? |
+| 3386   | Documentation is missing details on all of the feature store sources and targets | NA | Opened |
+| ID   | Description                                            | Workaround                                    | 1.2.1 |
 
-## Limitations
+    
+    
+    ## Limitations
 
 
 | ID   | Description                                                    | Workaround                           | Opened | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | 3315 | The feature store does not support an aggregation of aggregations | NA | v1.2.1 |
-
+| 3381 | Private repo is not supported as a marketplace hub             | NA                           | 1.2.1 | 
  
 
 ## Deprecations

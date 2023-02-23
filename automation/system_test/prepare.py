@@ -403,6 +403,7 @@ class SystemTestPreparer:
         self._run_command(
             f"./{provctl_path}",
             args=[
+                "--verbose",
                 f"--logger-file-path={provctl_create_patch_log}",
                 "create-patch",
                 "appservice",
@@ -430,6 +431,7 @@ class SystemTestPreparer:
         self._run_command(
             f"./{provctl_path}",
             args=[
+                "--verbose",
                 f"--logger-file-path={provctl_patch_mlrun_log}",
                 "--app-cluster-password",
                 self._app_cluster_ssh_password,

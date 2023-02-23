@@ -1217,7 +1217,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
 
-        easurements = fstore.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
@@ -1233,8 +1233,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fstore.RunConfig(local=False),
             )
         assert (
-                str(ml_run_exception.value)
-                == "DropFeatures can only drop features, not entities"
+            str(ml_run_exception.value)
+            == "DropFeatures can only drop features, not entities"
         )
 
     def test_ingest_with_steps_onehot(self):

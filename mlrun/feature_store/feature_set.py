@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -49,6 +50,7 @@ from ..serving.states import BaseStep, RootFlowStep, previous_step
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
+from .steps import MLRunStep
 
 aggregates_step = "Aggregates"
 
@@ -242,6 +244,18 @@ class FeatureSetSpec(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "passthrough feature set can not have graph transformations"
             )
+
+    def validate_steps(self):
+        entities_keys = [entity.name for entity in self.entities]
+        for step in self.graph.steps.values():
+            try:
+                module_path, class_name = step.class_name.rsplit(".", 1)
+            except ValueError:
+                return False
+            module = importlib.import_module(module_path)
+            step_class: MLRunStep = getattr(module, class_name)
+            step_object = step_class(**step.class_args)
+            step_object.step_validate(entities=entities_keys)
 
 
 class FeatureSetStatus(ModelObj):

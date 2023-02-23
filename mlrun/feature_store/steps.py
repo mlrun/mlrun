@@ -70,6 +70,9 @@ class MLRunStep(MapClass):
     def _do_spark(self, event):
         raise NotImplementedError
 
+    def step_validate(self, entities=None):
+        pass
+
 
 class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
@@ -634,3 +637,9 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         return event.drop(*self.features)
+
+    def step_validate(self, entities: List[str] = None):
+        if set(self.features).intersection(entities):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DropFeatures can only drop features, not entities"
+            )

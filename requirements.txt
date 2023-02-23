@@ -18,8 +18,10 @@ protobuf>=3.13, <3.20
 # with the new features, therefore limiting to 1.8.13
 kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
-ipython~=7.0
-nuclio-jupyter~=0.9.8
+# ipython 8.0 + only supports python3.8 +, so to keep backwards compatibility with python 3.7 we support 7.x
+# we rely on pip and nuclio-jupyter requirements to install the right package per python version
+ipython>=7.0, <9.0
+nuclio-jupyter~=0.9.9
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us
@@ -48,7 +50,7 @@ kubernetes~=12.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
-fastapi~=0.88.0
+fastapi~=0.92.0
 fsspec~=2021.8.1
 v3iofs~=0.1.15
 storey~=1.3.11

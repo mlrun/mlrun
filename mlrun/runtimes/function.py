@@ -36,6 +36,7 @@ from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
+from ..config import is_running_as_api
 from ..errors import err_to_str
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
@@ -1227,9 +1228,13 @@ def _resolve_function_image_pull_secret(function):
     """
     the corresponding attribute for 'build.secret' in nuclio is imagePullSecrets, attached link for reference
     https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
-    if only 1 of the secrets is set, use it.
+    if only one of the secrets is set, use it.
     if both are set and different, use the non default one and give precedence to image_pull_secret
     """
+    # enrich only on server side
+    if not is_running_as_api():
+        return function.spec.image_pull_secret or function.spec.build.secret
+
     # enrich with defaults
     if function.spec.image_pull_secret is None:
         function.spec.image_pull_secret = (
@@ -1239,30 +1244,21 @@ def _resolve_function_image_pull_secret(function):
     if function.spec.build.secret is None:
         function.spec.build.secret = mlrun.mlconf.httpdb.builder.docker_registry_secret
 
+    # resolve image pull secret
     image_pull_secret = function.spec.image_pull_secret or function.spec.build.secret
-    if (
-        function.spec.image_pull_secret
-        and function.spec.build.secret
-        and function.spec.image_pull_secret != function.spec.build.secret
-    ):
-        message = "Image pull secret and build secret should match for nuclio runtime"
-        message_usage_info = ", using image pull secret."
-        if (
-            function.spec.build.secret
-            != mlrun.mlconf.httpdb.builder.docker_registry_secret
-            and function.spec.image_pull_secret
-            == mlrun.mlconf.function.spec.image_pull_secret.default
-        ):
-            # build secret was set by user, use it
-            image_pull_secret = function.spec.build.secret
-            message_usage_info = ", using build secret."
+    if not function.spec.image_pull_secret or not function.spec.build.secret:
+        return image_pull_secret
 
-        message += message_usage_info
-        logger.warning(
-            message,
-            image_pull_secret=function.spec.image_pull_secret,
-            build_secret=function.spec.build.secret,
-        )
+    if function.spec.image_pull_secret == function.spec.build.secret:
+        return image_pull_secret
+
+    if (
+        function.spec.build.secret != mlrun.mlconf.httpdb.builder.docker_registry_secret
+        and function.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    ):
+        # build secret was set by user and image pull secret is default, use build secret
+        return function.spec.build.secret
 
     return image_pull_secret
 

@@ -32,16 +32,16 @@ class PickleModelServer(V2ModelServer):
         model_file, extra_data = self.get_model(".pkl")
         self.model = load(open(model_file, "rb"))
 
-    def predict(self, body: dict) -> list:
+    def predict(self, request: dict) -> list:
         """
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
-        :param body: The request of the model. The input to the model will be read from the "inputs" key.
+        :param request: The request of the model. The input to the model will be read from the "inputs" key.
 
         :return: The model's prediction on the given input.
         """
-        inputs = body["inputs"]
+        inputs = request["inputs"]
         if inputs and isinstance(inputs[0], dict):
             x = pd.DataFrame(inputs[0])
         else:

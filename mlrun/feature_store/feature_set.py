@@ -247,6 +247,8 @@ class FeatureSetSpec(ModelObj):
 
     def validate_steps(self):
         entities_keys = [entity.name for entity in self.entities]
+        if not self.graph:
+            return
         for step in self.graph.steps.values():
             try:
                 module_path, class_name = step.class_name.rsplit(".", 1)

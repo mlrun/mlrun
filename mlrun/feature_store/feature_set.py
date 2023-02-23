@@ -249,14 +249,15 @@ class FeatureSetSpec(ModelObj):
         if not self.graph:
             return
         for step in self.graph.steps.values():
-            #  need to filter out none class names or queue class_names
-            if step.class_name not in queue_class_names and step.class_name is not None:
-                module_path, class_name = step.class_name.rsplit(".", 1)
-                entities_keys = [entity.name for entity in self.entities]
-                module = importlib.import_module(module_path)
-                step_class: MLRunStep = getattr(module, class_name)
-                step_object = step_class(**step.class_args)
-                step_object.validate(entities=entities_keys)
+            if step.class_name in queue_class_names or step.class_name is None:
+                #  we are not checking none class names or queue class names.
+                continue
+            module_path, class_name = step.class_name.rsplit(".", 1)
+            entities_keys = [entity.name for entity in self.entities]
+            module = importlib.import_module(module_path)
+            step_class: MLRunStep = getattr(module, class_name)
+            step_object = step_class(**step.class_args)
+            step_object.validate(entities=entities_keys)
 
 
 class FeatureSetStatus(ModelObj):

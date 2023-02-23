@@ -37,13 +37,25 @@ Click on the step names in the following sections to see the full usage.
 
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   
-| [storey.AggregateByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.AggregateByKey) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
+| [mlrun.feature_store.add_aggregation](../api/mlrun.feature_store.html#add_aggregation) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
 | [mlrun.feature_store.DateExtractor](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DateExtractor)  | Extract a date-time component. Supported also by Pandas and Spark engines. Spark supports extracting only the time parts from the date data.|
 | [mlrun.feature_store.DropFeatures](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DropFeatures) | Drop features from feature list. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.Imputer](../api/mlrun.feature_store.html#mlrun.feature_store.steps.Imputer) | Replace None values with default values. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.MapValues](../api/mlrun.feature_store.html#mlrun.feature_store.steps.MapValues) | Map column values to new values. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.html#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded). Supported also by the Pandas and Spark engines. | 
 | [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.html#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body. |
+
+The following table list the ingestion-engines support for each of the data transformation steps
+step\engine          | storey | spark | pandas | comments
+---                  | ---    | ---   | ---    | ---
+Aggregations         | Y*     | Y     | N      | Not supported with online target SQLTarget
+DateExtractor        | Y      | N*    | Y      | spark supports part extract (ex. day_of_week) but does not support boolean (ex. is_leap_year)
+DropFeatures         | Y      | Y     | Y      |
+Imputer              | Y      | Y     | Y      |
+MapValues            | Y      | Y     | Y      |
+OneHotEncoder        | Y      | Y     | Y      |
+SetEventMetadata     | Y      | N     | N      | Not applicable outside of storey
+FeaeturesetValidator | Y      | N     | Y      |
 
 
 ## External IO and data enrichment

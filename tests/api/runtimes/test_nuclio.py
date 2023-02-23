@@ -1175,10 +1175,17 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "my-other-builder-secret",
                 "my-default-image-pull-secret",
                 "my-default-builder-secret",
-                "my-other-builder-secret",
+                None,
             ),
             (
                 "",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+            (
+                "my-default-image-pull-secret",
                 "",
                 "my-default-image-pull-secret",
                 "my-default-builder-secret",

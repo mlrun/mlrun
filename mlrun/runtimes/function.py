@@ -1229,38 +1229,30 @@ def _resolve_function_image_pull_secret(function):
     the corresponding attribute for 'build.secret' in nuclio is imagePullSecrets, attached link for reference
     https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
     if only one of the secrets is set, use it.
-    if both are set and different, use the non default one and give precedence to image_pull_secret
+    if both are set, use the non default one and give precedence to image_pull_secret
     """
     # enrich only on server side
     if not is_running_as_api():
         return function.spec.image_pull_secret or function.spec.build.secret
 
-    # enrich with defaults
     if function.spec.image_pull_secret is None:
         function.spec.image_pull_secret = (
             mlrun.mlconf.function.spec.image_pull_secret.default
         )
+    elif (
+        function.spec.image_pull_secret
+        != mlrun.mlconf.function.spec.image_pull_secret.default
+    ):
+        return function.spec.image_pull_secret
 
     if function.spec.build.secret is None:
         function.spec.build.secret = mlrun.mlconf.httpdb.builder.docker_registry_secret
-
-    # resolve image pull secret
-    image_pull_secret = function.spec.image_pull_secret or function.spec.build.secret
-    if not function.spec.image_pull_secret or not function.spec.build.secret:
-        return image_pull_secret
-
-    if function.spec.image_pull_secret == function.spec.build.secret:
-        return image_pull_secret
-
-    if (
+    elif (
         function.spec.build.secret != mlrun.mlconf.httpdb.builder.docker_registry_secret
-        and function.spec.image_pull_secret
-        == mlrun.mlconf.function.spec.image_pull_secret.default
     ):
-        # build secret was set by user and image pull secret is default, use build secret
         return function.spec.build.secret
 
-    return image_pull_secret
+    return function.spec.image_pull_secret or function.spec.build.secret
 
 
 def compile_function_config(

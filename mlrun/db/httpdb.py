@@ -950,13 +950,17 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state.
+            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+            logger.info(
+                "Using default grace period for runtime resources deletion",
+                grace_period=grace_period,
+            )
 
         params = {
             "label-selector": label_selector,

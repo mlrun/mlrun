@@ -127,10 +127,8 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     ):
         catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
         # Loop over objects, then over object versions.
-        for object_name in catalog_dict:
-            object_dict = catalog_dict[object_name]
-            for version_tag in object_dict:
-                version_dict = object_dict[version_tag]
+        for object_name, object_dict in catalog_dict.items():
+            for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", None)
                 metadata = MarketplaceItemMetadata(

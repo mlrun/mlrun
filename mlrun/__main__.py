@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -1006,10 +1007,17 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+# TODO: Remove --ensure-project in 1.6.0
 @click.option(
     "--ensure-project",
     is_flag=True,
     help="ensure the project exists, if not, create project",
+)
+@click.option(
+    "--save",
+    is_flag=True,
+    default=True,
+    help="create and save the project if not exist",
 )
 @click.option(
     "--schedule",
@@ -1062,17 +1070,23 @@ def project(
     schedule,
     override_workflow,
     save_secrets,
+    save,
 ):
     """load and/or run a project"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if ensure_project:
+        warnings.warn(
+            "'ensure_project' is deprecated and will be removed in 1.6.0, use 'save' (True by default) instead. ",
+            # TODO: Remove this in 1.6.0
+            FutureWarning,
+        )
+
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
-    )
+    proj = load_project(context, url, name, init_git=init_git, clone=clone, save=save)
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 

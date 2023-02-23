@@ -396,6 +396,7 @@ class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -428,6 +429,7 @@ class ProcessBeforeKV(mlrun.feature_store.steps.MapClass):
         }
         # Write labels to kv as json string to be presentable later
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
+
         return e
 
 
@@ -447,6 +449,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -516,6 +519,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
@@ -634,9 +638,11 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             return None
 
-        if endpoint_id not in self.first_request:
-            self.first_request[endpoint_id] = timestamp
-        self.last_request[endpoint_id] = timestamp
+        # Update first and last request timestamps along with
+        # converting the timestamp into a `datetime.datetime` object
+        timestamp = self._update_request_timestamps(
+            endpoint_id=endpoint_id, timestamp=timestamp
+        )
 
         if not self.is_valid(
             endpoint_id,
@@ -671,9 +677,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         unpacked_labels = {
             f"_{k}": v for k, v in event.get(EventFieldType.LABELS, {}).items()
         }
-
-        # Adjust timestamp format
-        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
@@ -719,6 +722,46 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         storey_event = storey.Event(body=events, key=endpoint_id)
         return storey_event
 
+    def _update_request_timestamps(
+        self, endpoint_id: str, timestamp: str
+    ) -> datetime.datetime:
+        """Update model endpoint first and last request timestamps. In addition, this function validates that the
+         request time of the current event is later than the previous request time that has already been processed.
+
+        :param endpoint_id: The unique id of the model endpoint.
+        :param timestamp:   Event request time as a string.
+
+        :return: Event request time as a `datetime.datetime` object
+
+        :raise MLRunPreconditionFailedError: If the request time of the current is later than the previous request time.
+        """
+
+        # Convert timestamp into a `datetime.datetime` object
+        timestamp_as_datetime = datetime.datetime.strptime(
+            timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f"
+        )
+
+        if endpoint_id not in self.first_request:
+            # Set time for the first request of the current endpoint
+            self.first_request[endpoint_id] = timestamp
+        if endpoint_id in self.last_request:
+            # Validate that the current request time is later than the previous request
+            last_request_as_timestamp = datetime.datetime.strptime(
+                self.last_request[endpoint_id][:-6], "%Y-%m-%d %H:%M:%S.%f"
+            )
+            if last_request_as_timestamp > timestamp_as_datetime:
+
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"current event request time {timestamp} has to be "
+                    f"later than the last request "
+                    f"{self.last_request[endpoint_id]}"
+                )
+
+        # Set time for the last reqeust of the current endpoint
+        self.last_request[endpoint_id] = timestamp
+
+        return timestamp_as_datetime
+
     def is_list_of_numerics(
         self,
         field: typing.List[typing.Union[int, float, dict, list]],
@@ -743,12 +786,21 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 access_key=self.v3io_access_key,
             )
 
-            # If model endpoint found, validate first_request and error_count values
+            # If model endpoint found, get first_request, last_request and error_count values
             if endpoint_record:
                 first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
+
                 if first_request:
+
                     self.first_request[endpoint_id] = first_request
+
+                last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
+                if last_request:
+
+                    self.last_request[endpoint_id] = last_request
+
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
+
                 if error_count:
                     self.error_count[endpoint_id] = error_count
 

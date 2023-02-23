@@ -46,7 +46,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
@@ -246,18 +246,17 @@ class FeatureSetSpec(ModelObj):
             )
 
     def validate_steps(self):
-        entities_keys = [entity.name for entity in self.entities]
         if not self.graph:
             return
         for step in self.graph.steps.values():
-            try:
+            #  need to filter out none class names or queue class_names
+            if step.class_name not in queue_class_names and step.class_name is not None:
                 module_path, class_name = step.class_name.rsplit(".", 1)
-            except ValueError:
-                return False
-            module = importlib.import_module(module_path)
-            step_class: MLRunStep = getattr(module, class_name)
-            step_object = step_class(**step.class_args)
-            step_object.step_validate(entities=entities_keys)
+                entities_keys = [entity.name for entity in self.entities]
+                module = importlib.import_module(module_path)
+                step_class: MLRunStep = getattr(module, class_name)
+                step_object = step_class(**step.class_args)
+                step_object.validate(entities=entities_keys)
 
 
 class FeatureSetStatus(ModelObj):

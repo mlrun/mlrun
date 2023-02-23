@@ -1094,12 +1094,122 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_deploy_function_with_build_secret(self):
+    @pytest.mark.parametrize(
+        "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
+        "default_build_secret_name,expected_secret_name",
+        [
+            ("", "", "", "", None),
+            ("my-secret", "", "", "", "my-secret"),
+            ("my-secret", None, "", "", "my-secret"),
+            ("my-secret", None, None, None, "my-secret"),
+            ("my-secret", "my-secret", "", "", "my-secret"),
+            (None, "my-secret", "", "", "my-secret"),
+            (None, "my-secret", None, None, "my-secret"),
+            ("my-image-pull-secret", "my-build-secret", "", "", "my-image-pull-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-default-image-pull-secret",
+            ),
+            (None, None, "", "my-default-builder-secret", "my-default-builder-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-other-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+        ],
+    )
+    def test_deploy_function_with_image_pull_secret(
+        self,
+        image_pull_secret_name,
+        build_secret_name,
+        default_image_pull_secret_name,
+        default_build_secret_name,
+        expected_secret_name,
+    ):
+        mlrun.mlconf.function.spec.image_pull_secret.default = (
+            default_image_pull_secret_name
+        )
+        mlrun.mlconf.httpdb.builder.docker_registry_secret = default_build_secret_name
         fn = self._generate_runtime()
-        fn.spec.build.secret = "applied"
+
+        if image_pull_secret_name is not None:
+            fn.set_image_pull_configuration(
+                image_pull_secret_name=image_pull_secret_name
+            )
+
+        if build_secret_name is not None:
+            fn.spec.build.secret = build_secret_name
+
         _, _, deployed_config = compile_function_config(fn)
-        # expects spec.build.secret to overwrite Nuclio spec["spec"]["imagePullSecrets"]
-        assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
+        assert deployed_config["spec"].get("imagePullSecrets") == expected_secret_name
 
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)

@@ -588,6 +588,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     def do(self, full_event):
         event = full_event.body
+        logger.info("Event at the beginning of ProcessEndpointEvent, the first step", event=event)
 
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id

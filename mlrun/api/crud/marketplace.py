@@ -124,7 +124,15 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _transform_catalog_dict_to_schema(
         source: MarketplaceSource, catalog_dict: Dict[str, Any]
-    ):
+    ) -> MarketplaceCatalog:
+        """
+        Transforms catalog dictionary to MarketplaceCatalog schema
+        :param source:          Marketplace source object.
+        :param catalog_dict:    raw catalog dict, top level keys are item names,
+                                second level keys are version tags ("latest, "1.1.0", ...) and
+                                bottom level keys include spec as a dict and all the rest is considered as metadata.
+        :return: catalog object
+        """
         catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
         # Loop over objects, then over object versions.
         for object_name, object_dict in catalog_dict.items():
@@ -152,6 +160,17 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         force_refresh: bool = False,
     ) -> MarketplaceCatalog:
+        """
+        Getting the catalog object by source.
+        If version and/or tag are given, the catalog will be filtered accordingly.
+
+        :param source:          Marketplace source object.
+        :param version:         version of items to filter by
+        :param tag:             tag of items to filter by
+        :param force_refresh:   if True, the catalog will be loaded from source always,
+                                otherwise will be pulled from db (if loaded before)
+        :return: catalog object
+        """
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
             url = source.get_catalog_uri()
@@ -180,6 +199,17 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         force_refresh: bool = False,
     ) -> MarketplaceItem:
+        """
+        Retrieve item from source. The item is filtered by tag and version.
+
+        :param source:          Marketplace source object
+        :param item_name:       name of the item to retrieve
+        :param version:         version of the item
+        :param tag:             tag of the item
+        :param force_refresh:   if True, the catalog will be loaded from source always,
+                                otherwise will be pulled from db (if loaded before)
+        :return: marketplace item object
+        """
         catalog = self.get_source_catalog(source, version, tag, force_refresh)
         return self._get_item_from_catalog(catalog.catalog, item_name, version, tag)
 

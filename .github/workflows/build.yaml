@@ -52,9 +52,11 @@ jobs:
       - uses: actions/checkout@v3
       - id: set-matrix
         run: |
-          skipImages=,${{ github.event.inputs.skip_images }},
+          skipImages=",$INPUT_SKIP_IMAGES,"
           matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
           echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
+        env:
+          INPUT_SKIP_IMAGES: ${{ github.event.inputs.skip_images }}
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -86,25 +88,31 @@ jobs:
       run: |
         export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
-        export build_from_cache=$(if [ -z "${{ github.event.inputs.build_from_cache }}" ]; then echo "true" ; else echo "${{ github.event.inputs.build_from_cache }}";fi);
+        export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
+      env:
+        INPUT_BUILD_FROM_CACHE: ${{ github.event.inputs.build_from_cache }}
     - name: Set computed versions params
       id: computed_params
       run: |
         echo "mlrun_version=$( \
-          input_mlrun_version=${{ github.event.inputs.version }} && \
+          input_mlrun_version=$INPUT_VERSION && \
           default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
           echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
-          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          input_docker_repo=$INPUT_DOCKER_VERSION && \
           default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registries=$( \
-          input_docker_registries=${{ github.event.inputs.docker_registries }} && \
+          input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
           echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
+      env:
+        INPUT_VERSION: ${{ github.event.inputs.version }}
+        INPUT_DOCKER_VERSION: ${{ github.event.inputs.docker_repo }}
+        INPUT_DOCKER_REGISTRIES: ${{ github.event.inputs.docker_registries }}
     - name: Docker login
       # all suffixed with "| true" to allow failures if secrets are not defined (fork)
       run: |

@@ -159,7 +159,6 @@ func (s *Server) OnBeforeStart(ctx context.Context) error {
 	// initialize the state store (load state from file, start state file update loop)
 	// if the server is not the chief, do not monitor anything
 	if s.isChief {
-		s.Logger.DebugWithCtx(ctx, "Initializing state store")
 		if err := s.stateManifest.Initialize(ctx); err != nil {
 			return errors.Wrap(err, "Failed to initialize state store")
 		}
@@ -765,7 +764,6 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 	// If an item is written in the state store but not in the in memory state - call StartLog for it,
 	// as the state store is the source of truth
 	for range monitoringTicker.C {
-		s.Logger.DebugWithCtx(ctx, "Monitoring log streaming goroutines")
 
 		// if there are already log items in progress, call StartLog for each of them
 		projectRunUIDsInProgress, err := s.stateManifest.GetItemsInProgress()
@@ -881,7 +879,6 @@ func (s *Server) getLogItemsToStart(ctx context.Context, projectRunUIDsInProgres
 
 			// check if the log streaming is already running for this runUID
 			if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
-				s.Logger.DebugWithCtx(ctx, "Log collection is not running for log item", "runUID", logItem.RunUID)
 
 				// if not, add it to the list of log items to start
 				logItemsToStart = append(logItemsToStart, logItem)
@@ -891,8 +888,6 @@ func (s *Server) getLogItemsToStart(ctx context.Context, projectRunUIDsInProgres
 		})
 		return true
 	})
-
-	s.Logger.DebugWithCtx(ctx, "Found log items to start", "logItemsToStart", logItemsToStart)
 
 	return logItemsToStart
 }

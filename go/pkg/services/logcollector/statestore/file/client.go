@@ -54,8 +54,6 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 func (s *Store) Initialize(ctx context.Context) error {
 	var err error
 
-	s.Logger.DebugWithCtx(ctx, "Initialize - file state store", "stateFilePath", s.stateFilePath)
-
 	// load state from file before starting the update loop, as thr file is our source of truth
 	s.fileLock.Lock()
 	s.State, err = s.readStateFile()
@@ -75,7 +73,7 @@ func (s *Store) Initialize(ctx context.Context) error {
 	// spawn a goroutine that will update the state file periodically
 	go s.stateFileUpdateLoop(ctx)
 
-	s.Logger.DebugWithCtx(ctx, "Initialize - file state store - DONE")
+	s.Logger.DebugWithCtx(ctx, "Successfully initialized file state store")
 
 	return nil
 }
@@ -87,10 +85,8 @@ func (s *Store) WriteState(state *statestore.State) error {
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
-	s.Logger.DebugWithCtx(context.Background(), "GetState - acquiring stateLock")
 	s.stateLock.Lock()
 	defer func() {
-		s.Logger.DebugWithCtx(context.Background(), "GetState - releasing stateLock")
 		s.stateLock.Unlock()
 	}()
 	return s.State
@@ -135,14 +131,10 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 	}
 
 	// get lock, unlock later
-	s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - acquiring fileLock")
 	s.fileLock.Lock()
 	defer func() {
-		s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - releasing fileLock")
 		s.fileLock.Unlock()
 	}()
-
-	s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - blablabla")
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

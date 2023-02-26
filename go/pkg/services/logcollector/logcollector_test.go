@@ -420,28 +420,28 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	for i := 0; i < projectNum; i++ {
 		projectName := fmt.Sprintf("project-%d", i)
 
-		// add log item to the server's state
+		// add log item to the server's states, so no error will be returned
 		for j := 0; j < logItemsNum; j++ {
 			runUID := uuid.New().String()
 			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
 			selector := fmt.Sprintf("run=%s", runUID)
 
-			// Add state to the log collector's persistent state store
-			err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to state store")
+			// Add state to the log collector's state manifest
+			err = suite.LogCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the state manifest")
 
-			// Add state to the log collector's in-memory state
-			err = suite.LogCollectorServer.inMemoryState.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to in-memory state")
+			// Add state to the log collector's current state
+			err = suite.LogCollectorServer.currentState.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the current state")
 		}
 	}
 
 	// write state
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	err = suite.LogCollectorServer.stateManifest.WriteState(suite.LogCollectorServer.stateManifest.GetState())
 	suite.Require().NoError(err, "Failed to write state")
 
 	// verify all items are in progress
-	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	logItemsInProgress, err := suite.LogCollectorServer.stateManifest.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(projectNum, common.SyncMapLength(logItemsInProgress), "Expected items to be in progress")
@@ -465,11 +465,11 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	}
 
 	// write state again
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	err = suite.LogCollectorServer.stateManifest.WriteState(suite.LogCollectorServer.stateManifest.GetState())
 	suite.Require().NoError(err, "Failed to write state")
 
 	// verify no items in progress
-	logItemsInProgress, err = suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	logItemsInProgress, err = suite.LogCollectorServer.stateManifest.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(0,

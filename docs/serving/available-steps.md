@@ -35,7 +35,7 @@ Click on the step names in the following sections to see the full usage.
 
 ## Data Transformations
 
-The below table lists the available data-transformation steps. Another table right next to it details the ingestion engines support of these steps.
+The following table lists the available data-transformation steps. The next table details the ingestion engines support of these steps.
 
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   

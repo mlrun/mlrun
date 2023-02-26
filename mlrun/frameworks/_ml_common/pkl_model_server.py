@@ -37,8 +37,17 @@ class PickleModelServer(V2ModelServer):
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.
 
-        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+        examples for inputs::
 
+            # dict option:
+            inputs = [{"x": [1, 2], "y": [3, 5.5]}]
+            # list option:
+            inputs = [[1, 2], [3, 5.5]]
+
+        :param request: The request of the model. The input to the model will be read from the "inputs" key.
+                        The input value can be either a dictionary with the feature names
+                        (only one can be sent so only the first one will take into consideration)
+                        or a list with feature values.
         :return: The model's prediction on the given input.
         """
         inputs = request["inputs"]

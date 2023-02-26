@@ -145,7 +145,7 @@ class KubejobRuntime(KubeResource):
             self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
-        if secret:
+        if secret is not None:
             self.spec.build.secret = secret
         if source:
             self.spec.build.source = source

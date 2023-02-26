@@ -35,9 +35,11 @@ Click on the step names in the following sections to see the full usage.
 
 ## Data Transformations
 
+The below table lists the available data-transformation steps. Another table right next to it details the ingestion engines support of these steps.
+
 | Class name            | Description                           |  
 |----------------------------|--------------------------------------------------------------|   
-| [mlrun.feature_store.add_aggregation](../api/mlrun.feature_store.html#add_aggregation) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
+| [mlrun.feature_store.add_aggregation](../api/mlrun.feature_store.html#mlrun.feature_store.FeatureSet.add_aggregation) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
 | [mlrun.feature_store.DateExtractor](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DateExtractor)  | Extract a date-time component. Supported also by Pandas and Spark engines. Spark supports extracting only the time parts from the date data.|
 | [mlrun.feature_store.DropFeatures](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DropFeatures) | Drop features from feature list. Supported also by the Pandas and Spark engines. |
 | [mlrun.feature_store.Imputer](../api/mlrun.feature_store.html#mlrun.feature_store.steps.Imputer) | Replace None values with default values. Supported also by the Pandas and Spark engines. |

@@ -505,7 +505,7 @@ class DateExtractor(StepToDict, MLRunStep):
             if func:
                 event = event.withColumn(
                     self._get_key_name(part),
-                    func(self.timestamp_col),
+                    func(self.timestamp_col).cast("long"),
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(

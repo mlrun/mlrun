@@ -113,12 +113,12 @@ Node selector is supported for all cloud platforms. It is relevant for MLRun and
 
 When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
 
-Preemption mode uses Kubernets Taints and Toleration to enforce the mode selected. Read more in [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration). 
+Preemption mode uses Kubernetes Taints and Toleration to enforce the mode selected. Read more in [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration). 
 
 ### Why preemption mode
 
 On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances you request capacity from specific available zones, though it is  
+reboot, or terminate it. With Spot instances, you request capacity from specific availability zones, though it is
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted. 
 
@@ -173,13 +173,13 @@ train_fn = mlrun.code_to_function('training',
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="prevent") 
-train_fn.run(inputs={"dataset" :my_data})
+train_fn.run(inputs={"dataset": my_data})
    
 ```
 
 See [`with_preemption_mode`](../api/mlrun.runtimes.html#RemoteRuntime.with_preemption_mode).
 
-Alternatively, you can specify the preemption using `with_priority_class` and `fn.with_priority_class(name="default-priority")node_selector`. This example specifies that the pod/function runs only on non-preemptible nodes:
+Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that the pod/function runs only on non-preemptible nodes:
 
 ```
 import mlrun
@@ -194,7 +194,8 @@ fn.with_priority_class(name="default-priority")
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
 
 ```
-                           
+
+See [`with_priority_class`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_priority_class).
 See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).
 
 
@@ -204,7 +205,7 @@ Pods (services, or jobs created by those services) can have priorities, which in
 scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
 by the service. For MLRun, it applies to the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
 
-Eviction uses these values to determine what to evict with conjunction to the pods priority [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption).
+Eviction uses these values in conjuction with pod priority to determine what to evict [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption).
 
 Pod priority is specified through Priority classes, which map to a priority value. The priority values are: High, Medium, Low. The default is Medium. Pod priority is supported for:
 - MLRun jobs: the default priority class for the jobs that MLRun creates.

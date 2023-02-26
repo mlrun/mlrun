@@ -503,7 +503,7 @@ class FeatureSet(ModelObj):
                 #  we are not checking none class names or queue class names.
                 continue
             module_path, class_name = step.class_name.rsplit(".", 1)
-            if not module_path:
+            if not module_path or not class_name:
                 continue
             module = importlib.import_module(module_path)
             step_class = getattr(module, class_name)

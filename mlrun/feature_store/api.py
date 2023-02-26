@@ -423,6 +423,8 @@ def ingest(
         schedule = source.schedule
         if schedule == "mock":
             schedule = None
+        if featureset is not None:
+            featureset.validate_steps()
         return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:

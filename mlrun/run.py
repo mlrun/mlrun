@@ -45,7 +45,6 @@ from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
-from .projects.pipelines import pipeline_context
 from .runtimes import (
     DaskCluster,
     HandlerRuntime,
@@ -988,6 +987,7 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
+        from .projects.pipelines import pipeline_context
         # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
         # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the the workflow
         # to True

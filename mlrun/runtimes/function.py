@@ -36,6 +36,7 @@ from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
+from ..config import is_running_as_api
 from ..errors import err_to_str
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
@@ -1223,6 +1224,37 @@ def resolve_function_http_trigger(function_spec):
         return trigger_config
 
 
+def _resolve_function_image_pull_secret(function):
+    """
+    the corresponding attribute for 'build.secret' in nuclio is imagePullSecrets, attached link for reference
+    https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
+    if only one of the secrets is set, use it.
+    if both are set, use the non default one and give precedence to image_pull_secret
+    """
+    # enrich only on server side
+    if not is_running_as_api():
+        return function.spec.image_pull_secret or function.spec.build.secret
+
+    if function.spec.image_pull_secret is None:
+        function.spec.image_pull_secret = (
+            mlrun.mlconf.function.spec.image_pull_secret.default
+        )
+    elif (
+        function.spec.image_pull_secret
+        != mlrun.mlconf.function.spec.image_pull_secret.default
+    ):
+        return function.spec.image_pull_secret
+
+    if function.spec.build.secret is None:
+        function.spec.build.secret = mlrun.mlconf.httpdb.builder.docker_registry_secret
+    elif (
+        function.spec.build.secret != mlrun.mlconf.httpdb.builder.docker_registry_secret
+    ):
+        return function.spec.build.secret
+
+    return function.spec.image_pull_secret or function.spec.build.secret
+
+
 def compile_function_config(
     function: RemoteRuntime,
     client_version: str = None,
@@ -1305,10 +1337,11 @@ def compile_function_config(
         nuclio_spec.set_config(
             "spec.build.functionSourceCode", function.spec.build.functionSourceCode
         )
-    # the corresponding attribute for build.secret in nuclio is imagePullSecrets, attached link for reference
-    # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
-    if function.spec.build.secret:
-        nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
+
+    image_pull_secret = _resolve_function_image_pull_secret(function)
+    if image_pull_secret:
+        nuclio_spec.set_config("spec.imagePullSecrets", image_pull_secret)
+
     if function.spec.base_image_pull:
         nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
     # don't send node selections if nuclio is not compatible

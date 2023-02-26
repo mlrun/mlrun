@@ -2189,7 +2189,7 @@ class MlrunProject(ModelObj):
         image=None,
         base_image=None,
         commands: list = None,
-        secret_name="",
+        secret_name=None,
         requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,

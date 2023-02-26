@@ -70,9 +70,6 @@ class MLRunStep(MapClass):
     def _do_spark(self, event):
         raise NotImplementedError
 
-    def validate(self, feature_set):
-        pass
-
 
 class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""

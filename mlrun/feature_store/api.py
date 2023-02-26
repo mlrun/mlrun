@@ -406,7 +406,7 @@ def ingest(
             "feature set and source must be specified"
         )
     if featureset is not None:
-        featureset.spec.validate_steps()
+        featureset.validate_steps()
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):

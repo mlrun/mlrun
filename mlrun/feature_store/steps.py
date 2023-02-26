@@ -70,7 +70,7 @@ class MLRunStep(MapClass):
     def _do_spark(self, event):
         raise NotImplementedError
 
-    def validate(self, entities=None):
+    def validate(self, feature_set):
         pass
 
 
@@ -638,7 +638,8 @@ class DropFeatures(StepToDict, MLRunStep):
     def _do_spark(self, event):
         return event.drop(*self.features)
 
-    def validate(self, entities: List[str] = None):
+    def validate(self, feature_set):
+        entities = [entity.name for entity in feature_set.spec.entities]
         if set(self.features).intersection(entities):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DropFeatures can only drop features, not entities"

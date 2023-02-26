@@ -245,20 +245,6 @@ class FeatureSetSpec(ModelObj):
                 "passthrough feature set can not have graph transformations"
             )
 
-    def validate_steps(self):
-        if not self.graph:
-            return
-        for step in self.graph.steps.values():
-            if step.class_name in queue_class_names or step.class_name is None:
-                #  we are not checking none class names or queue class names.
-                continue
-            module_path, class_name = step.class_name.rsplit(".", 1)
-            entities_keys = [entity.name for entity in self.entities]
-            module = importlib.import_module(module_path)
-            step_class: MLRunStep = getattr(module, class_name)
-            step_object = step_class(**step.class_args)
-            step_object.validate(entities=entities_keys)
-
 
 class FeatureSetStatus(ModelObj):
     def __init__(
@@ -503,6 +489,22 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
+
+    def validate_steps(self):
+        if not self.spec:
+            return
+        if not self.spec.graph:
+            return
+        for step in self.spec.graph.steps.values():
+            if step.class_name in queue_class_names or step.class_name is None:
+                #  we are not checking none class names or queue class names.
+                continue
+            module_path, class_name = step.class_name.rsplit(".", 1)
+            #entities_keys = [entity.name for entity in self.entities]
+            module = importlib.import_module(module_path)
+            step_class: MLRunStep = getattr(module, class_name)
+            step_object = step_class(**step.class_args)
+            step_object.validate(self)
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets

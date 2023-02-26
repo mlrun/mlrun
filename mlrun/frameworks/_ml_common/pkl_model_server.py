@@ -40,9 +40,9 @@ class PickleModelServer(V2ModelServer):
         :param request: The request of the model. The input to the model will be read from the "inputs" key.
                         The input value can be either a dictionary with the feature names
                         (only one can be sent so only the first one will take into consideration)
-                        or a list with feature values. For example, a batch size of 2 for data of two features 'x' and 'y'
-                        can be given:
-                        
+                        or a list with feature values.
+                        For example, a batch size of 2 for data of two features 'x' and 'y' can be given:
+
                         * As a dictionary: `{"inputs": [{"x": [1, 2], "y": [3, 5.5]}]}`
                         * As a list: `{"inputs": [[1, 2], [3, 5.5]]}`
         :return: The model's prediction on the given input.

@@ -120,7 +120,6 @@ def test_requirement_specifiers_convention():
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
-        "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
@@ -130,6 +129,7 @@ def test_requirement_specifiers_convention():
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
+        "ipython": {">=7.0, <9.0"},
         "importlib_metadata": {">=3.6"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding

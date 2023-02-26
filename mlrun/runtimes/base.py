@@ -1735,8 +1735,8 @@ class BaseRuntimeHandler(ABC):
         grace_period: int = None,
     ):
         """
-        Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
-        Note that this is happening before the deletion of the CRDs or the pods
+        Override this to handle deletion of resources other than pods or CRDs (which are handled by the base class)
+        Note that this is happening after the deletion of the CRDs or the pods
         Note to add this at the beginning:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period

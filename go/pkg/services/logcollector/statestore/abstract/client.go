@@ -123,6 +123,11 @@ func (s *Store) WriteState(state *statestore.State) error {
 	return nil
 }
 
+// GetItemsInProgress returns the in progress log items
+func (s *Store) GetItemsInProgress() (*sync.Map, error) {
+	return s.State.InProgress, nil
+}
+
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
 	return s.State

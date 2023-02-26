@@ -54,18 +54,28 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 func (s *Store) Initialize(ctx context.Context) error {
 	var err error
 
-	s.fileLock.Lock()
-	defer s.fileLock.Unlock()
+	s.Logger.DebugWithCtx(ctx, "Initialize - file state store", "stateFilePath", s.stateFilePath)
 
-	// load state from file before starting the update loop
-	// state file is our source of truth
+	// load state from file before starting the update loop, as thr file is our source of truth
+	s.fileLock.Lock()
 	s.State, err = s.readStateFile()
 	if err != nil {
+		s.fileLock.Unlock()
 		return errors.Wrap(err, "Failed to read state file")
+	}
+
+	// we do not defer unlock because we need the lock for writing the state to file
+	s.fileLock.Unlock()
+
+	// write state to file to make sure it exists
+	if err := s.writeStateToFile(s.State); err != nil {
+		return errors.Wrap(err, "Failed to write state file")
 	}
 
 	// spawn a goroutine that will update the state file periodically
 	go s.stateFileUpdateLoop(ctx)
+
+	s.Logger.DebugWithCtx(ctx, "Initialize - file state store - DONE")
 
 	return nil
 }
@@ -75,30 +85,14 @@ func (s *Store) WriteState(state *statestore.State) error {
 	return s.writeStateToFile(state)
 }
 
-// GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (*sync.Map, error) {
-	var err error
-
-	s.fileLock.Lock()
-	s.stateLock.Lock()
-	defer func() {
-		s.fileLock.Unlock()
-		s.stateLock.Unlock()
-	}()
-
-	// set the state in the file state store
-	s.State, err = s.readStateFile()
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read state file")
-	}
-
-	return s.State.InProgress, nil
-}
-
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
+	s.Logger.DebugWithCtx(context.Background(), "GetState - acquiring stateLock")
 	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
+	defer func() {
+		s.Logger.DebugWithCtx(context.Background(), "GetState - releasing stateLock")
+		s.stateLock.Unlock()
+	}()
 	return s.State
 }
 
@@ -134,10 +128,6 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 // writeStateToFile writes the state to file
 func (s *Store) writeStateToFile(state *statestore.State) error {
 
-	// lock state before marshaling, as it might cause race conditions
-	s.stateLock.Lock()
-	defer s.stateLock.Unlock()
-
 	// marshal state file
 	encodedState, err := json.Marshal(state)
 	if err != nil {
@@ -145,8 +135,14 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 	}
 
 	// get lock, unlock later
+	s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - acquiring fileLock")
 	s.fileLock.Lock()
-	defer s.fileLock.Unlock()
+	defer func() {
+		s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - releasing fileLock")
+		s.fileLock.Unlock()
+	}()
+
+	s.Logger.DebugWithCtx(context.Background(), "writeStateToFile - blablabla")
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

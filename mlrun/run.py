@@ -988,6 +988,7 @@ def run_pipeline(
 
     if remote or url:
         from .projects.pipelines import pipeline_context
+
         # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
         # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the the workflow
         # to True

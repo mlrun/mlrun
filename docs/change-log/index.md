@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.3.0](#v1.3.0)
+- [v1.3.0](#v1-3-0)
 - [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
@@ -32,17 +32,15 @@
 	```
 	  
 - v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
+- New APIs may require a new version of the MLRun client/server **ML-3266**
+APIs for logs??
 
 ### New and updated features
 
 
 #### APIs
 
-- New APIs may require a new version of the MLRun client/server **ML-3266**
-APIs for logs??
-
-**Modified APIs**
-- **[Deprecated APIs](#api-130)**.
+- [Deprecated APIs](#api-130)
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
  
  
@@ -58,8 +56,7 @@ APIs for logs??
 - Supports SQLTarget for storey engine. (Spark is nor yet supported.) 
    See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
 - The RedisNoSqlTarget now supports the Spark engine.
-- The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where "<prefix>" is the optional 
-   RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
+- The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where \<prefix> is the optional RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
 #### Projects
@@ -76,13 +73,14 @@ APIs for logs??
 - The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the 
     time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/storey/pull/394).
 
-
 #### Third party integrations
 - Supports private repo as a function hub. See []()
 
 #### UI
-- The new and improved  **Projects** home page provides easy and intuitive access to the common project tasks.
+- The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
+relevant wizxards under each phase heading: ingesting and processing data, devekoping and training a model, deploying and monitoring the project.
 
+<p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br>
 
 <a id="api-130"></a>
 ### Deprecated and removed APIs
@@ -90,33 +88,49 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 
 **Deprecated and removed from v1.3.0 code**<br>
 The following MLRun APIs have been deprecated since at least v1.0.0 and are now removed from the code:
-- `project.workflows`
-- `project.functions`
-- `project.artifacts`
-- `pod_status header` from response to get_log REST API
+
+| Deprecated/removed                   | Use instead                                   |
+| ------------------------------------ | --------------------------------------------- |
+| `project.workflows`                  | `project.spec.workflows`, such as `get_or_create_project`, `load_project` |
+| `project.functions`                  | `project.spec.functions`                      |
+| `project.artifacts`                  | `project.spec.artifacts`                       |
+| `project.func()`                     | `project.get_function()`                       |
+| `project.create_vault_secrets()`     | `project.set_secrets()`                        |
+| `project.get_vault_secret()`         | `proj.with_secrets`                            |
+| `MlrunProjectLegacy` class           | `MlrunProject`                                 |
+| Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step`                        |
+| `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
+| `NewTask`                            | `run_function()`                        |
+
+
+
+**Deprecated APIs, will be removed in v1.5.0**<br>
+These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | Project APIs such as `get_or_create_project`, `load_project` |
+| `AbstractSparkJobSpec.gpus`, `KubeResource.gpus` | `with_limits`                 |
+| Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
+| Dask `with_limits`                               | `with_scheduler_limits` / `with_worker_limits`    |
+| Dask `with_requests`                             | `with_scheduler_requests` / `with_worker_requests`    |
+| `Job gpus`                                       | `with_limits`                       |
+|                                                  | In spark runtimes, use `with_driver_requests` & `with_executor_requests` |
+| `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
+| `mount_v3io_extended`                            | `mount_v3io`                   |
+| class `LegacyArtifact(LegacyArtifact)`           | `Artifact`                       |
+| `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
+| The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
+| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
+
+**REST APIs deprecated and removed from v1.3.0 code**
+
+- `pod_status header` from response to `get_log` REST API
 - `client-spec` from response to health API 
 - `submit_pipeline_legacy` REST API
 - `get_pipeline_legacy` REST API
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
-- `project.func()` (instead, use `project.get_function()`)
-- `project.create_vault_secrets()` (instead, use `project.set_secrets()`)
-- `project.get_vault_secret()`
-- `MlrunProjectLegacy` class, instead ->MlrunProject
-- Feature-store: usage of state in graph (instead, use `step`). For example, there were deprecated: `add_writer_state`, and the `after_state` parameter in `_init_` methods.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
-- `mount_path` parameter in mount_v3io(). Instead, use the `volume_mounts` parameter
-- Dask properties: `gpus`, `with_limits`, `with_requests`
-- `NewTask`
 
-**Deprecated APIs, will be removed in v1.5.0**<br>
-These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0:
-- project-related parameters of `set_environment`
-- `AbstractSparkJobSpec.gpus`, `KubeResource.gpus`, `DaskCluster.gpus`. Use the `with_limits` method instead.
-- `mount_v3io_legacy` (mount_v3io no longer calls it)
-- `mount_v3io_extended `
-- class `LegacyArtifact`
-- `init_functions` in pipelines 
-- The entire `mlrun/mlutils` library
 
 ### Closed issues
 - Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
@@ -129,10 +143,9 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 - Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/mlrun/pull/1613).
 - `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and 
     docstrings were added for httpdb and for MLRunProject methods: both list_artifacts and list_models. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
--      [View in Git](https://github.com/mlrun/mlrun/pull/).
--  [View in Git](https://github.com/mlrun/mlrun/pull/).
-    
-     same as above 3234
+- Fix: Failed MLRun Nuclio deploy needs better error messages.     
+- Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism. 
+
     
     
 ### See more
@@ -453,8 +466,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
 | 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | 1.2.1 |
 | 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector  | ??? |
-| 3386   | Documentation is missing details on all of the feature store sources and targets | NA | Opened |
-| ID   | Description                                            | Workaround                                    | 1.2.1 |
+| 3386 | Documentation is missing details on all of the feature store sources and targets | NA | Opened |
+| 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | 1.1.0 |
 
     
     

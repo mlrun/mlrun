@@ -80,12 +80,12 @@ Defaults to return as a return value to the caller.
 - **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
 - **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
 - **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
--**with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
--**update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
--**engine** &mdash; processing engine kind ("local", "dask", or "spark")
--**engine_args** &mdash; kwargs for the processing engine
--**query** &mdash; The query string used to filter rows
--**spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
+- **with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
+- **update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
+- **engine** &mdash; processing engine kind ("local", "dask", or "spark")
+- **engine_args** &mdash; kwargs for the processing engine
+- **query** &mdash; The query string used to filter rows
+- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
 - **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey (local) engines. 
    - left: use only keys from left frame (SQL: left outer join)
    - right: use only keys from right frame (SQL: right outer join)

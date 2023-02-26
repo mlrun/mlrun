@@ -40,7 +40,6 @@ pydantic~=1.5
 orjson~=3.3
 alembic~=1.9
 mergedeep~=1.3
-# 3.2 iguazio system uses 0.9.x - limiting to only patch changes
 v3io-frames~=0.10.4
 semver~=2.13
 dask~=2021.11.2

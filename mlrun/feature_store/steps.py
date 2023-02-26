@@ -457,18 +457,6 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
-        self.fstore_date_format_to_spark_date_format = {
-            "day_of_year": "DD",
-            "day_of_month": "dd",
-            "dayofyear": "DD",
-            "dayofmonth": "dd",
-            "month": "MM",
-            "year": "yyyy",
-            "quarter": "Q",
-            "hour": "hh",
-            "minute": "mm",
-            "second": "ss",
-        }
 
     def _get_key_name(self, part: str):
         return f"{self.timestamp_col}_{part}"
@@ -505,16 +493,19 @@ class DateExtractor(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import date_format
+        import pyspark.sql.functions
 
         for part in self.parts:
-            if part in self.fstore_date_format_to_spark_date_format:
+            func = part
+            if func == "day_of_year":
+                func = "dayofyear"
+            if func == "day_of_month":
+                func = "dayofmonth"
+            func = getattr(pyspark.sql.functions, func, None)
+            if func:
                 event = event.withColumn(
                     self._get_key_name(part),
-                    date_format(
-                        self.timestamp_col,
-                        self.fstore_date_format_to_spark_date_format[part],
-                    ),
+                    func(self.timestamp_col),
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(

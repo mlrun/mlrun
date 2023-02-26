@@ -57,6 +57,37 @@ class TestKFP(tests.system.base.TestMLRunSystem):
 
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
 
+    @pytest.mark.enterprise
+    def test_kfp_with_run_pipeline_and_run_function(self):
+        code_path = str(self.assets_path / "my_func.py")
+        func = mlrun.code_to_function(
+            name="func",
+            kind="job",
+            filename=code_path,
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(func)
+
+        @dsl.pipeline(name="job test", description="demonstrating mlrun usage")
+        def job_pipeline(p1=9):
+            mlrun.run_function(
+                "func",
+                handler="handler",
+                params={"p1": p1},
+                outputs=["mymodel"],
+            )
+
+        arguments = {"p1": 8}
+        run_id = mlrun.run_pipeline(
+            job_pipeline,
+            arguments,
+            experiment="my-job",
+            project=self.project_name,
+        )
+
+        mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
+
     def test_kfp_without_image(self):
         code_path = str(self.assets_path / "my_func.py")
         my_func = mlrun.code_to_function(

@@ -231,7 +231,7 @@ def build_function(
     image=None,
     base_image=None,
     commands: list = None,
-    secret_name="",
+    secret_name=None,
     requirements: Union[str, List[str]] = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,

@@ -32,8 +32,6 @@
 	```
 	  
 - v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
-- New APIs may require a new version of the MLRun client/server **ML-3266**
-APIs for logs??
 
 ### New and updated features
 
@@ -131,6 +129,9 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
+### Breaking changes
+
+The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. Previously, it returned `<class 'str'>`
 
 ### Closed issues
 - Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??

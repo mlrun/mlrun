@@ -50,7 +50,7 @@ type Server struct {
 	kubeClientSet kubernetes.Interface
 	isChief       bool
 
-	// the state manifest determines which runs' logs should being collected, and is persisted to a file
+	// the state manifest determines which runs' logs should be collected, and is persisted to a file
 	stateManifest statestore.StateStore
 	// the current state has the actual runs that are currently being collected, and is not persisted
 	currentState statestore.StateStore
@@ -156,9 +156,10 @@ func NewLogCollectorServer(logger logger.Logger,
 func (s *Server) OnBeforeStart(ctx context.Context) error {
 	s.Logger.DebugCtx(ctx, "Initializing Server")
 
-	// initialize the state store (load state from file, start state file update loop)
 	// if the server is not the chief, do not monitor anything
 	if s.isChief {
+
+		// initialize the state manifest (load state from file, start state file update loop)
 		if err := s.stateManifest.Initialize(ctx); err != nil {
 			return errors.Wrap(err, "Failed to initialize state store")
 		}

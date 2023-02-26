@@ -54,16 +54,15 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 func (s *Store) Initialize(ctx context.Context) error {
 	var err error
 
-	// load state from file before starting the update loop, as thr file is our source of truth
+	// lock the file for the duration of the initialization
 	s.fileLock.Lock()
+	defer s.fileLock.Unlock()
+
+	// load state from file before starting the update loop, as the file is our source of truth
 	s.State, err = s.readStateFile()
 	if err != nil {
-		s.fileLock.Unlock()
 		return errors.Wrap(err, "Failed to read state file")
 	}
-
-	// we do not defer unlock because we need the lock for writing the state to file
-	s.fileLock.Unlock()
 
 	// write state to file to make sure it exists
 	if err := s.writeStateToFile(s.State); err != nil {
@@ -106,6 +105,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 		state := s.GetState()
 
 		// write state to file
+		s.fileLock.Lock()
 		if err := s.writeStateToFile(state); err != nil {
 			if errCount%5 == 0 {
 				errCount = 0
@@ -116,6 +116,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 			}
 			errCount++
 		}
+		s.fileLock.Unlock()
 	}
 }
 
@@ -127,10 +128,6 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to encode state file")
 	}
-
-	// get lock, unlock later
-	s.fileLock.Lock()
-	defer s.fileLock.Unlock()
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

@@ -45,6 +45,7 @@ from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
 from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
+from .projects.pipelines import pipeline_context
 from .runtimes import (
     DaskCluster,
     HandlerRuntime,
@@ -987,6 +988,12 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
+        # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
+        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the the workflow
+        # to True
+        if not pipeline_context.workflow:
+            pipeline_context.workflow = True
+
         mldb = mlrun.db.get_run_db(url)
         if mldb.kind != "http":
             raise ValueError(
@@ -1004,6 +1011,10 @@ def run_pipeline(
             artifact_path=artifact_path,
             cleanup_ttl=cleanup_ttl or ttl,
         )
+        # workflow is True only when executing `run_pipeline` directly, therefore we want to cleanup the context after
+        # execution
+        if pipeline_context.workflow is True:
+            pipeline_context.workflow = None
 
     else:
         client = Client(namespace=namespace)

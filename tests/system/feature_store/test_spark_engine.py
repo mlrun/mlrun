@@ -1225,17 +1225,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         measurements.graph.to(DropFeatures(features=[key]))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
             fstore.ingest(
                 measurements,
                 source,
                 spark_context=self.spark_service,
                 run_config=fstore.RunConfig(local=False),
             )
-        assert (
-            str(ml_run_exception.value)
-            == "DropFeatures can only drop features, not entities"
-        )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"

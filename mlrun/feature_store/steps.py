@@ -639,8 +639,9 @@ class DropFeatures(StepToDict, MLRunStep):
         return event.drop(*self.features)
 
     def validate(self, feature_set):
-        entities = [entity.name for entity in feature_set.spec.entities]
-        if set(self.features).intersection(entities):
+        entity_names = [entity.name for entity in feature_set.spec.entities]
+        dropped_entities = set(self.features).intersection(entity_names)
+        if dropped_entities:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DropFeatures can only drop features, not entities"
+                f"DropFeatures can only drop features, not entities: {dropped_entities}"
             )

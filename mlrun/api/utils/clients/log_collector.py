@@ -214,13 +214,43 @@ class LogCollectorClient(
         :return: None
         """
 
-        request = self._log_collector_pb2.StopLogRequest(
+        request = self._log_collector_pb2.StopLogsRequest(
             project=project, runUIDs=run_uids
         )
 
-        response = await self._call("StopLog", request)
+        response = await self._call("StopLogs", request)
         if not response.success:
             msg = "Failed to stop logs"
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
+
+    async def delete_logs(
+        self,
+        project: str,
+        run_uids: typing.List[str] = None,
+        verbose: bool = False,
+        raise_on_error: bool = True,
+    ) -> None:
+        """
+        Delete logs from the log collector service
+        :param project: The project name
+        :param run_uids: The run uids to delete logs for, if not provided will delete logs for all runs in the project
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: None
+        """
+
+        request = self._log_collector_pb2.StopLogsRequest(
+            project=project, runUIDs=run_uids
+        )
+
+        response = await self._call("DeleteLogs", request)
+        if not response.success:
+            msg = "Failed to delete logs"
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
                     f"{msg},error= {response.errorMessage}"

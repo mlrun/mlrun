@@ -400,9 +400,9 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 	}, nil
 }
 
-// StopLog stops streaming logs for a given run id by removing it from the persistent state.
+// StopLogs stops streaming logs for a given run id by removing it from the persistent state.
 // This will prevent the monitoring loop from starting logging again for this run id
-func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*protologcollector.BaseResponse, error) {
+func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
 			"Server is not the chief, ignoring stop log request",
@@ -421,6 +421,11 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 			ErrorMessage: message,
 		}, errors.New(message)
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Stopping logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// if no run uids were provided, remove the entire project from the state
 	if len(request.RunUIDs) == 0 {
@@ -476,7 +481,7 @@ func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLog
 }
 
 // DeleteLogs deletes the log file for a given run id or project
-func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogRequest) (*protologcollector.BaseResponse, error) {
+func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
 			"Server is not the chief, ignoring delete logs request",
@@ -495,6 +500,11 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 			ErrorMessage: message,
 		}, errors.New(message)
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Deleting logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// if no run uids were provided, delete the entire project's logs
 	if len(request.RunUIDs) == 0 {

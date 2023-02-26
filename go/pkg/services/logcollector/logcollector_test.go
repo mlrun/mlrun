@@ -455,11 +455,11 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 
 	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request := &log_collector.StopLogRequest{
+		request := &log_collector.StopLogsRequest{
 			Project: project,
 			RunUIDs: runs,
 		}
-		response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+		response, err := suite.LogCollectorServer.StopLogs(suite.ctx, request)
 		suite.Require().NoError(err, "Failed to stop log")
 		suite.Require().True(response.Success, "Expected stop log request to succeed")
 	}
@@ -518,7 +518,7 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
 
 			// delete all logs except the first one
-			request := &log_collector.StopLogRequest{
+			request := &log_collector.StopLogsRequest{
 				Project: projectName,
 				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],
 			}
@@ -555,7 +555,7 @@ func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
 	suite.Require().Equal(logsNum, len(dirEntries), "Expected logs to exist")
 
 	// delete all logs except the first one
-	request := &log_collector.StopLogRequest{
+	request := &log_collector.StopLogsRequest{
 		Project: projectName,
 		RunUIDs: runUIDs[1:],
 	}

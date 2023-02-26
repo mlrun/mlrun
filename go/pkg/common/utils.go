@@ -119,6 +119,10 @@ func WriteToFile(filePath string,
 	openFlags := os.O_CREATE | os.O_RDWR
 	if append {
 		openFlags |= os.O_APPEND
+	} else {
+
+		// if we're not appending, we want to truncate the file
+		openFlags |= os.O_TRUNC
 	}
 
 	if err := EnsureFileExists(filePath); err != nil {

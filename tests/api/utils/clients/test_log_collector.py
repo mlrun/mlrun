@@ -175,3 +175,38 @@ class TestLogCollector:
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
             await log_collector.stop_logs(run_uids=run_uids, project=project_name)
+
+    @pytest.mark.asyncio
+    async def test_delete_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uids = None
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        # test successful stop logs
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        await log_collector.delete_logs(run_uids=run_uids, project=project_name)
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "DeleteLogs"
+
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert stop_log_request.project == project_name
+        assert stop_log_request.runUIDs == []
+
+        # test failed stop logs
+        run_uids = ["123"]
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(False, "Failed to delete logs")
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            await log_collector.delete_logs(run_uids=run_uids, project=project_name)
+
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "DeleteLogs"
+
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert stop_log_request.project == project_name
+        assert stop_log_request.runUIDs == run_uids

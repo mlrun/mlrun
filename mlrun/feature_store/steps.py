@@ -497,10 +497,8 @@ class DateExtractor(StepToDict, MLRunStep):
 
         for part in self.parts:
             func = part
-            if func == "day_of_year":
-                func = "dayofyear"
-            if func == "day_of_month":
-                func = "dayofmonth"
+            if func in ("day_of_year", "day_of_month"):
+                func = func.replace("_", "")
             func = getattr(pyspark.sql.functions, func, None)
             if func:
                 event = event.withColumn(

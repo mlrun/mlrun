@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import mlrun.errors
 import mlrun.utils.singleton
@@ -208,36 +208,41 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         :param tag:             tag of the item
         :param force_refresh:   if True, the catalog will be loaded from source always,
                                 otherwise will be pulled from db (if loaded before)
+
         :return: marketplace item object
+
+        :raise if the number of collected items from catalog is not exactly one.
         """
         catalog = self.get_source_catalog(source, version, tag, force_refresh)
-        return self._get_item_from_catalog(catalog.catalog, item_name, version, tag)
-
-    @staticmethod
-    def _get_item_from_catalog(
-        catalog: List[MarketplaceItem], item_name, version, tag
-    ) -> MarketplaceItem:
-        """
-        Retrieve item from catalog, assuming that the catalog is already filtered by tags and versions.
-        Raise errors if the number of collected items from catalog is not exactly one.
-        Use when expected to get exactly one item.
-        :param catalog:     list of items
-        :param item_name:   item name
-        :param version:     item version
-        :param tag:         item tag
-        :return:   item object from catalog
-        """
-        items = [item for item in catalog if item.metadata.name == item_name]
-        if not items:
+        items, num_items = self._get_catalog_items_filtered_by_name(
+            catalog.catalog, item_name
+        )
+        if not num_items:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item not found. source={item_name}, version={version}"
             )
-        if len(items) > 1:
+        if num_items > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Query resulted in more than 1 catalog items. "
                 + f"source={item_name}, version={version}, tag={tag}"
             )
         return items[0]
+
+    @staticmethod
+    def _get_catalog_items_filtered_by_name(
+        catalog: List[MarketplaceItem],
+        item_name: str,
+    ) -> Tuple[List[MarketplaceItem], int]:
+        """
+        Retrieve items from catalog filtered by name
+
+        :param catalog:     list of items
+        :param item_name:   item name to filter by
+
+        :return:   list of item objects from catalog
+        """
+        items = [item for item in catalog if item.metadata.name == item_name]
+        return items, len(items)
 
     def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
         credentials = self._get_source_credentials(source.metadata.name)

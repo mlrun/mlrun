@@ -86,9 +86,7 @@ func (s *Store) WriteState(state *statestore.State) error {
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
 	s.stateLock.Lock()
-	defer func() {
-		s.stateLock.Unlock()
-	}()
+	defer s.stateLock.Unlock()
 	return s.State
 }
 
@@ -132,9 +130,7 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 
 	// get lock, unlock later
 	s.fileLock.Lock()
-	defer func() {
-		s.fileLock.Unlock()
-	}()
+	defer s.fileLock.Unlock()
 
 	// write to file
 	return common.WriteToFile(s.stateFilePath, encodedState, false)

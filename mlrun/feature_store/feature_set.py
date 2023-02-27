@@ -509,9 +509,9 @@ class FeatureSet(ModelObj):
             step_class = getattr(module, class_name)
             if not hasattr(step_class, "validate"):
                 continue
-            if not step.class_args:
-                continue
-            step_object = step_class(**step.class_args)
+            step_object = step_class(
+                **step.class_args if step.class_args is not None else {}
+            )
             step_object.validate(self)
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):

@@ -663,8 +663,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
-    if featureset is not None:
-        featureset.validate_steps()
+    featureset.validate_steps()
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
         _, default_final_step, _ = featureset.graph.check_and_process_graph(

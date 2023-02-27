@@ -49,11 +49,6 @@ def _get_engine_and_function(function, project=None):
     if not pipeline_context.workflow:
         return "local", function
 
-    # in case running a pipeline straight from `run_pipeline` this isn't encouraged and should be run
-    # from the `project.run()` which handles the right assignment of the pipeline_context
-    if pipeline_context.workflow is True:
-        return "kfp", function
-
     return pipeline_context.workflow.engine, function
 
 

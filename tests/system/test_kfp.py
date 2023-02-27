@@ -47,7 +47,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         out = mlconf.artifact_path or os.path.abspath("./data")
         artifact_path = os.path.join(out, "{{run.uid}}")
         arguments = {"p1": 8}
-        run_id = mlrun.run_pipeline(
+        run_id = mlrun._run_pipeline(
             job_pipeline,
             arguments,
             experiment="my-job",
@@ -101,7 +101,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         def job_pipeline():
             my_func.as_step(handler="handler", auto_build=True)
 
-        run_id = mlrun.run_pipeline(
+        run_id = mlrun._run_pipeline(
             job_pipeline,
             experiment="my-job",
             project=self.project_name,

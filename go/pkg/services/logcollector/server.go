@@ -190,7 +190,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	}
 
 	s.Logger.DebugWithCtx(ctx,
-		"Received Start Log request",
+		"Received start log request",
 		"RunUID", request.RunUID,
 		"Selector", request.Selector)
 
@@ -285,7 +285,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	ctx := responseStream.Context()
 
 	s.Logger.DebugWithCtx(ctx,
-		"Received Get Log request",
+		"Received get log request",
 		"runUID", request.RunUID,
 		"size", request.Size,
 		"offset", request.Offset)

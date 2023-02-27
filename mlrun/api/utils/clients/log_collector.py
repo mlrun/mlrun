@@ -223,6 +223,10 @@ class LogCollectorClient(
         if not response.success:
             msg = "Failed to stop logs"
             if raise_on_error:
+                if response.errorCode == LogCollectorErrorCode.ErrCodeBadRequest:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"{msg},error= {response.errorMessage}"
+                    )
                 raise mlrun.errors.MLRunInternalServerError(
                     f"{msg},error= {response.errorMessage}"
                 )
@@ -253,6 +257,10 @@ class LogCollectorClient(
         if not response.success:
             msg = "Failed to delete logs"
             if raise_on_error:
+                if response.errorCode == LogCollectorErrorCode.ErrCodeBadRequest:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"{msg},error= {response.errorMessage}"
+                    )
                 raise mlrun.errors.MLRunInternalServerError(
                     f"{msg},error= {response.errorMessage}"
                 )

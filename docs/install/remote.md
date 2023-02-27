@@ -115,12 +115,6 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-Explanations to the examples:
-
-   - `project.set_secrets()` reads dict or secrets env file and stores it in the [project secrets](https://docs.mlrun.org/en/latest/secrets.html?highlight=working)
-      (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
-   - `function.set_envs()` set the pod environment variables from key/value dict or environment file
-
 For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment)
 
 ### Using your IDE (e.g PyCharm or VSCode)

@@ -444,8 +444,7 @@ def ingest(
             infer_options,
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
-        if featureset is not None:
-            featureset.validate_steps()
+        featureset.validate_steps()
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )

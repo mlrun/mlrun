@@ -7,9 +7,9 @@ You can write your code on a local machine while running your functions on a rem
 - [Prerequisites](#prerequisites)
 - [Set up client environment](#set-up-client-environment)
 - [Configure remote environment](#configure-remote-environment)
-   - [Using `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+   - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
+   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -49,9 +49,9 @@ To install a specific version, use the following command: `pip install mlrun==<v
 
 ## Configure remote environment
 You have a few options to configure your remote environment:
-- [Using `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+- [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
+- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
+- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
 ### Using `mlrun config set` command in MLRun CLI
 
@@ -114,22 +114,6 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 # Use remote service
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
-
-Additional examples:
-```python
-# read env vars from dict or file and set as project secrets (plus set the local env)
-project.set_secrets({"SECRET1": "value"})
-project.set_secrets(file_path=env_file)
-
-# copy env from file into a function spec
-function.set_envs(file_path=env_file)
-```
-
-Explanations to the examples:
-
-   - `project.set_secrets()` reads dict or secrets env file and stores it in the [project secrets](https://docs.mlrun.org/en/latest/secrets.html?highlight=working)
-      (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
-   - `function.set_envs()` set the pod environment variables from key/value dict or environment file
 
 For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment)
 

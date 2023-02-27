@@ -405,7 +405,8 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-
+    if featureset is not None:
+        featureset.validate_steps()
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
@@ -424,8 +425,6 @@ def ingest(
         schedule = source.schedule
         if schedule == "mock":
             schedule = None
-        if featureset is not None:
-            featureset.validate_steps()
         return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
@@ -445,7 +444,8 @@ def ingest(
             infer_options,
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
-
+        if featureset is not None:
+            featureset.validate_steps()
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -530,8 +530,6 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "featureset.spec.engine must be set to 'spark' to ingest with spark"
         )
-    if featureset is not None:
-        featureset.validate_steps()
     if featureset.spec.engine == "spark":
         import pyspark.sql
 

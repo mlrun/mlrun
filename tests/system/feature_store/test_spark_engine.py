@@ -1245,6 +1245,26 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"

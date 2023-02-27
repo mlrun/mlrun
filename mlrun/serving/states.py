@@ -33,6 +33,7 @@ from .utils import _extract_input_data, _update_result_body
 callable_prefix = "_"
 path_splitter = "/"
 previous_step = "$prev"
+queue_class_names = [">>", "$queue"]
 
 
 class GraphError(Exception):
@@ -1253,7 +1254,7 @@ def params_to_step(
         step.input_path = input_path or step.input_path
         step.result_path = result_path or step.result_path
 
-    elif class_name and class_name in [">>", "$queue"]:
+    elif class_name and class_name in queue_class_names:
         if "path" not in class_args:
             raise MLRunInvalidArgumentError(
                 "path=<stream path or None> must be specified for queues"

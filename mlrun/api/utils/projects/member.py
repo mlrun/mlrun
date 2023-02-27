@@ -203,7 +203,7 @@ class Member(abc.ABC):
             )
         except Exception as exc:
             logger.warning(
-                "Failed deleting project logs.",
+                "Failed deleting project logs via the log collector. Reverting to deleting logs explicitly",
                 exc=mlrun.errors.err_to_str(exc),
                 project=project_name,
             )

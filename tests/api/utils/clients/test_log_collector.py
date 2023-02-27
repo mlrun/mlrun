@@ -163,7 +163,7 @@ class TestLogCollector:
         )
         await log_collector.stop_logs(run_uids=run_uids, project=project_name)
         assert log_collector._call.call_count == 1
-        assert log_collector._call.call_args[0][0] == "StopLog"
+        assert log_collector._call.call_args[0][0] == "StopLogs"
 
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name

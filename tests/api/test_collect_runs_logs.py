@@ -329,7 +329,7 @@ class TestCollectRunSLogs:
         await mlrun.api.main._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 1
-        assert log_collector._call.call_args[0][0] == "StopLog"
+        assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
         assert len(stop_log_request.runUIDs) == 3
@@ -357,7 +357,7 @@ class TestCollectRunSLogs:
         await mlrun.api.main._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 2
-        assert log_collector._call.call_args[0][0] == "StopLog"
+        assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
         assert len(stop_log_request.runUIDs) == 2

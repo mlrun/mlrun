@@ -140,7 +140,10 @@ class Projects(
         )
 
         # log collector service will delete the logs, so we don't need to do it here
-        if mlrun.mlconf.log_collector.mode == "legacy":
+        if (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.api.schemas.LogsCollectorMode.legacy
+        ):
             mlrun.api.crud.Logs().delete_logs(name)
 
         # delete db resources

@@ -19,6 +19,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -146,9 +147,18 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		Selector:    "app=test",
 		ProjectName: projectName,
 	})
-
 	suite.Require().NoError(err, "Failed to start log collection")
 	suite.Require().True(startLogResponse.Success, "Failed to start log collection")
+
+	// read state file
+	stateFilePath := path.Join(suite.baseDir, "_metadata", "state.json")
+	stateFile, err := os.Open(stateFilePath)
+	suite.Require().NoError(err, "Failed to open state file")
+
+	// read state file and make sure it is not empty
+	stateFileBytes, err := io.ReadAll(stateFile)
+	suite.Require().NoError(err, "Failed to read state file")
+	suite.Require().NotEmpty(stateFileBytes, "State file is empty")
 
 	// wait for logs to be collected
 	suite.logger.InfoWith("Waiting for logs to be collected")

@@ -23,7 +23,7 @@ Refer to the **{ref}`tutorial`** for complete examples.
 
 ## Composing workflows
 
-Workflows are written as python functions that make use of {ref}` function <using-functions>` operations (run, build, deploy)
+Workflows are written as python functions that make use of {ref}` function <Functions>` operations (run, build, deploy)
 and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
 
 For workflows to work in Kubeflow you need to add a decorator (`@dsl.pipeline(..)`) as shown below.

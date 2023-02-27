@@ -94,7 +94,7 @@ default_config = {
     # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
-    # before deleting them
+    # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
     "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter
@@ -486,11 +486,14 @@ default_config = {
         # the time in hours in which to start log collection from.
         # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
-        "api_downtime_grace_period": 6,
+        # default is 4 hours = 4*60*60 = 14400 seconds
+        "api_downtime_grace_period": 14400,
         "get_logs": {
             # the number of retries to get logs from the log collector
             "max_retries": 3,
         },
+        # interval for stopping log collection for runs which are in a terminal state
+        "stop_logs_interval": 3600,
     },
 }
 

@@ -457,18 +457,6 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
-        self.fstore_date_format_to_spark_date_format = {
-            "day_of_year": "DD",
-            "day_of_month": "dd",
-            "dayofyear": "DD",
-            "dayofmonth": "dd",
-            "month": "MM",
-            "year": "yyyy",
-            "quarter": "Q",
-            "hour": "hh",
-            "minute": "mm",
-            "second": "ss",
-        }
 
     def _get_key_name(self, part: str):
         return f"{self.timestamp_col}_{part}"
@@ -505,16 +493,18 @@ class DateExtractor(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import date_format
+        import pyspark.sql.functions
 
         for part in self.parts:
-            if part in self.fstore_date_format_to_spark_date_format:
+            func = part
+            # spark's naming for these functions is without underscores
+            if func in ("day_of_year", "day_of_month"):
+                func = func.replace("_", "")
+            func = getattr(pyspark.sql.functions, func, None)
+            if func:
                 event = event.withColumn(
                     self._get_key_name(part),
-                    date_format(
-                        self.timestamp_col,
-                        self.fstore_date_format_to_spark_date_format[part],
-                    ),
+                    func(self.timestamp_col).cast("long"),
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(
@@ -634,3 +624,11 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         return event.drop(*self.features)
+
+    def validate(self, feature_set):
+        entity_names = [entity.name for entity in feature_set.spec.entities]
+        dropped_entities = set(self.features).intersection(entity_names)
+        if dropped_entities:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"DropFeatures can only drop features, not entities: {dropped_entities}"
+            )

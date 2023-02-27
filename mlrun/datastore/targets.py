@@ -977,9 +977,14 @@ class CSVTarget(BaseStoreTarget):
         **kwargs,
     ):
         df = super().as_df(
-            columns=columns, df_module=df_module, entities=entities, **kwargs
+            columns=columns,
+            df_module=df_module,
+            entities=entities,
+            format="csv",
+            **kwargs,
         )
-        df.set_index(keys=entities, inplace=True)
+        if entities:
+            df.set_index(keys=entities, inplace=True)
         return df
 
     def is_single_file(self):

@@ -280,7 +280,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key=None,
+        access_key: str = None,
     ):
         self.access_key = access_key
 
@@ -789,6 +789,7 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
         ui_url=None,
+        reason: str = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -801,6 +802,7 @@ class RunStatus(ModelObj):
         self.last_update = last_update
         self.iterations = iterations
         self.ui_url = ui_url
+        self.reason = reason
 
 
 class RunTemplate(ModelObj):

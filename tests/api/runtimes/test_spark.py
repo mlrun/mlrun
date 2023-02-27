@@ -649,13 +649,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@b1bb6dd86fd4eb95cff8f6231b260dcc71fbeaa0",
+            "function": "None/my-vector-merger@f3918776a46893e955e160f881f85c089a585908",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",
         }
 
-        self.name = "my-vector_merger"
+        self.name = "my-vector-merger"
         self.project = "default"
 
         expected_code = _default_merger_handler.replace(

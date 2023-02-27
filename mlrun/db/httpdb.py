@@ -16,6 +16,7 @@ import http
 import tempfile
 import time
 import traceback
+import typing
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -801,8 +802,18 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()["tags"]
 
-    def store_function(self, function, name, project="", tag=None, versioned=False):
+    def store_function(
+        self,
+        function: typing.Union[mlrun.runtimes.BaseRuntime, dict],
+        name,
+        project="",
+        tag=None,
+        versioned=False,
+    ):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
+        name = mlrun.utils.normalize_name(name)
+        if hasattr(function, "to_dict"):
+            function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
@@ -939,13 +950,17 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state.
+            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+            logger.info(
+                "Using default grace period for runtime resources deletion",
+                grace_period=grace_period,
+            )
 
         params = {
             "label-selector": label_selector,

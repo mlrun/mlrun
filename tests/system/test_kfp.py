@@ -56,3 +56,24 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         )
 
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
+
+    def test_kfp_without_image(self):
+        code_path = str(self.assets_path / "my_func.py")
+        my_func = mlrun.code_to_function(
+            name="my-kfp-without-image",
+            kind="job",
+            filename=code_path,
+            project=self.project_name,
+        )
+
+        @dsl.pipeline(name="job no image test", description="kfp without image test")
+        def job_pipeline():
+            my_func.as_step(handler="handler", auto_build=True)
+
+        run_id = mlrun.run_pipeline(
+            job_pipeline,
+            experiment="my-job",
+            project=self.project_name,
+        )
+
+        mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)

@@ -26,6 +26,7 @@ from mlrun.utils import logger
 class LogCollectorErrorCode(enum.Enum):
     ErrCodeNotFound = 0
     ErrCodeInternal = 1
+    ErrCodeBadRequest = 2
 
 
 class LogCollectorClient(

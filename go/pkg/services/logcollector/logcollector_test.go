@@ -517,7 +517,7 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			suite.Require().NoError(err, "Failed to read dir")
 			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
 
-			// delete all logs except the first one
+			// delete some logs
 			request := &log_collector.StopLogsRequest{
 				Project: projectName,
 				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],

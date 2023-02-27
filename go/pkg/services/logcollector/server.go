@@ -417,7 +417,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		s.Logger.ErrorWithCtx(ctx, message)
 		return &protologcollector.BaseResponse{
 			Success:      false,
-			ErrorCode:    0,
+			ErrorCode:    common.ErrCodeBadRequest,
 			ErrorMessage: message,
 		}, errors.New(message)
 	}
@@ -435,7 +435,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 			message := fmt.Sprintf("Failed to remove project %s from state manifest", request.Project)
 			return &protologcollector.BaseResponse{
 				Success:      false,
-				ErrorCode:    0,
+				ErrorCode:    common.ErrCodeInternal,
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
@@ -445,7 +445,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 			message := fmt.Sprintf("Failed to remove project %s from in memory state", request.Project)
 			return &protologcollector.BaseResponse{
 				Success:      false,
-				ErrorCode:    0,
+				ErrorCode:    common.ErrCodeInternal,
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
@@ -461,7 +461,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 			message := fmt.Sprintf("Failed to remove item from state manifest for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
-				ErrorCode:    0,
+				ErrorCode:    common.ErrCodeInternal,
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
@@ -471,7 +471,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
-				ErrorCode:    0,
+				ErrorCode:    common.ErrCodeInternal,
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
@@ -496,7 +496,7 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		s.Logger.ErrorWithCtx(ctx, message)
 		return &protologcollector.BaseResponse{
 			Success:      false,
-			ErrorCode:    0,
+			ErrorCode:    common.ErrCodeBadRequest,
 			ErrorMessage: message,
 		}, errors.New(message)
 	}
@@ -514,7 +514,7 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 			message := fmt.Sprintf("Failed to delete project logs for project %s", request.Project)
 			return &protologcollector.BaseResponse{
 				Success:      false,
-				ErrorCode:    0,
+				ErrorCode:    common.ErrCodeInternal,
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
@@ -523,17 +523,28 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 	}
 
 	// remove each run uid from the state
+	errGroup, _ := errgroup.WithContext(ctx)
+	var failedToDeleteRunUIDs []string
 	for _, runUID := range request.RunUIDs {
+		runUID := runUID
+		errGroup.Go(func() error {
 
-		// delete the run's log file
-		if failedToDeleteRunUIDs, err := s.deleteRunLogFiles(ctx, runUID, request.Project); err != nil {
-			message := fmt.Sprintf("Failed to remove run logs for runs: %v", failedToDeleteRunUIDs)
-			return &protologcollector.BaseResponse{
-				Success:      false,
-				ErrorCode:    0,
-				ErrorMessage: message,
-			}, errors.Wrap(err, message)
-		}
+			// delete the run's log file
+			if err := s.deleteRunLogFiles(ctx, runUID, request.Project); err != nil {
+				failedToDeleteRunUIDs = append(failedToDeleteRunUIDs, runUID)
+				return errors.Wrapf(err, "Failed to delete log files for run %s", runUID)
+			}
+			return nil
+		})
+	}
+
+	if err := errGroup.Wait(); err != nil {
+		message := fmt.Sprintf("Failed to remove logs for runs: %v", failedToDeleteRunUIDs)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: message,
+		}, errors.Wrap(err, message)
 	}
 
 	return s.successfulBaseResponse(), nil
@@ -963,13 +974,13 @@ func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
 	}
 }
 
-func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) ([]string, error) {
+func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) error {
 
 	// get all files that have the runUID as a prefix
 	pattern := path.Join(s.baseDir, project, fmt.Sprintf("%s_*", runUID))
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return []string{}, errors.Wrap(err, "Failed to get log files")
+		return errors.Wrap(err, "Failed to get log files")
 	}
 
 	// delete all matched files
@@ -987,10 +998,10 @@ func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) 
 	}
 
 	if len(failedToDelete) > 0 {
-		return failedToDelete, errors.Errorf("Failed to delete log files: %v", failedToDelete)
+		return errors.Errorf("Failed to delete log files: %v", failedToDelete)
 	}
 
-	return failedToDelete, nil
+	return nil
 }
 
 func (s *Server) deleteProjectLogs(project string) error {

@@ -48,12 +48,11 @@
 
 #### Feature store
 
-- Spark engine supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step.
+- The Spark engine now supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step. See [Data transformations](../serving/available-steps.html#data-transformations).
 - Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
-- Supports SQLSource for batch ingestion and real time ingestion in the feature store
-- Supports SQLTarget for storey engine. (Spark is nor yet supported.) 
-   See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source) and [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
-- The RedisNoSqlTarget now supports the Spark engine.
+- Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
+- Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
+- Supports Spark using Redis as an online KV target. See [Breaking changes](#breaking-changes) and [example]()*?????*
 - The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where \<prefix> is the optional RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
@@ -76,7 +75,7 @@
 
 #### UI
 - The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
-relevant wizxards under each phase heading: ingesting and processing data, devekoping and training a model, deploying and monitoring the project.
+relevant wizards under each phase heading: ingesting and processing data, developing and training a model, deploying and monitoring the project.
 
 <p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br>
 
@@ -131,7 +130,9 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 
 ### Breaking changes
 
-The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. Previously, it returned `<class 'str'>`
+- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. Previously, it returned `<class 'str'>`
+
+- Storey online target (over Redis only) upgrading from 1.2.x to 1.3.0
 
 ### Closed issues
 - Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
@@ -466,13 +467,13 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | 1.1.0 |
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
 | 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | 1.2.1 |
-| 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector  | ??? |
-| 3386 | Documentation is missing details on all of the feature store sources and targets | NA | Opened |
+| 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector. |  |
+| 3386 | Documentation is missing details on all of the feature store sources and targets | NA | 1.3. |
 | 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | 1.1.0 |
 
     
     
-    ## Limitations
+## Limitations
 
 
 | ID   | Description                                                    | Workaround                           | Opened | 

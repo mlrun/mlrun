@@ -28,6 +28,33 @@ class LogCollectorErrorCode(enum.Enum):
     ErrCodeInternal = 1
     ErrCodeBadRequest = 2
 
+    @staticmethod
+    def map_error_to_exception(
+        error_code: int, error_message: str, failure_message: str
+    ) -> Exception:
+        """
+        Map error code to exception
+        :param error_code: The error code
+        :param error_message: The error message
+        :param failure_message: The failure message to use in the exception, according to the failed request
+        """
+        message = f"{failure_message},error= {error_message}"
+
+        return {
+            LogCollectorErrorCode.ErrCodeNotFound: mlrun.errors.MLRunNotFoundError(
+                message
+            ),
+            LogCollectorErrorCode.ErrCodeInternal: mlrun.errors.MLRunInternalServerError(
+                message
+            ),
+            LogCollectorErrorCode.ErrCodeBadRequest: mlrun.errors.MLRunBadRequestError(
+                message
+            ),
+        }.get(
+            LogCollectorErrorCode(error_code),
+            mlrun.errors.MLRunInternalServerError(message),
+        )
+
 
 class LogCollectorClient(
     mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
@@ -83,12 +110,8 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
-                if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"{msg},error= {response.errorMessage}"
-                    )
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_to_exception(
+                    response.errorCode, response.errorMessage, msg
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
@@ -148,8 +171,8 @@ class LogCollectorClient(
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
-                            raise mlrun.errors.MLRunInternalServerError(
-                                f"{msg},error= {chunk.errorMessage}"
+                            raise LogCollectorErrorCode.map_error_to_exception(
+                                chunk.errorCode, chunk.errorMessage, msg
                             )
                         if verbose:
                             logger.warning(msg, error=chunk.errorMessage)
@@ -194,8 +217,8 @@ class LogCollectorClient(
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_to_exception(
+                    response.errorCode, response.errorMessage, msg
                 )
         return response.hasLogs
 
@@ -223,12 +246,8 @@ class LogCollectorClient(
         if not response.success:
             msg = "Failed to stop logs"
             if raise_on_error:
-                if response.errorCode == LogCollectorErrorCode.ErrCodeBadRequest:
-                    raise mlrun.errors.MLRunBadRequestError(
-                        f"{msg},error= {response.errorMessage}"
-                    )
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_to_exception(
+                    response.errorCode, response.errorMessage, msg
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
@@ -257,12 +276,8 @@ class LogCollectorClient(
         if not response.success:
             msg = "Failed to delete logs"
             if raise_on_error:
-                if response.errorCode == LogCollectorErrorCode.ErrCodeBadRequest:
-                    raise mlrun.errors.MLRunBadRequestError(
-                        f"{msg},error= {response.errorMessage}"
-                    )
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_to_exception(
+                    response.errorCode, response.errorMessage, msg
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)

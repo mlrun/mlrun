@@ -204,6 +204,23 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         _assert_projects(expected_project, loaded_project_from_db)
 
+    def test_get_project(self):
+        project_name = "some-project"
+        # create an empty project
+        mlrun.get_or_create_project(project_name)
+        # get it from the db
+        project = mlrun.get_or_create_project(project_name)
+
+        # verify default values
+        assert project.metadata.name == project_name
+        assert project.metadata.labels == {}
+        assert project.metadata.annotations == {}
+        assert project.spec.params == {}
+        assert project.spec.functions == []
+        assert project.spec.workflows == []
+        assert project.spec.artifacts == []
+        assert project.spec.conda == ""
+
 
 def _assert_projects(expected_project, project):
     assert (

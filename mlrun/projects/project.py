@@ -539,7 +539,7 @@ class ProjectSpec(ModelObj):
         self.branch = None
         self.tag = ""
         self.params = params or {}
-        self.conda = conda or {}
+        self.conda = conda or ""
         self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []

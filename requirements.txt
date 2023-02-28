@@ -61,3 +61,6 @@ python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
 setuptools~=65.5
 deprecated~=1.2
+# cryptography>=39 needs this, or else we get
+# AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)
+pyopenssl>=23

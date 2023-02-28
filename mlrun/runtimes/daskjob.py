@@ -228,7 +228,7 @@ class DaskCluster(KubejobRuntime):
 
     @property
     def initialized(self):
-        return bool(self._cluster)
+        return True if self._cluster else False
 
     def _load_db_status(self):
         meta = self.metadata

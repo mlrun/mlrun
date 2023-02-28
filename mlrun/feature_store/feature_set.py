@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import importlib
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -45,7 +46,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
@@ -487,6 +488,31 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
+
+    def validate_steps(self):
+        if not self.spec:
+            return
+        if not self.spec.graph:
+            return
+        for step in self.spec.graph.steps.values():
+            if (
+                step.class_name in queue_class_names
+                or step.class_name is None
+                or "." not in step.class_name
+            ):
+                #  we are not checking none class names or queue class names.
+                continue
+            module_path, class_name = step.class_name.rsplit(".", 1)
+            if not module_path or not class_name:
+                continue
+            module = importlib.import_module(module_path)
+            step_class = getattr(module, class_name)
+            if not hasattr(step_class, "validate"):
+                continue
+            step_object = step_class(
+                **(step.class_args if step.class_args is not None else {})
+            )
+            step_object.validate(self)
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets

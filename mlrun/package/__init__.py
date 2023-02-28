@@ -14,3 +14,15 @@
 #
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+from .constants import ArtifactType
+from .packager import Packager
+from .packagers_manager import PackagersManager
+
+_PACKAGERS_MANAGER: PackagersManager = None
+
+
+def get_packagers_manager() -> PackagersManager:
+    global _PACKAGERS_MANAGER
+    if _PACKAGERS_MANAGER is None:
+        _PACKAGERS_MANAGER = PackagersManager()
+    return _PACKAGERS_MANAGER

@@ -83,6 +83,7 @@ class ArtifactSpec(ModelObj):
         "size",
         "db_key",
         "extra_data",
+        "package_instructions",
     ]
 
     _extra_fields = ["annotations", "producer", "sources", "license", "encoding"]
@@ -98,6 +99,7 @@ class ArtifactSpec(ModelObj):
         db_key=None,
         extra_data=None,
         body=None,
+        package_instructions: dict = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -114,6 +116,7 @@ class ArtifactSpec(ModelObj):
         self.sources = []
         self.producer = None
         self.license = ""
+        self._package_instructions = package_instructions
 
     def base_dict(self):
         return super().to_dict()
@@ -142,6 +145,14 @@ class ArtifactSpec(ModelObj):
         self._body = body
         if body:
             self._is_inline = True
+
+    @property
+    def package_instructions(self) -> dict:
+        return self._package_instructions
+
+    @package_instructions.setter
+    def package_instructions(self, package_instructions: dict):
+        self._package_instructions = package_instructions
 
     def get_body(self):
         """get the artifact body when inline"""

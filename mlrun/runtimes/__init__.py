@@ -25,8 +25,6 @@ __all__ = [
     "RemoteSparkRuntime",
 ]
 
-
-from mlrun.runtimes.package.context_handler import ArtifactType, ContextHandler
 from mlrun.runtimes.utils import (
     resolve_mpijob_crd_version,
     resolve_spark_operator_version,

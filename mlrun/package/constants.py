@@ -18,6 +18,7 @@ class ArtifactType(Enum):
     # Constants:
     DEFAULT = RESULT
 
+
 class PackageKeys:
     KEY = "key"
     ARTIFACT_TYPE = "artifact_type"
@@ -42,22 +43,5 @@ class ModelKeys(ArtifactKeys):
     OUTPUTS = "outputs"
 
 
-"""
-class ObjectPackager:
-    OBJECT_TYPE = object
-
-    POSSIBLE_PACKAGES: List[ArtifactType] = []
-
-    @staticmethod
-    def pack() -> Artifact:
-        # Pickle
-        pass
-
-    @staticmethod
-    def unpack() -> OBJECT_TYPE:
-        # Unpickle
-        pass
-"""
-
-TYPE_HINT = Union[str, type]
-LOG_HINT = Union[str, Dict[str, str]]
+TypeHint = Union[str, type]
+LogHint = Union[str, Dict[str, str]]

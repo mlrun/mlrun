@@ -68,7 +68,8 @@ from .run import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
-from .runtimes import ArtifactType, new_model_server
+from .runtimes import new_model_server
+from .package import ArtifactType, Packager
 from .secrets import get_secret_or_env
 from .utils.version import Version
 

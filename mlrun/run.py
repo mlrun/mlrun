@@ -964,7 +964,8 @@ def run_pipeline(
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                        workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
-    :param remote:     read kfp data from mlrun service (default=True) should not use False!
+    :param remote:     read kfp data from mlrun service (default=True). Run pipeline from local kfp data (remote=False)
+      is deprecated. Should not be used
     :param cleanup_ttl:
                        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                        workflow and all its resources are deleted)

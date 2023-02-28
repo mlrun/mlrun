@@ -232,6 +232,31 @@ class TestCollectRunSLogs:
         assert log_collector._call.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_start_log_for_run_success_dask_kind(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        project_name = "some-project"
+        uid = "my-uid"
+        function_name = "some-function"
+        function = f"{project_name}/{function_name}@{uid}"
+
+        _, _, uid, _, run = _create_new_run(
+            db, "some-project", kind="dask", function=function
+        )
+        run_uid = await mlrun.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
+        assert run_uid == uid
+        assert log_collector._call.call_count == 1
+        start_log_request = log_collector._call.call_args[0][1]
+        assert f"mlrun/function={function_name}" in start_log_request.selector
+        print(start_log_request)
+
+    @pytest.mark.asyncio
     async def test_start_log_for_run_failure(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
@@ -378,6 +403,7 @@ def _create_new_run(
     uid="run-uid",
     iteration=0,
     kind="",
+    function="",
     state=mlrun.runtimes.constants.RunStates.created,
     store: bool = True,
 ):
@@ -392,6 +418,8 @@ def _create_new_run(
         },
         "status": {"state": state},
     }
+    if function:
+        run["spec"] = {"function": function}
     if store:
         mlrun.api.crud.Runs().store_run(
             db_session, run, uid, iter=iteration, project=project

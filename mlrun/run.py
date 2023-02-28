@@ -995,12 +995,14 @@ def run_pipeline(
     if remote or url:
         from .projects.pipelines import WorkflowSpec, pipeline_context
 
+        clear_pipeline_context = False
         # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
-        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the the workflow
-        # to True
+        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the pipeline
+        # context with KFP engine
         if not pipeline_context.workflow:
             workflow_spec = WorkflowSpec(engine="kfp")
             pipeline_context.set(pipeline_context.project, workflow=workflow_spec)
+            clear_pipeline_context = True
 
         pipeline_run_id = _run_pipeline(
             pipeline=pipeline,
@@ -1015,9 +1017,7 @@ def run_pipeline(
             cleanup_ttl=cleanup_ttl or ttl,
         )
 
-        # workflow is True only when executing `run_pipeline` directly, therefore we want to cleanup the context after
-        # execution
-        if pipeline_context.workflow:
+        if clear_pipeline_context:
             pipeline_context.clear()
 
     # this shouldn't be used, keeping for backwards compatibility until the entire method is deprecated

@@ -503,7 +503,7 @@ def test_remove_labels_from_feature_set(create_server):
     feature_set.metadata.labels = {}
     db.store_feature_set(feature_set.to_dict(), project=project)
     feature_sets = db.list_feature_sets(project=project, tag="latest")
-    assert feature_sets[0].metadata.labels is None, "labels were not removed correctly"
+    assert feature_sets[0].metadata.labels == {}, "labels were not removed correctly"
 
 
 def _create_feature_vector(name):

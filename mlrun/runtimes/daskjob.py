@@ -15,6 +15,7 @@ import datetime
 import inspect
 import socket
 import time
+import typing
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -704,6 +705,27 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Resolves the object ID from the run object.
+        In dask runtime, the object ID is the function name.
+        :param run: run object
+        :return: function name
+        """
+
+        function = run.get("spec", {}).get("function", None)
+        if function:
+
+            # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
+            # we only want the function name
+            project_and_function = function.split("@")[0]
+            return project_and_function.split("/")[-1]
+
+        return None
 
     def _enrich_list_resources_response(
         self,

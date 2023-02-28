@@ -55,6 +55,7 @@
 - Supports Spark using Redis as an online KV target. See [Breaking changes](#breaking-changes) and [example]()*?????*
 - The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where \<prefix> is the optional RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
+- `get_offline_features` supports Spark Operator and Remote Spark.
 
 #### Projects
 

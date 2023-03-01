@@ -45,7 +45,7 @@
 #### Infrastructure
 
 - MLRun supports Python 3.9.
-- New log collection service that providing high performance, and reduction in heavy IO operations from the api container. 
+- New log collection service providing improved performance and reducing heavy IO operations from the api container. 
 The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
 worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
 The new service is transparent to the end-user; there are no UI or API changes. 

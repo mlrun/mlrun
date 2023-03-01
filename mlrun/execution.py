@@ -976,6 +976,9 @@ class MLClientCtx(object):
         struct = {
             "metadata.labels": self._labels,
             "metadata.annotations": self._annotations,
+            "spec.parameters": self._parameters,
+            "spec.outputs": self._outputs,
+            "spec.inputs": {k: v.artifact_url for k, v in self._inputs.items()},
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),

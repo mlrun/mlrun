@@ -63,7 +63,7 @@ The new service is transparent to the end-user; there are no UI or API changes.
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default` context` directory: `./`, which is the directory that the MLRun 
+- When defining a new project from scratch, there is now a default `context` directory: `./`, which is the directory that the MLRun 
     client runs from unless otherwise specified.  
 
 #### Serving graphs

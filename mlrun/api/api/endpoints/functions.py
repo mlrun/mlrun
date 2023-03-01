@@ -615,10 +615,17 @@ def _build_function(
                         # initialize model monitoring stream
                         _create_model_monitoring_stream(project=fn.metadata.project)
 
-                        if not fn.spec.tracking_policy:
+                        if fn.spec.tracking_policy:
+                            # convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
+                            fn.spec.tracking_policy = (
+                                mlrun.utils.model_monitoring.TrackingPolicy.from_dict(
+                                    fn.spec.tracking_policy
+                                )
+                            )
+                        else:
                             # initialize tracking policy with default values
                             fn.spec.tracking_policy = (
-                                mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
+                                mlrun.utils.model_monitoring.TrackingPolicy()
                             )
 
                         # deploy both model monitoring stream and model monitoring batch job

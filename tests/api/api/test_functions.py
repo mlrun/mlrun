@@ -18,6 +18,7 @@ import unittest.mock
 from http import HTTPStatus
 from types import ModuleType
 
+import deepdiff
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
@@ -35,6 +36,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import mlrun.utils.model_monitoring
 import tests.api.api.utils
 import tests.conftest
 
@@ -286,7 +288,7 @@ def test_tracking_on_serving(
         return_value=fastapi.Response()
     )
 
-    functinos_to_monkeypatch = {
+    functions_to_monkeypatch = {
         mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],
         mlrun.api.api.endpoints.functions: [
             "_process_model_monitoring_secret",
@@ -296,11 +298,11 @@ def test_tracking_on_serving(
         nuclio.deploy: ["deploy_config"],
     }
 
-    for package in functinos_to_monkeypatch:
+    for package in functions_to_monkeypatch:
         _function_to_monkeypatch(
             monkeypatch=monkeypatch,
             package=package,
-            list_of_functions=functinos_to_monkeypatch[package],
+            list_of_functions=functions_to_monkeypatch[package],
         )
 
     # Adjust the required request endpoint and body
@@ -314,15 +316,17 @@ def test_tracking_on_serving(
     function_from_db = mlrun.api.crud.Functions().get_function(
         db_session=db, project=PROJECT, name=function_name, tag="latest"
     )
+
     assert function_from_db["spec"]["track_models"]
+
+    tracking_policy_default = mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
     assert (
-        function_from_db["spec"]["tracking_policy"]["default_batch_image"]
-        == "mlrun/mlrun"
-    )
-    assert function_from_db["spec"]["tracking_policy"]["stream_image"] == "mlrun/mlrun"
-    assert (
-        function_from_db["spec"]["tracking_policy"]["default_batch_intervals"]["hour"]
-        == "*/1"
+        deepdiff.DeepDiff(
+            tracking_policy_default,
+            function_from_db["spec"]["tracking_policy"],
+            ignore_order=True,
+        )
+        == {}
     )
 
 

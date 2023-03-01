@@ -68,7 +68,7 @@ The new service is transparent to the end-user; there are no UI or API changes.
 
 #### Serving graphs
 
-- Add support for graphs that split and merge (DAG), including a list of steps for the "after" argument in the add_step() method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
+- Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
 - Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming).
 
 #### Storey

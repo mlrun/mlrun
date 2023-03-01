@@ -976,6 +976,7 @@ class MLClientCtx(object):
         struct = {
             "metadata.labels": self._labels,
             "metadata.annotations": self._annotations,
+            "spec.parameters": self._parameters,
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),

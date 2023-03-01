@@ -52,7 +52,7 @@ The new service is transparent to the end-user; there are no UI or API changes.
 
 #### Feature store
 
-- The Spark engine now supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step. See [Data transformations](../serving/available-steps.html#data-transformations).
+- The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations).
 - Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
 - Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
 - Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).

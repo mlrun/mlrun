@@ -20,7 +20,8 @@
 
 
 
-- The base images mlrun/mlrun:1.3.0 etc. are based on python 3.9. <br>
+- The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
+- The base images mlrun/mlrun:1.3.0 etc. are based on Python 3.9. <br>
       For Iguazio <=3.5.2:
 	1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
     2. Within the Jupyter service, open a terminal and run:
@@ -31,7 +32,9 @@
       ./align_mlrun.sh
 	```
 	  
-- v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on python 3.7 have the suffix: `-py37`.
+- v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on 
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python 
+version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
 ### New and updated features
 
@@ -98,8 +101,8 @@ The following MLRun APIs have been deprecated since at least v1.0.0 and are now 
 | `project.functions`                  | `project.spec.functions`                      |
 | `project.artifacts`                  | `project.spec.artifacts`                       |
 | `project.func()`                     | `project.get_function()`                       |
-| `project.create_vault_secrets()`     | `project.set_secrets()`                        |
-| `project.get_vault_secret()`         | `proj.with_secrets`                            |
+| `project.create_vault_secrets()`     | NA                                   |
+| `project.get_vault_secret()`         | NA                                   |
 | `MlrunProjectLegacy` class           | `MlrunProject`                                 |
 | Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step`                        |
 | `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
@@ -111,16 +114,17 @@ The following MLRun APIs have been deprecated since at least v1.0.0 and are now 
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | Project APIs such as `get_or_create_project`, `load_project` |
-| `AbstractSparkJobSpec.gpus`, `KubeResource.gpus` | `with_limits`                 |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | Project APIs 
+such as `get_or_create_project`, `load_project` |
+| `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | Dask `with_limits`                               | `with_scheduler_limits` / `with_worker_limits`    |
 | Dask `with_requests`                             | `with_scheduler_requests` / `with_worker_requests`    |
 | `Job gpus`                                       | `with_limits`                       |
-|                                                  | In spark runtimes, use `with_driver_requests` & `with_executor_requests` |
+|                                                  | In spark runtimes, use `with_driver_limits` & `with_executor_limits` |
 | `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
 | `mount_v3io_extended`                            | `mount_v3io`                   |
-| class `LegacyArtifact(LegacyArtifact)`           | `Artifact`                       |
+| `LegacyArtifact` and all legacy artifact types that inherit from it (full list is: `LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`)           | `Artifact`                       |
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |

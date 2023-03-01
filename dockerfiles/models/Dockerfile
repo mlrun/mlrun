@@ -47,3 +47,8 @@ RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
 RUN python -m pip install -r models-image-requirements.txt
+
+# Resolves anaconda issue on top of python 3.7 - https://github.com/cocodataset/cocoapi/issues/94
+# TODO: remove when we drop support for python 3.7
+ARG MLRUN_CFLAGS
+ENV CFLAGS="$MLRUN_CFLAGS $CFLAGS"

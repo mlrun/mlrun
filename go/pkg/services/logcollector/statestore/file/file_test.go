@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,12 +81,14 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 
 	// add a log item to the state file
 	runId := "abc123"
+	project := "my-project"
 	item := statestore.LogItem{
 		RunUID:        runId,
 		LabelSelector: "app=test",
 	}
-
-	logItemsInProgress.Store(runId, item)
+	projectMap := &sync.Map{}
+	projectMap.Store(runId, item)
+	logItemsInProgress.Store(project, projectMap)
 
 	// write state file
 	err = suite.stateStore.WriteState(&statestore.State{
@@ -99,7 +102,13 @@ func (suite *FileStateStoreTestSuite) TestReadWriteStateFile() {
 
 	// verify item is in progress
 	suite.Require().Equal(1, common.SyncMapLength(logItemsInProgress))
-	storedItem, ok := logItemsInProgress.Load(runId)
+	projectRunUIDsInProgress, ok := logItemsInProgress.Load(project)
+	suite.Require().True(ok)
+	projectRunUIDsInProgressMap, ok := projectRunUIDsInProgress.(*sync.Map)
+	suite.Require().True(ok)
+	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgressMap))
+
+	storedItem, ok := projectRunUIDsInProgressMap.Load(runId)
 	suite.Require().True(ok)
 	suite.Require().Equal(item, storedItem.(statestore.LogItem))
 }
@@ -108,7 +117,6 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	runId := "some-run-id"
 	labelSelector := "app=test"
 	project := "some-project"
-	key := statestore.GenerateKey(runId, project)
 
 	err := suite.stateStore.AddLogItem(suite.ctx, runId, labelSelector, project)
 	suite.Require().NoError(err, "Failed to add item to in progress")
@@ -123,7 +131,12 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 
 	// verify item is in progress
 	suite.Require().Equal(1, common.SyncMapLength(itemsInProgress))
-	storedItem, ok := itemsInProgress.Load(key)
+	projectRunUIDsInProgress, ok := itemsInProgress.Load(project)
+	suite.Require().True(ok)
+	projectRunUIDsInProgressMap, ok := projectRunUIDsInProgress.(*sync.Map)
+	suite.Require().True(ok)
+	suite.Require().Equal(1, common.SyncMapLength(projectRunUIDsInProgressMap))
+	storedItem, ok := projectRunUIDsInProgressMap.Load(runId)
 	suite.Require().True(ok)
 	suite.Require().Equal(runId, storedItem.(statestore.LogItem).RunUID)
 	suite.Require().Equal(labelSelector, storedItem.(statestore.LogItem).LabelSelector)

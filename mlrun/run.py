@@ -33,6 +33,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 import nuclio
 import yaml
+from deprecated import deprecated
 from kfp import Client
 
 import mlrun.api.schemas
@@ -927,6 +928,11 @@ def code_to_function(
     return r
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'run_pipeline' will be removed in 1.5.0, use 'project.run' instead",
+    category=FutureWarning,
+)
 def run_pipeline(
     pipeline,
     arguments=None,
@@ -942,7 +948,8 @@ def run_pipeline(
     remote: bool = True,
     cleanup_ttl=None,
 ):
-    """remote KubeFlow pipeline execution
+    """
+    remote KubeFlow pipeline execution
 
     Submit a workflow task to KFP via mlrun API service
 
@@ -957,14 +964,14 @@ def run_pipeline(
     :param ops:        additional operators (.apply() to all pipeline functions)
     :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                        workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
-    :param remote:     read kfp data from mlrun service (default=True)
+    :param remote:     read kfp data from mlrun service (default=True). Run pipeline from local kfp data (remote=False)
+      is deprecated. Should not be used
     :param cleanup_ttl:
                        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                        workflow and all its resources are deleted)
 
     :returns: kubeflow pipeline id
     """
-
     if ttl:
         warnings.warn(
             "'ttl' is deprecated, use 'cleanup_ttl' instead. "
@@ -987,24 +994,34 @@ def run_pipeline(
     arguments = arguments or {}
 
     if remote or url:
-        mldb = mlrun.db.get_run_db(url)
-        if mldb.kind != "http":
-            raise ValueError(
-                "run pipeline require access to remote api-service"
-                ", please set the dbpath url"
-            )
-        id = mldb.submit_pipeline(
-            project,
-            pipeline,
-            arguments,
+        from .projects.pipelines import WorkflowSpec, pipeline_context
+
+        clear_pipeline_context = False
+        # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
+        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the pipeline
+        # context with KFP engine
+        if not pipeline_context.workflow:
+            workflow_spec = WorkflowSpec(engine="kfp")
+            pipeline_context.set(pipeline_context.project, workflow=workflow_spec)
+            clear_pipeline_context = True
+
+        pipeline_run_id = _run_pipeline(
+            pipeline=pipeline,
+            arguments=arguments,
+            project=project,
             experiment=experiment,
             run=run,
             namespace=namespace,
-            ops=ops,
             artifact_path=artifact_path,
+            ops=ops,
+            url=url,
             cleanup_ttl=cleanup_ttl or ttl,
         )
 
+        if clear_pipeline_context:
+            pipeline_context.clear()
+
+    # this shouldn't be used, keeping for backwards compatibility until the entire method is deprecated
     else:
         client = Client(namespace=namespace)
         if isinstance(pipeline, str):
@@ -1024,9 +1041,63 @@ def run_pipeline(
                 pipeline_conf=conf,
             )
 
-        id = run_result.run_id
-    logger.info(f"Pipeline run id={id}, check UI for progress")
-    return id
+        pipeline_run_id = run_result.run_id
+        logger.info(f"Pipeline run id={id}, check UI for progress")
+
+    return pipeline_run_id
+
+
+def _run_pipeline(
+    pipeline,
+    arguments=None,
+    project=None,
+    experiment=None,
+    run=None,
+    namespace=None,
+    artifact_path=None,
+    ops=None,
+    url=None,
+    cleanup_ttl=None,
+):
+    """remote KubeFlow pipeline execution
+
+    Submit a workflow task to KFP via mlrun API service
+
+    :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
+    :param arguments:  pipeline arguments
+    :param project:    name of project
+    :param experiment: experiment name
+    :param run:        optional, run name
+    :param namespace:  Kubernetes namespace (if not using default)
+    :param url:        optional, url to mlrun API service
+    :param artifact_path:  target location/url for mlrun artifacts
+    :param ops:        additional operators (.apply() to all pipeline functions)
+    :param cleanup_ttl:
+                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                       workflow and all its resources are deleted)
+
+    :returns: kubeflow pipeline id
+    """
+    mldb = mlrun.db.get_run_db(url)
+    if mldb.kind != "http":
+        raise ValueError(
+            "run pipeline require access to remote api-service"
+            ", please set the dbpath url"
+        )
+
+    pipeline_run_id = mldb.submit_pipeline(
+        project,
+        pipeline,
+        arguments,
+        experiment=experiment,
+        run=run,
+        namespace=namespace,
+        ops=ops,
+        artifact_path=artifact_path,
+        cleanup_ttl=cleanup_ttl,
+    )
+    logger.info(f"Pipeline run id={pipeline_run_id}, check UI for progress")
+    return pipeline_run_id
 
 
 def wait_for_pipeline_completion(
@@ -1274,9 +1345,9 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     Parse a given type hint from string to its actual hinted type class object. The string must be one of the following:
 
-    * Python builtin type - one of `tuple`, `list`, `set`, `dict` and `bytearray`.
-    * Full module import path. An alias (if import pandas as pd is used, the type hint cannot be `pd.DataFrame`) is
-      not allowed.
+    * Python builtin type - one of ``tuple``, ``list``, ``set``, ``dict`` and ``bytearray``.
+    * Full module import path. An alias is not allowed (if ``import pandas as pd`` is used, the type hint cannot be
+      ``pd.DataFrame`` but ``pandas.DataFrame``).
 
     The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
     handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
@@ -1294,6 +1365,11 @@ def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
     """
     if not isinstance(type_hint, str):
         return type_hint
+
+    # TODO: Remove once Packager is implemented (it will support typing hints)
+    # If a typing hint is provided, we return a dummy Union type so the parser will skip the data item:
+    if type_hint.startswith("typing."):
+        return Union[int, str]
 
     # Validate the type hint is a valid module path:
     if not bool(
@@ -1457,6 +1533,9 @@ def handler(
                    * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
+
+                   **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`,
+                   `typing.List` etc.) are currently not supported but will be in the future.
 
                    Default: True.
 

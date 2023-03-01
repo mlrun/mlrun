@@ -79,6 +79,62 @@ def test_build_status_pod_not_found(
 
 
 @pytest.mark.asyncio
+async def test_list_functions_with_hash_key_versioned(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    await tests.api.api.utils.create_project_async(async_client, PROJECT)
+
+    function_tag = "function-tag"
+    function_project = "project-name"
+    function_name = "function-name"
+
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": function_project,
+            "tag": function_tag,
+        },
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    another_tag = "another-tag"
+    function2 = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": function_project,
+            "tag": "another-tag",
+        },
+    }
+
+    post_function1_response = await async_client.post(
+        f"func/{function_project}/"
+        f"{function_name}?tag={function_tag}&versioned={True}",
+        json=function,
+    )
+
+    assert post_function1_response.status_code == HTTPStatus.OK.value
+    hash_key = post_function1_response.json()["hash_key"]
+
+    # Store another function with the same project and name but different tag and hash key
+    post_function2_response = await async_client.post(
+        f"func/{function_project}/"
+        f"{function_name}?tag={another_tag}&versioned={True}",
+        json=function2,
+    )
+    assert post_function2_response.status_code == HTTPStatus.OK.value
+
+    list_functions_by_hash_key_response = await async_client.get(
+        f"funcs?project={function_project}&name={function_name}&hash_key={hash_key}"
+    )
+
+    list_functions_results = list_functions_by_hash_key_response.json()["funcs"]
+    assert len(list_functions_results) == 1
+    assert list_functions_results[0]["metadata"]["hash"] == hash_key
+
+
+@pytest.mark.asyncio
 async def test_multiple_store_function_race_condition(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):

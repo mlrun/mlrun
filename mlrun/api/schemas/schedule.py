@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -90,7 +90,7 @@ class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     concurrency_limit: Optional[int]
     credentials: Credentials = Credentials()
 
@@ -102,7 +102,7 @@ class ScheduleInput(BaseModel):
     scheduled_object: Any
     cron_trigger: Union[str, ScheduleCronTrigger]
     desired_state: Optional[str]
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     concurrency_limit: Optional[int]
     credentials: Credentials = Credentials()
 
@@ -123,8 +123,8 @@ class ScheduleRecord(ScheduleInput):
 # Additional properties to return via API
 class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
-    last_run: Optional[Dict]
-    labels: Optional[dict]
+    last_run: Optional[dict] = {}
+    labels: Optional[dict] = {}
     credentials: Credentials = Credentials()
 
 

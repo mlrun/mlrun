@@ -36,7 +36,11 @@ def _generate_source_dict(index, name, credentials=None):
         "source": {
             "kind": "MarketplaceSource",
             "metadata": {"name": name, "description": "A test", "labels": None},
-            "spec": {"path": path, "channel": "catalog", "credentials": credentials},
+            "spec": {
+                "path": path,
+                "channel": "catalog",
+                "credentials": credentials or {},
+            },
             "status": {"state": "created"},
         },
     }
@@ -160,7 +164,7 @@ def test_marketplace_credentials_removed_from_db(
     object_dict = response.json()
 
     expected_response = source_1["source"]
-    expected_response["spec"]["credentials"] = None
+    expected_response["spec"]["credentials"] = {}
     exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
     assert (
         deepdiff.DeepDiff(

@@ -24,7 +24,7 @@ class ObjectMetadata(BaseModel):
     name: str
     project: Optional[str]
     tag: Optional[str]
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     updated: Optional[datetime]
     created: Optional[datetime]
     uid: Optional[str]
@@ -63,7 +63,7 @@ class ObjectRecord(BaseModel):
     labels: List[LabelRecord]
     # state is extracted from the full status dict to enable queries
     state: Optional[str] = None
-    full_object: Optional[dict] = None
+    full_object: Optional[dict] = {}
 
     class Config:
         orm_mode = True

@@ -1898,6 +1898,18 @@ class BaseRuntimeHandler(ABC):
 
         return label_selector
 
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Get the object id from the run object
+        Override this if the object id is not the run uid
+        :param run: run object
+        :return: object id
+        """
+        return run.get("metadata", {}).get("uid", None)
+
     def _wait_for_pods_deletion(
         self,
         namespace: str,

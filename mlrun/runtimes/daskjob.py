@@ -15,6 +15,7 @@ import datetime
 import inspect
 import socket
 import time
+import typing
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -228,7 +229,7 @@ class DaskCluster(KubejobRuntime):
 
     @property
     def initialized(self):
-        return True if self._cluster else False
+        return bool(self._cluster)
 
     def _load_db_status(self):
         meta = self.metadata
@@ -603,13 +604,16 @@ def enrich_dask_cluster(
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    # TODO: 'dask-worker' has deprecation notice, user 'dask worker' instead
+    # TODO: 'dask-worker' is deprecated, new dask CLI was introduced in 2022.10.0.
+    #  Upgrade when we drop python 3.7 support and use 'dask worker' instead
     worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
-    memory_limit = spec.resources.get("limits", {}).get("memory")
+    memory_limit = spec.worker_resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
         worker_args.extend(spec.args)
+    # TODO: 'dask-scheduler' is deprecated, new dask CLI was introduced in 2022.10.0.
+    #  Upgrade when we drop python 3.7 support and use 'dask scheduler' instead
     scheduler_args = ["dask-scheduler"]
 
     container_kwargs = {
@@ -701,6 +705,27 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Resolves the object ID from the run object.
+        In dask runtime, the object ID is the function name.
+        :param run: run object
+        :return: function name
+        """
+
+        function = run.get("spec", {}).get("function", None)
+        if function:
+
+            # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
+            # we only want the function name
+            project_and_function = function.split("@")[0]
+            return project_and_function.split("/")[-1]
+
+        return None
 
     def _enrich_list_resources_response(
         self,
@@ -794,7 +819,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             response.service_resources = service_resources
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,

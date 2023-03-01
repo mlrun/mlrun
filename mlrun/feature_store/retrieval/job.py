@@ -43,7 +43,7 @@ def run_merge_job(
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
-    name = f"{name}_merger"
+    name = f"{name}-merger"
     run_config = run_config or RunConfig()
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind
@@ -147,8 +147,11 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
+        file_format = kwargs.get("format")
+        if not file_format:
+            file_format = self.run.status.results["target"]["kind"]
         return mlrun.get_dataitem(self.target_uri).as_df(
-            columns=columns, df_module=df_module, **kwargs
+            columns=columns, df_module=df_module, format=file_format, **kwargs
         )
 
     @property

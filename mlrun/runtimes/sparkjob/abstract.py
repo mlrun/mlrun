@@ -905,7 +905,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             AbstractSparkRuntime.plural,
         )
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,

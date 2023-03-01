@@ -609,6 +609,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_limits(cpu="1")
         runtime.with_executor_requests(cpu="1", mem="1G")
 
+        # remote-spark is not a merge engine but a runtime
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fstore.get_offline_features(
+                fv,
+                with_indexes=True,
+                entity_timestamp_column="timestamp",
+                engine="remote-spark",
+                run_config=RunConfig(local=False, function=runtime, watch=False),
+                target=ParquetTarget(),
+            )
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
@@ -638,13 +649,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@b1bb6dd86fd4eb95cff8f6231b260dcc71fbeaa0",
+            "function": "None/my-vector-merger@f3918776a46893e955e160f881f85c089a585908",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",
         }
 
-        self.name = "my-vector_merger"
+        self.name = "my-vector-merger"
         self.project = "default"
 
         expected_code = _default_merger_handler.replace(

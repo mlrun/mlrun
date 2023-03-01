@@ -260,16 +260,17 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name):
+def normalize_name(name: str, verbose: bool = True):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        warnings.warn(
-            "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-            "Replacing underscores with dashes.",
-            FutureWarning,
-        )
+        if verbose:
+            warnings.warn(
+                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
+                "Replacing underscores with dashes.",
+                FutureWarning,
+            )
         name = name.replace("_", "-")
     return name.lower()
 

@@ -55,6 +55,7 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
+    _run_pipeline,
     code_to_function,
     function_to_module,
     get_dataitem,

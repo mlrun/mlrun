@@ -94,7 +94,7 @@ The following MLRun APIs have been deprecated since at least v1.0.0 and are now 
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.workflows`                  | `project.spec.workflows`, such as `get_or_create_project`, `load_project` |
+| `project.workflows`                  | `project.spec.workflows` |
 | `project.functions`                  | `project.spec.functions`                      |
 | `project.artifacts`                  | `project.spec.artifacts`                       |
 | `project.func()`                     | `project.get_function()`                       |

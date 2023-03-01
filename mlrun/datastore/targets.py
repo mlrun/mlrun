@@ -1584,7 +1584,7 @@ class SQLTarget(BaseStoreTarget):
         for step in graph.steps.values():
             if step.class_name == "storey.AggregateByKey":
                 raise mlrun.errors.MLRunRuntimeError(
-                    "SQLTarget don't support aggregation steps"
+                    "SQLTarget does not support aggregation step"
                 )
         graph.add_step(
             name=self.name or "SqlTarget",

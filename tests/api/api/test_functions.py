@@ -16,6 +16,7 @@ import asyncio
 import http
 import unittest.mock
 from http import HTTPStatus
+from types import ModuleType
 
 import fastapi.testclient
 import httpx
@@ -33,6 +34,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import mlrun.runtimes.function
 import tests.api.api.utils
 import tests.conftest
 
@@ -259,6 +261,81 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         response = client.post(endpoint, data=body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
+
+
+def test_tracking_on_serving(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    monkeypatch,
+):
+    """Validating that the `mlrun.utils.model_monitoring.TrackingPolicy` configurations are generated as expected when
+    the user applies model monitoring on a serving function"""
+
+    # Generate a test project
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    # Generate a basic serving function and apply model monitoring
+    function_name = "test-function"
+    function = _generate_function(function_name)
+    function.set_tracking()
+
+    # Mock the client and unnecessary functions for this test
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
+        return_value=fastapi.Response()
+    )
+
+    import nuclio
+
+    functinos_to_monkeypatch = {
+        mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],
+        mlrun.api.api.endpoints.functions: [
+            "_process_model_monitoring_secret",
+            "_create_model_monitoring_stream",
+        ],
+        mlrun.api.crud: ["ModelEndpoints"],
+        nuclio.deploy: ["deploy_config"],
+    }
+
+    for package in functinos_to_monkeypatch:
+        _function_to_monkeypatch(
+            monkeypatch=monkeypatch,
+            package=package,
+            list_of_functions=functinos_to_monkeypatch[package],
+        )
+
+    # Adjust the required request endpoint and body
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    json_body = _generate_build_function_request(function)
+    response = client.post(endpoint, data=json_body)
+
+    assert response.status_code == 200
+
+    # Validate that the default configurations were set as expected
+    function_from_db = mlrun.api.crud.Functions().get_function(
+        db_session=db, project=PROJECT, name=function_name, tag="latest"
+    )
+    assert function_from_db["spec"]["track_models"]
+    assert (
+        function_from_db["spec"]["tracking_policy"]["default_batch_image"]
+        == "mlrun/mlrun"
+    )
+    assert function_from_db["spec"]["tracking_policy"]["stream_image"] == "mlrun/mlrun"
+    assert (
+        function_from_db["spec"]["tracking_policy"]["default_batch_intervals"]["hour"]
+        == "*/1"
+    )
+
+
+def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions: list):
+    """Monkey patching a provided list of functions. Each function will be converted into `unittest.mock.Mock()`"""
+    for function in list_of_functions:
+        monkeypatch.setattr(
+            package,
+            function,
+            lambda *args, **kwargs: unittest.mock.Mock(),
+        )
 
 
 def test_build_function_with_mlrun_bool(

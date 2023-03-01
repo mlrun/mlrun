@@ -626,7 +626,9 @@ class RemoteRuntime(KubeResource):
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
-            sleep(1)
+            sleep(
+                int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
+            )
             try:
                 text, last_log_timestamp = db.get_builder_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose

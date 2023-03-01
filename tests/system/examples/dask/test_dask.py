@@ -93,6 +93,7 @@ class TestDask(TestMLRunSystem):
         workflow_run_id = _run_pipeline(
             dask_pipe,
             arguments,
+            project=self.project_name,
             artifact_path=artifact_path,
             run="DaskExamplePipeline",
             experiment="dask pipe",

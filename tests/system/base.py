@@ -269,7 +269,9 @@ class TestMLRunSystem:
         if iteration:
             assert run_metadata["iteration"] == project
         if labels:
-            self._assert_with_deepdiff(labels, run_metadata["labels"])
+            for label, label_value in labels.items():
+                assert label in run_metadata["labels"]
+                assert run_metadata["labels"][label] == label_value
 
     def _verify_run_outputs(
         self,

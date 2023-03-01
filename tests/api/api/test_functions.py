@@ -21,6 +21,7 @@ from types import ModuleType
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
+import nuclio
 import pytest
 import sqlalchemy.orm
 
@@ -34,7 +35,6 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
-import mlrun.runtimes.function
 import tests.api.api.utils
 import tests.conftest
 
@@ -285,8 +285,6 @@ def test_tracking_on_serving(
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
-
-    import nuclio
 
     functinos_to_monkeypatch = {
         mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],

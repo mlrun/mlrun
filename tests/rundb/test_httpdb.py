@@ -340,21 +340,28 @@ def test_list_functions(create_server):
 @pytest.mark.parametrize(
     "server_version,client_version,compatible",
     [
+        # Unstable client or server, not parsing, and assuming compatibility
         ("unstable", "unstable", True),
         ("0.5.3", "unstable", True),
         ("unstable", "0.6.1", True),
+        # Server and client versions are not the same but compatible
         ("0.5.3", "0.5.1", True),
         ("0.6.0-rc1", "0.6.1", True),
         ("0.6.0-rc1", "0.5.4", True),
         ("0.6.3", "0.4.8", True),
         ("1.3.0", "1.1.0", True),
+        # Majors on the server and client versions are not the same
         ("1.0.0", "0.5.0", False),
         ("0.5.0", "1.0.0", False),
-        ("1.3.0", "1.0.0", False),
-        ("1.3.0", "1.9.0", False),
-        ("1.3.0", "1.4.0", False),
         ("2.0.0", "1.3.0", False),
         ("2.0.0", "1.9.0", False),
+        # Server version much higher than client
+        ("1.3.0", "1.0.0", False),
+        ("1.9.0", "1.3.0", False),
+        # Client version higher than server, not supported
+        ("1.3.0", "1.9.0", False),
+        ("1.3.0", "1.4.0", False),
+        # Server or client version is unstable, assuming compatibility
         ("0.7.1", "0.0.0+unstable", True),
         ("0.0.0+unstable", "0.7.1", True),
     ],

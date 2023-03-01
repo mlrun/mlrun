@@ -48,14 +48,14 @@ version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images)
 #### Infrastructure
 
 - MLRun supports Python 3.9.
-- New log collection service providing improved performance and reducing heavy IO operations from the api container. 
+- New log collection service that providing high performance, and reduction in heavy IO operations from the api container. 
 The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
 worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
 The new service is transparent to the end-user; there are no UI or API changes. 
 
 #### Feature store
 
-- The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations).
+- The Spark engine now supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step. See [Data transformations](../serving/available-steps.html#data-transformations).
 - Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
 - Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
 - Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
@@ -66,12 +66,12 @@ The new service is transparent to the end-user; there are no UI or API changes.
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default `context` directory: `./`, which is the directory that the MLRun 
+- When defining a new project from scratch, there is now a default` context` directory: `./`, which is the directory that the MLRun 
     client runs from unless otherwise specified.  
 
 #### Serving graphs
 
-- Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
+- Add support for graphs that split and merge (DAG), including a list of steps for the "after" argument in the add_step() method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
 - Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming).
 
 #### Storey
@@ -97,7 +97,7 @@ The following MLRun APIs have been deprecated since at least v1.0.0 and are now 
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.workflows`                  | `project.spec.workflows` |
+| `project.workflows`                  | `project.spec.workflows`, such as `get_or_create_project`, `load_project` |
 | `project.functions`                  | `project.spec.functions`                      |
 | `project.artifacts`                  | `project.spec.artifacts`                       |
 | `project.func()`                     | `project.get_function()`                       |
@@ -120,11 +120,10 @@ such as `get_or_create_project`, `load_project` |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | Dask `with_limits`                               | `with_scheduler_limits` / `with_worker_limits`    |
 | Dask `with_requests`                             | `with_scheduler_requests` / `with_worker_requests`    |
-| `Job gpus`                                       | `with_limits`                       |
-|                                                  | In spark runtimes, use `with_driver_limits` & `with_executor_limits` |
+| Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
 | `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
 | `mount_v3io_extended`                            | `mount_v3io`                   |
-| `LegacyArtifact` and all legacy artifact types that inherit from it (full list is: `LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`)           | `Artifact`                       |
+| `LegacyArtifact` and all legacy artifact types that inherit from it (full list is: `LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact`                       |
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |

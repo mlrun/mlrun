@@ -45,6 +45,10 @@
 #### Infrastructure
 
 - MLRun supports Python 3.9.
+- New log collection service that providing high performance, and reduction in heavy IO operations from the api container. 
+The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
+worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
+The new service is transparent to the end-user; there are no UI or API changes. 
 
 #### Feature store
 
@@ -52,14 +56,14 @@
 - Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
 - Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
 - Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
-- Supports Spark using Redis as an online KV target. See [Breaking changes](#breaking-changes) and [example]()*?????*
-- The username and password for the RedisNoSqlTarget are now configured using secrets, as <prefix_>REDIS_USER <prefix_>REDIS_PASSWORD where \<prefix> is the optional RedisNoSqlTarget 'credentials_prefix' parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
+- Supports Spark using Redis as an online KV target, which cause a breaking change. See [Breaking changes](#breaking-changes).
+- The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 - `get_offline_features` supports Spark Operator and Remote Spark.
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default` context` directory: "./", which is the directory that the MLRun 
+- When defining a new project from scratch, there is now a default` context` directory: `./`, which is the directory that the MLRun 
     client runs from unless otherwise specified.  
 
 #### Serving graphs
@@ -69,10 +73,11 @@
 
 #### Storey
 - The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the 
-    time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/storey/pull/394).
+    time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/mlrun/pull/2660), and in 
+    [Storey git](https://github.com/mlrun/storey/pull/394).
 
 #### Third party integrations
-- Supports private repo as a function hub. See []()
+- Supports private repo as a function hub. See [](../runtimes/functions.html).
 
 #### UI
 - The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
@@ -131,15 +136,26 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 
 ### Breaking changes
 
-- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. Previously, it returned `<class 'str'>`
+- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns <br>
+`<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
 
-- Storey online target (over Redis only) upgrading from 1.2.x to 1.3.0
+- Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
+
+### Platform limitation
+
+When running v1.3.0 with a platform version < v3.5.3, you must upgrade pyopenssl to 22.1.0 or higher.
+Use this flow:
+```
+{{python3 -m pip install --upgrade pyopenssl>=23
+$CONDA_HOME/bin/conda update -y conda
+$CONDA_HOME/bin/conda install -y pip
+./align_mlrun.sh}}
+```
 
 ### Closed issues
 - Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
-- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/mlrun/pull/2983).
-- Jobs and Workflows pages now display the tag of the executed job (as defined in the API).
-- Fix: Ingestion with `add_aggregation` over spark, with aggregation operation 'sqr' or 'stdvar'. Previously failed with `AttributeError: module 'pyspark.sql.functions' has no attribute 'stdvar'/'sqr'`. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
+- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1911).
+- Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/mlrun/pull/1632).
 - Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).
 - Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
 - `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
@@ -148,6 +164,7 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
     docstrings were added for httpdb and for MLRunProject methods: both list_artifacts and list_models. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
 - Fix: Failed MLRun Nuclio deploy needs better error messages.     
 - Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism. 
+- Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
 
     
     
@@ -461,16 +478,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID   | Description                                            | Workaround                                    | Opened |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
-| 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | 1.0.0  |
-| 2199 | Spark operator job fails with default requests args.       | NA                                         | 1.0.0 |
-| 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
-| [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | 1.1.0 |
-| 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | 1.1.0 |
+| 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
+| 2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
+| 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
+| [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
+| 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
-| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | 1.2.1 |
+| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
 | 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector. |  |
-| 3386 | Documentation is missing details on all of the feature store sources and targets | NA | 1.3. |
-| 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | 1.1.0 |
+| 3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
+| 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
+| 3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
 
     
     

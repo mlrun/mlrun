@@ -897,11 +897,11 @@ class Config:
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
-        return True if mlrun.mlconf.namespace else False
+        return bool(mlrun.mlconf.namespace)
 
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
-        return True if mlrun.mlconf.nuclio_version else False
+        return bool(mlrun.mlconf.nuclio_version)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service

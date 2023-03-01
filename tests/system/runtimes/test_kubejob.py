@@ -81,7 +81,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function = mlrun.get_run_db().get_function(
             function_name, project=self.project_name, tag="latest", hash_key=hash_key
         )
-        assert not function["metadata"]["credentials"]["access_key"]
+        assert not function["metadata"].get("credentials", {}).get("access_key", None)
 
     def test_store_function_after_run_local_verify_credentials_are_masked(self):
         code_path = str(self.assets_path / "kubejob_function.py")

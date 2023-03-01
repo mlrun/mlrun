@@ -345,9 +345,10 @@ async def _start_log_for_run(
             runtime_handler = await fastapi.concurrency.run_in_threadpool(
                 get_runtime_handler, run_kind
             )
+            object_id = runtime_handler.resolve_object_id(run)
             label_selector = runtime_handler.resolve_label_selector(
                 project=project_name,
-                object_id=run_uid,
+                object_id=object_id,
                 class_mode=RuntimeClassMode.run,
             )
             success, _ = await logs_collector_client.start_logs(

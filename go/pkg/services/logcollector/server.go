@@ -223,7 +223,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	}); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to get pod using label selector",
-			"err", err.Error(),
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID,
 			"selector", request.Selector)
 		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
@@ -295,7 +295,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	if err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to get log file path",
-			"err", err.Error(),
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID)
 		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
 	}
@@ -379,14 +379,32 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 // HasLogs returns true if the log file exists for a given run id
 func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
 
+	s.Logger.DebugWithCtx(ctx,
+		"Received has logs request",
+		"runUID", request.RunUID,
+		"projectName", request.ProjectName)
+
 	// get log file path
 	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
 		if strings.Contains(errors.RootCause(err).Error(), "not found") {
+
+			// if the log file is not found, return false but no error
+			s.Logger.DebugWithCtx(ctx,
+				"Log file not found",
+				"runUID", request.RunUID,
+				"projectName", request.ProjectName)
 			return &protologcollector.HasLogsResponse{
 				Success: true,
 				HasLogs: false,
 			}, nil
 		}
+
+		// if there was an error, return it
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get log file path",
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
 		return &protologcollector.HasLogsResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
@@ -719,8 +737,6 @@ func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) stri
 // getLogFilePath returns the path to the run's latest log file
 func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string) (string, error) {
 
-	s.Logger.DebugWithCtx(ctx, "Getting log file path", "runUID", runUID)
-
 	logFilePath := ""
 	var latestModTime time.Time
 
@@ -874,7 +890,9 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 			if err := errGroup.Wait(); err != nil {
 
 				// we don't fail here, there will be a retry in the next iteration
-				s.Logger.WarnWithCtx(ctx, "Failed to start log collection for some log items", "err", err.Error())
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to start log collection for some log items",
+					"err", common.GetErrorStack(err, 10))
 			}
 		} else {
 

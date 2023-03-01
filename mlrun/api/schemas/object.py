@@ -63,7 +63,7 @@ class ObjectRecord(BaseModel):
     labels: List[LabelRecord]
     # state is extracted from the full status dict to enable queries
     state: Optional[str] = None
-    full_object: Optional[dict] = {}
+    full_object: Optional[dict] = None
 
     class Config:
         orm_mode = True

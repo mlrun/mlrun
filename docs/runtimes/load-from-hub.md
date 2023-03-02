@@ -74,7 +74,7 @@ Parameters:
 
 Returns: project object
 
-For more information see the {py:meth}`~mlrun.projects.MlrunProject.set_function`API documentation.
+For more information see the {py:meth}`~mlrun.projects.MlrunProject.set_function` API documentation.
 
 ### Load function example  <!-- omit in toc -->
 

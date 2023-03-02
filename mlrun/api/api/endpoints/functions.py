@@ -907,12 +907,12 @@ def _is_nuclio_deploy_status_changed(
 
     # Determine if any of the relevant fields have changed
     has_changed = (
-        previous_status.get("functionName", "") != new_nuclio_name
+        previous_status.get("nuclio_name", "") != new_nuclio_name
         or previous_status.get("state") != new_state
-        or previous_status.get("containerImage", "") != new_container_image
-        or previous_status.get("internalInvocationUrls", [])
+        or previous_status.get("container_image", "") != new_container_image
+        or previous_status.get("internal_invocation_urls", [])
         != new_internal_invocation_urls
-        or previous_status.get("externalInvocationUrls", [])
+        or previous_status.get("external_invocation_urls", [])
         != new_external_invocation_urls
         or previous_status.get("address", "") != address
     )

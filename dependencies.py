@@ -34,7 +34,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         # "aiobotocore~=2.4[awscli,boto3]",
         # comes with aiobotocore which comes with botocore, boto3 and awscli
         "s3": [
-            "s3fs~=2023.1.0",
+            "s3fs[boto3,awscli]~=2023.1.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",

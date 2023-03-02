@@ -61,7 +61,7 @@ You can also view some metadata about the feature vector, including all the feat
 
 After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply as input to a machine learning model.  
 
-### Creating an offline feature vector
+### Using an offline feature vector
 
 Use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` function to produce a `dataset` from the feature vector.
 It creates the dataset (asynchronously if possible), saves it to the requested target, and returns an {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
@@ -218,7 +218,7 @@ resp = fs.get_offline_features(
 )
 ```
 
-### Creating an online feature vector
+### Using an online feature vector
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 

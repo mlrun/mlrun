@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
@@ -129,6 +129,7 @@ class MarketplaceItem(BaseModel):
     metadata: MarketplaceItemMetadata
     spec: MarketplaceItemSpec
     status: ObjectStatus
+    assets: Dict[str, str] = {}
 
 
 class MarketplaceCatalog(BaseModel):

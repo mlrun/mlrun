@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import mlrun.errors
 import mlrun.utils.singleton
@@ -214,9 +214,9 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         :raise if the number of collected items from catalog is not exactly one.
         """
         catalog = self.get_source_catalog(source, version, tag, force_refresh)
-        items, num_items = self._get_catalog_items_filtered_by_name(
-            catalog.catalog, item_name
-        )
+        items = self._get_catalog_items_filtered_by_name(catalog.catalog, item_name)
+        num_items = len(items)
+
         if not num_items:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item not found. source={item_name}, version={version}"
@@ -232,7 +232,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def _get_catalog_items_filtered_by_name(
         catalog: List[MarketplaceItem],
         item_name: str,
-    ) -> Tuple[List[MarketplaceItem], int]:
+    ) -> List[MarketplaceItem]:
         """
         Retrieve items from catalog filtered by name
 
@@ -241,8 +241,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
         :return:   list of item objects from catalog
         """
-        items = [item for item in catalog if item.metadata.name == item_name]
-        return items, len(items)
+        return [item for item in catalog if item.metadata.name == item_name]
 
     def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
         credentials = self._get_source_credentials(source.metadata.name)

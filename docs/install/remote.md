@@ -31,10 +31,12 @@ To install a specific version, use the following command: `pip install mlrun==<v
 ```
 
 2. **Advanced** <br> 
-   - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size of the installation. The additional packages include:
-     1. ```pip install mlrun[s3]``` Install requirements for S3 
-     2. ```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
-     3. ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
+   - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 
+   part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size 
+   of the installation. The additional packages include:
+     - ```pip install mlrun[s3]``` Install requirements for S3 
+     - ```pip install mlrun[azure-blob-storage]``` Install requirements for Azure blob storage
+     - ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
    
       
    - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
@@ -87,14 +89,18 @@ MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
 V3IO_USERNAME saves the username of a platform user with access to the MLRun service
 V3IO_ACCESS_KEY saves the platform access key
 
-You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
-key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
+You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any 
+page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
+key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
+shell or Jupyter Notebook service.
 
  Note: If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
 
 **Explanation:**
 
-The `mlrun config set` command sets configuration parameters in mlrun default or the specified environment file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing. The default environment file is created by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. 
+The `mlrun config set` command sets configuration parameters in mlrun default or the specified environment file. By default, it stores all 
+of the configuration into the default environment file, and your own environment file does not need editing. The default environment file is 
+created by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. 
 
 The `set` command can work with the following parameters:
 - `--env-file` or `-f` to set the url path to the mlrun environment file
@@ -106,7 +112,8 @@ The `set` command can work with the following parameters:
 
 ### Using `mlrun.set_environment` command in MLRun SDK
 
-You can set the environment using `mlrun.set_environment` command in MLRun SDK and either use the `env_file` parameter that saves the path/url to the `.env` file (which holds MLRun config and other env vars) or use `args` (without uploading from the environment file), for example:
+You can set the environment using `mlrun.set_environment` command in MLRun SDK and either use the `env_file` parameter that saves the 
+path/url to the `.env` file (which holds MLRun config and other env vars) or use `args` (without uploading from the environment file), for example:
 
 ```python
 # Use local service
@@ -121,7 +128,7 @@ For more explanations read the documentation [mlrun.set_environment](https://doc
 
 Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
 
-##### Create environment file
+#### Create environment file
 
 Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
 
@@ -150,7 +157,10 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
     ![Edit configurations](../_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
 
-2. To set-up default values for all Python configurations, on the left-hand pane of the run/debug configuration dialog, expand the **Templates** node and select the **Python** node. The corresponding configuration template appears in the right-hand pane. Alternatively, you can edit a specific file configuration by choosing the corresponding file on the left-hand pane. Choose the **Environment Variables** edit box and expand it to edit the environment variables.
+2. To set-up default values for all Python configurations, on the left-hand pane of the run/debug configuration dialog, expand the 
+**Templates** node and select the **Python** node. The corresponding configuration template appears in the right-hand pane. Alternatively, 
+you can edit a specific file configuration by choosing the corresponding file on the left-hand pane. Choose the **Environment Variables** 
+edit box and expand it to edit the environment variables.
 
     ![Edit configuration screen](../_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
 
@@ -160,11 +170,10 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
    > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
-#### Remote environment from VSCode
-
 #### Create Python debug configuration
 
-Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` file that's stored in a `.vscode` folder in your workspace.
+Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` 
+file that's stored in a `.vscode` folder in your workspace.
 
 To initialize debug configurations, first select the Run view in the sidebar:
 
@@ -178,14 +187,16 @@ To generate a `launch.json` file with Python configurations:
 
 1. Click the **create a launch.json file** link (circled in the image above) or use the **Run** > **Open configurations** menu command.
 
-2. A configuration menu opens from the Command Palette. Select the type of debug configuration you want for the opened file. For now, in the **Select a debug configuration** menu that appears, select **Python File**.
+2. A configuration menu opens from the Command Palette. Select the type of debug configuration you want for the opened file. For now, in the 
+**Select a debug configuration** menu that appears, select **Python File**.
 ![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
 
 ```{admonition} Note
 Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists also brings up the debug configuration menu, but does not create a launch.json file.
 ```
 
-3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously selected, in this case **Python File**. You can modify configurations (to add arguments, for example), and also add custom configurations.
+3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously 
+selected, in this case **Python File**. You can modify configurations (to add arguments, for example), and also add custom configurations.
 
    ![Configuration json](../_static/images/vscode/configuration-json.png)
 

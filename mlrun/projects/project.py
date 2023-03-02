@@ -39,7 +39,13 @@ import mlrun.errors
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
-from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts import (
+    Artifact,
+    ArtifactProducer,
+    DatasetArtifact,
+    ModelArtifact,
+    get_artifact_cls_by_kind,
+)
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
@@ -1011,6 +1017,7 @@ class MlrunProject(ModelObj):
         self,
         key,
         artifact: typing.Union[str, dict, Artifact] = None,
+        artifact_kind: str = None,
         target_path: str = None,
         tag: str = None,
     ):
@@ -1030,9 +1037,15 @@ class MlrunProject(ModelObj):
         :param key:  artifact key/name
         :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
                           file to import (yaml/json/zip), relative paths are relative to the context path
+        :param artifact_kind:  artifact kind (artifact, model, dataset, ..)
         :param target_path: absolute target path url (point to the artifact content location)
         :param tag:    artifact tag
         """
+        if not artifact and not artifact_kind:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Must specify either artifact or artifact_kind"
+            )
+
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
                 artifact, check_path_in_context=True
@@ -1045,7 +1058,7 @@ class MlrunProject(ModelObj):
                 artifact["tag"] = tag
         else:
             if not artifact:
-                artifact = Artifact()
+                artifact = get_artifact_cls_by_kind(artifact_kind)()
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

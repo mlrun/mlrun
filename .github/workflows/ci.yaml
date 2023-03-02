@@ -286,3 +286,5 @@ jobs:
       run: make install-complete-requirements
     - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements
+    - name: install awscli
+      run: pip install awscli

@@ -45,7 +45,8 @@ def infer_schema_from_df_spark(
             old_type = entities[name].value_type
             if old_type != value_type:
                 logger.warning(
-                    f"Overriding type of entity '{name}' from '{old_type}' to '{value_type}'"
+                    f"Overriding type of entity '{name}' from '{old_type}' to '{value_type}'."
+                    " This may result in errors or unusable data."
                 )
             entities[name].value_type = value_type
         else:

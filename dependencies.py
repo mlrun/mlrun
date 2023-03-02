@@ -31,10 +31,10 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it
     #       there as well
     extras_require = {
+        # "aiobotocore~=2.4[awscli,boto3]",
+        # comes with aiobotocore which comes with botocore, boto3 and awscli
         "s3": [
-            # "aiobotocore~=2.4[awscli,boto3]",
-            # comes with aiobotocore which comes with botocore, boto3 and awscli
-            "s3fs~=2023.1.0[boto3]",
+            "s3fs~=2023.1.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",

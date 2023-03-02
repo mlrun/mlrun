@@ -1017,9 +1017,9 @@ class MlrunProject(ModelObj):
         self,
         key,
         artifact: typing.Union[str, dict, Artifact] = None,
-        artifact_kind: str = None,
         target_path: str = None,
         tag: str = None,
+        artifact_kind: str = None,
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
@@ -1034,18 +1034,13 @@ class MlrunProject(ModelObj):
             # to generate such package use `artifact.export(target_path)`
             project.set_artifact('model', 'https://mystuff.com/models/mymodel.zip')
 
-        :param key:  artifact key/name
-        :param artifact:  mlrun Artifact object/dict (or its subclasses) or path to artifact
-                          file to import (yaml/json/zip), relative paths are relative to the context path
-        :param artifact_kind:  artifact kind (artifact, model, dataset, ..)
-        :param target_path: absolute target path url (point to the artifact content location)
-        :param tag:    artifact tag
+        :param key:             artifact key/name
+        :param artifact:        mlrun Artifact object/dict (or its subclasses) or path to artifact
+                                file to import (yaml/json/zip), relative paths are relative to the context path
+        :param target_path:     absolute target path url (point to the artifact content location)
+        :param tag:             artifact tag
+        :param artifact_kind:   artifact kind (artifact, model, dataset, ..)
         """
-        if not artifact and not artifact_kind:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Must specify either artifact or artifact_kind"
-            )
-
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
                 artifact, check_path_in_context=True
@@ -1058,7 +1053,7 @@ class MlrunProject(ModelObj):
                 artifact["tag"] = tag
         else:
             if not artifact:
-                artifact = get_artifact_cls_by_kind(artifact_kind)()
+                artifact = get_artifact_cls_by_kind(artifact_kind or "artifact")()
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

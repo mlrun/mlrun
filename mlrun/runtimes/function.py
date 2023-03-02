@@ -63,12 +63,13 @@ def validate_nuclio_version_compatibility(*min_versions):
     parsed_min_versions = [
         semver.VersionInfo.parse(min_version) for min_version in min_versions
     ]
+    nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
     try:
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(
             "Unable to parse nuclio version, assuming compatibility",
-            nuclio_version=mlconf.nuclio_version,
+            nuclio_version=nuclio_version,
             min_versions=min_versions,
         )
         return True

@@ -164,7 +164,7 @@ $CONDA_HOME/bin/conda install -y pip
 - `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
 - Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/mlrun/pull/1613).
 - `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and 
-    docstrings were added for httpdb and for MLRunProject methods: both list_artifacts and list_models. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
+    docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
 - Fix: Failed MLRun Nuclio deploy needs better error messages.     
 - Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism. 
 - Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
@@ -503,8 +503,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                                    | Workaround                           | Opened | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
-| 3315 | The feature store does not support an aggregation of aggregations | NA | v1.2.1 |
-| 3381 | Private repo is not supported as a marketplace hub             | NA                           | 1.2.1 | 
+| 3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
+| 3381 | Private repo is not supported as a marketplace hub             | NA                                     | 1.2.1 | 
  
 
 ## Deprecations

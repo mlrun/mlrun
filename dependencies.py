@@ -40,7 +40,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "msrest~=0.6.21",
             "azure-core~=1.24",
             "azure-storage-blob~=12.13",
-            "adlfs~=2023.1.0",
+            "adlfs~=2022.2",
         ],
         "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
         "bokeh": [

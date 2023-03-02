@@ -33,7 +33,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     extras_require = {
         "s3": [
             # comes with aiobotocore which comes with botocore, boto3 and awscli
-            "s3fs[boto3,awscli]~=2023.1.0",
+            "s3fs[boto3,awscli]~=2022.2",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
@@ -60,7 +60,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas]>=3.2,<3.5",
             "google-cloud~=0.34",
         ],
-        "google-cloud-storage": ["gcsfs~=2023.1.0"],
+        "google-cloud-storage": ["gcsfs~=2022.2"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas]>=3.2,<3.5"],
         "kafka": ["kafka-python~=2.0"],
         "redis": ["redis~=4.3"],

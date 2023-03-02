@@ -67,6 +67,8 @@ Use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` fun
 It creates the dataset (asynchronously if possible), saves it to the requested target, and returns an {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
 Due to the async nature of this action, the response object contains an `fv_response.status` indicator that, once completed, could be directly turned into a `dataframe`, `parquet` or a `csv`.
 
+`get_offline_features` supports Storey, Dask, Spark Operator, and Remote Spark.
+
 `get_offline_features` expects to receive:
 
 - **feature_vector** &mdash; A feature vector store reference or object.

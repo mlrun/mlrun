@@ -33,7 +33,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     extras_require = {
         "s3": [
             "botocore>=1.20.106,<1.20.107",
-            "aiobotocore~=2.0.0",
+            "aiobotocore~=2.1.0",
             "s3fs~=2022.2.0",
         ],
         "azure-blob-storage": [

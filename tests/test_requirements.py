@@ -93,8 +93,6 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "botocore": {">=1.20.106,<1.20.107"},
-        "aiobotocore": {"~=1.4.0"},
         "storey": {"~=1.3.11"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
@@ -111,10 +109,9 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {"~=2021.8.1"},
-        "adlfs": {"~=2021.8.1"},
-        "s3fs": {"~=2021.8.1"},
-        "gcsfs": {"~=2021.8.1"},
+        "adlfs": {"~=2022.2"},
+        "s3fs": {"~=2023.1.0"},
+        "gcsfs": {"~=2023.1.0"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
@@ -123,7 +120,6 @@ def test_requirement_specifiers_convention():
         "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
-        "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10,<11"},
         "nbclassic": {">=0.2.8"},

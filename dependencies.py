@@ -40,8 +40,13 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "azure-core~=1.24",
             "azure-storage-blob~=12.13",
             "adlfs~=2022.2",
+            "pyopenssl>=23",
         ],
-        "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
+        "azure-key-vault": [
+            "azure-identity~=1.5",
+            "azure-keyvault-secrets~=4.2",
+            "pyopenssl>=23",
+        ],
         "bokeh": [
             # >=2.4.2 to force having a security fix done in 2.4.2
             "bokeh~=2.4, >=2.4.2",

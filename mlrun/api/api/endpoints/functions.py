@@ -533,26 +533,35 @@ def _handle_nuclio_deploy_status(
     # the built and pushed image name used to run the nuclio function container
     container_image = status.get("containerImage", "")
 
-    update_in(fn, "status.nuclio_name", nuclio_name)
-    update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
-    update_in(fn, "status.external_invocation_urls", external_invocation_urls)
-    update_in(fn, "status.state", state)
-    update_in(fn, "status.address", address)
-    update_in(fn, "status.container_image", container_image)
+    # we don't want to store the function on all requests to get the deploy status, therefore we verify
+    # that changes were actually made and if that's the case then we store the function
+    if _is_nuclio_deploy_status_changed(
+        previous_status=fn.get("status", {}),
+        new_status=status,
+        new_state=state,
+        new_nuclio_name=nuclio_name,
+    ):
+        update_in(fn, "status.nuclio_name", nuclio_name)
+        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
+        update_in(fn, "status.state", state)
+        update_in(fn, "status.address", address)
+        update_in(fn, "status.container_image", container_image)
 
-    versioned = False
-    if state == "ready":
-        # Versioned means the version will be saved in the DB forever, we don't want to spam
-        # the DB with intermediate or unusable versions, only successfully deployed versions
-        versioned = True
-    mlrun.api.crud.Functions().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
-    )
+        versioned = False
+        if state == "ready":
+            # Versioned means the version will be saved in the DB forever, we don't want to spam
+            # the DB with intermediate or unusable versions, only successfully deployed versions
+            versioned = True
+        mlrun.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
+
     return Response(
         content=text,
         media_type="text/plain",
@@ -614,6 +623,19 @@ def _build_function(
                         )
                         # initialize model monitoring stream
                         _create_model_monitoring_stream(project=fn.metadata.project)
+
+                        if fn.spec.tracking_policy:
+                            # convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
+                            fn.spec.tracking_policy = (
+                                mlrun.utils.model_monitoring.TrackingPolicy.from_dict(
+                                    fn.spec.tracking_policy
+                                )
+                            )
+                        else:
+                            # initialize tracking policy with default values
+                            fn.spec.tracking_policy = (
+                                mlrun.utils.model_monitoring.TrackingPolicy()
+                            )
 
                         # deploy both model monitoring stream and model monitoring batch job
                         mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
@@ -885,3 +907,26 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
         Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
+
+
+def _is_nuclio_deploy_status_changed(
+    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
+) -> bool:
+    # get relevant fields from the new status
+    new_container_image = new_status.get("containerImage", "")
+    new_internal_invocation_urls = new_status.get("internalInvocationUrls", [])
+    new_external_invocation_urls = new_status.get("externalInvocationUrls", [])
+    address = new_external_invocation_urls[0] if new_external_invocation_urls else ""
+
+    # Determine if any of the relevant fields have changed
+    has_changed = (
+        previous_status.get("nuclio_name", "") != new_nuclio_name
+        or previous_status.get("state") != new_state
+        or previous_status.get("container_image", "") != new_container_image
+        or previous_status.get("internal_invocation_urls", [])
+        != new_internal_invocation_urls
+        or previous_status.get("external_invocation_urls", [])
+        != new_external_invocation_urls
+        or previous_status.get("address", "") != address
+    )
+    return has_changed

@@ -322,11 +322,17 @@ class ServingRuntime(RemoteRuntime):
 
         # Applying model monitoring configurations
         self.spec.track_models = True
-        self.spec.tracking_policy = model_monitoring.TrackingPolicy()
+        self.spec.tracking_policy = None
         if tracking_policy:
-            self.spec.tracking_policy = self.spec.tracking_policy.from_dict(
-                tracking_policy
-            )
+            if isinstance(tracking_policy, dict):
+                # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
+                self.spec.tracking_policy = model_monitoring.TrackingPolicy.from_dict(
+                    tracking_policy
+                )
+            else:
+                # Tracking_policy is already a `model_monitoring.TrackingPolicy` object
+                self.spec.tracking_policy = tracking_policy
+
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
@@ -638,7 +644,9 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
-            "tracking_policy": self.spec.tracking_policy,
+            "tracking_policy": self.spec.tracking_policy.to_dict()
+            if self.spec.tracking_policy
+            else None,
             "default_content_type": self.spec.default_content_type,
         }
 

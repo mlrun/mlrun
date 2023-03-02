@@ -31,5 +31,5 @@ image-build
 ../concepts/node-affinity
 configuring-job-resources
 load-from-hub
-private-repo
+configure_function_hub
 ```

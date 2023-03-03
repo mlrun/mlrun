@@ -29,11 +29,12 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
     #       corresponding line there.
     #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it
+    #       there as well
     extras_require = {
         "s3": [
-            # "botocore>=1.20.106,<1.20.107",
-            #"botocore~=1.23.24",
             "boto3~=1.20.24",
+            # "botocore>=1.20.106,<1.20.107",
+            # "botocore~=1.23.24",
             "aiobotocore~=2.1.0",
             "s3fs~=2022.2.0",
         ],
@@ -72,7 +73,6 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "kafka": ["kafka-python~=2.0"],
         "redis": ["redis~=4.3"],
     }
-    #       there as well
 
     # see above why we are excluding google-cloud
     exclude_from_complete = ["bokeh", "google-cloud"]

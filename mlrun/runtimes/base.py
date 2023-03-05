@@ -510,7 +510,12 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind):
+                if (
+                    watch
+                    and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind)
+                    # API shouldn't watch logs, its the client job to query the run logs
+                    and not mlrun.config.is_running_as_api()
+                ):
                     state, _ = run.logs(True, self._get_db())
                     if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")

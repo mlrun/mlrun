@@ -1079,6 +1079,7 @@ class RunObject(RunTemplate):
             state, new_offset = db.watch_log(
                 self.metadata.uid, self.metadata.project, watch=watch, offset=offset
             )
+        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
         else:
             state, text = db.get_log(
                 self.metadata.uid, self.metadata.project, offset=offset

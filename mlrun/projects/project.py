@@ -279,8 +279,6 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
-        if secrets:
-            project.set_secrets(secrets=secrets)
 
     if not project.metadata.name:
         raise ValueError("project name must be specified")
@@ -297,6 +295,8 @@ def load_project(
 
     if save and mlrun.mlconf.dbpath:
         project.save()
+        if secrets:
+            project.set_secrets(secrets=secrets)
         project.register_artifacts()
         if sync_functions:
             project.sync_functions(names=project.get_function_names(), save=True)

@@ -39,13 +39,7 @@ import mlrun.errors
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
-from ..artifacts import (
-    Artifact,
-    ArtifactProducer,
-    DatasetArtifact,
-    ModelArtifact,
-    get_artifact_cls_by_kind,
-)
+from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
@@ -1053,7 +1047,7 @@ class MlrunProject(ModelObj):
                 artifact["tag"] = tag
         else:
             if not artifact:
-                artifact = get_artifact_cls_by_kind(artifact_kind or "artifact")()
+                artifact = dict_to_artifact({"kind": artifact_kind or "artifact"})
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

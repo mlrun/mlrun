@@ -8,8 +8,8 @@ You can write your code on a local machine while running your functions on a rem
 - [Set up client environment](#set-up-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -24,10 +24,10 @@ Applications:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This will install MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt)
+<br>This installs MLRun locally with the requirements in the [requirements.txt].(https://github.com/mlrun/mlrun/blob/development/requirements.txt)
 
 ```{admonition} Note
-To install a specific version, use the following command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
+To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
 2. **Advanced** <br> 
@@ -52,8 +52,8 @@ To install a specific version, use the following command: `pip install mlrun==<v
 ## Configure remote environment
 You have a few options to configure your remote environment:
 - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
-- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
+- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 ### Using `mlrun config set` command in MLRun CLI
 
@@ -63,7 +63,7 @@ Run this command in MLRun CLI:
  mlrun config set -a http://localhost:8080
  ```
 
-It will create the following environment file:
+It creates the following environment file:
 ```
 # this is an env file
 MLRUN_DBPATH=http://localhost:8080
@@ -72,13 +72,13 @@ MLRUN_DBPATH=http://localhost:8080
 MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
 
 **Example2**<br>
-**Note:** only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**) <br>
+**Note:** Only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```
  mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
  ```
 
-It will create the following environment file:
+It creates the following environment file:
 ```
 # this is another env file
 V3IO_USERNAME=joe
@@ -86,15 +86,16 @@ V3IO_ACCESS_KEY=mykey
 MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
 ```
 
-V3IO_USERNAME saves the username of a platform user with access to the MLRun service
-V3IO_ACCESS_KEY saves the platform access key
+V3IO_USERNAME saves the username of a platform user with access to the MLRun service.
+V3IO_ACCESS_KEY saves the platform access key.
 
 You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of any 
 page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
-key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
-shell or Jupyter Notebook service.
+key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web shell or Jupyter Notebook service.
 
- Note: If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
+```{admonition} Note
+If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
+```
 
 **Explanation:**
 
@@ -122,9 +123,9 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment)
+For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment).
 
-### Using your IDE (e.g PyCharm or VSCode)
+### Using your IDE (e.g. PyCharm or VSCode)
 
 Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
 
@@ -142,7 +143,8 @@ V3IO_ACCESS_KEY=<platform access key>
 ```
 
 ```{admonition} Note
-If your remote service is on an instance of the Iguazio MLOps Platform, you can get all these parameters from the platform dashboard: select the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**, it will copy them to clipboard.
+If your remote service is on an instance of the Iguazio MLOps Platform, you can get all these parameters from the platform dashboard: select 
+the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**. They are copied to the clipboard.
 ```
 
 ```{admonition} Note
@@ -156,6 +158,7 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 1. From the main menu, choose **Run | Edit Configurations**.
 
     ![Edit configurations](../_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
+    
 
 2. To set-up default values for all Python configurations, on the left-hand pane of the run/debug configuration dialog, expand the 
 **Templates** node and select the **Python** node. The corresponding configuration template appears in the right-hand pane. Alternatively, 
@@ -163,19 +166,21 @@ you can edit a specific file configuration by choosing the corresponding file on
 edit box and expand it to edit the environment variables.
 
     ![Edit configuration screen](../_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
+    
 
 3. Add the environment variable and value of `MLRUN_DBPATH`.
 
     ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
+    
 
    > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
-#### Create Python debug configuration
+#### Remote environment from VScode
 
 Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` 
 file that's stored in a `.vscode` folder in your workspace.
 
-To initialize debug configurations, first select the Run view in the sidebar:
+To initialize debug configurations, first select the **Run** view in the sidebar:
 
 <img src="../_static/images/vscode/debug-icon.png" alt="run-icon" width="200" />
 
@@ -192,7 +197,8 @@ To generate a `launch.json` file with Python configurations:
 ![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
 
 ```{admonition} Note
-Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists also brings up the debug configuration menu, but does not create a launch.json file.
+Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists also brings up the 
+debug configuration menu, but does not create a launch.json file.
 ```
 
 3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously 

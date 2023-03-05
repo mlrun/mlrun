@@ -2588,8 +2588,7 @@ class HTTPRunDB(RunDBInterface):
             return False
         if parsed_server_version.minor > parsed_client_version.minor + 2:
             logger.info(
-                "Backwards compatibility might not apply between the server and client version,"
-                " refer to our docs for a full compatibility list",
+                "Backwards compatibility might not apply between the server and client version",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )

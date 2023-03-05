@@ -237,7 +237,8 @@ class ArtifactManager:
 
         item.target_path = target_path
 
-        item = item.before_log()
+        item = item.get_artifact()
+        item.before_log()
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():

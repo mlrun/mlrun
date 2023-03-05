@@ -46,7 +46,6 @@ class PlotArtifact(Artifact):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"
             )
-        return self
 
     def get_body(self):
         """Convert Matplotlib figure 'fig' into a <img> tag for HTML use
@@ -274,7 +273,6 @@ class LegacyPlotArtifact(LegacyArtifact):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"
             )
-        return self
 
     def get_body(self):
         """Convert Matplotlib figure 'fig' into a <img> tag for HTML use

@@ -271,7 +271,7 @@ class ModelArtifact(Artifact):
     def is_dir(self):
         return True
 
-    def before_log(self):
+    def get_artifact(self):
         if not self.spec.model_file and self.spec.target_path:
             # try to get it from shared storage
             model_file, model_object, extra_data = mlrun.artifacts.get_model(
@@ -281,6 +281,7 @@ class ModelArtifact(Artifact):
             model_object.spec.extra_data = extra_data
             return model_object
 
+    def before_log(self):
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")
 
@@ -289,7 +290,6 @@ class ModelArtifact(Artifact):
         if self.spec.framework:
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
-        return self
 
     def upload(self, artifact_path: str = None):
         """
@@ -500,7 +500,6 @@ class LegacyModelArtifact(LegacyArtifact):
         if self.framework:
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework
-        return self
 
     def upload(self):
 

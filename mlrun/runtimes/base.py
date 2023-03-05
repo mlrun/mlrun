@@ -185,10 +185,10 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
-    def set_db_connection(self, conn, is_api=False):
+    def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
-        self._is_api_server = is_api
+        self._is_api_server = mlrun.config.is_running_as_api()
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -283,6 +283,7 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
+                self._is_api_server = mlrun.config.is_running_as_api()
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.

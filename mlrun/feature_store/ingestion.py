@@ -279,9 +279,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     featureset.save()
 
     # when running in server side we want to set the function db connection to the actual DB and not to use the httpdb
-    function.set_db_connection(
-        featureset._get_run_db(), is_api=mlrun.config.is_running_as_api()
-    )
+    function.set_db_connection(featureset._get_run_db())
 
     # when running on server side there are multiple enrichments and validations to be applied on a function,
     # auth_info is an attribute which is been added only on server side.

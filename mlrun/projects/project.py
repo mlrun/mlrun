@@ -279,7 +279,6 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
-
     if not project.metadata.name:
         raise ValueError("project name must be specified")
     if not from_db or (url and url.startswith("git://")):
@@ -295,8 +294,11 @@ def load_project(
 
     if save and mlrun.mlconf.dbpath:
         project.save()
+        # add secrets to the saved project before registering artifacts because they might be needed
+        # to download the artifacts from external sources
         if secrets:
             project.set_secrets(secrets=secrets)
+
         project.register_artifacts()
         if sync_functions:
             project.sync_functions(names=project.get_function_names(), save=True)

@@ -405,7 +405,7 @@ class FeatureSet(ModelObj):
 
     @property
     def fullname(self) -> str:
-        """full name in the form {project}/{name}[:{tag}]"""
+        """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -655,7 +655,7 @@ class FeatureSet(ModelObj):
         self._spec.analysis[name] = uri
 
     @property
-    def graph(self):
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self.spec.graph
 

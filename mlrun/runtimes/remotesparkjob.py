@@ -196,6 +196,18 @@ class RemoteSparkRuntime(KubejobRuntime):
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
+            # check if a command upgrades pip, if not add it
+            pip_upgrade_regex = re.compile(r"pip install --upgrade .*pip")
+            for command in self.spec.build.commands:
+                if pip_upgrade_regex.match(command):
+                    break
+            else:
+                # python 3.7 reached EOL on 2023-06-27 and pip will not support it forever,
+                # can be removed when we drop support for python 3.7
+                self.spec.build.commands = [
+                    "pip install --upgrade pip~=23.0"
+                ] + self.spec.build.commands
+
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,

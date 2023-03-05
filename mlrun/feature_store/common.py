@@ -229,7 +229,8 @@ class RunConfig:
         :param kind:        function runtime kind (job, serving, spark, ..), required when function points to code
         :param handler:     the function handler to execute (for jobs or nuclio)
         :param parameters:  job parameters
-        :param watch:       in batch jobs will wait for the job completion and print job logs to the console
+        :param watch:       in batch jobs will wait for the job completion and print job logs to the console.
+                            Default (None) is True.
         :param owner:       job owner
         :param credentials: job credentials
         :param code:        function source code (as string)

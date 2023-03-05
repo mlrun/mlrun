@@ -279,7 +279,6 @@ class ModelArtifact(Artifact):
             )
             model_object.spec.model_file = model_file
             model_object.spec.extra_data = extra_data
-            self.from_dict()
             return model_object
 
         if not self.spec.model_file:

@@ -280,6 +280,7 @@ class ModelArtifact(Artifact):
             model_object.spec.model_file = model_file
             model_object.spec.extra_data = extra_data
             return model_object
+        return self
 
     def before_log(self):
         if not self.spec.model_file:

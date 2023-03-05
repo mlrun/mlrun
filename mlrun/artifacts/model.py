@@ -272,6 +272,11 @@ class ModelArtifact(Artifact):
         return True
 
     def before_log(self):
+        if not self.spec.model_file and self.spec.target_path:
+            # if the user didn't specify model_file explicitly, then we'll try to get it from shared storage
+            _, model_object, _ = mlrun.artifacts.get_model(self.spec.target_path)
+            return model_object
+
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")
 
@@ -280,6 +285,7 @@ class ModelArtifact(Artifact):
         if self.spec.framework:
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
+        return self
 
     def upload(self, artifact_path: str = None):
         """

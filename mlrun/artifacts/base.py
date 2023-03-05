@@ -284,6 +284,7 @@ class Artifact(ModelObj):
         for key, item in self.spec.extra_data.items():
             if hasattr(item, "get_target_path"):
                 self.spec.extra_data[key] = item.get_target_path()
+        return self
 
     @property
     def is_dir(self):

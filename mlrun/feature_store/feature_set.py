@@ -405,7 +405,7 @@ class FeatureSet(ModelObj):
 
     @property
     def fullname(self) -> str:
-        """full name in the form [project/]name[&#58;tag]"""
+        """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )

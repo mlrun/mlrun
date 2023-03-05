@@ -470,6 +470,35 @@ def test_set_artifact_validates_file_exists(
         )
 
 
+@pytest.mark.parametrize(
+    "artifact_kind,expected_kind,expectation",
+    [
+        ("", "artifact", does_not_raise()),
+        ("plot", "plot", does_not_raise()),
+        ("model", "model", does_not_raise()),
+        ("artifact", "artifact", does_not_raise()),
+        ("dataset", "dataset", does_not_raise()),
+        ("not a kind", "", pytest.raises(KeyError)),
+    ],
+)
+def test_set_artifact_from_path_with_kind(artifact_kind, expected_kind, expectation):
+    artifact_path = "store://my-artifact-path"
+    artifact_key = "my-artifact"
+    project_name = "artifact-project"
+    project = mlrun.new_project(project_name, context=str(assets_path()), save=False)
+
+    with expectation:
+        project.set_artifact(
+            key=artifact_key,
+            target_path=artifact_path,
+            artifact_kind=artifact_kind,
+        )
+        assert project.spec.artifacts[0]["kind"] == expected_kind
+        assert project.spec.artifacts[0]["metadata"]["key"] == artifact_key
+        assert project.spec.artifacts[0]["metadata"]["project"] == project_name
+        assert project.spec.artifacts[0]["spec"]["target_path"] == artifact_path
+
+
 def test_import_artifact_using_relative_path():
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

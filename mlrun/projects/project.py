@@ -1038,7 +1038,7 @@ class MlrunProject(ModelObj):
                                 file to import (yaml/json/zip), relative paths are relative to the context path
         :param target_path:     absolute target path url (point to the artifact content location)
         :param tag:             artifact tag
-        :param artifact_kind:   artifact kind (artifact, model, dataset, ..)
+        :param artifact_kind:   artifact kind (artifact, model, dataset, ..) needed if artifact is not passed
         """
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
@@ -1052,7 +1052,12 @@ class MlrunProject(ModelObj):
                 artifact["tag"] = tag
         else:
             if not artifact:
-                artifact = dict_to_artifact({"kind": artifact_kind})
+                artifact = dict_to_artifact(
+                    {
+                        "kind": artifact_kind or "artifact",
+                        "metadata": {"key": key, "project": self.metadata.name},
+                    }
+                )
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

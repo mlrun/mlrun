@@ -1055,7 +1055,10 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(
                     {
                         "kind": artifact_kind or "artifact",
-                        "metadata": {"key": key, "project": self.metadata.name},
+                        "metadata": {
+                            "key": key,
+                            "project": self.metadata.name,
+                        },
                     }
                 )
             artifact.spec.target_path = target_path or artifact.spec.target_path

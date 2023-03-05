@@ -279,6 +279,7 @@ class ModelArtifact(Artifact):
             )
             model_object.spec.model_file = model_file
             model_object.spec.extra_data = extra_data
+            self.from_dict()
             return model_object
 
         if not self.spec.model_file:
@@ -500,6 +501,7 @@ class LegacyModelArtifact(LegacyArtifact):
         if self.framework:
             self.labels = self.labels or {}
             self.labels["framework"] = self.framework
+        return self
 
     def upload(self):
 

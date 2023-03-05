@@ -762,6 +762,7 @@ class LegacyArtifact(ModelObj):
         for key, item in self.extra_data.items():
             if hasattr(item, "target_path"):
                 self.extra_data[key] = item.target_path
+        return self
 
     def is_inline(self):
         return self._inline

@@ -594,10 +594,9 @@ def get_model(model_dir, suffix=""):
     if obj.kind == "file":
         return model_file, model_spec, extra_dataitems
 
-    # temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
-    file_path = path.join(mlrun.mlconf.artifact_path, model_file)
-    obj.download(file_path)
-    return file_path, model_spec, extra_dataitems
+    temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
+    obj.download(temp_path)
+    return temp_path, model_spec, extra_dataitems
 
 
 def _load_model_spec(spec_path):

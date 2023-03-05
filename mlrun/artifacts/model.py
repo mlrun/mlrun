@@ -273,7 +273,6 @@ class ModelArtifact(Artifact):
 
     def get_artifact(self):
         if not self.spec.model_file and self.spec.target_path:
-            # try to get it from shared storage
             model_file, model_object, extra_data = mlrun.artifacts.get_model(
                 self.spec.target_path
             )

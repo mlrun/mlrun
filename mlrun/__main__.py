@@ -15,9 +15,9 @@
 # limitations under the License.
 import json
 import pathlib
-import warnings
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -594,7 +594,12 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
-@click.option("--dashboard", "-d", default="", help="Deprecated. Keep empty to allow auto-detect by MLRun API")
+@click.option(
+    "--dashboard",
+    "-d",
+    default="",
+    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
+)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")

@@ -1050,7 +1050,7 @@ class MlrunProject(ModelObj):
                 artifact["tag"] = tag
         else:
             if not artifact:
-                artifact = dict_to_artifact({"kind": artifact_kind or "artifact"})
+                artifact = dict_to_artifact({"kind": artifact_kind})
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

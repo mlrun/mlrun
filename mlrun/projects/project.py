@@ -279,6 +279,9 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+        if secrets:
+            project.set_secrets(secrets=secrets)
+
     if not project.metadata.name:
         raise ValueError("project name must be specified")
     if not from_db or (url and url.startswith("git://")):

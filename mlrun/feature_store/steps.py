@@ -70,6 +70,12 @@ class MLRunStep(MapClass):
     def _do_spark(self, event):
         raise NotImplementedError
 
+    @classmethod
+    def default_dict(cls):
+        params = list(cls.__init__.__code__.co_varnames)
+        defaults = cls.__init__.__defaults__
+        return dict(zip(params[-len(defaults):], defaults))
+
 
 class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
@@ -135,11 +141,11 @@ class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
-        self,
-        mapping: Dict[str, Dict[str, Any]],
-        with_original_features: bool = False,
-        suffix: str = "mapped",
-        **kwargs,
+            self,
+            mapping: Dict[str, Dict[str, Any]],
+            with_original_features: bool = False,
+            suffix: str = "mapped",
+            **kwargs,
     ):
         """Map column values to new values
 
@@ -258,11 +264,11 @@ class MapValues(StepToDict, MLRunStep):
 
 class Imputer(StepToDict, MLRunStep):
     def __init__(
-        self,
-        method: str = "avg",
-        default_value=None,
-        mapping: Dict[str, Any] = None,
-        **kwargs,
+            self,
+            method: str = "avg",
+            default_value=None,
+            mapping: Dict[str, Any] = None,
+            **kwargs,
     ):
         """Replace None values with default values
 
@@ -398,10 +404,10 @@ class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-        self,
-        parts: Union[Dict[str, str], List[str]],
-        timestamp_col: str = None,
-        **kwargs,
+            self,
+            parts: Union[Dict[str, str], List[str]],
+            timestamp_col: str = None,
+            **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -517,12 +523,12 @@ class SetEventMetadata(MapClass):
     """Set the event metadata (id and key) from the event body"""
 
     def __init__(
-        self,
-        id_path: str = None,
-        key_path: str = None,
-        time_path: str = None,
-        random_id: bool = None,
-        **kwargs,
+            self,
+            id_path: str = None,
+            key_path: str = None,
+            time_path: str = None,
+            random_id: bool = None,
+            **kwargs,
     ):
         """Set the event metadata (id, key) from the event body
 
@@ -625,9 +631,11 @@ class DropFeatures(StepToDict, MLRunStep):
     def _do_spark(self, event):
         return event.drop(*self.features)
 
-    def validate(self, feature_set):
+    @classmethod
+    def validate(cls, feature_set, **kwargs):
+        features = kwargs.get("features", [])
         entity_names = [entity.name for entity in feature_set.spec.entities]
-        dropped_entities = set(self.features).intersection(entity_names)
+        dropped_entities = set(features).intersection(entity_names)
         if dropped_entities:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"DropFeatures can only drop features, not entities: {dropped_entities}"

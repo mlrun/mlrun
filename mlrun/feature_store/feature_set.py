@@ -58,7 +58,7 @@ class FeatureAggregation(ModelObj):
     """feature aggregation requirements"""
 
     def __init__(
-        self, name=None, column=None, operations=None, windows=None, period=None
+            self, name=None, column=None, operations=None, windows=None, period=None
     ):
         self.name = name
         self.column = column
@@ -69,23 +69,23 @@ class FeatureAggregation(ModelObj):
 
 class FeatureSetSpec(ModelObj):
     def __init__(
-        self,
-        owner=None,
-        description=None,
-        entities=None,
-        features=None,
-        partition_keys=None,
-        timestamp_key=None,
-        label_column=None,
-        relations=None,
-        source=None,
-        targets=None,
-        graph=None,
-        function=None,
-        analysis=None,
-        engine=None,
-        output_path=None,
-        passthrough=None,
+            self,
+            owner=None,
+            description=None,
+            entities=None,
+            features=None,
+            partition_keys=None,
+            timestamp_key=None,
+            label_column=None,
+            relations=None,
+            source=None,
+            targets=None,
+            graph=None,
+            function=None,
+            analysis=None,
+            engine=None,
+            output_path=None,
+            passthrough=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -151,8 +151,8 @@ class FeatureSetSpec(ModelObj):
                         "Entity with valid name of string type"
                     )
                 elif isinstance(entity, dict) and (
-                    "name" not in entity
-                    or ("name" in entity and entity["name"] is None)
+                        "name" not in entity
+                        or ("name" in entity and entity["name"] is None)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "You have to provide an "
@@ -247,13 +247,13 @@ class FeatureSetSpec(ModelObj):
 
 class FeatureSetStatus(ModelObj):
     def __init__(
-        self,
-        state=None,
-        targets=None,
-        stats=None,
-        preview=None,
-        function_uri=None,
-        run_uri=None,
+            self,
+            state=None,
+            targets=None,
+            stats=None,
+            preview=None,
+            function_uri=None,
+            run_uri=None,
     ):
         """Feature set status object, containing the current feature-set's status.
 
@@ -293,8 +293,8 @@ class FeatureSetStatus(ModelObj):
         for target in self._targets:
             actual_target_path = get_target_driver(target).get_target_path()
             if (
-                actual_target_path == target_path
-                or actual_target_path.rstrip("/") == target_path
+                    actual_target_path == target_path
+                    or actual_target_path.rstrip("/") == target_path
             ):
                 target.last_written = last_written
 
@@ -318,15 +318,15 @@ class FeatureSet(ModelObj):
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
-        self,
-        name: str = None,
-        description: str = None,
-        entities: List[Union[Entity, str]] = None,
-        timestamp_key: str = None,
-        engine: str = None,
-        label_column: str = None,
-        relations: Dict[str, Entity] = None,
-        passthrough: bool = None,
+            self,
+            name: str = None,
+            description: str = None,
+            entities: List[Union[Entity, str]] = None,
+            timestamp_key: str = None,
+            engine: str = None,
+            label_column: str = None,
+            relations: Dict[str, Entity] = None,
+            passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -414,8 +414,8 @@ class FeatureSet(ModelObj):
         return fullname
 
     def _override_run_db(
-        self,
-        session,
+            self,
+            session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
@@ -440,11 +440,11 @@ class FeatureSet(ModelObj):
             return target.get_path().get_absolute_path()
 
     def set_targets(
-        self,
-        targets=None,
-        with_defaults=True,
-        default_final_step=None,
-        default_final_state=None,
+            self,
+            targets=None,
+            with_defaults=True,
+            default_final_step=None,
+            default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -489,30 +489,33 @@ class FeatureSet(ModelObj):
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
-    def validate_steps(self):
+    def validate_steps(self, namespace):
         if not self.spec:
             return
         if not self.spec.graph:
             return
         for step in self.spec.graph.steps.values():
             if (
-                step.class_name in queue_class_names
-                or step.class_name is None
-                or "." not in step.class_name
+                    step.class_name in queue_class_names
+                    or step.class_name is None
+                    or "." not in step.class_name
             ):
                 #  we are not checking none class names or queue class names.
                 continue
             module_path, class_name = step.class_name.rsplit(".", 1)
             if not module_path or not class_name:
                 continue
-            module = importlib.import_module(module_path)
-            step_class = getattr(module, class_name)
-            if not hasattr(step_class, "validate"):
+            class_object, class_name = step.get_or_create_class_object(namespace=namespace)
+
+            # module = importlib.import_module(module_path)
+            # step_class = getattr(module, class_name)
+            if not hasattr(class_object, "validate"):
                 continue
-            step_object = step_class(
-                **(step.class_args if step.class_args is not None else {})
-            )
-            step_object.validate(self)
+            class_object.validate(self, **step.class_args)
+            # step_object = step_class(
+            #     **(step.class_args if step.class_args is not None else {})
+            # )
+            # step_object.validate(self)
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets
@@ -541,9 +544,9 @@ class FeatureSet(ModelObj):
             self.save()
 
     def update_targets_for_ingest(
-        self,
-        targets: List[DataTargetBase],
-        overwrite: bool = None,
+            self,
+            targets: List[DataTargetBase],
+            overwrite: bool = None,
     ):
         if not targets:
             return
@@ -554,16 +557,16 @@ class FeatureSet(ModelObj):
         if not overwrite:
             # silent=True always because targets are not guaranteed to be found in status
             status_targets = (
-                self._reload_and_get_status_targets(
-                    target_names=ingestion_target_names, silent=True
-                )
-                or {}
+                    self._reload_and_get_status_targets(
+                        target_names=ingestion_target_names, silent=True
+                    )
+                    or {}
             )
 
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
-        self, target_names: List[str] = None, silent: bool = False
+            self, target_names: List[str] = None, silent: bool = False
     ):
         try:
             self.reload(update_spec=False)
@@ -599,11 +602,11 @@ class FeatureSet(ModelObj):
         return source is not None and source.path is not None and source.path != "None"
 
     def add_entity(
-        self,
-        name: str,
-        value_type: mlrun.data_types.ValueType = None,
-        description: str = None,
-        labels: Optional[Dict[str, str]] = None,
+            self,
+            name: str,
+            value_type: mlrun.data_types.ValueType = None,
+            description: str = None,
+            labels: Optional[Dict[str, str]] = None,
     ):
         """add/set an entity (dataset index)
 
@@ -686,17 +689,17 @@ class FeatureSet(ModelObj):
         self._aggregations[name] = new_aggregation
 
     def add_aggregation(
-        self,
-        column,
-        operations,
-        windows,
-        period=None,
-        name=None,
-        step_name=None,
-        after=None,
-        before=None,
-        state_name=None,
-        emit_policy: EmitPolicy = None,
+            self,
+            column,
+            operations,
+            windows,
+            period=None,
+            name=None,
+            step_name=None,
+            after=None,
+            before=None,
+            state_name=None,
+            emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
 
@@ -890,14 +893,14 @@ class FeatureSet(ModelObj):
         return graph.plot(filename, format, targets=targets, **kw)
 
     def to_dataframe(
-        self,
-        columns=None,
-        df_module=None,
-        target_name=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            target_name=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         """return featureset (offline) data as dataframe
 
@@ -945,9 +948,9 @@ class FeatureSet(ModelObj):
                     if col == target.time_partitioning_granularity:
                         break
             elif (
-                target.partitioned
-                and not target.partition_cols
-                and not target.key_bucketing_number
+                    target.partitioned
+                    and not target.partition_cols
+                    and not target.key_bucketing_number
             ):
                 drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
             if drop_cols:
@@ -994,11 +997,11 @@ class SparkAggregateByKey(StepToDict):
     ]
 
     def __init__(
-        self,
-        key_columns: List[str],
-        time_column: str,
-        aggregates: List[Dict],
-        emit_policy: Union[EmitPolicy, Dict] = None,
+            self,
+            key_columns: List[str],
+            time_column: str,
+            aggregates: List[Dict],
+            emit_policy: Union[EmitPolicy, Dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
@@ -1029,8 +1032,8 @@ class SparkAggregateByKey(StepToDict):
     def _verify_operation(op):
         if op not in SparkAggregateByKey._supported_operations:
             error_string = (
-                f"operation {op} is unsupported. Supported operations: "
-                + ", ".join(SparkAggregateByKey._supported_operations)
+                    f"operation {op} is unsupported. Supported operations: "
+                    + ", ".join(SparkAggregateByKey._supported_operations)
             )
             raise mlrun.errors.MLRunInvalidArgumentError(error_string)
 

@@ -205,16 +205,16 @@ class BaseStep(ModelObj):
         return next_level
 
     def to(
-        self,
-        class_name: Union[str, type] = None,
-        name: str = None,
-        handler: str = None,
-        graph_shape: str = None,
-        function: str = None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
-        **class_args,
+            self,
+            class_name: Union[str, type] = None,
+            name: str = None,
+            handler: str = None,
+            graph_shape: str = None,
+            function: str = None,
+            full_event: bool = None,
+            input_path: str = None,
+            result_path: str = None,
+            **class_args,
     ):
         """add a step right after this step and return the new step
 
@@ -279,17 +279,17 @@ class TaskStep(BaseStep):
     _default_class = ""
 
     def __init__(
-        self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        name: str = None,
-        after: list = None,
-        full_event: bool = None,
-        function: str = None,
-        responder: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+            self,
+            class_name: Union[str, type] = None,
+            class_args: dict = None,
+            handler: str = None,
+            name: str = None,
+            after: list = None,
+            full_event: bool = None,
+            function: str = None,
+            responder: bool = None,
+            input_path: str = None,
+            result_path: str = None,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -329,40 +329,14 @@ class TaskStep(BaseStep):
                 self._inject_context = True
             return
 
-        if isinstance(self.class_name, type):
-            self._class_object = self.class_name
-            self.class_name = self.class_name.__name__
-
-        if not self._class_object:
-            if self.class_name == "$remote":
-
-                from mlrun.serving.remote import RemoteStep
-
-                self._class_object = RemoteStep
-            else:
-                self._class_object = get_class(
-                    self.class_name or self._default_class, namespace
-                )
-
+        self._class_object, self.class_name = self.get_or_create_class_object(namespace=namespace)
         if not self._object or reset:
             # init the step class + args
-            class_args = {}
-            for key, arg in self.class_args.items():
-                if key.startswith(callable_prefix):
-                    class_args[key[1:]] = get_function(arg, namespace)
-                else:
-                    class_args[key] = arg
-            class_args.update(extra_kwargs)
-
-            # add common args (name, context, ..) only if target class can accept them
-            argspec = getfullargspec(self._class_object)
-            for key in ["name", "context", "input_path", "result_path", "full_event"]:
-                if argspec.varkw or key in argspec.args:
-                    class_args[key] = getattr(self, key)
-            if argspec.varkw or "graph_step" in argspec.args:
-                class_args["graph_step"] = self
+            extracted_class_args = self.get_full_class_args(self.class_args, namespace=namespace,
+                                                            class_object=self._class_object,
+                                                            **extra_kwargs)
             try:
-                self._object = self._class_object(**class_args)
+                self._object = self._class_object(**extracted_class_args)
             except TypeError as exc:
                 raise TypeError(
                     f"failed to init step {self.name}\n args={self.class_args}"
@@ -388,6 +362,42 @@ class TaskStep(BaseStep):
         if mode != "skip":
             self._post_init(mode)
 
+    def get_full_class_args(self, input_class_args: dict, namespace, class_object, **extra_kwargs):
+        class_args = {}
+        for key, arg in input_class_args.items():
+            if key.startswith(callable_prefix):
+                class_args[key[1:]] = get_function(arg, namespace)
+            else:
+                class_args[key] = arg
+        class_args.update(extra_kwargs)
+
+        # add common args (name, context, ..) only if target class can accept them
+        argspec = getfullargspec(class_object)
+        for key in ["name", "context", "input_path", "result_path", "full_event"]:
+            if argspec.varkw or key in argspec.args:
+                class_args[key] = getattr(self, key)
+        if argspec.varkw or "graph_step" in argspec.args:
+            class_args["graph_step"] = self
+        return class_args
+
+    def get_or_create_class_object(self, namespace):
+        class_name = self.class_name
+        class_object = self._class_object
+        if isinstance(class_name, type):
+            class_object = class_name
+            class_name = class_name.__name__
+        if not class_object:
+            if class_name == "$remote":
+
+                from mlrun.serving.remote import RemoteStep
+
+                class_object = RemoteStep
+            else:
+                class_object = get_class(
+                    class_name or self._default_class, namespace
+                )
+        return class_object, class_name
+
     def _is_local_function(self, context):
         # detect if the class is local (and should be initialized)
         current_function = get_current_function(context)
@@ -396,7 +406,7 @@ class TaskStep(BaseStep):
         if not self.function and not current_function:
             return True
         if (
-            self.function and self.function == "*"
+                self.function and self.function == "*"
         ) or self.function == current_function:
             return True
         return False
@@ -469,15 +479,15 @@ class RouterStep(TaskStep):
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
-        self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        routes: list = None,
-        name: str = None,
-        function: str = None,
-        input_path: str = None,
-        result_path: str = None,
+            self,
+            class_name: Union[str, type] = None,
+            class_args: dict = None,
+            handler: str = None,
+            routes: list = None,
+            name: str = None,
+            function: str = None,
+            input_path: str = None,
+            result_path: str = None,
     ):
         super().__init__(
             class_name,
@@ -505,13 +515,13 @@ class RouterStep(TaskStep):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
     def add_route(
-        self,
-        key,
-        route=None,
-        class_name=None,
-        handler=None,
-        function=None,
-        **class_args,
+            self,
+            key,
+            route=None,
+            class_name=None,
+            handler=None,
+            function=None,
+            **class_args,
     ):
         """add child route step or class to the router
 
@@ -599,14 +609,14 @@ class QueueStep(BaseStep):
     ]
 
     def __init__(
-        self,
-        name: str = None,
-        path: str = None,
-        after: list = None,
-        shards: int = None,
-        retention_in_hours: int = None,
-        trigger_args: dict = None,
-        **options,
+            self,
+            name: str = None,
+            path: str = None,
+            after: list = None,
+            shards: int = None,
+            retention_in_hours: int = None,
+            trigger_args: dict = None,
+            **options,
     ):
         super().__init__(name, after)
         self.path = path
@@ -655,12 +665,12 @@ class FlowStep(BaseStep):
     ]
 
     def __init__(
-        self,
-        name=None,
-        steps=None,
-        after: list = None,
-        engine=None,
-        final_step=None,
+            self,
+            name=None,
+            steps=None,
+            after: list = None,
+            engine=None,
+            final_step=None,
     ):
         super().__init__(name, after)
         self._steps = None
@@ -693,18 +703,18 @@ class FlowStep(BaseStep):
         self._steps = ObjectDict.from_dict(classes_map, steps, "task")
 
     def add_step(
-        self,
-        class_name=None,
-        name=None,
-        handler=None,
-        after=None,
-        before=None,
-        graph_shape=None,
-        function=None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
-        **class_args,
+            self,
+            class_name=None,
+            name=None,
+            handler=None,
+            after=None,
+            before=None,
+            graph_shape=None,
+            function=None,
+            full_event: bool = None,
+            input_path: str = None,
+            result_path: str = None,
+            **class_args,
     ):
         """add task, queue or router step/class to the flow
 
@@ -865,7 +875,7 @@ class FlowStep(BaseStep):
             start_steps.remove(self.on_error)
 
         if (
-            len(responders) > 1
+                len(responders) > 1
         ):  # should not have multiple steps which respond to request
             raise GraphError(
                 f'there are more than one responder steps in the graph ({",".join(responders)})'
@@ -883,9 +893,9 @@ class FlowStep(BaseStep):
         def get_first_function_step(step, current_function):
             # find the first step which belongs to the function
             if (
-                hasattr(step, "function")
-                and step.function
-                and step.function == current_function
+                    hasattr(step, "function")
+                    and step.function
+                    and step.function == current_function
             ):
                 return step
             for item in step.next or []:
@@ -1000,9 +1010,9 @@ class FlowStep(BaseStep):
         functions = []
         for step in self.get_children():
             if (
-                hasattr(step, "function")
-                and step.function
-                and step.function not in functions
+                    hasattr(step, "function")
+                    and step.function
+                    and step.function not in functions
             ):
                 functions.append(step.function)
         return functions
@@ -1125,10 +1135,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph,
-    step,
-    source=None,
-    targets=None,
+        graph,
+        step,
+        source=None,
+        targets=None,
 ):
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
@@ -1172,13 +1182,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    step,
-    renderer,
-    filename=None,
-    format=None,
-    source=None,
-    targets=None,
-    **kw,
+        step,
+        renderer,
+        filename=None,
+        format=None,
+        source=None,
+        targets=None,
+        **kw,
 ):
     try:
         from graphviz import Digraph
@@ -1229,15 +1239,15 @@ def get_name(name, class_name):
 
 
 def params_to_step(
-    class_name,
-    name,
-    handler=None,
-    graph_shape=None,
-    function=None,
-    full_event=None,
-    input_path: str = None,
-    result_path: str = None,
-    class_args=None,
+        class_name,
+        name,
+        handler=None,
+        graph_shape=None,
+        function=None,
+        full_event=None,
+        input_path: str = None,
+        result_path: str = None,
+        class_args=None,
 ):
     """return step object from provided params or classes/objects"""
 

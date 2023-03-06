@@ -502,20 +502,13 @@ class FeatureSet(ModelObj):
             ):
                 #  we are not checking none class names or queue class names.
                 continue
-            module_path, class_name = step.class_name.rsplit(".", 1)
-            if not module_path or not class_name:
-                continue
             class_object, class_name = step.get_or_create_class_object(namespace=namespace)
-
-            # module = importlib.import_module(module_path)
-            # step_class = getattr(module, class_name)
             if not hasattr(class_object, "validate"):
                 continue
-            class_object.validate(self, **step.class_args)
-            # step_object = step_class(
-            #     **(step.class_args if step.class_args is not None else {})
-            # )
-            # step_object.validate(self)
+            if step.class_name.startswith("storey."):
+                class_object.validate(**(step.class_args if step.class_args is not None else {}))
+            else:
+                class_object.validate(self, **(step.class_args if step.class_args is not None else {}))
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets

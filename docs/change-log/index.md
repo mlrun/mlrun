@@ -41,22 +41,22 @@ version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images)
 
 #### APIs
 
-- [Deprecated APIs](#api-130)
+- [Deprecated and removed APIs](#api-130)
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
  
  
 #### Infrastructure
 
-- MLRun supports Python 3.9.
-- New log collection service that providing high performance, and reduction in heavy IO operations from the api container. 
+- MLRun server is based on Python 3.9.
+- The new log collection service improves the performance and reduces heavy IO operations from the API container. 
 The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
 worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
-The new service is transparent to the end-user; there are no UI or API changes. 
+The new service is transparent to the end-user: there are no UI or API changes. 
 
 #### Feature store
 
-- The Spark engine now supports the steps: MapValues, Imputer, OneHotEncoder, DropFeatures; and supports extracting the time parts from the date in the DateExtractor step. See [Data transformations](../serving/available-steps.html#data-transformations).
-- Supports creating a feature vector over several feature sets with different entity. See [Creating an offline feature vector](../feature-store/feature-vectors.html#creating-an-offline-feature-vector).
+- The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations).
+- Supports creating a feature vector over several feature sets with different entity. See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector).
 - Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
 - Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
 - Supports Spark using Redis as an online KV target, which cause a breaking change. See [Breaking changes](#breaking-changes).
@@ -66,12 +66,12 @@ The new service is transparent to the end-user; there are no UI or API changes.
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default` context` directory: `./`, which is the directory that the MLRun 
+- When defining a new project from scratch, there is now a default `context` directory: `./`, which is the directory that the MLRun 
     client runs from unless otherwise specified.  
 
 #### Serving graphs
 
-- Add support for graphs that split and merge (DAG), including a list of steps for the "after" argument in the add_step() method. See [Graph that splits and rejoins](../serving/getting-started.html#graph-that-splits-and-rejoins).
+- Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.html#graph-that-splits-and-rejoins).
 - Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming).
 
 #### Storey
@@ -80,7 +80,7 @@ The new service is transparent to the end-user; there are no UI or API changes.
     [Storey git](https://github.com/mlrun/storey/pull/394).
 
 #### Third party integrations
-- Supports private repo as a function hub. See [](../runtimes/functions.html).
+- ***???Supports public repo as a function hub. See [](../runtimes/functions.html).***
 
 #### UI
 - The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
@@ -93,7 +93,7 @@ relevant wizards under each phase heading: ingesting and processing data, develo
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
 
 **Deprecated and removed from v1.3.0 code**<br>
-The following MLRun APIs have been deprecated since at least v1.0.0 and are now removed from the code:
+These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
@@ -156,13 +156,13 @@ $CONDA_HOME/bin/conda install -y pip
 ```
 
 ### Closed issues
-- Can now pickle a class inside an mlrun function. [View in Git](https://github.com/mlrun/mlrun/pull/??
-- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1911).
-- Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/mlrun/pull/1632).
+
+- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611).
+- Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632).
 - Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).
 - Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
 - `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
-- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/mlrun/pull/1613).
+- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613).
 - `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and 
     docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
 - Fix: Failed MLRun Nuclio deploy needs better error messages.     

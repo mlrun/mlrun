@@ -2601,7 +2601,7 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             return False
-        if parsed_server_version.minor <= parsed_client_version.minor + 2:
+        if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
                 "Server and client versions are not the same but compatible",
                 parsed_server_version=parsed_server_version,

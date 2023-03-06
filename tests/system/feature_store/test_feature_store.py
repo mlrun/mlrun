@@ -3883,12 +3883,12 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as ml_run_exception:
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
             fstore.ingest(measurements, source)
-        assert (
-            str(ml_run_exception.value)
-            == "DropFeatures can only drop features, not entities"
-        )
 
 
 def verify_purge(fset, targets):

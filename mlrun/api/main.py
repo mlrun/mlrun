@@ -239,7 +239,7 @@ async def _verify_log_collection_started_on_startup(
     if runs:
         logger.debug(
             "Found runs which require logs collection",
-            runs_uids=runs,
+            runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
         )
 
         # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
@@ -268,7 +268,7 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         if runs:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=runs,
+                runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
             )
             await _start_log_and_update_runs(start_logs_limit, db_session, runs)
 
@@ -345,9 +345,10 @@ async def _start_log_for_run(
             runtime_handler = await fastapi.concurrency.run_in_threadpool(
                 get_runtime_handler, run_kind
             )
+            object_id = runtime_handler.resolve_object_id(run)
             label_selector = runtime_handler.resolve_label_selector(
                 project=project_name,
-                object_id=run_uid,
+                object_id=object_id,
                 class_mode=RuntimeClassMode.run,
             )
             success, _ = await logs_collector_client.start_logs(

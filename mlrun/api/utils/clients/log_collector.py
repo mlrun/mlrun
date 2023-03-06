@@ -26,6 +26,30 @@ from mlrun.utils import logger
 class LogCollectorErrorCode(enum.Enum):
     ErrCodeNotFound = 0
     ErrCodeInternal = 1
+    ErrCodeBadRequest = 2
+
+    @staticmethod
+    def map_error_code_to_mlrun_error(
+        error_code: int, error_message: str, failure_message: str
+    ) -> mlrun.errors.MLRunHTTPStatusError:
+        """
+        Map error code to exception
+        :param error_code: The error code
+        :param error_message: The error message
+        :param failure_message: The failure message to use in the exception, according to the failed request
+        """
+        message = f"{failure_message}, error: {error_message}"
+
+        mlrun_error_class = {
+            LogCollectorErrorCode.ErrCodeNotFound: mlrun.errors.MLRunNotFoundError,
+            LogCollectorErrorCode.ErrCodeInternal: mlrun.errors.MLRunInternalServerError,
+            LogCollectorErrorCode.ErrCodeBadRequest: mlrun.errors.MLRunBadRequestError,
+        }.get(
+            LogCollectorErrorCode(error_code),
+            mlrun.errors.MLRunInternalServerError,
+        )
+
+        return mlrun_error_class(message)
 
 
 class LogCollectorClient(
@@ -82,12 +106,8 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
-                if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"{msg},error= {response.errorMessage}"
-                    )
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    response.errorCode, response.errorMessage, msg
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
@@ -147,8 +167,8 @@ class LogCollectorClient(
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
-                            raise mlrun.errors.MLRunInternalServerError(
-                                f"{msg},error= {chunk.errorMessage}"
+                            raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                                chunk.errorCode, chunk.errorMessage, msg
                             )
                         if verbose:
                             logger.warning(msg, error=chunk.errorMessage)
@@ -193,8 +213,8 @@ class LogCollectorClient(
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    response.errorCode, response.errorMessage, msg
                 )
         return response.hasLogs
 
@@ -214,16 +234,46 @@ class LogCollectorClient(
         :return: None
         """
 
-        request = self._log_collector_pb2.StopLogRequest(
+        request = self._log_collector_pb2.StopLogsRequest(
             project=project, runUIDs=run_uids
         )
 
-        response = await self._call("StopLog", request)
+        response = await self._call("StopLogs", request)
         if not response.success:
             msg = "Failed to stop logs"
             if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    response.errorCode, response.errorMessage, msg
+                )
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
+
+    async def delete_logs(
+        self,
+        project: str,
+        run_uids: typing.List[str] = None,
+        verbose: bool = False,
+        raise_on_error: bool = True,
+    ) -> None:
+        """
+        Delete logs from the log collector service
+        :param project: The project name
+        :param run_uids: The run uids to delete logs for, if not provided will delete logs for all runs in the project
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: None
+        """
+
+        request = self._log_collector_pb2.StopLogsRequest(
+            project=project, runUIDs=run_uids
+        )
+
+        response = await self._call("DeleteLogs", request)
+        if not response.success:
+            msg = "Failed to delete logs"
+            if raise_on_error:
+                raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
+                    response.errorCode, response.errorMessage, msg
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)

@@ -200,7 +200,7 @@ class RunConfig:
     ):
         """class for holding function and run specs for jobs and serving functions
 
-        When running feature ingestion or merging tasks we use the RunConfig class to pass
+        when running feature ingestion or merging tasks we use the RunConfig class to pass
         the desired function and job configuration.
         the apply() method is used to set resources like volumes, the with_secret() method adds secrets
 
@@ -229,7 +229,8 @@ class RunConfig:
         :param kind:        function runtime kind (job, serving, spark, ..), required when function points to code
         :param handler:     the function handler to execute (for jobs or nuclio)
         :param parameters:  job parameters
-        :param watch:       in batch jobs will wait for the job completion and print job logs to the console
+        :param watch:       in batch jobs will wait for the job completion and print job logs to the console.
+                            Default (None) is True.
         :param owner:       job owner
         :param credentials: job credentials
         :param code:        function source code (as string)

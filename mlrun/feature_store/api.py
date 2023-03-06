@@ -62,7 +62,6 @@ from .ingestion import (
     run_spark_graph,
 )
 from .retrieval import get_merger, init_feature_vector_graph, run_merge_job
-from .steps import DropFeatures
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -323,17 +322,6 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
-def _validate_graph_steps(featureset: FeatureSet):
-    if DropFeatures.__name__ in featureset.graph.steps:
-        entities_keys = [entity.name for entity in featureset.spec.entities]
-        step = featureset.graph.steps[DropFeatures.__name__]
-        dropped_features = step.class_args["features"]
-        if set(dropped_features).intersection(entities_keys):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DropFeatures can only drop features, not entities"
-            )
-
-
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -379,7 +367,7 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options
+    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -417,7 +405,9 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    _validate_graph_steps(featureset=featureset)
+
+    if featureset is not None:
+        featureset.validate_steps()
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
@@ -456,6 +446,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
+        featureset.validate_steps()
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -674,6 +665,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
+    featureset.validate_steps()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

@@ -46,8 +46,13 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "azure-core~=1.24",
             "azure-storage-blob~=12.13",
             "adlfs~=2021.8.1",
+            "pyopenssl>=23",
         ],
-        "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
+        "azure-key-vault": [
+            "azure-identity~=1.5",
+            "azure-keyvault-secrets~=4.2",
+            "pyopenssl>=23",
+        ],
         "bokeh": [
             # >=2.4.2 to force having a security fix done in 2.4.2
             "bokeh~=2.4, >=2.4.2",
@@ -63,11 +68,11 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-storage~=1.20",
             # because of storey which isn't compatible with google-cloud-bigquery >3.2, conflicting grpcio
             # google-cloud-bigquery 3.3.0 has grpcio >= 1.47.0, < 2.0dev while storey 1.2.2 has grpcio<1.42 and >1.34.0
-            "google-cloud-bigquery[pandas]~=3.2",
+            "google-cloud-bigquery[pandas]>=3.2,<3.5",
             "google-cloud~=0.34",
         ],
         "google-cloud-storage": ["gcsfs~=2021.8.1"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.2"],
+        "google-cloud-bigquery": ["google-cloud-bigquery[pandas]>=3.2,<3.5"],
         "kafka": ["kafka-python~=2.0"],
         "redis": ["redis~=4.3"],
     }

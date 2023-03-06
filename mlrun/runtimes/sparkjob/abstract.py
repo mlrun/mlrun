@@ -898,6 +898,15 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple instances representing one runtime resource, in this case
+        we don't want to pull logs for all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return "spark-role=driver"
+
+    @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
         return (
             AbstractSparkRuntime.group,

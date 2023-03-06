@@ -29,7 +29,6 @@ from mlrun.errors import MLRunInvalidArgumentError
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, extend_artifact_path
 from .datastore import store_manager
-from .db import get_run_db
 from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore

@@ -231,7 +231,7 @@ class MLClientCtx(object):
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
-                self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
+                self._rundb = mlrun.db.get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
         else:

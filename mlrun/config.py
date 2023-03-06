@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.conf")
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace

@@ -236,6 +236,47 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
+    def test_set_source_with_auto_build_function(self):
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"]
+        )
+        print(project.spec._function_objects['myjob'].to_dict())
+        print(project.spec._function_definitions)
+        project.save()
+        project.run_function("myjob", auto_build=True)
+        print(project.spec._function_objects['myjob'].to_dict())
+        print(project.spec._function_definitions)
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        print(project.spec._function_objects)
+        print(project.spec._function_definitions)
+        project.set_source(f"{git_uri}#main", False)
+        print(project.spec._function_objects['myjob'].to_dict())
+        print(project.spec._function_definitions)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"]
+        )
+        print(project.spec._function_objects['myjob'].to_dict())
+        print(project.spec._function_definitions)
+        project.sync_functions()
+        project.save()
+        project.run_function("myjob", auto_build=True)
+        print(project.spec._function_objects['myjob'].to_dict())
+        print(project.spec._function_definitions)
+
     def test_nuclio_project(self):
         project = mlrun.new_project("git-proj-nuc", user_project=True)
         # using project.name because this is a user project meaning the project name get concatenated with the user name

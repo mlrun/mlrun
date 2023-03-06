@@ -433,6 +433,8 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
+
+        image = get_in(fn, "status.image", "") or image
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()
@@ -472,6 +474,7 @@ def _handle_job_deploy_status(
     update_in(fn, "status.state", state)
     if state == mlrun.api.schemas.FunctionState.ready:
         update_in(fn, "spec.image", image)
+        update_in(fn, "status.image", image)
 
     versioned = False
     if state == mlrun.api.schemas.FunctionState.ready:

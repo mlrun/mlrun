@@ -506,7 +506,7 @@ class FeatureSet(ModelObj):
             )
             if not hasattr(class_object, "validate"):
                 continue
-            if step.class_name.startswith("storey."):
+            if class_name.startswith("storey"):
                 class_object.validate(
                     **(step.class_args if step.class_args is not None else {})
                 )

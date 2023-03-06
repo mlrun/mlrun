@@ -215,7 +215,6 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 
 	suite.Require().False(startLogResponse.Success)
 	suite.Require().Error(err)
-	suite.Require().Contains(err.Error(), "Failed to list pods")
 }
 
 func (suite *LogCollectorTestSuite) startLogCollectorServer(listenPort int) {

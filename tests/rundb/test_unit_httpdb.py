@@ -19,6 +19,8 @@ import unittest.mock
 
 import pytest
 import requests
+import urllib3
+import urllib3.exceptions
 
 import mlrun.artifacts.base
 import mlrun.config
@@ -49,74 +51,85 @@ def test_api_call_enum_conversion():
 
 
 @pytest.mark.parametrize(
-    "feature_config,exception_type,exception_message,call_amount",
+    "feature_config,exception_type,exception_args,call_amount",
     [
         # feature enabled
-        ("enabled", Exception, "some-error", 1),
-        ("enabled", ConnectionError, "some-error", 1),
-        ("enabled", ConnectionResetError, "some-error", 1),
+        ("enabled", Exception, ("some-error",), 1),
+        ("enabled", ConnectionError, ("some-error",), 1),
         (
             "enabled",
             ConnectionError,
-            "Connection aborted",
+            ("Connection aborted",),
             # one try + the max retries
             1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionResetError,
-            "Connection reset by peer",
+            ("Connection reset by peer",),
             # one try + the max retries
             1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionRefusedError,
-            "Connection refused",
+            ("Connection refused",),
             # one try + the max retries
             1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
-            requests.exceptions.ConnectionError,
-            "Connection aborted",
+            ConnectionAbortedError,
+            ("Connection aborted",),
             # one try + the max retries
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        (
+            "enabled",
+            urllib3.exceptions.ReadTimeoutError,
+            (urllib3.HTTPConnectionPool(host="dummy"), "dummy", ""),
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        (
+            "enabled",
+            requests.exceptions.ConnectionError,
+            ("Connection aborted.",),
             1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         # feature disabled
-        ("disabled", Exception, "some-error", 1),
-        ("disabled", ConnectionError, "some-error", 1),
-        ("disabled", ConnectionResetError, "some-error", 1),
-        ("disabled", ConnectionError, "Connection aborted", 1),
+        ("disabled", Exception, ("some-error",), 1),
+        ("disabled", ConnectionError, ("some-error",), 1),
+        ("disabled", ConnectionResetError, ("some-error",), 1),
+        ("disabled", ConnectionError, ("Connection aborted",), 1),
         (
             "disabled",
             ConnectionResetError,
-            "Connection reset by peer",
+            ("Connection reset by peer",),
             1,
         ),
         (
             "disabled",
             ConnectionRefusedError,
-            "Connection refused",
+            ("Connection refused",),
             1,
         ),
         (
             "disabled",
-            requests.exceptions.ConnectionError,
-            "Connection aborted",
+            ConnectionAbortedError,
+            ("Connection aborted",),
             # one try + the max retries
             1,
         ),
     ],
 )
 def test_connection_reset_causes_retries(
-    feature_config, exception_type, exception_message, call_amount
+    feature_config, exception_type, exception_args, call_amount
 ):
     mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("fake-url")
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
-    requests.Session.request.side_effect = exception_type(exception_message)
+    requests.Session.request.side_effect = exception_type(*exception_args)
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):

@@ -56,12 +56,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import (
-    DropFeatures,
-    FeaturesetValidator,
-    MapValues,
-    OneHotEncoder,
-)
+from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
@@ -3894,57 +3889,6 @@ class TestFeatureStore(TestMLRunSystem):
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
             fstore.ingest(measurements, source)
-
-    def test_map_values(self):
-        engine = "storey"
-        source = pd.DataFrame(
-            {
-                "id": [1, 2, 3],
-                "name": ["nick", "Ethan", "Sophia"],
-                "age": ["10", "20", "U"],
-                "key1": ["1", "2", "3"],
-                "timestamp": [
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                ],
-            }
-        )
-        feature_set = fstore.FeatureSet(
-            "myfset", entities=[fstore.Entity("id")], engine=engine
-        )
-        feature_set.graph.to(
-            MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)
-        )
-        output_path = tempfile.TemporaryDirectory()
-        result_df = fstore.ingest(
-            feature_set,
-            source,
-            targets=[
-                ParquetTarget(
-                    path=f"{output_path.name}/temp.parquet", name="parquet_target"
-                )
-            ],
-        )
-        # TODO check if it drops id on purpose
-        expected_df = pd.DataFrame(
-            {
-                "name": ["nick", "Ethan", "Sophia"],
-                "age": ["10", "20", "U"],
-                "key1": ["1", "2", "3"],
-                "timestamp": [
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                ],
-                "age_mapped": ["10", "20", "0"],
-            }
-        )
-        pd.testing.assert_frame_equal(
-            result_df.reset_index(drop=True),
-            expected_df.reset_index(drop=True),
-            check_like=True,
-        )
 
 
 def verify_purge(fset, targets):

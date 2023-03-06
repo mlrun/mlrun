@@ -1473,7 +1473,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_engine_res.sort_index(axis=1)
         )
 
-    def test_map_values(self):
+    def test_mapvalues_with_partially_mapping(self):
+        # we need this test in order to check partially_mapping -> only part of the values in field are replaced.
         source = pd.DataFrame(
             {
                 "id": [1, 2, 3],

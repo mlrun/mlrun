@@ -632,7 +632,7 @@ class DropFeatures(StepToDict, MLRunStep):
         return event.drop(*self.features)
 
     @classmethod
-    def validate(cls, feature_set, **kwargs):
+    def validate_args(cls, feature_set, **kwargs):
         features = kwargs.get("features", [])
         entity_names = [entity.name for entity in feature_set.spec.entities]
         dropped_entities = set(features).intersection(entity_names)

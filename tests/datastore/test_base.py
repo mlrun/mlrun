@@ -16,21 +16,21 @@ import os
 import string
 from contextlib import nullcontext as does_not_raise
 
-import pytest
 import dask.dataframe as dd
+import pytest
 
 import mlrun.datastore
 import mlrun.datastore.wasbfs
 from mlrun import new_function
 from mlrun.datastore import KafkaSource
+from mlrun.datastore.azure_blob import AzureBlobStore
+from mlrun.datastore.base import HttpStore
+from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.filestore import FileStore
+from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
-from mlrun.datastore.base import HttpStore
-from mlrun.datastore.redis import RedisStore
-from mlrun.datastore.filestore import FileStore
-from mlrun.datastore.azure_blob import AzureBlobStore
-from mlrun.datastore.datastore import schema_to_store
-from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 
 
 def test_http_fs_parquet_as_df():

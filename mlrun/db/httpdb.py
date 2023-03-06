@@ -2496,9 +2496,24 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             return False
+        if parsed_server_version.minor > parsed_client_version.minor + 2:
+            logger.info(
+                "Backwards compatibility might not apply between the server and client version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
+        if parsed_client_version.minor > parsed_server_version.minor:
+            logger.warning(
+                "Client version with higher version than server version isn't supported,"
+                " align your client to the server version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
         if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
-                "Server and client versions are not the same",
+                "Server and client versions are not the same but compatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )

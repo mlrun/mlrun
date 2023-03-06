@@ -15,6 +15,7 @@
 import asyncio
 import json
 import typing
+import warnings
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
@@ -539,7 +540,7 @@ class RemoteRuntime(KubeResource):
     ):
         """Deploy the nuclio function to the cluster
 
-        :param dashboard:  address of the nuclio dashboard service (keep blank for current cluster)
+        :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
@@ -586,7 +587,14 @@ class RemoteRuntime(KubeResource):
                 save_record = True
 
         else:
-            # todo: should be deprecated (only work via MLRun service)
+
+            warnings.warn(
+                "'dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
+                "Keep 'dashboard' value empty to allow auto-detection by MLRun API.",
+                # TODO: Remove in 1.5.0
+                FutureWarning,
+            )
+
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
@@ -785,7 +793,16 @@ class RemoteRuntime(KubeResource):
         verbose=None,
         use_function_from_db=None,
     ):
-        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
+        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead
+
+        :param dashboard:      DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+        :param project:        project name, defaults to function project
+        :param models:         model name and paths
+        :param env:            dict of environment variables
+        :param tag:            version tag
+        :param verbose:        verbose output
+        :param use_function_from_db:  use the function from the DB instead of the local function object
+        """
         models = {} if models is None else models
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -1168,6 +1185,16 @@ def deploy_nuclio_function(
     builder_env: dict = None,
     client_python_version: str = None,
 ):
+    """Deploys a nuclio function.
+
+    :param function:              nuclio function object
+    :param dashboard:             DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+    :param watch:                 wait for function to be ready
+    :param auth_info:             service AuthInfo
+    :param client_version:        mlrun client version
+    :param builder_env:           mlrun builder environment (for config/credentials)
+    :param client_python_version: mlrun client python version
+    """
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
         function,
@@ -1559,6 +1586,18 @@ def get_nuclio_deploy_status(
     resolve_address=True,
     auth_info: AuthInfo = None,
 ):
+    """
+    Get nuclio function deploy status
+
+    :param name:                function name
+    :param project:             project name
+    :param tag:                 function tag
+    :param dashboard:           DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+    :param last_log_timestamp:  last log timestamp
+    :param verbose:             print logs
+    :param resolve_address:     whether to resolve function address
+    :param auth_info:           authentication information
+    """
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
     get_err_message = f"Failed to get function {name} deploy status"

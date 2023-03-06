@@ -79,9 +79,6 @@ The new service is transparent to the end-user: there are no UI or API changes.
     time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/mlrun/pull/2660), and in 
     [Storey git](https://github.com/mlrun/storey/pull/394).
 
-#### Third party integrations
-- ***???Supports public repo as a function hub. See [](../runtimes/functions.html).***
-
 #### UI
 - The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
 relevant wizards under each phase heading: ingesting and processing data, developing and training a model, deploying and monitoring the project.

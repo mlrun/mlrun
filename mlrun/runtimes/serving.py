@@ -584,7 +584,7 @@ class ServingRuntime(RemoteRuntime):
     ):
         """deploy model serving function to a local/remote cluster
 
-        :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
+        :param dashboard: DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging

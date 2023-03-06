@@ -343,36 +343,39 @@ def test_list_functions(create_server):
     assert len(functions) == count, "bad list"
 
 
-def test_version_compatibility_validation():
-    cases = [
-        {
-            "server_version": "unstable",
-            "client_version": "unstable",
-            "compatible": True,
-        },
-        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
-        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
-        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
-        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
-        {"server_version": "0.6.0-rc1", "client_version": "0.5.4", "compatible": True},
-        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
-        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
-        {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},
-        {
-            "server_version": "0.7.1",
-            "client_version": "0.0.0+unstable",
-            "compatible": True,
-        },
-        {
-            "server_version": "0.0.0+unstable",
-            "client_version": "0.7.1",
-            "compatible": True,
-        },
-    ]
-    for case in cases:
-        assert case["compatible"] == HTTPRunDB._validate_version_compatibility(
-            case["server_version"], case["client_version"]
-        )
+@pytest.mark.parametrize(
+    "server_version,client_version,compatible",
+    [
+        # Unstable client or server, not parsing, and assuming compatibility
+        ("unstable", "unstable", True),
+        ("0.5.3", "unstable", True),
+        ("unstable", "0.6.1", True),
+        # Server and client versions are not the same but compatible
+        ("0.5.3", "0.5.1", True),
+        ("0.6.0-rc1", "0.6.1", True),
+        ("0.6.0-rc1", "0.5.4", True),
+        ("0.6.3", "0.4.8", True),
+        ("1.3.0", "1.1.0", True),
+        # Majors on the server and client versions are not the same
+        ("1.0.0", "0.5.0", False),
+        ("0.5.0", "1.0.0", False),
+        ("2.0.0", "1.3.0", False),
+        ("2.0.0", "1.9.0", False),
+        # Server version much higher than client
+        ("1.3.0", "1.0.0", False),
+        ("1.9.0", "1.3.0", False),
+        # Client version higher than server, not supported
+        ("1.3.0", "1.9.0", False),
+        ("1.3.0", "1.4.0", False),
+        # Server or client version is unstable, assuming compatibility
+        ("0.7.1", "0.0.0+unstable", True),
+        ("0.0.0+unstable", "0.7.1", True),
+    ],
+)
+def test_version_compatibility_validation(server_version, client_version, compatible):
+    assert compatible == HTTPRunDB._validate_version_compatibility(
+        server_version, client_version
+    )
 
 
 def _create_feature_set(name):

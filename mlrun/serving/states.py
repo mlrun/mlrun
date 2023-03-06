@@ -335,7 +335,6 @@ class TaskStep(BaseStep):
         if not self._object or reset:
             # init the step class + args
             extracted_class_args = self.get_full_class_args(
-                self.class_args,
                 namespace=namespace,
                 class_object=self._class_object,
                 **extra_kwargs,
@@ -367,11 +366,9 @@ class TaskStep(BaseStep):
         if mode != "skip":
             self._post_init(mode)
 
-    def get_full_class_args(
-        self, input_class_args: dict, namespace, class_object, **extra_kwargs
-    ):
+    def get_full_class_args(self, namespace, class_object, **extra_kwargs):
         class_args = {}
-        for key, arg in input_class_args.items():
+        for key, arg in self.class_args.items():
             if key.startswith(callable_prefix):
                 class_args[key[1:]] = get_function(arg, namespace)
             else:

@@ -506,13 +506,16 @@ class FeatureSet(ModelObj):
             )
             if not hasattr(class_object, "validate_args"):
                 continue
+            class_args = step.get_full_class_args(
+                namespace=namespace, class_object=class_object
+            )
             if class_name.startswith("storey"):
                 class_object.validate_args(
-                    **(step.class_args if step.class_args is not None else {})
+                    **(class_args if class_args is not None else {})
                 )
             else:
                 class_object.validate_args(
-                    self, **(step.class_args if step.class_args is not None else {})
+                    self, **(class_args if class_args is not None else {})
                 )
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):

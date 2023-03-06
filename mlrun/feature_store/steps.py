@@ -233,7 +233,11 @@ class MapValues(StepToDict, MLRunStep):
             if "ranges" not in column_map:
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
                 event = event.withColumn(
-                    new_column_name, mapping_expr.getItem(col(column))
+                    new_column_name,
+                    when(
+                        col(column).isin(list(column_map.keys())),
+                        mapping_expr.getItem(col(column)),
+                    ).otherwise(col(column)),
                 )
             else:
                 for val, val_range in column_map["ranges"].items():

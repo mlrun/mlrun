@@ -247,6 +247,8 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 		Selector:    "app=some-app",
 		BestEffort:  true,
 	}
+	suite.LogCollectorServer.startLogsFindingPodsTimeout = 50 * time.Millisecond
+	suite.LogCollectorServer.startLogsFindingPodsInterval = 20 * time.Millisecond
 	response, err := suite.LogCollectorServer.StartLog(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to start log")
 	suite.Require().True(response.Success, "Failed to start log")

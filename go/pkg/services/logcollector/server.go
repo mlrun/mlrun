@@ -59,14 +59,19 @@ type Server struct {
 
 	// buffer pools
 	logCollectionBufferPool      bufferpool.Pool
-	getLogsBufferPool            bufferpool.Pool
 	logCollectionBufferSizeBytes int
+	getLogsBufferPool            bufferpool.Pool
 	getLogsBufferSizeBytes       int
+
+	// start logs finding pods timeout
+	startLogsFindingPodsTimeout  time.Duration
+	startLogsFindingPodsInterval time.Duration
 
 	// interval durations
 	readLogWaitTime    time.Duration
 	monitoringInterval time.Duration
 
+	// log file cache to reduce sys calls finding the log file paths.
 	logFilesCache    *cache.Expiring
 	logFilesCacheTTL time.Duration
 }
@@ -157,6 +162,8 @@ func NewLogCollectorServer(logger logger.Logger,
 		getLogsBufferSizeBytes:       getLogsBufferSizeBytes,
 		isChief:                      isChief,
 		logFilesCache:                logFilesCache,
+		startLogsFindingPodsInterval: 3 * time.Second,
+		startLogsFindingPodsTimeout:  15 * time.Second,
 
 		// we delete log files only when deleting the project
 		// that means, if project is gone, log files are gone too
@@ -195,7 +202,8 @@ func (s *Server) RegisterRoutes(ctx context.Context) {
 
 // StartLog writes the log item info to the state file, gets the pod using the label selector,
 // triggers `monitorPod` and `streamLogs` goroutines.
-func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.BaseResponse, error) {
+func (s *Server) StartLog(ctx context.Context,
+	request *protologcollector.StartLogRequest) (*protologcollector.BaseResponse, error) {
 
 	if !s.isChief {
 		s.Logger.DebugWithCtx(ctx,
@@ -224,21 +232,24 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
 
 	// list pods using label selector until a pod is found
-	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
-		pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: request.Selector,
-		})
+	if err := common.RetryUntilSuccessful(
+		s.startLogsFindingPodsTimeout,
+		s.startLogsFindingPodsInterval,
+		func() (bool, error) {
+			pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+				LabelSelector: request.Selector,
+			})
 
-		// if no pods were found, retry
-		if err != nil {
-			return true, errors.Wrap(err, "Failed to list pods")
-		} else if pods == nil || len(pods.Items) == 0 {
-			return true, errors.Errorf("No pods found for run uid '%s'", request.RunUID)
-		}
+			// if no pods were found, retry
+			if err != nil {
+				return true, errors.Wrap(err, "Failed to list pods")
+			} else if pods == nil || len(pods.Items) == 0 {
+				return true, errors.Errorf("No pods found for run uid '%s'", request.RunUID)
+			}
 
-		// if pods were found, stop retrying
-		return false, nil
-	}); err != nil {
+			// if pods were found, stop retrying
+			return false, nil
+		}); err != nil {
 
 		// if request is best-effort, return success so run will be marked as "requested logs" in the DB
 		if request.BestEffort {
@@ -841,7 +852,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 
 	offset, size = s.validateOffsetAndSize(offset, size, fileSize)
 	if size == 0 {
-		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", runUID)
+		s.Logger.DebugWithCtx(ctx, "No logs to return", "runUID", runUID)
 		return nil, nil
 	}
 

@@ -17,7 +17,6 @@ import random
 from http import HTTPStatus
 
 import deepdiff
-import pytest
 import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session

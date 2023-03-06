@@ -387,7 +387,7 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 	// wait for goroutines to finish
 	suite.Require().NoError(errGroup.Wait(), "Failed to wait for goroutines to finish")
-	suite.Require().Equal(totalWritten, totalRead, "Expected total written to be equal to offset")
+	suite.Require().Equal(totalWritten, totalRead, "Expected total written to be equal to total read")
 }
 
 func (suite *LogCollectorTestSuite) TestHasLogs() {

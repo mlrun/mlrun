@@ -21,9 +21,9 @@ from datetime import datetime
 
 import fsspec
 import pandas as pd
-from pyspark.sql import SparkSession
 import pytest
 import v3iofs
+from pyspark.sql import SparkSession
 from storey import EmitEveryEvent
 
 import mlrun

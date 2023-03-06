@@ -378,10 +378,10 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 					"offset", offset)
 				continue
 			}
+			j++
 
 			// verify logs
 			suite.Require().Equal(message, string(logs))
-			j++
 		}
 	})
 

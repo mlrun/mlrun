@@ -247,8 +247,6 @@ def test_marketplace_source_manager(
     assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
 
 
-# TODO: Unskip when fixed
-@pytest.mark.skip("fails intermittently in CI")
 def test_marketplace_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
@@ -260,8 +258,11 @@ def test_marketplace_default_source(
     assert len(catalog.catalog) > 0
     print(f"Retrieved function catalog. Has {len(catalog.catalog)} functions in it.")
     # function = manager.get_item(source_object, "aggregate", "development", "0.0.1")
-    for i in range(10):
-        function = random.choice(catalog.catalog)
+    for function in catalog.catalog:
+        # function = random.choice(catalog.catalog)
+        # TODO: Remove when this function is fixed
+        if function.metadata.name == "great-expectations":
+            continue
         print(
             f"Selected the following: function = {function.metadata.name},"
             + f" tag = {function.metadata.tag}, version = {function.metadata.version}"

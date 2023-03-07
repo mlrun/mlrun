@@ -237,7 +237,6 @@ class ArtifactManager:
 
         item.target_path = target_path
 
-        item = item.get_artifact()
         item.before_log()
         self.artifacts[key] = item
 

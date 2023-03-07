@@ -271,16 +271,6 @@ class ModelArtifact(Artifact):
     def is_dir(self):
         return True
 
-    def get_artifact(self):
-        if not self.spec.model_file and self.spec.target_path:
-            model_file, model_object, extra_data = mlrun.artifacts.get_model(
-                self.spec.target_path
-            )
-            model_object.spec.model_file = model_file
-            model_object.spec.extra_data = extra_data
-            return model_object
-        return self
-
     def before_log(self):
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")

@@ -217,6 +217,7 @@ def load_project(
     user_project: bool = False,
     save: bool = True,
     sync_functions: bool = False,
+    set_project_secrets: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -228,21 +229,23 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:         project local directory path (default value = "./")
-    :param url:             name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                            git://github.com/mlrun/demo-xgb-project.git
-                            http://mysite/archived-project.zip
-                            <project-name>
-                            The git project should include the project yaml file.
-                            If the project yaml file is in a sub-directory, must specify the sub-directory.
-    :param name:            project name
-    :param secrets:         key:secret dict or SecretsStore used to download sources
-    :param init_git:        if True, will git init the context dir
-    :param subpath:         project subpath (within the archive)
-    :param clone:           if True, always clone (delete any existing content)
-    :param user_project:    add the current user name to the project name (for db:// prefixes)
-    :param save:            whether to save the created project and artifact in the DB
-    :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
+    :param context:             project local directory path (default value = "./")
+    :param url:                 name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                <project-name>
+                                The git project should include the project yaml file.
+                                If the project yaml file is in a sub-directory, must specify the sub-directory.
+    :param name:                project name
+    :param secrets:             key:secret dict or SecretsStore used to download sources
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param user_project:        add the current user name to the project name (for db:// prefixes)
+    :param save:                whether to save the created project and artifact in the DB
+    :param sync_functions:      sync the project's functions into the project object
+                                (will be saved to the DB if save=True)
+    :param set_project_secrets: set the given secrets as project secrets (requires save=True)
 
     :returns: project object
     """
@@ -294,9 +297,7 @@ def load_project(
 
     if save and mlrun.mlconf.dbpath:
         project.save()
-        # add secrets to the saved project before registering artifacts because they might be needed
-        # to download the artifacts from external sources
-        if secrets:
+        if secrets and set_project_secrets:
             project.set_secrets(secrets=secrets)
 
         project.register_artifacts()
@@ -1039,6 +1040,7 @@ class MlrunProject(ModelObj):
         :param target_path:     absolute target path url (point to the artifact content location)
         :param tag:             artifact tag
         :param artifact_kind:   artifact kind (artifact, model, dataset, ..) needed if artifact is not passed
+                                see mlrun/artifacts/manager.py:artifact_types for full list
         """
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
@@ -1051,6 +1053,7 @@ class MlrunProject(ModelObj):
             if tag:
                 artifact["tag"] = tag
         else:
+            # TODO: get the base dict from the given artifact and make it compact for all artifact kinds
             if not artifact:
                 artifact = dict_to_artifact(
                     {

@@ -280,10 +280,6 @@ class Artifact(ModelObj):
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
-    def get_artifact(self):
-        """override to get from shared storage"""
-        return self
-
     def before_log(self):
         for key, item in self.spec.extra_data.items():
             if hasattr(item, "get_target_path"):
@@ -760,10 +756,6 @@ class LegacyArtifact(ModelObj):
         self.license = ""
         self.extra_data = {}
         self.tag = None  # temp store of the tag
-
-    def get_artifact(self):
-        """override to get from shared storage"""
-        return self
 
     def before_log(self):
         for key, item in self.extra_data.items():

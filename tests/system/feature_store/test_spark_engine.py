@@ -61,7 +61,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = "https://github.com/davesh0812/mlrun.git@get_off_all"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -1801,7 +1801,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
-
 
     def test_as_of_join_result(self):
         test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")

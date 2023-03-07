@@ -27,7 +27,7 @@ class ValueType(str, Enum):
     INT8 = "int8"
     INT16 = "int16"
     INT32 = "int32"
-    INT64 = "int"
+    INT64 = "int" or "int64"
     INT128 = "int128"
     UINT8 = "uint8"
     UINT16 = "uint16"
@@ -79,7 +79,9 @@ def pa_type_to_value_type(type_):
 
 
 def python_type_to_value_type(value_type):
-    type_name = value_type.__name__
+    type_name = (
+        value_type.__name__ if hasattr(value_type, __name__) else str(value_type)
+    )
     type_map = {
         "int": ValueType.INT64,
         "str": ValueType.STRING,

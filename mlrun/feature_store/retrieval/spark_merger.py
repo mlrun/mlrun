@@ -99,12 +99,10 @@ class SparkFeatureMerger(BaseMerger):
 
         window = Window.partitionBy("_row_nr").orderBy(
             col(f"ft__{entity_timestamp_column}").desc(),
-
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
-
 
         for key in right_keys + [entity_timestamp_column]:
             filter_most_recent_feature_timestamp = (

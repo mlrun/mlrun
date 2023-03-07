@@ -1653,11 +1653,10 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands once to store your credentials:\n"
+                        "Git is not configured, please run the following commands and run git push from the terminal:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
-                        "\tgit push <remote> <branch>\n"
                     )
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         warning_message

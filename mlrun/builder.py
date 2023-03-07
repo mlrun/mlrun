@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pathlib
+import re
 import tarfile
 import tempfile
 from base64 import b64decode, b64encode
@@ -311,6 +312,7 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime=None,
+    upgrade_pip=False,
 ):
     runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
@@ -329,6 +331,7 @@ def build_image(
 
     if with_mlrun:
         commands = commands or []
+        upgrade_pip_command = resolve_upgrade_pip_command(commands)
         mlrun_command = resolve_mlrun_install_command(
             mlrun_version_specifier, client_version
         )
@@ -472,6 +475,18 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
     return f'python -m pip install "{mlrun_version_specifier}"'
 
 
+def resolve_upgrade_pip_command(commands):
+    # check if a command upgrades pip, if not add it
+    pip_upgrade_regex = re.compile(r"pip install --upgrade .*pip")
+    for command in commands:
+        if pip_upgrade_regex.match(command):
+            return None
+
+    # python 3.7 reached EOL on 2023-06-27 and pip will not support it forever,
+    # can be removed when we drop support for python 3.7
+    return "python -m pip install --upgrade pip~=23.0"
+
+
 def build_runtime(
     auth_info: mlrun.api.schemas.AuthInfo,
     runtime,
@@ -482,6 +497,7 @@ def build_runtime(
     builder_env=None,
     client_version=None,
     client_python_version=None,
+    upgrade_pip=False,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -550,6 +566,7 @@ def build_runtime(
         interactive=interactive,
         name=name,
         with_mlrun=with_mlrun,
+        upgrade_pip=upgrade_pip,
         mlrun_version_specifier=mlrun_version_specifier,
         extra=build.extra,
         verbose=runtime.verbose,

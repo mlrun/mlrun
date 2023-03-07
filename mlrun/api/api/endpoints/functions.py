@@ -412,18 +412,18 @@ def _handle_job_deploy_status(
     logs,
 ):
     # job deploy status
-    state = get_in(fn, "status.state", "")
+    function_state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == "ready":
+        if function_state == "ready":
             image = image or get_in(fn, "spec.image")
         return Response(
             content=out,
             media_type="text/plain",
             headers={
-                "function_status": state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
@@ -432,7 +432,7 @@ def _handle_job_deploy_status(
     # read from log file
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
-    if state in terminal_states and log_file.exists():
+    if function_state in terminal_states and log_file.exists():
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()
@@ -440,27 +440,31 @@ def _handle_job_deploy_status(
             content=out,
             media_type="text/plain",
             headers={
-                "x-mlrun-function-status": state,
-                "function_status": state,
+                "x-mlrun-function-status": function_state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
         )
 
     logger.info(f"get pod {pod} status")
-    state = get_k8s().get_pod_status(pod)
-    logger.info(f"pod state={state}")
+    build_pod_state = get_k8s().get_pod_status(pod)
+    logger.info(f"pod state={build_pod_state}")
 
-    if state == "succeeded":
+    normalized_build_pod_state = ""
+
+    if build_pod_state == "succeeded":
         logger.info("build completed successfully")
-        state = mlrun.api.schemas.FunctionState.ready
-    if state in ["failed", "error"]:
-        logger.error(f"build {state}, watch the build pod logs: {pod}")
-        state = mlrun.api.schemas.FunctionState.error
+        normalized_build_pod_state = mlrun.api.schemas.FunctionState.ready
+    if build_pod_state in ["failed", "error"]:
+        logger.error(f"build {build_pod_state}, watch the build pod logs: {pod}")
+        normalized_build_pod_state = mlrun.api.schemas.FunctionState.error
 
-    if (logs and state != "pending") or state in terminal_states:
+    normalized_build_pod_state = normalized_build_pod_state or build_pod_state
+
+    if (logs and normalized_build_pod_state != "pending") or normalized_build_pod_state in terminal_states:
         resp = get_k8s().logs(pod)
-        if state in terminal_states:
+        if function_state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
@@ -469,28 +473,33 @@ def _handle_job_deploy_status(
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
-    update_in(fn, "status.state", state)
-    if state == mlrun.api.schemas.FunctionState.ready:
-        update_in(fn, "spec.image", image)
+    # check if the previous function state is different than the current build pod state, it that is the case then
+    # update the function and store to the database
+    if function_state != normalized_build_pod_state:
 
-    versioned = False
-    if state == mlrun.api.schemas.FunctionState.ready:
-        versioned = True
-    mlrun.api.crud.Functions().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
-    )
+        update_in(fn, "status.state", normalized_build_pod_state)
+
+        if normalized_build_pod_state == mlrun.api.schemas.FunctionState.ready:
+            update_in(fn, "spec.image", image)
+
+        versioned = False
+        if function_state == mlrun.api.schemas.FunctionState.ready:
+            versioned = True
+        mlrun.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
 
     return Response(
         content=out,
         media_type="text/plain",
         headers={
-            "x-mlrun-function-status": state,
-            "function_status": state,
+            "x-mlrun-function-status": function_state,
+            "function_status": function_state,
             "function_image": image,
             "builder_pod": pod,
         },

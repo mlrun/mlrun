@@ -677,7 +677,6 @@ def get_obj_status(selector=None, namespace=None):
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
-        print(pod)
         if status == "running":
             cluster = pod.metadata.labels.get("dask.org/cluster-name")
             logger.info(

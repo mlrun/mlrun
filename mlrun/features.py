@@ -16,8 +16,7 @@ import math
 import re
 from typing import Dict, List, Optional, Union
 
-from .data_types import ValueType
-from .data_types import python_type_to_value_type
+from .data_types import ValueType, python_type_to_value_type
 from .errors import MLRunRuntimeError, err_to_str
 from .model import ModelObj
 

@@ -136,7 +136,9 @@ class BaseMerger(abc.ABC):
                 self.vector.save()
         if self.vector.spec.with_indexes:
             self.vector.spec.entity_fields = [
-                Feature(name=feature, value_type=self._result_df[feature][0].dtype)
+                Feature(name=feature, value_type=self._result_df[feature].dtype)
+                if self._result_df[feature].dtype.name != "object"
+                else Feature(name=feature, value_type="str")
                 for feature in self._index_columns
             ]
             self.vector.save()
@@ -568,10 +570,9 @@ class BaseMerger(abc.ABC):
                 )
             )
 
-            # checking if feature_set have relation with feature_set_in
-            relation_wise = all(curr_col_relation_list)
-
-            if relation_wise:
+            if all(
+                curr_col_relation_list
+            ):  # checking if feature_set have relation with feature_set_in
                 # add to the link list feature set according to the defined relation
                 linked_list_relation.add_last(
                     BaseMerger._Node(
@@ -585,8 +586,8 @@ class BaseMerger(abc.ABC):
                         order=name_in_order,
                     )
                 )
-                linked_list_relation.head.data["save_cols"].append(
-                    *curr_col_relation_list
+                linked_list_relation.head.data["save_cols"].extend(
+                    curr_col_relation_list
                 )
             elif name_in_order > head_order and sorted(
                 feature_set_in_entity_list_names

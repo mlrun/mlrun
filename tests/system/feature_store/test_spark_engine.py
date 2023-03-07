@@ -1800,7 +1800,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             order_by=["n"],
         )
 
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department.sort_index(axis=1),
+            resp_1.to_dataframe().sort_index(axis=1),
+        )
 
     def test_as_of_join_result(self):
         test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")

@@ -130,9 +130,9 @@ class SystemTestPreparer:
 
         self._resolve_iguazio_version()
 
-        self._override_mlrun_api_env()
-
         self._download_provctl()
+
+        self._override_mlrun_api_env()
 
         self._patch_mlrun()
 
@@ -299,6 +299,7 @@ class SystemTestPreparer:
         self._run_command(
             "mkdir",
             args=["-p", str(self.Constants.workdir)],
+            workdir=str(self.Constants.homedir),
         )
 
     def _prepare_env_local(self):
@@ -360,24 +361,29 @@ class SystemTestPreparer:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
 
-        self._logger.debug(
-            "Downloading provctl to data node",
-            bucket_name=bucket_name,
-            object_name=object_name,
-        )
-
         # download provctl from s3
-        with tempfile.TemporaryFile() as local_provctl_path:
+        with tempfile.NamedTemporaryFile() as local_provctl_path:
+            self._logger.debug(
+                "Downloading provctl",
+                bucket_name=bucket_name,
+                object_name=object_name,
+                local_path=local_provctl_path.name,
+            )
             s3_client = boto3.client(
                 "s3",
                 aws_secret_access_key=self._provctl_download_s3_access_key,
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
-            s3_client.download_file(bucket_name, object_name, local_provctl_path)
+            s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
 
             # upload provctl to data node
+            self._logger.debug(
+                "Uploading provctl to datanode",
+                remote_path=str(self.Constants.provctl_path),
+                local_path=local_provctl_path.name,
+            )
             sftp_client = self._ssh_client.open_sftp()
-            sftp_client.put(local_provctl_path, str(self.Constants.provctl_path))
+            sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
 
         # make provctl executable
@@ -487,8 +493,12 @@ class SystemTestPreparer:
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")
             self._iguazio_version = self._run_command(
-                f"cat {self.Constants.igz_version_file}"
+                f"cat {self.Constants.igz_version_file}",
+                verbose=False,
+                live=False,
             ).strip()
+        if isinstance(self._iguazio_version, bytes):
+            self._iguazio_version = self._iguazio_version.decode("utf-8")
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
@@ -531,8 +541,8 @@ def main():
 @click.argument("app-cluster-ssh-password", type=str, required=True)
 @click.argument("github-access-token", type=str, required=True)
 @click.argument("provctl-download-url", type=str, required=True)
-@click.argument("provctl-download-url-s3-access-key", type=str, required=True)
-@click.argument("provctl-download-url-s3-key-id", type=str, required=True)
+@click.argument("provctl-download-s3-access-key", type=str, required=True)
+@click.argument("provctl-download-s3-key-id", type=str, required=True)
 @click.argument("mlrun-dbpath", type=str, required=True)
 @click.argument("webapi-direct-url", type=str, required=True)
 @click.argument("framesd-url", type=str, required=True)

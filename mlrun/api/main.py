@@ -339,7 +339,7 @@ async def _start_log_for_run(
         run_uid = run.get("metadata", {}).get("uid", None)
 
         # information for why runtime isn't log collectable is inside the method
-        if mlrun.runtimes.RuntimeKinds.is_log_collectable_runtime(run_kind):
+        if not mlrun.runtimes.RuntimeKinds.is_log_collectable_runtime(run_kind):
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:

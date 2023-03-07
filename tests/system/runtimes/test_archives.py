@@ -280,7 +280,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             requirements=["pandaasdasds"],
         )
         project.save()
-        with pytest.raises(Exception):
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
             project.run_function("myjob", auto_build=True)
 
         project = mlrun.get_or_create_project("run-with-source-and-auto-build")

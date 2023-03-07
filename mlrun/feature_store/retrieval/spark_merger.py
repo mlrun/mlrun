@@ -105,13 +105,12 @@ class SparkFeatureMerger(BaseMerger):
         ).filter(col("_rank") == 1)
 
         for key in right_keys + [entity_timestamp_column]:
-            filter_most_recent_feature_timestamp = (
-                filter_most_recent_feature_timestamp.drop(
-                    aliased_featureset_df[f"ft__{key}"]
-                    if key in entity_df.columns + [entity_timestamp_column]
-                    else aliased_featureset_df[key]
+            if key in entity_df.columns + [entity_timestamp_column]:
+                filter_most_recent_feature_timestamp = (
+                    filter_most_recent_feature_timestamp.drop(
+                        aliased_featureset_df[f"ft__{key}"]
+                    )
                 )
-            )
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(
             col(entity_timestamp_column)
         )

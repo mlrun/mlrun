@@ -56,7 +56,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
+from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
@@ -3873,6 +3873,22 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert isinstance(df, pd.DataFrame)
+
+    def test_ingest_with_steps_drop_features(self):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(measurements, source)
 
 
 def verify_purge(fset, targets):

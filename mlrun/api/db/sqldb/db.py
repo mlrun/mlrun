@@ -506,7 +506,7 @@ class SQLDB(DBInterface):
             # indication that the tag which is passed is uid
             # 2. if uid wasn't passed as part of the identifiers then
             # we will ask for tag "*" and in that case we don't want to use the tag as uid
-            use_tag_as_uid=True if identifier.uid else False,
+            use_tag_as_uid=bool(identifier.uid),
         )
 
     @retry_on_conflict

@@ -185,10 +185,10 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
-    def set_db_connection(self, conn, is_api=False):
+    def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
-        self._is_api_server = is_api
+        self._is_api_server = mlrun.config.is_running_as_api()
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -283,6 +283,7 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
+                self._is_api_server = mlrun.config.is_running_as_api()
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
@@ -510,7 +511,12 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind):
+                if (
+                    watch
+                    and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind)
+                    # API shouldn't watch logs, its the client job to query the run logs
+                    and not mlrun.config.is_running_as_api()
+                ):
                     state, _ = run.logs(True, self._get_db())
                     if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
@@ -692,8 +698,15 @@ class BaseRuntime(ModelObj):
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
+
         runspec.metadata.name = normalize_name(
-            name or runspec.metadata.name or def_name
+            name=name or runspec.metadata.name or def_name,
+            # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
+            # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
+            # from the handler(function) name then we replace the underscore without warning the user.
+            # most of the times handlers will have `_` in the handler name (python convention is to separate function
+            # words with `_`), therefore we don't want to be noisy when normalizing the run name
+            verbose=bool(name or runspec.metadata.name),
         )
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
@@ -1897,6 +1910,18 @@ class BaseRuntimeHandler(ABC):
         )
 
         return label_selector
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Get the object id from the run object
+        Override this if the object id is not the run uid
+        :param run: run object
+        :return: object id
+        """
+        return run.get("metadata", {}).get("uid", None)
 
     def _wait_for_pods_deletion(
         self,

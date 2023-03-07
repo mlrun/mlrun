@@ -703,8 +703,9 @@ def test_delete_project_with_stop_logs(
         )
         assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-        assert log_collector._call.call_count == 1
-        assert log_collector._call.call_args[0][0] == "StopLog"
+        # 2 calls - stop logs and delete logs
+        assert log_collector._call.call_count == 2
+        assert log_collector._call.call_args[0][0] == "DeleteLogs"
 
 
 # leader format is only relevant to follower mode

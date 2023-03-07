@@ -247,6 +247,8 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 		Selector:    "app=some-app",
 		BestEffort:  true,
 	}
+	suite.LogCollectorServer.startLogsFindingPodsTimeout = 50 * time.Millisecond
+	suite.LogCollectorServer.startLogsFindingPodsInterval = 20 * time.Millisecond
 	response, err := suite.LogCollectorServer.StartLog(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to start log")
 	suite.Require().True(response.Success, "Failed to start log")
@@ -322,26 +324,20 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 	errGroup, ctx := errgroup.WithContext(suite.ctx)
 
-	startedWriting := make(chan bool)
+	startReading := make(chan bool)
+	var totalWritten = 0
+	var totalRead = 0
 
 	// write to file
 	errGroup.Go(func() error {
-		signaled := false
 		for i := 0; i < 100; i++ {
-			if i > 5 && !signaled {
-				startedWriting <- true
-				signaled = true
-			}
-
-			// sleep for a bit to let the other goroutine read from the file
-			if i%10 == 0 {
-				time.Sleep(1 * time.Second)
+			if i == 10 {
+				startReading <- true
 			}
 			message := fmt.Sprintf(messageTemplate, i)
-			suite.logger.DebugWith("Writing to file", "message", message)
-
 			err := common.WriteToFile(filePath, []byte(message), true)
 			suite.Require().NoError(err, "Failed to write to file")
+			totalWritten += len(message)
 		}
 		return nil
 	})
@@ -349,35 +345,49 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	// read from file
 	errGroup.Go(func() error {
 
-		// let some logs be written
-		<-startedWriting
-		time.Sleep(500 * time.Millisecond)
+		// wait before writing to file
+		<-startReading
+		var offset int
 
-		offset := 0
-		for j := 0; j < 100; j++ {
-
-			// sleep for a bit to let the other goroutine write to the file
-			if j%10 == 0 {
-				time.Sleep(1 * time.Second)
-			}
-
+		var j int
+		for {
 			message := fmt.Sprintf(messageTemplate, j)
 			size := int64(len(message))
-			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, int64(offset), size)
-			suite.Require().NoError(err, "Failed to read logs from file")
+			suite.logger.DebugWith("Reading logs from file",
+				"offset", offset,
+				"size", size)
+			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx,
+				"1",
+				filePath,
+				int64(offset),
+				size)
+			if err != nil {
+				return err
+			}
+
+			offset += len(message)
+			totalRead += len(logs)
+
+			if j == 100 {
+				return nil
+			}
+			if logs == nil {
+				time.Sleep(10 * time.Millisecond)
+				suite.logger.DebugWith("Got nil logs, retrying",
+					"totalWritten", totalWritten,
+					"offset", offset)
+				continue
+			}
+			j++
 
 			// verify logs
-			suite.logger.DebugWith("Read from file", "offset", offset, "logs", string(logs))
 			suite.Require().Equal(message, string(logs))
-			offset += len(message)
 		}
-
-		return nil
 	})
 
 	// wait for goroutines to finish
-	err = errGroup.Wait()
-	suite.Require().NoError(err, "Failed to wait for goroutines to finish")
+	suite.Require().NoError(errGroup.Wait(), "Failed to wait for goroutines to finish")
+	suite.Require().Equal(totalWritten, totalRead, "Expected total written to be equal to total read")
 }
 
 func (suite *LogCollectorTestSuite) TestHasLogs() {
@@ -420,28 +430,28 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 	for i := 0; i < projectNum; i++ {
 		projectName := fmt.Sprintf("project-%d", i)
 
-		// add log item to the server's state
+		// add log item to the server's states, so no error will be returned
 		for j := 0; j < logItemsNum; j++ {
 			runUID := uuid.New().String()
 			projectToRuns[projectName] = append(projectToRuns[projectName], runUID)
 			selector := fmt.Sprintf("run=%s", runUID)
 
-			// Add state to the log collector's persistent state store
-			err = suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to state store")
+			// Add state to the log collector's state manifest
+			err = suite.LogCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the state manifest")
 
-			// Add state to the log collector's in-memory state
-			err = suite.LogCollectorServer.inMemoryState.AddLogItem(suite.ctx, runUID, selector, projectName)
-			suite.Require().NoError(err, "Failed to add log item to in-memory state")
+			// Add state to the log collector's current state
+			err = suite.LogCollectorServer.currentState.AddLogItem(suite.ctx, runUID, selector, projectName)
+			suite.Require().NoError(err, "Failed to add log item to the current state")
 		}
 	}
 
 	// write state
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	err = suite.LogCollectorServer.stateManifest.WriteState(suite.LogCollectorServer.stateManifest.GetState())
 	suite.Require().NoError(err, "Failed to write state")
 
 	// verify all items are in progress
-	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	logItemsInProgress, err := suite.LogCollectorServer.stateManifest.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(projectNum, common.SyncMapLength(logItemsInProgress), "Expected items to be in progress")
@@ -455,26 +465,118 @@ func (suite *LogCollectorTestSuite) TestStopLog() {
 
 	// stop logs for all projects
 	for project, runs := range projectToRuns {
-		request := &log_collector.StopLogRequest{
+		request := &log_collector.StopLogsRequest{
 			Project: project,
 			RunUIDs: runs,
 		}
-		response, err := suite.LogCollectorServer.StopLog(suite.ctx, request)
+		response, err := suite.LogCollectorServer.StopLogs(suite.ctx, request)
 		suite.Require().NoError(err, "Failed to stop log")
 		suite.Require().True(response.Success, "Expected stop log request to succeed")
 	}
 
 	// write state again
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
+	err = suite.LogCollectorServer.stateManifest.WriteState(suite.LogCollectorServer.stateManifest.GetState())
 	suite.Require().NoError(err, "Failed to write state")
 
 	// verify no items in progress
-	logItemsInProgress, err = suite.LogCollectorServer.stateStore.GetItemsInProgress()
+	logItemsInProgress, err = suite.LogCollectorServer.stateManifest.GetItemsInProgress()
 	suite.Require().NoError(err, "Failed to get items in progress")
 
 	suite.Require().Equal(0,
 		common.SyncMapLength(logItemsInProgress),
 		"Expected no items in progress")
+}
+
+func (suite *LogCollectorTestSuite) TestDeleteLogs() {
+
+	projectCount := 0
+
+	for _, testCase := range []struct {
+		name                string
+		logsNumToCreate     int
+		expectedLogsNumLeft int
+	}{
+		{
+			name:                "Delete some logs",
+			logsNumToCreate:     5,
+			expectedLogsNumLeft: 2,
+		},
+		{
+			name:                "Delete all logs",
+			logsNumToCreate:     5,
+			expectedLogsNumLeft: 0,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+
+			// create some log files
+			projectName := fmt.Sprintf("test-project-%d", projectCount)
+			projectCount++
+			var runUIDs []string
+			for i := 0; i < testCase.logsNumToCreate; i++ {
+				runUID := uuid.New().String()
+				runUIDs = append(runUIDs, runUID)
+				logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+				err := common.WriteToFile(logFilePath, []byte("some log"), false)
+				suite.Require().NoError(err, "Failed to write to file")
+			}
+
+			// verify files exist
+			dirPath := path.Join(suite.LogCollectorServer.baseDir, projectName)
+			dirEntries, err := os.ReadDir(dirPath)
+			suite.Require().NoError(err, "Failed to read dir")
+			suite.Require().Equal(testCase.logsNumToCreate, len(dirEntries), "Expected logs to exist")
+
+			// delete some logs
+			request := &log_collector.StopLogsRequest{
+				Project: projectName,
+				RunUIDs: runUIDs[testCase.expectedLogsNumLeft:],
+			}
+			response, err := suite.LogCollectorServer.DeleteLogs(suite.ctx, request)
+			suite.Require().NoError(err, "Failed to stop log")
+			suite.Require().True(response.Success, "Expected stop log request to succeed")
+
+			// verify files deleted
+			dirEntries, err = os.ReadDir(dirPath)
+			suite.Require().NoError(err, "Failed to read dir")
+			suite.Require().Equal(testCase.expectedLogsNumLeft, len(dirEntries), "Expected logs to be deleted")
+		})
+	}
+}
+
+func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
+
+	// create some log files
+	projectName := "test-project"
+	logsNum := 5
+	var runUIDs []string
+	for i := 0; i < logsNum; i++ {
+		runUID := uuid.New().String()
+		runUIDs = append(runUIDs, runUID)
+		logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+		err := common.WriteToFile(logFilePath, []byte("some log"), false)
+		suite.Require().NoError(err, "Failed to write to file")
+	}
+
+	// verify files exist
+	dirPath := path.Join(suite.LogCollectorServer.baseDir, projectName)
+	dirEntries, err := os.ReadDir(dirPath)
+	suite.Require().NoError(err, "Failed to read dir")
+	suite.Require().Equal(logsNum, len(dirEntries), "Expected logs to exist")
+
+	// delete all logs except the first one
+	request := &log_collector.StopLogsRequest{
+		Project: projectName,
+		RunUIDs: runUIDs[1:],
+	}
+	response, err := suite.LogCollectorServer.DeleteLogs(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to stop log")
+	suite.Require().True(response.Success, "Expected stop log request to succeed")
+
+	// verify files deleted
+	dirEntries, err = os.ReadDir(dirPath)
+	suite.Require().NoError(err, "Failed to read dir")
+	suite.Require().Equal(1, len(dirEntries), "Expected logs to be deleted")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

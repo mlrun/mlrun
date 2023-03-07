@@ -15,6 +15,7 @@
 
 import unittest.mock
 
+import deepdiff
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm.session
@@ -163,7 +164,7 @@ class TestLogCollector:
         )
         await log_collector.stop_logs(run_uids=run_uids, project=project_name)
         assert log_collector._call.call_count == 1
-        assert log_collector._call.call_args[0][0] == "StopLog"
+        assert log_collector._call.call_args[0][0] == "StopLogs"
 
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
@@ -175,3 +176,62 @@ class TestLogCollector:
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
             await log_collector.stop_logs(run_uids=run_uids, project=project_name)
+
+    @pytest.mark.asyncio
+    async def test_delete_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uids = None
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        # test successful stop logs
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        await log_collector.delete_logs(run_uids=run_uids, project=project_name)
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "DeleteLogs"
+
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert stop_log_request.project == project_name
+        assert stop_log_request.runUIDs == []
+
+        # test failed stop logs
+        run_uids = ["123"]
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(False, "Failed to delete logs")
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            await log_collector.delete_logs(run_uids=run_uids, project=project_name)
+
+        assert log_collector._call.call_count == 1
+        assert log_collector._call.call_args[0][0] == "DeleteLogs"
+
+        stop_log_request = log_collector._call.call_args[0][1]
+        assert stop_log_request.project == project_name
+        assert stop_log_request.runUIDs == run_uids
+
+    @pytest.mark.parametrize(
+        "error_code,expected_mlrun_error",
+        [
+            (0, mlrun.errors.MLRunNotFoundError),
+            (1, mlrun.errors.MLRunInternalServerError),
+            (2, mlrun.errors.MLRunBadRequestError),
+        ],
+    )
+    def test_log_collector_error_mapping(self, error_code, expected_mlrun_error):
+        failure_message = "some failure message"
+        error_message = "some error message"
+        error = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.map_error_code_to_mlrun_error(
+            error_code, error_message, failure_message
+        )
+
+        message = f"{failure_message}, error: {error_message}"
+        assert (
+            deepdiff.DeepDiff(
+                error,
+                expected_mlrun_error(message),
+            )
+            == {}
+        )

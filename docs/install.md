@@ -38,7 +38,7 @@ Once you have installed and configured MLRun, follow the [Quick Start tutorial](
 <a id="MLRun-client-backward-compatibility"></a>
 ### MLRun client backward compatibility  
 
-Starting from MLRun 0.10.0, the MLRun client and images are compatible with minor MLRun releases that are released during the following 6 months. When you upgrade to 0.11.0, for example, you can continue to use your 0.10-based images. 
+Starting from MLRun v1.3.0, the MLRun server is compatible with the client and images of the previous two minor MLRun releases. When you upgrade to v1.3.0, for example, you can continue to use your v1.1- and v1.2-based images, but v1.0-based images are not compatible.
 
 ```{admonition} Important
 - Images from 0.9.0 are not compatible with 0.10.0. Backward compatibility starts from 0.10.0. 

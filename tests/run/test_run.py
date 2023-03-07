@@ -203,17 +203,23 @@ def test_local_args():
     assert log.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
-def test_local_context():
+def test_local_context(rundb_mock):
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
     db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["status"]["state"] == "running", "run status not updated in db"
+    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
 
     with context:
         context.log_artifact("xx", body="123", local_path="a.txt")
         context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
+        context.get_param("p1", 1)
+        context.get_param("p2", "a string")
+        context.log_result("accuracy", 16)
+        context.set_label("label-key", "label-value")
+        context.set_annotation("annotation-key", "annotation-value")
+        context._set_input("input-key", "input-url")
 
         artifact = context.get_cached_artifact("xx")
         artifact.format = "z"
@@ -222,6 +228,9 @@ def test_local_context():
     assert context._state == "completed", "task did not complete"
 
     run = db.read_run(context._uid, project=project_name)
+    run = run["struct"]
+
+    # run state should not be updated by the context
     assert run["status"]["state"] == "running", "run status was updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
@@ -235,6 +244,16 @@ def test_local_context():
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)
     assert db_artifact["spec"]["format"] == "z", "artifact attribute not updated in db"
+
+    assert run["spec"]["parameters"]["p1"] == 1, "param not updated in db"
+    assert run["spec"]["parameters"]["p2"] == "a string", "param not updated in db"
+    assert run["status"]["results"]["accuracy"] == 16, "result not updated in db"
+    assert run["metadata"]["labels"]["label-key"] == "label-value", "label not updated"
+    assert (
+        run["metadata"]["annotations"]["annotation-key"] == "annotation-value"
+    ), "annotation not updated"
+
+    assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
 
 def test_run_class_code():

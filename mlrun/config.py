@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = "~/.mlrun.env"
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -288,6 +288,12 @@ default_config = {
                     "pull_state_interval": 5,  # seconds
                 },
             },
+            "nuclio": {
+                # setting interval to a higher interval than regular jobs / build, because pulling the retrieved logs
+                # from nuclio for the deploy status doesn't include the actual live "builder" container logs, but
+                # rather a high level status
+                "pull_deploy_status_default_interval": 10  # seconds
+            },
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
@@ -484,7 +490,7 @@ default_config = {
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
         # the time in hours in which to start log collection from.
-        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
         # default is 4 hours = 4*60*60 = 14400 seconds
         "api_downtime_grace_period": 14400,
@@ -897,11 +903,11 @@ class Config:
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
-        return True if mlrun.mlconf.namespace else False
+        return bool(mlrun.mlconf.namespace)
 
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
-        return True if mlrun.mlconf.nuclio_version else False
+        return bool(mlrun.mlconf.nuclio_version)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service

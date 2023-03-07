@@ -16,7 +16,6 @@ package inmemory
 
 import (
 	"context"
-	"sync"
 
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
@@ -43,9 +42,4 @@ func (s *Store) Initialize(ctx context.Context) error {
 // WriteState writes the state to persistent storage
 func (s *Store) WriteState(state *statestore.State) error {
 	return nil
-}
-
-// GetItemsInProgress returns the in progress log items
-func (s *Store) GetItemsInProgress() (*sync.Map, error) {
-	return s.State.InProgress, nil
 }

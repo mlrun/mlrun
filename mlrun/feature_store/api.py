@@ -367,7 +367,7 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options
+    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -406,6 +406,8 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    if featureset is not None:
+        featureset.validate_steps()
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
@@ -444,6 +446,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
+        featureset.validate_steps()
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -662,6 +665,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
+    featureset.validate_steps()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

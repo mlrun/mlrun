@@ -38,7 +38,7 @@ from mlrun.utils import (
 )
 
 from ..config import config
-from ..run import run_pipeline, wait_for_pipeline_completion
+from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
@@ -579,7 +579,7 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
-        id = run_pipeline(
+        id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,

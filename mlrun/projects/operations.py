@@ -231,7 +231,7 @@ def build_function(
     image=None,
     base_image=None,
     commands: list = None,
-    secret_name="",
+    secret_name=None,
     requirements: Union[str, List[str]] = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,
@@ -327,7 +327,7 @@ def deploy_function(
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object
-    :param dashboard:  url of the remote Nuclio dashboard (when not local)
+    :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag

@@ -171,18 +171,24 @@ jobs:
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
-          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          input_docker_repo=$INPUT_DOCKER_REPO && \
           echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registry=$( \
-          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
+          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
           echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_system_tests_clean_resources=$( \
-          input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
+          input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "iguazio_version=$( \
-          override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
+          override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION && \
           iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)" >> $GITHUB_OUTPUT
+      env:
+        INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
+        INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
+        INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
+        INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
+
     - name: Prepare System Test env.yaml and MLRun installation from current branch
       timeout-minutes: 50
       run: |

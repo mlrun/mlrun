@@ -48,31 +48,6 @@ from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
 
-def read_and_assert(csv_path_spark, csv_path_storey):
-    read_back_df_spark = None
-    file_system = fsspec.filesystem("v3io")
-    for file_entry in file_system.ls(csv_path_spark):
-        filepath = file_entry["name"]
-        if not filepath.endswith("/_SUCCESS"):
-            read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
-            break
-    assert read_back_df_spark is not None
-
-    read_back_df_storey = None
-    for file_entry in file_system.ls(csv_path_storey):
-        filepath = file_entry["name"]
-        read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-        break
-    assert read_back_df_storey is not None
-
-    read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
-    read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
-
-    assert read_back_df_spark.sort_index(axis=1).equals(
-        read_back_df_storey.sort_index(axis=1)
-    )
-
-
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
@@ -161,6 +136,59 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 sj.deploy(with_mlrun=False)
                 get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
+
+    @staticmethod
+    def read_parquet_and_assert(out_path_spark, out_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(out_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_parquet(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(out_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_parquet(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        # spark does not support indexes, so we need to reset the storey result to match it
+        read_back_df_storey.reset_index(inplace=True)
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
+
+    @staticmethod
+    def read_csv_and_assert(csv_path_spark, csv_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
@@ -1215,7 +1243,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
@@ -1254,7 +1302,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapval(self, with_original_features):
@@ -1310,13 +1358,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        out_path_spark = "v3io:///bigdata/test_ingest_with_steps_extractor_spark"
+        out_path_storey = "v3io:///bigdata/test_ingest_with_steps_extractor_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1331,7 +1379,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        targets = [ParquetTarget(path=out_path_spark)]
         fstore.ingest(
             measurements,
             source,
@@ -1339,7 +1387,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=False),
         )
-        csv_path_spark = measurements.get_target_path(name="csv")
+        out_path_spark = measurements.get_target_path()
 
         measurements = fstore.FeatureSet(
             "measurements_storey",
@@ -1353,14 +1401,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        targets = [ParquetTarget(path=out_path_storey)]
         fstore.ingest(
             measurements,
             source,
             targets,
         )
-        csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        out_path_storey = measurements.get_target_path()
+        self.read_parquet_and_assert(out_path_spark, out_path_storey)
 
     def test_as_of_join_result(self):
         test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")

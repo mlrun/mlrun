@@ -594,7 +594,12 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
-@click.option("--dashboard", "-d", default="", help="nuclio dashboard url")
+@click.option(
+    "--dashboard",
+    "-d",
+    default="",
+    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
+)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")
@@ -673,6 +678,14 @@ def deploy(
         for k, v in list2dict(env).items():
             function.set_env(k, v)
     function.verbose = verbose
+
+    if dashboard:
+        warnings.warn(
+            "'--dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
+            "Keep '--dashboard' value empty to allow auto-detection by MLRun API.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
 
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)

@@ -99,8 +99,9 @@ class ONNXModelHandler(ModelHandler):
         """
         super(ONNXModelHandler, self).load()
 
-        # Check that the model is well formed:
-        onnx.checker.check_model(self._model_file)
+        # Check that the model is well-formed:
+        # TODO: Currently not working well with HuggingFace models so we skip it
+        # onnx.checker.check_model(self._model_file)
 
         # Load the ONNX model:
         self._model = onnx.load(self._model_file)

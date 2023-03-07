@@ -13,13 +13,24 @@
 # limitations under the License.
 #
 import os
+import string
+from contextlib import nullcontext as does_not_raise
 
 import dask.dataframe as dd
+import pytest
 
 import mlrun.datastore
 import mlrun.datastore.wasbfs
 from mlrun import new_function
 from mlrun.datastore import KafkaSource
+from mlrun.datastore.azure_blob import AzureBlobStore
+from mlrun.datastore.base import HttpStore
+from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.filestore import FileStore
+from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.redis import RedisStore
+from mlrun.datastore.s3 import S3Store
+from mlrun.datastore.v3io import V3ioStore
 
 
 def test_http_fs_parquet_as_df():
@@ -102,3 +113,22 @@ def test_kafka_source_without_attributes():
         "user": "myuser",
         "password": "mypassword",
     }
+
+
+@pytest.mark.parametrize(
+    "schemas,expected_class,expected",
+    [
+        (["file"] + list(string.ascii_lowercase), FileStore, does_not_raise()),
+        (["s3"], S3Store, does_not_raise()),
+        (["az", "wasbs", "wasb"], AzureBlobStore, does_not_raise()),
+        (["v3io", "v3ios"], V3ioStore, does_not_raise()),
+        (["redis", "rediss"], RedisStore, does_not_raise()),
+        (["http", "https"], HttpStore, does_not_raise()),
+        (["gcs", "gs"], GoogleCloudStorageStore, does_not_raise()),
+        (["random"], None, pytest.raises(ValueError)),
+    ],
+)
+def test_schema_to_store(schemas, expected_class, expected):
+    with expected:
+        stores = [schema_to_store(schema) for schema in schemas]
+        assert all(store == expected_class for store in stores)

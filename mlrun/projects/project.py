@@ -2194,6 +2194,7 @@ class MlrunProject(ModelObj):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        upgrade_pip: bool = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2210,6 +2211,7 @@ class MlrunProject(ModelObj):
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
          add to existing parameters
+        :param upgrade_pip:     upgrade pip version before installing requirements
         """
         return build_function(
             function,
@@ -2224,6 +2226,7 @@ class MlrunProject(ModelObj):
             builder_env=builder_env,
             project_object=self,
             overwrite_build_params=overwrite_build_params,
+            upgrade_pip=upgrade_pip,
         )
 
     def deploy_function(

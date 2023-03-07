@@ -464,6 +464,11 @@ def run(
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--upgrade-pip",
+    is_flag=True,
+    help="Upgrade pip before installing requirements",
+)
 def build(
     func_url,
     name,
@@ -483,6 +488,7 @@ def build(
     skip,
     env_file,
     ensure_project,
+    upgrade_pip,
 ):
     """Build a container image from code and requirements."""
 
@@ -550,6 +556,7 @@ def build(
         b.source = target
 
     with_mlrun = True if with_mlrun else None  # False will map to None
+    upgrade_pip = True if upgrade_pip else None
 
     if ensure_project and project:
         mlrun.get_or_create_project(
@@ -561,7 +568,11 @@ def build(
         logger.info("remote deployment started")
         try:
             func.deploy(
-                with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
+                with_mlrun=with_mlrun,
+                watch=not silent,
+                is_kfp=kfp,
+                skip_deployed=skip,
+                upgrade_pip=upgrade_pip,
             )
         except Exception as err:
             print(f"deploy error, {err_to_str(err)}")

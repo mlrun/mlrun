@@ -566,6 +566,7 @@ def build_op(
     secret_name="",
     with_mlrun=True,
     skip_deployed=False,
+    upgrade_pip=False,
 ):
     """build Docker image."""
 
@@ -586,6 +587,8 @@ def build_op(
         cmd += ["--secret-name", secret_name]
     if with_mlrun:
         cmd += ["--with-mlrun"]
+    if upgrade_pip:
+        cmd += ["--upgrade-pip"]
     if skip_deployed:
         cmd += ["--skip"]
     for c in commands:

@@ -347,6 +347,7 @@ class KubejobRuntime(KubeResource):
         secret_name="",
         with_mlrun=True,
         skip_deployed=False,
+        upgrade_pip=False,
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -362,6 +363,7 @@ class KubejobRuntime(KubeResource):
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
+            upgrade_pip=upgrade_pip,
         )
 
     def _run(self, runobj: RunObject, execution):

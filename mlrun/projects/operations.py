@@ -237,6 +237,7 @@ def build_function(
     builder_env: dict = None,
     project_object=None,
     overwrite_build_params: bool = False,
+    upgrade_pip: bool = None,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -256,6 +257,7 @@ def build_function(
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
      to existing parameters
+    :param upgrade_pip:     upgrade pip version before installing requirements
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
@@ -276,6 +278,7 @@ def build_function(
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
+            upgrade_pipe=upgrade_pip,
         )
     else:
         function.build_config(
@@ -292,6 +295,7 @@ def build_function(
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            upgrade_pip=upgrade_pip,
         )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)

@@ -1711,8 +1711,8 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
         """
-        There are some runtimes which might have multiple instances representing one runtime resource, in this case
-        we don't want to pull logs for all but rather only for the "driver"/"launcher" etc
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
         :return: the label selector
         """
         return ""
@@ -1927,9 +1927,13 @@ class BaseRuntimeHandler(ABC):
         )
 
         if with_main_runtime_resource_label_selector:
-            label_selector = ",".join(
-                [label_selector, self._get_main_runtime_resource_label_selector()]
+            main_runtime_resource_label_selector = (
+                self._get_main_runtime_resource_label_selector()
             )
+            if main_runtime_resource_label_selector:
+                label_selector = ",".join(
+                    [label_selector, main_runtime_resource_label_selector]
+                )
 
         return label_selector
 

@@ -199,8 +199,8 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
         """
-        There are some runtimes which might have multiple instances representing one runtime resource, in this case
-        we don't want to pull logs for all but rather only for the "driver"/"launcher" etc
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
         :return: the label selector
         """
         return "mpi_role_type=launcher"

@@ -1394,8 +1394,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert not df["bad_mapped"].isna().any()
         assert not (df["bad_mapped"] == 17).any()
 
-        # csv_path_spark = measurements.get_target_path(name="csv")
-
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"

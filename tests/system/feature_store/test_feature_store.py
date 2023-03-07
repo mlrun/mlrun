@@ -3725,8 +3725,8 @@ class TestFeatureStore(TestMLRunSystem):
             "employees",
             entities=[employees_set_entity],
             relations={
-                "department_id": departments_set_entity[0],
-                "department_name": departments_set_entity[1],
+                "department_id": "d_id",
+                "department_name": "name",
             },
         )
         employees_set.set_targets(targets=["parquet"], with_defaults=False)

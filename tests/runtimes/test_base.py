@@ -82,14 +82,17 @@ class TestAutoMount:
         "requirements,encoded_requirements",
         [
             # strip spaces
-            (["pandas==1.0.0", "numpy==1.0.0 "], "'pandas==1.0.0' 'numpy==1.0.0'"),
+            (["pandas==1.0.0", "numpy==1.0.0 "], "pandas==1.0.0 numpy==1.0.0"),
+            # handle ranges
+            (["pandas>=1.0.0, <2"], "'pandas>=1.0.0, <2'"),
+            (["pandas>=1.0.0,<2"], "'pandas>=1.0.0,<2'"),
             # handle flags
-            (["-r somewhere/requirements.txt"], "-r 'somewhere/requirements.txt'"),
+            (["-r somewhere/requirements.txt"], "-r somewhere/requirements.txt"),
             # handle flags and specific
             # handle escaping within specific
             (
                 ["-r somewhere/requirements.txt", "pandas>=1.0.0, <2"],
-                "-r 'somewhere/requirements.txt' 'pandas>=1.0.0, <2'",
+                "-r somewhere/requirements.txt 'pandas>=1.0.0, <2'",
             ),
             # handle from git
             (
@@ -113,7 +116,7 @@ class TestAutoMount:
 
             encoded = self._generate_runtime()._encode_requirements(requirements)
             assert (
-                encoded_requirements == encoded
+                encoded == encoded_requirements
             ), f"Failed to encode {requirements} as file {requirements_as_file}"
 
     def test_fill_credentials(self, rundb_mock):

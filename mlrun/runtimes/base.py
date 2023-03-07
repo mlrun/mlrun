@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import shlex
 import traceback
 import typing
 import uuid
@@ -1402,19 +1403,17 @@ class BaseRuntime(ModelObj):
         requirements = []
         for requirement in requirements_to_encode:
             requirement = requirement.strip()
-            escaped = False
 
             # -r / --requirement are flags and should not be escaped
             for req_flag in ["-r", "--requirement"]:
                 if requirement.startswith(req_flag):
-                    requirements.append(
-                        f"{req_flag} '{requirement[len(req_flag):].strip()}'"
-                    )
-                    escaped = True
+                    requirement = requirement[len(req_flag) :].strip()
+                    requirements.append(req_flag)
                     break
 
-            if not escaped:
-                requirements.append(f"'{requirement}'")
+            # wrap in single quote to ensure that the requirement is treated as a single string
+            # quote the requirement to avoid issues with special characters, double quotes, etc.
+            requirements.append(shlex.quote(requirement))
 
         return " ".join(requirements)
 

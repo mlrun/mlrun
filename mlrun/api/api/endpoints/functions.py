@@ -474,9 +474,7 @@ def _handle_job_deploy_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if (
-        logs and state != "pending"
-    ) or state in terminal_states:
+    if (logs and state != "pending") or state in terminal_states:
         resp = get_k8s().logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)

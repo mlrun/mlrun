@@ -186,11 +186,23 @@ class TrackingPolicy(mlrun.model.ModelObj):
         )
         # Convert default batch interval into ScheduleCronTrigger object
         if model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
-            new_obj.default_batch_intervals = ScheduleCronTrigger.from_crontab(
+            if isinstance(
                 struct[
                     model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-                ]
-            )
+                ],
+                str,
+            ):
+                new_obj.default_batch_intervals = ScheduleCronTrigger.from_crontab(
+                    struct[
+                        model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                    ]
+                )
+            else:
+                new_obj.default_batch_intervals = ScheduleCronTrigger.parse_obj(
+                    struct[
+                        model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                    ]
+                )
         return new_obj
 
     def to_dict(self, fields=None, exclude=None):

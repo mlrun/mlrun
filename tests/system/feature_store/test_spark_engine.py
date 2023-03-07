@@ -49,31 +49,6 @@ from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
 
-def read_and_assert(csv_path_spark, csv_path_storey):
-    read_back_df_spark = None
-    file_system = fsspec.filesystem("v3io")
-    for file_entry in file_system.ls(csv_path_spark):
-        filepath = file_entry["name"]
-        if not filepath.endswith("/_SUCCESS"):
-            read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
-            break
-    assert read_back_df_spark is not None
-
-    read_back_df_storey = None
-    for file_entry in file_system.ls(csv_path_storey):
-        filepath = file_entry["name"]
-        read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-        break
-    assert read_back_df_storey is not None
-
-    read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
-    read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
-
-    assert read_back_df_spark.sort_index(axis=1).equals(
-        read_back_df_storey.sort_index(axis=1)
-    )
-
-
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
@@ -104,6 +79,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             path = ""
         path += "/bigdata/" + cls.pq_source
         return path
+
+    def _print_full_df(self, df: pd.DataFrame, df_name: str, passthrough: str) -> None:
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):
+            self._logger.info(f"{df_name}-passthrough_{passthrough}:")
+            self._logger.info(df)
 
     def get_remote_pq_target_path(self, without_prefix=False):
         path = "v3io://"
@@ -157,6 +137,59 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 sj.deploy(with_mlrun=False)
                 get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
+
+    @staticmethod
+    def read_parquet_and_assert(out_path_spark, out_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(out_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_parquet(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(out_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_parquet(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        # spark does not support indexes, so we need to reset the storey result to match it
+        read_back_df_storey.reset_index(inplace=True)
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
+
+    @staticmethod
+    def read_csv_and_assert(csv_path_spark, csv_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
@@ -491,23 +524,70 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
 
         df = fstore.ingest(data_set, source, targets=[])
 
-        assert df.to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+        assert df.fillna("NaN-was-here").to_dict("records") == [
+            {
+                "bid": 2000,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000000,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 2000,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:40:00+0000", tz="UTC"),
             },
-        }
+            {
+                "bid": 10,
+                "bid_max_1h": 10,
+                "bid_sqr_1h": 100,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 10,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:41:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 11,
+                "bid_max_1h": 11,
+                "bid_sqr_1h": 221,
+                "bid_stdvar_1h": 0.5,
+                "bid_sum_1h": 21,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:42:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:43:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:44:00+0000", tz="UTC"),
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
         name_spark = f"{name}_spark"
 
@@ -519,7 +599,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
@@ -539,17 +619,146 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
-        assert resp.to_dataframe().to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+
+        # We can't count on the order when reading the results back
+        result_records = (
+            resp.to_dataframe()
+            .sort_values(["first_name", "last_name", "time"])
+            .to_dict("records")
+        )
+
+        assert result_records == [
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
             },
-            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
-        }
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -586,7 +795,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
@@ -600,7 +809,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
-        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+        result_dict = (
+            data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .sort_values("time")
+            .to_dict(orient="list")
+        )
 
         expected_results = df.to_dict(orient="list")
         expected_results.update(
@@ -608,6 +822,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
+                "bid_sqr_2h": [4000000, 100, 4000144, 356, 420],
+                "bid_stdvar_2h": [
+                    "NaN-was-here",
+                    "NaN-was-here",
+                    1976072,
+                    18,
+                    17.333333333333332,
+                ],
             }
         )
         assert result_dict == expected_results
@@ -623,13 +845,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
         )
         fstore.ingest(storey_data_set, source)
 
-        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        storey_df = (
+            storey_data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .reset_index()
+            .sort_values("time")
+        )
         print(f"Storey results:\n{storey_df.to_string()}\n")
         storey_result_dict = storey_df.to_dict(orient="list")
 
@@ -918,9 +1145,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -953,7 +1188,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -967,6 +1205,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
+        self._print_full_df(df=resp_df, df_name="resp_df", passthrough=passthrough)
+        self._print_full_df(df=target_df, df_name="target_df", passthrough=passthrough)
+        self._print_full_df(
+            df=expected_df, df_name="expected_df", passthrough=passthrough
+        )
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
@@ -1007,7 +1250,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
@@ -1046,7 +1309,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapval(self, with_original_features):
@@ -1102,13 +1365,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        out_path_spark = "v3io:///bigdata/test_ingest_with_steps_extractor_spark"
+        out_path_storey = "v3io:///bigdata/test_ingest_with_steps_extractor_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1123,7 +1386,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        targets = [ParquetTarget(path=out_path_spark)]
         fstore.ingest(
             measurements,
             source,
@@ -1131,7 +1394,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=False),
         )
-        csv_path_spark = measurements.get_target_path(name="csv")
+        out_path_spark = measurements.get_target_path()
 
         measurements = fstore.FeatureSet(
             "measurements_storey",
@@ -1145,14 +1408,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        targets = [ParquetTarget(path=out_path_storey)]
         fstore.ingest(
             measurements,
             source,
             targets,
         )
-        csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+
+        out_path_storey = measurements.get_target_path()
+        self.read_parquet_and_assert(out_path_spark, out_path_storey)
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("join_type", ["inner", "outer"])
@@ -1537,3 +1801,65 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+
+    def test_as_of_join_result(self):
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        left_path = "v3io:///bigdata/asof_join/df_left.parquet"
+        right_path = "v3io:///bigdata/asof_join/df_right.parquet"
+
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df_left.to_parquet(path=left_path, filesystem=fsys)
+        df_right.to_parquet(path=right_path, filesystem=fsys)
+
+        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts")
+        fset1.set_targets(["parquet"], with_defaults=False)
+        fset2 = fstore.FeatureSet("fs2", entities=["ent"], timestamp_key="ts")
+        fset2.set_targets(["parquet"], with_defaults=False)
+
+        source_left = ParquetSource("pq1", path=left_path)
+        source_right = ParquetSource("pq2", path=right_path)
+
+        fstore.ingest(fset1, source_left)
+        fstore.ingest(fset2, source_right)
+
+        vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+
+        resp = fstore.get_offline_features(vec, engine="local")
+        local_engine_res = resp.to_dataframe()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vec,
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
+            target=target,
+        )
+        spark_engine_res = resp.to_dataframe()
+
+        assert local_engine_res.sort_index(axis=1).equals(
+            spark_engine_res.sort_index(axis=1)
+        )

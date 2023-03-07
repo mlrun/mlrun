@@ -38,6 +38,7 @@ from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
+from ..serving.server import Response
 from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
 from .common import (
     RunConfig,
@@ -371,7 +372,7 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options
+    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -410,8 +411,10 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    if featureset is not None:
+        featureset.validate_steps()
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
-    if run_config:
+    if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal in conjunction with run_config"
@@ -448,6 +451,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
+        featureset.validate_steps()
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -647,9 +651,10 @@ def preview(
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
         warnings.warn(
-            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
-            # TODO: Remove this API in 1.4.0
-            PendingDeprecationWarning,
+            "preview's 'timestamp_key' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+            "Pass this parameter to 'FeatureSet' instead.",
+            # TODO: Remove this API in 1.5.0
+            FutureWarning,
         )
         featureset.spec.timestamp_key = timestamp_key
         for step in featureset.graph.steps.values():
@@ -665,6 +670,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
+    featureset.validate_steps()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -845,6 +851,9 @@ def _ingest_with_spark(
             df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
+
+        if isinstance(df, Response) and df.status_code != 0:
+            mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
@@ -856,6 +865,7 @@ def _ingest_with_spark(
         for target in targets_to_ingest or []:
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
+            target.set_resource(featureset)
             if featureset.spec.passthrough and target.is_offline:
                 continue
             if target.path and urlparse(target.path).scheme == "":
@@ -913,7 +923,6 @@ def _ingest_with_spark(
                 df_to_write.persist()
                 if df_to_write.count() > 0:
                     df_to_write.write.mode("append").save(**spark_options)
-            target.set_resource(featureset)
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:

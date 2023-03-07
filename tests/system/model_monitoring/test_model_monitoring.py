@@ -420,6 +420,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
         for endpoint in endpoints_list.endpoints:
+            # Validate that the model endpoint record has been updated through the stream process
+            assert endpoint.status.first_request != endpoint.status.last_request
             data = client.read(
                 backend="tsdb",
                 table=tsdb_path,

@@ -15,6 +15,7 @@
 import base64
 import json
 import os
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -83,6 +84,16 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_hyper_params=hyper_params,
             expected_secrets=secret_source,
         )
+
+    def test_run_with_watch_on_server_side(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        with unittest.mock.patch.object(
+            mlrun.model.RunObject,
+            "logs",
+            side_effect=mlrun.errors.MLRunFatalFailureError("should not reach here"),
+        ) as logs_mock:
+            self._execute_run(runtime, watch=True)
+            assert logs_mock.call_count == 0
 
     def test_run_with_resource_limits_and_requests(
         self, db: Session, client: TestClient

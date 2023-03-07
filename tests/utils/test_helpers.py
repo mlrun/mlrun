@@ -35,6 +35,7 @@ from mlrun.utils.helpers import (
     get_regex_list_as_string,
     resolve_image_tag_suffix,
     str_to_timestamp,
+    update_in,
     validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
@@ -634,6 +635,46 @@ def test_fill_artifact_path_template():
                 case["artifact_path"], case.get("project")
             )
             assert case["expected_artifact_path"] == filled_artifact_path
+
+
+def test_update_in():
+    obj = {}
+    update_in(obj, "a.b.c", 2)
+    assert obj["a"]["b"]["c"] == 2
+    update_in(obj, "a.b.c", 3)
+    assert obj["a"]["b"]["c"] == 3
+
+    update_in(obj, "a.b.d", 3, append=True)
+    assert obj["a"]["b"]["d"] == [3]
+    update_in(obj, "a.b.d", 4, append=True)
+    assert obj["a"]["b"]["d"] == [3, 4]
+
+
+@pytest.mark.parametrize(
+    "keys,val",
+    [
+        (
+            ["meta", "label", "tags.data.com/env"],
+            "value",
+        ),
+        (
+            ["spec", "handler"],
+            [1, 2, 3],
+        ),
+        (["metadata", "test", "labels", "test.data"], 1),
+        (["metadata.test", "test.test", "labels", "test.data"], True),
+        (["metadata", "test.middle.com", "labels", "test.data"], "data"),
+    ],
+)
+def test_update_in_with_dotted_keys(keys, val):
+    obj = {}
+    # Join the keys list with dots to form a single key string.
+    # If a key in the list has dots, wrap it with escaping (\\).
+    key = ".".join([key if "." not in key else f"\\{key}\\" for key in keys])
+    update_in(obj, key, val)
+    for key in keys:
+        obj = obj.get(key)
+    assert obj == val
 
 
 @pytest.mark.parametrize("actual_list", [[1], [1, "asd"], [None], ["asd", 23]])

@@ -56,7 +56,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
     }
     resp = client.post("submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
-    assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]
+    assert f"Function not found {function_reference}" in resp.json()["detail"]
 
 
 username = "voldemort"
@@ -447,7 +447,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         {
             "body": submit_job_body,
             "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
+            "expected_body": {"detail": "Unknown error"},
         },
     ]:
         expected_status = test_case.get("expected_status")
@@ -503,7 +503,7 @@ def test_submit_job_failure_params_exceed_int64(
     resp = client.post("submit_job", json=submit_job_body)
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
-    assert "exceeds int64" in resp.json()["detail"]["reason"]
+    assert "exceeds int64" in resp.json()["detail"]
 
     resp = client.get("runs", params={"project": project_name})
     # assert the run wasn't saved to the DB

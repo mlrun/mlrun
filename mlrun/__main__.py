@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -183,6 +184,11 @@ def main():
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--returns",
+    multiple=True,
+    help="Logging configurations for the handler's returning values",
+)
 def run(
     url,
     param,
@@ -225,6 +231,7 @@ def run(
     auto_build,
     run_args,
     ensure_project,
+    returns,
 ):
     """Execute a task and inject parameters."""
 
@@ -372,6 +379,9 @@ def run(
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(
+        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+    )
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
@@ -584,7 +594,12 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
-@click.option("--dashboard", "-d", default="", help="nuclio dashboard url")
+@click.option(
+    "--dashboard",
+    "-d",
+    default="",
+    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
+)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")
@@ -663,6 +678,14 @@ def deploy(
         for k, v in list2dict(env).items():
             function.set_env(k, v)
     function.verbose = verbose
+
+    if dashboard:
+        warnings.warn(
+            "'--dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
+            "Keep '--dashboard' value empty to allow auto-detection by MLRun API.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
 
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)

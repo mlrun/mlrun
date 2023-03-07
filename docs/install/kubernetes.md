@@ -95,7 +95,7 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-email <your-email>
 ```
 > **Note:**
-> If using docker hub, the registry server is `https://index.docker.io/v1/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
+> If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
 > creating a user with login to configure in the secret.
 
 Where:
@@ -180,7 +180,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your remote environment](https://docs.mlrun.org/en/latest/install/remote.html) for more information.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your environment](https://docs.mlrun.org/en/latest/install/remote.html) for more information.
 
 ## Advanced chart configuration
 

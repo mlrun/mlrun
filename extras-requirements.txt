@@ -19,12 +19,19 @@ azure-storage-blob~=12.13
 adlfs~=2021.8.1
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
+# cryptography>=39, which is required by azure, needs this, or else we get
+# AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)
+pyopenssl>=23
 bokeh~=2.4, >=2.4.2
 gcsfs~=2021.8.1
 # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0
-google-cloud-bigquery[pandas]~=3.2
+# TODO: For google-cloud-bigquery>=3.5, we need to depend on google-cloud-bigquery[pandas, bqstorage] and
+# resolve conflicts related to grpcio and google-auth versions. Furthermore, to support python 11,
+# we'll need to upgrade to google-cloud-bigquery>=3.4.2, which requires grpcio>=1.49.1, which is incompatible with
+# the grpcio version required by frames (because it upgrades protobuf from 3.x to 4.x, breaking binary compatibility)
+google-cloud-bigquery[pandas]>=3.2,<3.5
 kafka-python~=2.0
 redis~=4.3
 graphviz~=0.20.0

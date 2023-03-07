@@ -20,7 +20,7 @@ import mlrun.errors
 from mlrun.config import config
 
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ..platforms.iguazio import mount_v3io, mount_v3iod
 from .base import RuntimeClassMode
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
@@ -139,7 +139,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-            self.apply(mount_v3io_extended())
+            self.apply(mount_v3io())
             self.apply(
                 mount_v3iod(
                     namespace=config.namespace,
@@ -191,11 +191,23 @@ class RemoteSparkRuntime(KubejobRuntime):
                               e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:  show logs only in case of build failure
 
-        :return True if the function is ready (deployed)
+        :return True: if the function is ready (deployed)
         """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
+            # check if a command upgrades pip, if not add it
+            pip_upgrade_regex = re.compile(r"pip install --upgrade .*pip")
+            for command in self.spec.build.commands:
+                if pip_upgrade_regex.match(command):
+                    break
+            else:
+                # python 3.7 reached EOL on 2023-06-27 and pip will not support it forever,
+                # can be removed when we drop support for python 3.7
+                self.spec.build.commands = [
+                    "pip install --upgrade pip~=23.0"
+                ] + self.spec.build.commands
+
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,

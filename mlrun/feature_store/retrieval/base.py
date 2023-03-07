@@ -150,7 +150,6 @@ class BaseMerger(abc.ABC):
                         index_columns_missing.append(index)
                 if not index_columns_missing:
                     df.set_index(self._index_columns, inplace=True)
-
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "

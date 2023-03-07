@@ -15,6 +15,7 @@
 import uuid
 
 import mlrun
+from mlrun.config import config as mlconf
 from mlrun.model import DataTargetBase, new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
@@ -43,28 +44,56 @@ def run_merge_job(
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
-    name = f"{name}_merger"
+    name = f"{name}-merger"
     run_config = run_config or RunConfig()
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
+    run_config.kind = kind
+    default_code = _default_merger_handler.replace("{{{engine}}}", merger.__name__)
     if not run_config.function:
         function_ref = vector.spec.function.copy()
         if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind=kind)
         if not function_ref.url:
-            function_ref.code = _default_merger_handler.replace(
-                "{{{engine}}}", merger.__name__
-            )
+            function_ref.code = default_code
         run_config.function = function_ref
 
     function = run_config.to_function(kind, merger.get_default_image(kind))
+
+    # Avoid overriding a handler that was provided by the user
+    # The user shouldn't have to provide a handler, but we leave this option open just in case
+    if not run_config.handler:
+        function.with_code(body=default_code)
+
+    function.metadata.project = vector.metadata.project
+    function.metadata.name = function.metadata.name or name
+
     if run_config.kind == RuntimeKinds.remotespark:
         if not spark_service:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "spark_service must be set when running with a remote spark runtime"
             )
         function.with_spark_service(spark_service=spark_service)
-    function.metadata.project = vector.metadata.project
-    function.metadata.name = function.metadata.name or name
+    elif run_config.kind == RuntimeKinds.spark:
+
+        if mlconf.is_running_on_iguazio():
+            function.with_igz_spark()
+
+        def set_default_resources(resources, setter_function):
+            requests = resources.get("requests")
+            set_memory = requests is None or "memory" not in requests
+            set_cpu = requests is None or "cpu" not in requests
+            if set_memory or set_cpu:
+                mem = "1G" if set_memory else None
+                cpu = "1" if set_cpu else None
+                setter_function(mem=mem, cpu=cpu, patch=True)
+
+        set_default_resources(
+            function.spec.driver_resources, function.with_driver_requests
+        )
+        set_default_resources(
+            function.spec.executor_resources, function.with_executor_requests
+        )
+
     task = new_task(
         name=name,
         params={
@@ -120,8 +149,12 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
+        
+        file_format = kwargs.get("format")
+        if not file_format:
+            file_format = self.run.status.results["target"]["kind"]
         df = mlrun.get_dataitem(self.target_uri).as_df(
-            columns=columns, df_module=df_module, **kwargs
+            columns=columns, df_module=df_module, format=file_format, **kwargs
         )
         if self.vector.spec.with_indexes:
             df.set_index(

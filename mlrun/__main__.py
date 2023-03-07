@@ -1027,8 +1027,7 @@ def logs(uid, project, offset, db, watch):
     help="ensure the project exists, if not, create project",
 )
 @click.option(
-    "--save",
-    is_flag=True,
+    "--save/--no-save",
     default=True,
     help="create and save the project if not exist",
 )

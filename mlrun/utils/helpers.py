@@ -1241,3 +1241,18 @@ def filter_warnings(action, category):
         return wrapper
 
     return decorator
+
+
+def resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference

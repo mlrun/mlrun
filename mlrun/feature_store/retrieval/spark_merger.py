@@ -108,6 +108,8 @@ class SparkFeatureMerger(BaseMerger):
             filter_most_recent_feature_timestamp = (
                 filter_most_recent_feature_timestamp.drop(
                     aliased_featureset_df[f"ft__{key}"]
+                    if key in entity_df.columns + [entity_timestamp_column]
+                    else aliased_featureset_df[key]
                 )
             )
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(

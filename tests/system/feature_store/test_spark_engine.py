@@ -15,7 +15,6 @@
 import os
 import pathlib
 import sys
-import tempfile
 import uuid
 from datetime import datetime
 
@@ -23,7 +22,6 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
-from pyspark.sql import SparkSession
 from storey import EmitEveryEvent
 
 import mlrun
@@ -168,22 +166,23 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
     @staticmethod
-    def read_csv_and_assert(csv_path_spark, csv_path_storey):
-        read_back_df_spark = None
+    def read_csv(csv_path: str) -> pd.DataFrame:
         file_system = fsspec.filesystem("v3io")
-        for file_entry in file_system.ls(csv_path_spark):
+        for file_entry in file_system.ls(csv_path):
             filepath = file_entry["name"]
             if not filepath.endswith("/_SUCCESS"):
-                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
-                break
-        assert read_back_df_spark is not None
+                return pd.read_csv(f"v3io://{filepath}")
+        #  if not exists - assert false.
+        assert False
 
-        read_back_df_storey = None
-        for file_entry in file_system.ls(csv_path_storey):
-            filepath = file_entry["name"]
-            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-            break
-        assert read_back_df_storey is not None
+    @staticmethod
+    def read_csv_and_assert(csv_path_spark, csv_path_storey):
+        read_back_df_spark = TestFeatureStoreSparkEngine.read_csv(
+            csv_path=csv_path_spark
+        )
+        read_back_df_storey = TestFeatureStoreSparkEngine.read_csv(
+            csv_path=csv_path_storey
+        )
 
         read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
         read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
@@ -1362,6 +1361,41 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
+    def test_mapval_with_partially_mapping(self):
+        # we need this test in order to check partially_mapping -> only part of the values in field are replaced.
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {17: 0},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+        df = self.read_csv(csv_path=csv_path_spark)
+        assert not df["bad_mapped"].isna().any()
+        assert not (df["bad_mapped"] == 17).any()
+
+        # csv_path_spark = measurements.get_target_path(name="csv")
+
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
@@ -1472,54 +1506,3 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert local_engine_res.sort_index(axis=1).equals(
             spark_engine_res.sort_index(axis=1)
         )
-
-    def test_mapvalues_with_partially_mapping(self):
-        # we need this test in order to check partially_mapping -> only part of the values in field are replaced.
-        source = pd.DataFrame(
-            {
-                "id": [1, 2, 3],
-                "name": ["nick", "Ethan", "Sophia"],
-                "age": ["10", "20", "U"],
-                "key1": ["1", "2", "3"],
-                "timestamp": [
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                ],
-            }
-        )
-        with tempfile.TemporaryDirectory() as output_path:
-            target_path = f"file://{output_path}"
-            measurements = fstore.FeatureSet(
-                "measurements_spark",
-                entities=[fstore.Entity("id")],
-                timestamp_key="timestamp",
-                engine="spark",
-            )
-            measurements.graph.to(
-                MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)
-            )
-            targets = [ParquetTarget(name="target", path=target_path)]
-            local_spark = SparkSession.builder.appName("Spark function").getOrCreate()
-            spark_df = fstore.ingest(
-                measurements,
-                source,
-                targets,
-                spark_context=local_spark,
-            )
-
-        expected_df = pd.DataFrame(
-            {
-                "id": [1, 2, 3],
-                "name": ["nick", "Ethan", "Sophia"],
-                "age": ["10", "20", "U"],
-                "key1": ["1", "2", "3"],
-                "timestamp": [
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                    "2023-02-28 10:30:15",
-                ],
-                "age_mapped": ["10", "20", "0"],
-            }
-        )
-        pd.testing.assert_frame_equal(spark_df.toPandas(), expected_df)

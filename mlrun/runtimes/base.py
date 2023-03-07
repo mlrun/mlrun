@@ -1216,11 +1216,9 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        if isinstance(requirements, str):
-            with open(requirements, "r") as fp:
-                requirements = fp.read().splitlines()
+        encoded_requirements = self._encode_requirements(requirements)
         commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = "python -m pip install " + " ".join(requirements)
+        new_command = f"python -m pip install {encoded_requirements}"
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
@@ -1393,6 +1391,32 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def _encode_requirements(self, requirements_to_encode):
+
+        # if a string, read the file then encode
+        if isinstance(requirements_to_encode, str):
+            with open(requirements_to_encode, "r") as fp:
+                requirements_to_encode = fp.read().splitlines()
+
+        requirements = []
+        for requirement in requirements_to_encode:
+            requirement = requirement.strip()
+            escaped = False
+
+            # -r / --requirement are flags and should not be escaped
+            for req_flag in ["-r", "--requirement"]:
+                if requirement.startswith(req_flag):
+                    requirements.append(
+                        f"{req_flag} '{requirement[len(req_flag):].strip()}'"
+                    )
+                    escaped = True
+                    break
+
+            if not escaped:
+                requirements.append(f"'{requirement}'")
+
+        return " ".join(requirements)
 
 
 def is_local(url):

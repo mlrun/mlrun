@@ -462,7 +462,9 @@ def _handle_job_deploy_status(
 
     normalized_build_pod_state = normalized_build_pod_state or build_pod_state
 
-    if (logs and normalized_build_pod_state != "pending") or normalized_build_pod_state in terminal_states:
+    if (
+        logs and normalized_build_pod_state != "pending"
+    ) or normalized_build_pod_state in terminal_states:
         resp = get_k8s().logs(pod)
         if function_state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)

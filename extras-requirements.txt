@@ -27,11 +27,9 @@ gcsfs~=2021.8.1
 # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0
-# TODO: For google-cloud-bigquery>=3.5, we need to depend on google-cloud-bigquery[pandas, bqstorage] and
-# resolve conflicts related to grpcio and google-auth versions. Furthermore, to support python 11,
-# we'll need to upgrade to google-cloud-bigquery>=3.4.2, which requires grpcio>=1.49.1, which is incompatible with
-# the grpcio version required by frames (because it upgrades protobuf from 3.x to 4.x, breaking binary compatibility)
-google-cloud-bigquery[pandas]>=3.2,<3.5
+# To support python 11, google-cloud-bigquery requires grpcio>=1.49.1, which is incompatible with the grpcio version
+# required by frames (because it upgrades protobuf from 3.x to 4.x, breaking binary compatibility)
+google-cloud-bigquery[pandas, bqstorage]~=3.2
 kafka-python~=2.0
 redis~=4.3
 graphviz~=0.20.0

@@ -270,7 +270,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 watch,
-                upgrade_pip,
+                upgrade_pip=upgrade_pip,
             )
             self.save(versioned=False)
 

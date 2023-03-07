@@ -898,6 +898,15 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return "spark-role=driver"
+
+    @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
         return (
             AbstractSparkRuntime.group,

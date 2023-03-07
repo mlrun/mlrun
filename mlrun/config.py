@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = "~/.mlrun.env"
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -490,7 +490,7 @@ default_config = {
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
         # the time in hours in which to start log collection from.
-        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
         # default is 4 hours = 4*60*60 = 14400 seconds
         "api_downtime_grace_period": 14400,

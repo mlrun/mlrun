@@ -1472,7 +1472,14 @@ class MlrunProject(ModelObj):
             proj.set_function('http://.../mynb.ipynb', 'train')
             proj.set_function('./func.yaml')
             proj.set_function('hub://get_toy_data', 'getdata')
-            proj.set_function('my.py', requirements=["requests"])
+
+            # set function requirements
+
+            # by providing a list of packages
+            proj.set_function('my.py', requirements=["requests", "pandas"])
+
+            # by providing a path to a pip requirements file
+            proj.set_function('my.py', requirements="requirements.txt")
 
         :param func:      function object or spec/code url, None refers to current Notebook
         :param name:      name of the function (under the project)

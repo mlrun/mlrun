@@ -106,7 +106,7 @@ class Feature(ModelObj):
         """
         self.name = name or ""
         self.value_type = (
-            python_type_to_value_type(value_type) if value_type else ValueType.STRING
+            python_type_to_value_type(value_type) if value_type is not None else ValueType.STRING
         )
         self.dims = dims
         self.description = description

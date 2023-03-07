@@ -363,6 +363,7 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -700,16 +701,17 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
-        if not config.igz_version:
+    def get_parsed_igz_version(igz_version=None) -> typing.Optional[semver.VersionInfo]:
+        igz_version = igz_version or config.igz_version
+        if not igz_version:
             return None
         try:
-            parsed_version = semver.VersionInfo.parse(config.igz_version)
+            parsed_version = semver.VersionInfo.parse(igz_version)
             return parsed_version
         except ValueError:
             # iguazio version is semver compatible only from 3.2, before that it will be something
             # like 3.0_b177_20210806003728
-            semver_compatible_igz_version = config.igz_version.split("_")[0]
+            semver_compatible_igz_version = igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):

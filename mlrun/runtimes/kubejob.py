@@ -15,6 +15,7 @@
 import os
 import time
 
+import semver
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
@@ -107,6 +108,7 @@ class KubejobRuntime(KubeResource):
         requirements=None,
         overwrite=False,
         verify_base_image=True,
+        upgrade_pip=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -122,12 +124,13 @@ class KubejobRuntime(KubeResource):
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: requirements.txt file to install or list of packages to install
-        :param overwrite:  overwrite existing build configuration
+        :param overwrite:   overwrite existing build configuration
 
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
-           * True: the existing params are replaced by the new ones
-        :param verify_base_image: verify the base image is set
+                            * False: the new params are merged with the existing (currently merge is
+                              applied to requirements and commands)
+                            * True: the existing params are replaced by the new ones
+        :param verify_base_image:   verify the base image is set
+        :param upgrade_pip:         upgrade pip version before installing requirements
         """
         if image:
             self.spec.build.image = image
@@ -155,6 +158,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.with_mlrun = with_mlrun
         if auto_build:
             self.spec.build.auto_build = auto_build
+        if upgrade_pip is not None:
+            self.spec.build.upgrade_pip = upgrade_pip
 
         if verify_base_image:
             self.verify_base_image()
@@ -196,11 +201,26 @@ class KubejobRuntime(KubeResource):
                     or "/mlrun/" in build.base_image
                 )
 
-        if upgrade_pip is None and with_mlrun:
-            # installing mlrun on top of a base image that has an old pip version
-            # can cause issues with resolving dependencies, since we can't make assumptions about the base image
-            # and the user didn't specify whether to upgrade pip or not, we'll upgrade it
-            upgrade_pip = True
+        if upgrade_pip is None:
+            if build.upgrade_pip is not None:
+                upgrade_pip = build.upgrade_pip
+            elif with_mlrun:
+                # installing mlrun on top of a base image that has an old pip version
+                # can cause issues with resolving dependencies
+                if "iguazio" in build.base_image:
+                    base_image_igz_version = build.base_image.split(":")[-1]
+                    igz_version = mlrun.mlconf.get_parsed_igz_version(
+                        base_image_igz_version
+                    )
+                    # pip version in iguazio 3.5.3 images is good enough
+                    if igz_version and igz_version < semver.VersionInfo.parse(
+                        "3.5.3-b1"
+                    ):
+                        upgrade_pip = True
+                else:
+                    # since we can't make assumptions about the base image and the user didn't specify
+                    # whether to upgrade pip or not, we'll upgrade it
+                    upgrade_pip = True
 
         if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
@@ -225,6 +245,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                upgrade_pip=upgrade_pip,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")

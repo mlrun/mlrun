@@ -199,8 +199,6 @@ class RemoteSparkRuntime(KubejobRuntime):
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
-            # not sure if this is needed
-            upgrade_pip = True
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,

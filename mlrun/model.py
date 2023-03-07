@@ -338,6 +338,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
+        upgrade_pip=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -353,6 +354,7 @@ class ImageBuilder(ModelObj):
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
         self.with_mlrun = with_mlrun  #: with_mlrun
+        self.upgrade_pip = upgrade_pip  #: upgrade_pip
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
 

@@ -278,7 +278,7 @@ def build_function(
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
-            upgrade_pipe=upgrade_pip,
+            upgrade_pip=upgrade_pip,
         )
     else:
         function.build_config(

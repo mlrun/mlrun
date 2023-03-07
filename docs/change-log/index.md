@@ -94,7 +94,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.workflows`                  | `project.spec.workflows`, such as `get_or_create_project`, `load_project` |
+| `project.workflows`                  | `project.spec.workflows`, `get_or_create_project`, `load_project` |
 | `project.functions`                  | `project.spec.functions`                      |
 | `project.artifacts`                  | `project.spec.artifacts`                       |
 | `project.func()`                     | `project.get_function()`                       |
@@ -120,7 +120,7 @@ such as `get_or_create_project`, `load_project` |
 | Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
 | `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
 | `mount_v3io_extended`                            | `mount_v3io`                   |
-| `LegacyArtifact` and all legacy artifact types that inherit from it (full list is: `LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact`                       |
+| `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |

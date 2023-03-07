@@ -107,10 +107,9 @@ class RuntimeClassMode(enum.Enum):
 
 
 class FunctionStatus(ModelObj):
-    def __init__(self, state=None, build_pod=None, image:str=None):
+    def __init__(self, state=None, build_pod=None):
         self.state = state
         self.build_pod = build_pod
-        self.image = image
 
 
 class FunctionSpec(ModelObj):

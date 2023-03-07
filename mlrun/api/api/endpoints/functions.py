@@ -417,7 +417,12 @@ def _handle_job_deploy_status(
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == "ready":
+        if state == mlrun.api.schemas.FunctionState.ready:
+            # when function has been built we set the created image in to the `spec.image` for reference see at the end
+            # of the function where we resolve if we in status ready and then set the spec.build.image to spec.image
+            # TODO: spec shouldn't hold backend enriched attributes, but rather in the status block
+            #   therefore need to change to set it to a new attribute in status.image which will ease on our resolution
+            #   of whether it is a user defined image or MLRun enriched one.
             image = image or get_in(fn, "spec.image")
         return Response(
             content=out,
@@ -434,7 +439,14 @@ def _handle_job_deploy_status(
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
 
-        image = get_in(fn, "status.image", "") or image
+        if state == mlrun.api.schemas.FunctionState.ready:
+            # when function has been built we set the created image in to the `spec.image` for reference see at the end
+            # of the function where we resolve if we in status ready and then set the spec.build.image to spec.image
+            # TODO: spec shouldn't hold backend enriched attributes, but rather in the status block
+            #   therefore need to change to set it to a new attribute in status.image which will ease on our resolution
+            #   of whether it is a user defined image or MLRun enriched one.
+            image = image or get_in(fn, "spec.image")
+
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()
@@ -460,7 +472,9 @@ def _handle_job_deploy_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if (logs and state != "pending") or state in terminal_states:
+    if (
+        logs and state != mlrun.api.schemas.FunctionState.pending
+    ) or state in terminal_states:
         resp = get_k8s().logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -474,7 +488,6 @@ def _handle_job_deploy_status(
     update_in(fn, "status.state", state)
     if state == mlrun.api.schemas.FunctionState.ready:
         update_in(fn, "spec.image", image)
-        update_in(fn, "status.image", image)
 
     versioned = False
     if state == mlrun.api.schemas.FunctionState.ready:

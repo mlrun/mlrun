@@ -265,9 +265,8 @@ def load_project(
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
-            # Validate that git source includes branch or refs
+            # Validate that git source includes branch and refs
             url = _enrich_git_branch(url=url, repo=repo)
-
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -316,8 +315,12 @@ def load_project(
 
 def _enrich_git_branch(url: str, repo: git.Repo) -> str:
     """If git source has no branch and refs, this method applies the main active branch, as defined in the
-    repo object
+    repo object.
 
+    :param url:   Git source url
+    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
+
+    :return:     Git source url with full valid path to the relevant branch
 
     """
     source, reference, branch = resolve_git_reference_from_source(url)

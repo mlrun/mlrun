@@ -30,6 +30,7 @@ import (
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/google/uuid"
+	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -353,9 +354,6 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 		for {
 			message := fmt.Sprintf(messageTemplate, j)
 			size := int64(len(message))
-			suite.logger.DebugWith("Reading logs from file",
-				"offset", offset,
-				"size", size)
 			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx,
 				"1",
 				filePath,
@@ -577,6 +575,28 @@ func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
 	dirEntries, err = os.ReadDir(dirPath)
 	suite.Require().NoError(err, "Failed to read dir")
 	suite.Require().Equal(1, len(dirEntries), "Expected logs to be deleted")
+}
+
+func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
+	runUID := "123"
+	projectName := "someProject"
+	_, err := suite.LogCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
+	suite.Require().Error(err, "Expected error when getting log file path for non-existing project")
+	suite.Require().Contains(errors.RootCause(err).Error(), "not found", "Expected error to contain 'not found'")
+
+	// make the project dir
+	err = os.MkdirAll(path.Join(suite.baseDir, projectName), 0755)
+	suite.Require().NoError(err)
+
+	// make the run file
+	runFilePath := suite.LogCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+	err = common.WriteToFile(runFilePath, []byte("some log"), false)
+	suite.Require().NoError(err, "Failed to write to file")
+
+	// get the log file path
+	logFilePath, err := suite.LogCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
+	suite.Require().NoError(err, "Failed to get log file path")
+	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

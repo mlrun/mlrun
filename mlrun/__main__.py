@@ -483,7 +483,6 @@ def build(
     skip,
     env_file,
     ensure_project,
-    upgrade_pip,
 ):
     """Build a container image from code and requirements."""
 

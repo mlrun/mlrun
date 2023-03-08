@@ -265,7 +265,6 @@ class RunDBMock:
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
-        upgrade_pip=None,
     ):
         self._function = func.to_dict()
         status = NuclioStatus(

@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import datetime
 import logging
 import pathlib
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.parse
 
+import boto3
 import click
 import paramiko
 import yaml
@@ -34,7 +38,9 @@ class SystemTestPreparer:
         ci_dir_name = "mlrun-automation"
         homedir = pathlib.Path("/home/iguazio/")
         workdir = homedir / ci_dir_name
+        igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
+        provctl_path = workdir / "provctl"
         system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -52,6 +58,8 @@ class SystemTestPreparer:
         app_cluster_ssh_password: str = None,
         github_access_token: str = None,
         provctl_download_url: str = None,
+        provctl_download_s3_access_key: str = None,
+        provctl_download_s3_key_id: str = None,
         mlrun_dbpath: str = None,
         webapi_direct_http: str = None,
         framesd_url: str = None,
@@ -80,6 +88,8 @@ class SystemTestPreparer:
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
         self._provctl_download_url = provctl_download_url
+        self._provctl_download_s3_access_key = provctl_download_s3_access_key
+        self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
 
         self._env_config = {
@@ -111,29 +121,28 @@ class SystemTestPreparer:
             )
 
     def run(self):
-
         self.connect_to_remote()
 
         # for sanity clean up before starting the run
-        self.clean_up_remote_workdir(close_ssh_client=False)
+        self.clean_up_remote_workdir()
 
         self._prepare_env_remote()
 
+        self._resolve_iguazio_version()
+
+        self._download_provctl()
+
         self._override_mlrun_api_env()
 
-        provctl_path = self._download_provctl()
-        self._patch_mlrun(provctl_path)
+        self._patch_mlrun()
 
-    def clean_up_remote_workdir(self, close_ssh_client: bool = True):
+    def clean_up_remote_workdir(self):
         self._logger.info(
-            "Cleaning up remote workdir", workdir=str(self.Constants.homedir)
+            "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
         )
         self._run_command(
             f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
         )
-
-        if close_ssh_client and not self._debug:
-            self._ssh_client.close()
 
     def _run_command(
         self,
@@ -290,6 +299,7 @@ class SystemTestPreparer:
         self._run_command(
             "mkdir",
             args=["-p", str(self.Constants.workdir)],
+            workdir=str(self.Constants.homedir),
         )
 
     def _prepare_env_local(self):
@@ -339,21 +349,45 @@ class SystemTestPreparer:
         )
 
     def _download_provctl(self):
-        provctl_path = "provctl"
-        self._logger.debug("Downloading provctl to data node")
-        self._run_command(
-            "curl",
-            args=[
-                "--verbose",
-                "--retry 3",
-                "--location",
-                self._provctl_download_url,
-                "--output",
-                "provctl",
-            ],
-        )
-        self._run_command("chmod", args=["+x", provctl_path])
-        return provctl_path
+        # extract bucket name, object name from s3 file path
+        # https://<bucket-name>.s3.amazonaws.com/<object-name>
+        # s3://<bucket-name>/<object-name>
+
+        parsed_url = urllib.parse.urlparse(self._provctl_download_url)
+        if self._provctl_download_url.startswith("s3://"):
+            object_name = parsed_url.path.lstrip("/")
+            bucket_name = parsed_url.netloc
+        else:
+            object_name = parsed_url.path.lstrip("/")
+            bucket_name = parsed_url.netloc.split(".")[0]
+
+        # download provctl from s3
+        with tempfile.NamedTemporaryFile() as local_provctl_path:
+            self._logger.debug(
+                "Downloading provctl",
+                bucket_name=bucket_name,
+                object_name=object_name,
+                local_path=local_provctl_path.name,
+            )
+            s3_client = boto3.client(
+                "s3",
+                aws_secret_access_key=self._provctl_download_s3_access_key,
+                aws_access_key_id=self._provctl_download_s3_key_id,
+            )
+            s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
+
+            # upload provctl to data node
+            self._logger.debug(
+                "Uploading provctl to datanode",
+                remote_path=str(self.Constants.provctl_path),
+                local_path=local_provctl_path.name,
+            )
+            sftp_client = self._ssh_client.open_sftp()
+            sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
+            sftp_client.close()
+
+        # make provctl executable
+        self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 
     def _run_and_wait_until_successful(
         self,
@@ -388,7 +422,7 @@ class SystemTestPreparer:
             f"Command {command_name} took {total_seconds_took} seconds to finish"
         )
 
-    def _patch_mlrun(self, provctl_path):
+    def _patch_mlrun(self):
         time_string = time.strftime("%Y%m%d-%H%M%S")
         self._logger.debug(
             "Creating mlrun patch archive", mlrun_version=self._mlrun_version
@@ -401,7 +435,7 @@ class SystemTestPreparer:
 
         provctl_create_patch_log = f"/tmp/provctl-create-patch-{time_string}.log"
         self._run_command(
-            f"./{provctl_path}",
+            str(self.Constants.provctl_path),
             args=[
                 "--verbose",
                 f"--logger-file-path={provctl_create_patch_log}",
@@ -429,7 +463,7 @@ class SystemTestPreparer:
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
-            f"./{provctl_path}",
+            str(self.Constants.provctl_path),
             args=[
                 "--verbose",
                 f"--logger-file-path={provctl_patch_mlrun_log}",
@@ -452,6 +486,22 @@ class SystemTestPreparer:
         )
         # print provctl patch mlrun log
         self._run_command(f"cat {provctl_patch_mlrun_log}")
+
+    def _resolve_iguazio_version(self):
+
+        # iguazio version is optional, if not provided, we will try to resolve it from the data node
+        if not self._iguazio_version:
+            self._logger.info("Resolving iguazio version")
+            self._iguazio_version = self._run_command(
+                f"cat {self.Constants.igz_version_file}",
+                verbose=False,
+                live=False,
+            ).strip()
+        if isinstance(self._iguazio_version, bytes):
+            self._iguazio_version = self._iguazio_version.decode("utf-8")
+        self._logger.info(
+            "Resolved iguazio version", iguazio_version=self._iguazio_version
+        )
 
 
 @click.group()
@@ -491,6 +541,8 @@ def main():
 @click.argument("app-cluster-ssh-password", type=str, required=True)
 @click.argument("github-access-token", type=str, required=True)
 @click.argument("provctl-download-url", type=str, required=True)
+@click.argument("provctl-download-s3-access-key", type=str, required=True)
+@click.argument("provctl-download-s3-key-id", type=str, required=True)
 @click.argument("mlrun-dbpath", type=str, required=True)
 @click.argument("webapi-direct-url", type=str, required=True)
 @click.argument("framesd-url", type=str, required=True)
@@ -518,6 +570,8 @@ def run(
     app_cluster_ssh_password: str,
     github_access_token: str,
     provctl_download_url: str,
+    provctl_download_s3_access_key: str,
+    provctl_download_s3_key_id: str,
     mlrun_dbpath: str,
     webapi_direct_url: str,
     framesd_url: str,
@@ -541,6 +595,8 @@ def run(
         app_cluster_ssh_password,
         github_access_token,
         provctl_download_url,
+        provctl_download_s3_access_key,
+        provctl_download_s3_key_id,
         mlrun_dbpath,
         webapi_direct_url,
         framesd_url,
@@ -586,21 +642,11 @@ def env(
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
-        mlrun_version=None,
-        mlrun_commit=None,
-        override_image_registry=None,
-        override_image_repo=None,
-        override_mlrun_images=None,
-        data_cluster_ip=None,
-        data_cluster_ssh_password=None,
-        app_cluster_ssh_password=None,
-        github_access_token=None,
         mlrun_dbpath=mlrun_dbpath,
         webapi_direct_http=webapi_direct_url,
         framesd_url=framesd_url,
         username=username,
         access_key=access_key,
-        iguazio_version=None,
         spark_service=spark_service,
         password=password,
         debug=debug,

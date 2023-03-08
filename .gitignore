@@ -31,3 +31,8 @@ tests/system/env.yml
 docs/CONTRIBUTING.md
 mlrun/api/proto/*pb2*.py
 docs/tutorial/colab/01-mlrun-basics-colab.ipynb
+
+# used for local development.
+# e.g., when developing for mlrun api, you may use this env to preset envvars.
+# then, when running the api, just feed it with "MLRUN_DEFAULT_ENV_FILE=<absolute-path-to-this-file>"
+hack/mlrun.env

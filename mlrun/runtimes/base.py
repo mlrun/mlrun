@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import shlex
 import traceback
 import typing
 import uuid
@@ -1216,11 +1217,9 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        if isinstance(requirements, str):
-            with open(requirements, "r") as fp:
-                requirements = fp.read().splitlines()
+        encoded_requirements = self._encode_requirements(requirements)
         commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = "python -m pip install " + " ".join(requirements)
+        new_command = f"python -m pip install {encoded_requirements}"
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
@@ -1394,6 +1393,30 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
+    def _encode_requirements(self, requirements_to_encode):
+
+        # if a string, read the file then encode
+        if isinstance(requirements_to_encode, str):
+            with open(requirements_to_encode, "r") as fp:
+                requirements_to_encode = fp.read().splitlines()
+
+        requirements = []
+        for requirement in requirements_to_encode:
+            requirement = requirement.strip()
+
+            # -r / --requirement are flags and should not be escaped
+            for req_flag in ["-r", "--requirement"]:
+                if requirement.startswith(req_flag):
+                    requirement = requirement[len(req_flag) :].strip()
+                    requirements.append(req_flag)
+                    break
+
+            # wrap in single quote to ensure that the requirement is treated as a single string
+            # quote the requirement to avoid issues with special characters, double quotes, etc.
+            requirements.append(shlex.quote(requirement))
+
+        return " ".join(requirements)
+
 
 def is_local(url):
     if not url:
@@ -1411,9 +1434,16 @@ class BaseRuntimeHandler(ABC):
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
         """
-        Should return the label selector should be used to get only resources of a specific object (with id object_id)
+        Should return the label selector to get only resources of a specific object (with id object_id)
         """
         pass
+
+    def _should_collect_logs(self) -> bool:
+        """
+        There are some runtimes which we don't collect logs for using the log collector
+        :return: whether should collect log for it
+        """
+        return True
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: typing.Union[RuntimeClassMode, str] = None
@@ -1701,6 +1731,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = object_label_selector
         return label_selector
 
+    @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return ""
+
     def _enrich_list_resources_response(
         self,
         response: Union[
@@ -1894,6 +1933,7 @@ class BaseRuntimeHandler(ABC):
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
         class_mode: typing.Union[RuntimeClassMode, str] = None,
+        with_main_runtime_resource_label_selector: bool = False,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -1908,6 +1948,15 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
+
+        if with_main_runtime_resource_label_selector:
+            main_runtime_resource_label_selector = (
+                self._get_main_runtime_resource_label_selector()
+            )
+            if main_runtime_resource_label_selector:
+                label_selector = ",".join(
+                    [label_selector, main_runtime_resource_label_selector]
+                )
 
         return label_selector
 

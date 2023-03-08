@@ -212,7 +212,7 @@ Alternatively you can use MLRun SDK calls:
 - {py:meth}`~mlrun.projects.MlrunProject.push` - save project spec (`project.yaml`) and commit/push updates to remote repo
 
 ```{admonition} Note
-If you are using containerized Jupyter you might need to first set your Git parameters, e.g. using the following commands:</b>
+If you are using containerized Jupyter you might need to first set your Git parameters, e.g. using the following commands and run git push from the terminal once to store your credentials:</b>
 ```
     git config --global user.email "<my@email.com>"
     git config --global user.name "<name>"

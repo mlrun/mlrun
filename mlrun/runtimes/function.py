@@ -31,9 +31,9 @@ from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
+import mlrun.utils
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
-from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
@@ -1706,7 +1706,9 @@ def _compile_nuclio_archive_config(
         if source.startswith("git://"):
             source = source.replace("git://", "https://")
 
-        source, reference, branch = _resolve_git_reference_from_source(source)
+        source, reference, branch = mlrun.utils.resolve_git_reference_from_source(
+            source
+        )
         if not branch and not reference:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "git branch or refs must be specified in the source e.g.: "
@@ -1722,7 +1724,7 @@ def _compile_nuclio_archive_config(
 
         token = get_secret("GIT_TOKEN")
         if token:
-            username, password = get_git_username_password_from_token(token)
+            username, password = mlrun.utils.get_git_username_password_from_token(token)
 
         code_entry_attributes["username"] = username
         code_entry_attributes["password"] = password
@@ -1732,21 +1734,6 @@ def _compile_nuclio_archive_config(
     nuclio_spec.set_config("spec.build.path", source)
     nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
     nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
-
-
-def _resolve_git_reference_from_source(source):
-    # kaniko allow multiple "#" e.g. #refs/..#commit
-    split_source = source.split("#", 1)
-
-    # no reference was passed
-    if len(split_source) < 2:
-        return source, "", ""
-
-    reference = split_source[1]
-    if reference.startswith("refs/"):
-        return split_source[0], reference, ""
-
-    return split_source[0], "", reference
 
 
 def _resolve_work_dir_and_handler(handler):

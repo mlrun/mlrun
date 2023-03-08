@@ -183,31 +183,20 @@ class RemoteSparkRuntime(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
-        :return True: if the function is ready (deployed)
+        :return True if the function is ready (deployed)
         """
         # connect will populate the config from the server config
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._resolve_default_base_image
-            # check if a command upgrades pip, if not add it
-            pip_upgrade_regex = re.compile(r"pip install --upgrade .*pip")
-            for command in self.spec.build.commands:
-                if pip_upgrade_regex.match(command):
-                    break
-            else:
-                # python 3.7 reached EOL on 2023-06-27 and pip will not support it forever,
-                # can be removed when we drop support for python 3.7
-                self.spec.build.commands = [
-                    "pip install --upgrade pip~=23.0"
-                ] + self.spec.build.commands
-
         return super().deploy(
             watch=watch,
             with_mlrun=with_mlrun,

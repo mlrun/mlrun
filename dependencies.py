@@ -66,13 +66,11 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "google-cloud": [
             # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
             "google-cloud-storage~=1.20",
-            # because of storey which isn't compatible with google-cloud-bigquery >3.2, conflicting grpcio
-            # google-cloud-bigquery 3.3.0 has grpcio >= 1.47.0, < 2.0dev while storey 1.2.2 has grpcio<1.42 and >1.34.0
-            "google-cloud-bigquery[pandas]>=3.2,<3.5",
+            "google-cloud-bigquery[pandas, bqstorage]~=3.2",
             "google-cloud~=0.34",
         ],
         "google-cloud-storage": ["gcsfs~=2021.8.1"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas]>=3.2,<3.5"],
+        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
         "kafka": ["kafka-python~=2.0"],
         "redis": ["redis~=4.3"],
     }

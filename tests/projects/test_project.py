@@ -772,3 +772,15 @@ def test_validating_large_int_params(
         )
 
     assert run_saved == (rundb_mock._runs != {})
+
+
+def test_load_project_with_git_enrichment(
+    context,
+    rundb_mock,
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(context=str(context), url=url, save=True)
+
+    assert (
+        project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
+    )

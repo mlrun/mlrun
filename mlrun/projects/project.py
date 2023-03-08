@@ -56,7 +56,7 @@ from ..utils import (
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
-from ..utils.helpers import resolve_git_reference_from_source
+from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -266,7 +266,7 @@ def load_project(
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
             # Validate that git source includes branch and refs
-            url = _enrich_git_branch(url=url, repo=repo)
+            url = ensure_git_branch(url=url, repo=repo)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -311,22 +311,6 @@ def load_project(
     _set_as_current_default_project(project)
 
     return project
-
-
-def _enrich_git_branch(url: str, repo: git.Repo) -> str:
-    """If git source has no branch and refs, this method applies the main active branch, as defined in the
-    repo object.
-
-    :param url:   Git source url
-    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
-
-    :return:     Git source url with full valid path to the relevant branch
-
-    """
-    source, reference, branch = resolve_git_reference_from_source(url)
-    if not branch and not reference:
-        url = f"{url}#refs/heads/{repo.active_branch}"
-    return url
 
 
 def get_or_create_project(
@@ -896,7 +880,7 @@ class MlrunProject(ModelObj):
 
             source, reference, branch = resolve_git_reference_from_source(source)
             if not branch and not reference:
-                warnings.warn(
+                logger.warn(
                     "Please add git branch or refs to the source e.g.: "
                     "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
                 )

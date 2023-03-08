@@ -1020,7 +1020,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
-# TODO: Remove --ensure-project in 1.6.0
+# TODO: Remove --ensure-project in 1.5.0
 @click.option(
     "--ensure-project",
     is_flag=True,
@@ -1090,8 +1090,8 @@ def project(
 
     if ensure_project:
         warnings.warn(
-            "'ensure_project' is deprecated and will be removed in 1.6.0, use 'save' (True by default) instead. ",
-            # TODO: Remove this in 1.6.0
+            "'ensure_project' is deprecated and will be removed in 1.5.0, use 'save' (True by default) instead. ",
+            # TODO: Remove this in 1.5.0
             FutureWarning,
         )
 

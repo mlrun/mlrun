@@ -261,7 +261,6 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -296,7 +295,6 @@ class TestProject(TestMLRunSystem):
             "remote",
             "-p",
             f"v3io:///projects/{name}",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -314,6 +312,27 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+    def test_cli_no_save_flag(self):
+        # load project from git
+        name = "saveproj12345"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # clone a project to local dir but don't save the project to the DB
+        args = [
+            "-n",
+            name,
+            "-u",
+            "git://github.com/mlrun/project-demo.git",
+            "--no-save",
+            project_dir,
+        ]
+        exec_project(args)
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self._run_db.get_project(name=name)
 
     def test_get_or_create(self):
         # create project and save to DB
@@ -541,7 +560,6 @@ class TestProject(TestMLRunSystem):
             "main",
             "--watch",
             "--timeout 1",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)

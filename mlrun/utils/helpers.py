@@ -27,6 +27,7 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import git
 import numpy as np
 import pandas
 import semver
@@ -1241,3 +1242,35 @@ def filter_warnings(action, category):
         return wrapper
 
     return decorator
+
+
+def resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def ensure_git_branch(url: str, repo: git.Repo) -> str:
+    """Ensures git url includes branch.
+    If no branch or refs are included in the git source then will enrich the git url with the current active branch
+     as defined in the repo object. Otherwise, will just return the url and won't apply any enrichments.
+
+    :param url:   Git source url
+    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
+
+    :return:     Git source url with full valid path to the relevant branch
+
+    """
+    source, reference, branch = resolve_git_reference_from_source(url)
+    if not branch and not reference:
+        url = f"{url}#refs/heads/{repo.active_branch}"
+    return url

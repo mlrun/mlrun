@@ -56,6 +56,7 @@ from ..utils import (
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -165,6 +166,8 @@ def new_project(
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
@@ -262,6 +265,8 @@ def load_project(
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
+            # Validate that git source includes branch and refs
+            url = ensure_git_branch(url=url, repo=repo)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -279,6 +284,8 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     if not project.metadata.name:
         raise ValueError("project name must be specified")
     if not from_db or (url and url.startswith("git://")):
@@ -868,6 +875,16 @@ class MlrunProject(ModelObj):
         """
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
+
+        if self.spec.source.startswith("git://"):
+
+            source, reference, branch = resolve_git_reference_from_source(source)
+            if not branch and not reference:
+                logger.warn(
+                    "Please add git branch or refs to the source e.g.: "
+                    "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+                )
+
         self.spec.workdir = workdir or self.spec.workdir
         # reset function objects (to recalculate build attributes)
         self.sync_functions()

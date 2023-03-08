@@ -789,7 +789,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
-    data = json.dumps(object_dict, sort_keys=True).encode()
+    # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
+    # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
+    # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
+    # it's valid here.
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()

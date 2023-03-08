@@ -1678,7 +1678,8 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands and try again:\n"
+                        "Git is not configured, please run the following commands and run git push from the terminal "
+                        "once to store your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"

@@ -747,8 +747,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
 
             logger.error(
-                f"current event request time {timestamp} has to be later than the last request "
-                f"{self.last_request[endpoint_id]}. Otherwise, it will not be written into the TSDB."
+                f"current event request time {timestamp} is earlier than the last request time "
+                f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
             )
 
     def is_list_of_numerics(

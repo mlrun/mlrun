@@ -326,7 +326,10 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	errGroup, ctx := errgroup.WithContext(suite.ctx)
 
 	startReading := make(chan bool)
+
+	var totalWrittenLock sync.Mutex
 	var totalWritten = 0
+	var totalReadLock sync.Mutex
 	var totalRead = 0
 
 	// write to file
@@ -338,7 +341,9 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 			message := fmt.Sprintf(messageTemplate, i)
 			err := common.WriteToFile(filePath, []byte(message), true)
 			suite.Require().NoError(err, "Failed to write to file")
+			totalWrittenLock.Lock()
 			totalWritten += len(message)
+			totalWrittenLock.Unlock()
 		}
 		return nil
 	})
@@ -364,16 +369,20 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 			}
 
 			offset += len(message)
+			totalReadLock.Lock()
 			totalRead += len(logs)
+			totalReadLock.Unlock()
 
 			if j == 100 {
 				return nil
 			}
 			if logs == nil {
 				time.Sleep(10 * time.Millisecond)
+				totalWrittenLock.Lock()
 				suite.logger.DebugWith("Got nil logs, retrying",
 					"totalWritten", totalWritten,
 					"offset", offset)
+				totalWrittenLock.Unlock()
 				continue
 			}
 			j++

@@ -417,7 +417,13 @@ def _handle_job_deploy_status(
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == "ready":
+        if state == mlrun.api.schemas.FunctionState.ready:
+            # when the function has been built we set the created image into the `spec.image` for reference see at the
+            # end of the function where we resolve if the status is ready and then set the spec.build.image to
+            # spec.image
+            # TODO: spec shouldn't hold backend enriched attributes, but rather in the status block
+            #   therefore need set it as a new attribute in status.image which will ease our resolution
+            #   of whether it is a user defined image or MLRun enriched one.
             image = image or get_in(fn, "spec.image")
         return Response(
             content=out,
@@ -433,6 +439,16 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
+
+        if state == mlrun.api.schemas.FunctionState.ready:
+            # when the function has been built we set the created image into the `spec.image` for reference see at the
+            # end of the function where we resolve if the status is ready and then set the spec.build.image to
+            # spec.image
+            # TODO: spec shouldn't hold backend enriched attributes, but rather in the status block
+            #   therefore need set it as a new attribute in status.image which will ease our resolution
+            #   of whether it is a user defined image or MLRun enriched one.
+            image = image or get_in(fn, "spec.image")
+
         with log_file.open("rb") as fp:
             fp.seek(offset)
             out = fp.read()

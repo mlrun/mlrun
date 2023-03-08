@@ -40,7 +40,7 @@ on:
         required: true
         default: 'true'
       override_iguazio_version:
-        description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
+        description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
       test_code_from_action:
         description: 'Take tested code from action REF rather than upstream (default: true). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
@@ -179,10 +179,7 @@ jobs:
         echo "mlrun_system_tests_clean_resources=$( \
           input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
-        echo "iguazio_version=$( \
-          override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION && \
-          iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
-          resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)" >> $GITHUB_OUTPUT
+        echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
         INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
@@ -200,6 +197,8 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \

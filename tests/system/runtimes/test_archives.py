@@ -236,6 +236,66 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
+    def test_run_function_with_auto_build_and_source_is_idempotent(self):
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
+    def test_run_function_with_auto_build_and_source_is_idempotent_after_failure(self):
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            # not existing package, expected to fail when runnning
+            requirements=["pandaasdasds"],
+        )
+        project.save()
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            project.run_function("myjob", auto_build=True)
+
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
     def test_nuclio_project(self):
         project = mlrun.new_project("git-proj-nuc", user_project=True)
         # using project.name because this is a user project meaning the project name get concatenated with the user name

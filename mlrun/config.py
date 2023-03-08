@@ -363,6 +363,7 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",

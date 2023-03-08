@@ -70,12 +70,6 @@ class MLRunStep(MapClass):
     def _do_spark(self, event):
         raise NotImplementedError
 
-    @classmethod
-    def default_dict(cls):
-        params = list(cls.__init__.__code__.co_varnames)
-        defaults = cls.__init__.__defaults__
-        return dict(zip(params[-len(defaults) :], defaults))
-
 
 class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
@@ -634,7 +628,7 @@ class DropFeatures(StepToDict, MLRunStep):
     @classmethod
     def validate_args(cls, feature_set, **kwargs):
         features = kwargs.get("features", [])
-        entity_names = [entity.name for entity in feature_set.spec.entities]
+        entity_names = list(feature_set.spec.entities.keys())
         dropped_entities = set(features).intersection(entity_names)
         if dropped_entities:
             raise mlrun.errors.MLRunInvalidArgumentError(

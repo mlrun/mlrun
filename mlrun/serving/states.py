@@ -329,7 +329,7 @@ class TaskStep(BaseStep):
                 self._inject_context = True
             return
 
-        self._class_object, self.class_name = self.get_or_create_class_object(
+        self._class_object, self.class_name = self.get_step_class_object(
             namespace=namespace
         )
         if not self._object or reset:
@@ -384,13 +384,13 @@ class TaskStep(BaseStep):
             class_args["graph_step"] = self
         return class_args
 
-    def get_or_create_class_object(self, namespace):
+    def get_step_class_object(self, namespace):
         class_name = self.class_name
         class_object = self._class_object
         if isinstance(class_name, type):
             class_object = class_name
             class_name = class_name.__name__
-        if not class_object:
+        elif not class_object:
             if class_name == "$remote":
 
                 from mlrun.serving.remote import RemoteStep

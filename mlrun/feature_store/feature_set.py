@@ -501,9 +501,7 @@ class FeatureSet(ModelObj):
             ):
                 #  we are not checking none class names or queue class names.
                 continue
-            class_object, class_name = step.get_or_create_class_object(
-                namespace=namespace
-            )
+            class_object, class_name = step.get_step_class_object(namespace=namespace)
             if not hasattr(class_object, "validate_args"):
                 continue
             class_args = step.get_full_class_args(

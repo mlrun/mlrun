@@ -378,11 +378,7 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 			}
 			if logs == nil {
 				time.Sleep(10 * time.Millisecond)
-				totalWrittenLock.Lock()
-				suite.logger.DebugWith("Got nil logs, retrying",
-					"totalWritten", totalWritten,
-					"offset", offset)
-				totalWrittenLock.Unlock()
+				suite.logger.DebugWith("Got nil logs, retrying", "offset", offset)
 				continue
 			}
 			j++

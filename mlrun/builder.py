@@ -330,16 +330,16 @@ def build_image(
 
     commands = commands or []
     if with_mlrun:
+        # mlrun prerequisite - upgrade pip
+        upgrade_pip_command = resolve_upgrade_pip_command(commands)
+        if upgrade_pip_command:
+            commands.append(upgrade_pip_command)
+
         mlrun_command = resolve_mlrun_install_command(
             mlrun_version_specifier, client_version, commands
         )
         if mlrun_command:
             commands.append(mlrun_command)
-
-        # mlrun prerequisite - upgrade pip
-        upgrade_pip_command = resolve_upgrade_pip_command(commands)
-        if upgrade_pip_command:
-            commands.insert(0, upgrade_pip_command)
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")

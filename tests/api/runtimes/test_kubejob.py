@@ -729,12 +729,15 @@ def my_func(context):
             if commands:
                 expected_str += "\nRUN "
                 expected_str += "\nRUN ".join(commands)
-            expected_str += "\nRUN python -m pip install --upgrade pip~=23.0"
+            expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
             if with_mlrun:
                 expected_str += '\nRUN python -m pip install "mlrun[complete]'
             assert expected_str in dockerfile
         else:
-            assert "pip install --upgrade pip~=23.0" not in dockerfile
+            assert (
+                f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                not in dockerfile
+            )
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

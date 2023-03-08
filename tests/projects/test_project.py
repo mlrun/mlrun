@@ -25,6 +25,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.artifacts
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.utils.helpers
@@ -497,6 +498,39 @@ def test_set_artifact_from_path_with_kind(artifact_kind, expected_kind, expectat
         assert project.spec.artifacts[0]["metadata"]["key"] == artifact_key
         assert project.spec.artifacts[0]["metadata"]["project"] == project_name
         assert project.spec.artifacts[0]["spec"]["target_path"] == artifact_path
+
+
+def test_set_artifact_skeleton():
+    artifact_key = "my-model"
+    project_name = "artifact-project"
+    model_file = "store://my-model-file"
+    model = mlrun.artifacts.ModelArtifact(key=artifact_key, model_file=model_file)
+    project = mlrun.new_project(project_name, context=str(assets_path()), save=False)
+
+    project.set_artifact(
+        key=artifact_key,
+        artifact=model,
+        full_object=False,
+    )
+
+    assert project.spec.artifacts[0]["kind"] == "model"
+    assert project.spec.artifacts[0]["metadata"]["key"] == artifact_key
+    assert project.spec.artifacts[0]["metadata"]["project"] == project_name
+    assert project.spec.artifacts[0]["spec"]["model_file"] == model_file.split("://")[1]
+
+    artifact_key = "my-plot"
+    plot_body = "plot body"
+    plot = mlrun.artifacts.PlotArtifact(key=artifact_key, body=plot_body)
+    project.set_artifact(
+        key=artifact_key,
+        artifact=plot,
+        full_object=False,
+    )
+
+    assert project.spec.artifacts[1]["kind"] == "plot"
+    assert project.spec.artifacts[1]["metadata"]["key"] == artifact_key
+    assert project.spec.artifacts[1]["metadata"]["project"] == project_name
+    assert project.spec.artifacts[1]["spec"]["body"] == plot_body
 
 
 def test_import_artifact_using_relative_path():

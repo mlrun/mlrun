@@ -281,6 +281,20 @@ class ModelArtifact(Artifact):
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
 
+    def skeleton(self, project):
+        return mlrun.artifacts.dict_to_artifact(
+            {
+                "kind": self.kind,
+                "metadata": {
+                    "key": self.key,
+                    "project": project,
+                },
+                "spec": {
+                    "model_file": self.spec.model_file,
+                },
+            }
+        )
+
     def upload(self, artifact_path: str = None):
         """
         internal, upload to target store

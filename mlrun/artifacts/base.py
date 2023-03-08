@@ -326,6 +326,17 @@ class Artifact(ModelObj):
                 struct[field] = val.base_dict()
         return struct
 
+    def skeleton(self, project):
+        return mlrun.artifacts.dict_to_artifact(
+            {
+                "kind": self.kind,
+                "metadata": {
+                    "key": self.key,
+                    "project": project,
+                },
+            }
+        )
+
     def upload(self, artifact_path: str = None):
         """
         internal, upload to target store
@@ -832,6 +843,17 @@ class LegacyArtifact(ModelObj):
             "project",
         ]
         return super().from_dict(struct, fields=fields)
+
+    def skeleton(self, project):
+        return mlrun.artifacts.dict_to_artifact(
+            {
+                "kind": self.kind,
+                "metadata": {
+                    "key": self.key,
+                    "project": project,
+                },
+            }
+        )
 
     def upload(self):
         """internal, upload to target store"""

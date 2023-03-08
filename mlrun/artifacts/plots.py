@@ -19,7 +19,19 @@ from deprecated import deprecated
 import mlrun
 
 from ..utils import dict_to_json
-from .base import Artifact, LegacyArtifact
+from .base import Artifact, ArtifactSpec, LegacyArtifact
+
+
+class PlotArtifactSpec(ArtifactSpec):
+    _dict_fields = ArtifactSpec._dict_fields + ["body"]
+
+    @property
+    def body(self):
+        return self._body
+
+    @body.setter
+    def body(self, body):
+        self._body = body
 
 
 class PlotArtifact(Artifact):
@@ -36,6 +48,14 @@ class PlotArtifact(Artifact):
         super().__init__(key, body, format="html", target_path=target_path)
         self.metadata.description = title
 
+    @property
+    def spec(self) -> PlotArtifactSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", PlotArtifactSpec)
+
     def before_log(self):
         self.spec.viewer = "chart"
         import matplotlib
@@ -46,6 +66,20 @@ class PlotArtifact(Artifact):
             raise ValueError(
                 "matplotlib fig or png bytes must be provided as artifact body"
             )
+
+    def skeleton(self, project):
+        return mlrun.artifacts.dict_to_artifact(
+            {
+                "kind": self.kind,
+                "metadata": {
+                    "key": self.key,
+                    "project": project,
+                },
+                "spec": {
+                    "body": self.spec.get_body(),
+                },
+            }
+        )
 
     def get_body(self):
         """Convert Matplotlib figure 'fig' into a <img> tag for HTML use

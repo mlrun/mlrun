@@ -1014,6 +1014,7 @@ class MlrunProject(ModelObj):
         target_path: str = None,
         tag: str = None,
         artifact_kind: str = None,
+        full_object: bool = True,
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
@@ -1035,6 +1036,7 @@ class MlrunProject(ModelObj):
         :param tag:             artifact tag
         :param artifact_kind:   artifact kind (artifact, model, dataset, ..) needed if artifact is not passed
                                 see mlrun/artifacts/manager.py:artifact_types for full list
+        :param full_object:     if True (default) will set the full artifact object to the project spec
         """
         if artifact and isinstance(artifact, str):
             artifact_path, _ = self.get_item_absolute_path(
@@ -1047,8 +1049,12 @@ class MlrunProject(ModelObj):
             if tag:
                 artifact["tag"] = tag
         else:
-            # TODO: get the base dict from the given artifact and make it compact for all artifact kinds
             if not artifact:
+                logger.warning(
+                    "Artifact not specified, adding minimal artifact object. "
+                    "It is recommended to specify the artifact object and full_object=False "
+                    "to save only the minimum required to the project spec ."
+                )
                 artifact = dict_to_artifact(
                     {
                         "kind": artifact_kind or "artifact",
@@ -1058,6 +1064,9 @@ class MlrunProject(ModelObj):
                         },
                     }
                 )
+            elif not full_object:
+                # TODO: get the base dict from the given artifact and make it compact for all artifact kinds
+                artifact = artifact.skeleton(project=self.metadata.name)
             artifact.spec.target_path = target_path or artifact.spec.target_path
             if artifact.spec.target_path and "://" not in artifact.spec.target_path:
                 raise mlrun.errors.MLRunInvalidArgumentError(

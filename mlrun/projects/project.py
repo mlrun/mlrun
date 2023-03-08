@@ -1053,7 +1053,7 @@ class MlrunProject(ModelObj):
                 logger.warning(
                     "Artifact not specified, adding minimal artifact object. "
                     "It is recommended to specify the artifact object and full_object=False "
-                    "to save only the minimum required to the project spec ."
+                    "to save only the minimum required to the project spec."
                 )
                 artifact = dict_to_artifact(
                     {

@@ -337,19 +337,26 @@ async def _start_log_for_run(
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)
-        # if local run, the log collector doesn't support it
-        # we mark the run as requested logs collection so we won't iterate over it again
-        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind):
+
+        # information for why runtime isn't log collectable is inside the method
+        if not mlrun.runtimes.RuntimeKinds.is_log_collectable_runtime(run_kind):
+            # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler = await fastapi.concurrency.run_in_threadpool(
-                get_runtime_handler, run_kind
+            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+                await fastapi.concurrency.run_in_threadpool(
+                    get_runtime_handler, run_kind
+                )
             )
             object_id = runtime_handler.resolve_object_id(run)
             label_selector = runtime_handler.resolve_label_selector(
                 project=project_name,
                 object_id=object_id,
                 class_mode=RuntimeClassMode.run,
+                # when collecting logs for runtimes we only collect for the main runtime resource, as there could be
+                # runtimes that the user will create with hundreds of resources (e.g mpi job can have multiple workers
+                # which aren't really important for log collection
+                with_main_runtime_resource_label_selector=True,
             )
             success, _ = await logs_collector_client.start_logs(
                 run_uid=run_uid,

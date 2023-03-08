@@ -1411,9 +1411,16 @@ class BaseRuntimeHandler(ABC):
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
         """
-        Should return the label selector should be used to get only resources of a specific object (with id object_id)
+        Should return the label selector to get only resources of a specific object (with id object_id)
         """
         pass
+
+    def _should_collect_logs(self) -> bool:
+        """
+        There are some runtimes which we don't collect logs for using the log collector
+        :return: whether should collect log for it
+        """
+        return True
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: typing.Union[RuntimeClassMode, str] = None
@@ -1701,6 +1708,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = object_label_selector
         return label_selector
 
+    @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return ""
+
     def _enrich_list_resources_response(
         self,
         response: Union[
@@ -1894,6 +1910,7 @@ class BaseRuntimeHandler(ABC):
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
         class_mode: typing.Union[RuntimeClassMode, str] = None,
+        with_main_runtime_resource_label_selector: bool = False,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -1908,6 +1925,15 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
+
+        if with_main_runtime_resource_label_selector:
+            main_runtime_resource_label_selector = (
+                self._get_main_runtime_resource_label_selector()
+            )
+            if main_runtime_resource_label_selector:
+                label_selector = ",".join(
+                    [label_selector, main_runtime_resource_label_selector]
+                )
 
         return label_selector
 

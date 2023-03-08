@@ -64,6 +64,11 @@ The new service is transparent to the end-user: there are no UI or API changes.
 - Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 - `get_offline_features` supports Spark Operator and Remote Spark.
 
+#### Logging data
+Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
+part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. 
+See [more details](../tutorial/logging-with-hints.html).
+
 #### Projects
 
 - When defining a new project from scratch, there is now a default `context` directory: `./`, which is the directory that the MLRun 

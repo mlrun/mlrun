@@ -12,17 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import tempfile
 
 import git
+import pytest
 
 import mlrun.runtimes.utils
 
 
-def test_add_code_metadata():
-    # gets to the root of the git repo
-    repo = git.Repo(search_parent_directories=True)
-    code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.git_dir)
-    assert "mlrun.git" in code_metadata, "code metadata should contain git info"
+@pytest.fixture
+def repo():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo = git.Repo.init(tmpdir)
+        repo.create_remote("origin", "git@github.com:somewhere/else.git")
+
+        # first commit
+        tempfilename = "tempfile"
+        open(f"{repo.working_dir}/{tempfilename}", "wb").close()
+        repo.index.add([tempfilename])
+        repo.index.commit("initialcommit")
+
+        yield repo
+
+
+def test_add_code_metadata_sanity(repo):
+    code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.working_dir)
+    assert (
+        repo.remote("origin").url in code_metadata
+    ), "code metadata should contain git info"
     assert (
         repo.head.commit.hexsha in code_metadata
     ), "commit hash should be in code metadata"
+
+
+def test_add_code_metadata_stale_remote(repo):
+    # simulating a malformed / stale remote that has no url attribute
+    with open(f"{repo.git_dir}/config", "a") as f:
+        f.write('[remote "stale"]\n')
+
+    # origin is still there and valid, use that
+    code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.working_dir)
+    assert (
+        repo.remote("origin").url in code_metadata
+    ), "code metadata should contain git info"
+    assert (
+        repo.head.commit.hexsha in code_metadata
+    ), "commit hash should be in code metadata"
+
+    repo.delete_remote(repo.remote("origin"))
+
+    code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.working_dir)
+    assert code_metadata is None, "code metadata should be None as there is no remote"

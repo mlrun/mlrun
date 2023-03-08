@@ -108,7 +108,6 @@ class KubejobRuntime(KubeResource):
         requirements=None,
         overwrite=False,
         verify_base_image=True,
-        upgrade_pip=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -130,7 +129,6 @@ class KubejobRuntime(KubeResource):
                               applied to requirements and commands)
                             * True: the existing params are replaced by the new ones
         :param verify_base_image:   verify the base image is set
-        :param upgrade_pip:         upgrade pip version before installing requirements
         """
         if image:
             self.spec.build.image = image
@@ -158,8 +156,6 @@ class KubejobRuntime(KubeResource):
             self.spec.build.with_mlrun = with_mlrun
         if auto_build:
             self.spec.build.auto_build = auto_build
-        if upgrade_pip is not None:
-            self.spec.build.upgrade_pip = upgrade_pip
 
         if verify_base_image:
             self.verify_base_image()
@@ -173,7 +169,6 @@ class KubejobRuntime(KubeResource):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
-        upgrade_pip=None,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -185,7 +180,6 @@ class KubejobRuntime(KubeResource):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
-        :param upgrade_pip:             upgrade pip version before installing requirements
 
         :return True if the function is ready (deployed)
         """
@@ -200,27 +194,6 @@ class KubejobRuntime(KubeResource):
                     build.base_image.startswith("mlrun/")
                     or "/mlrun/" in build.base_image
                 )
-
-        if upgrade_pip is None:
-            if build.upgrade_pip is not None:
-                upgrade_pip = build.upgrade_pip
-            elif with_mlrun:
-                # installing mlrun on top of a base image that has an old pip version
-                # can cause issues with resolving dependencies
-                if "iguazio" in build.base_image:
-                    base_image_igz_version = build.base_image.split(":")[-1]
-                    igz_version = mlrun.mlconf.get_parsed_igz_version(
-                        base_image_igz_version
-                    )
-                    # pip version in iguazio 3.5.3 images is good enough
-                    if igz_version and igz_version < semver.VersionInfo.parse(
-                        "3.5.3-b1"
-                    ):
-                        upgrade_pip = True
-                else:
-                    # since we can't make assumptions about the base image and the user didn't specify
-                    # whether to upgrade pip or not, we'll upgrade it
-                    upgrade_pip = True
 
         if not build.source and not build.commands and not build.extra and with_mlrun:
             logger.info(
@@ -245,7 +218,6 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
-                upgrade_pip=upgrade_pip,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
@@ -270,7 +242,6 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 watch,
-                upgrade_pip=upgrade_pip,
             )
             self.save(versioned=False)
 
@@ -347,7 +318,6 @@ class KubejobRuntime(KubeResource):
         secret_name="",
         with_mlrun=True,
         skip_deployed=False,
-        upgrade_pip=False,
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -363,7 +333,6 @@ class KubejobRuntime(KubeResource):
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
-            upgrade_pip=upgrade_pip,
         )
 
     def _run(self, runobj: RunObject, execution):

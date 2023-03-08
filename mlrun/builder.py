@@ -312,7 +312,6 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime=None,
-    upgrade_pip=False,
 ):
     runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
@@ -337,7 +336,7 @@ def build_image(
         if mlrun_command:
             commands.append(mlrun_command)
 
-    if upgrade_pip:
+        # mlrun prerequisite - upgrade pip
         upgrade_pip_command = resolve_upgrade_pip_command(commands)
         if upgrade_pip_command:
             commands.insert(0, upgrade_pip_command)
@@ -458,7 +457,7 @@ def resolve_mlrun_install_command(
     mlrun_version_specifier=None, client_version=None, commands=None
 ):
     commands = commands or []
-    install_mlrun_regex = re.compile(r"pip install .*mlrun")
+    install_mlrun_regex = re.compile(r".*pip install .*mlrun.*")
     for command in commands:
         if install_mlrun_regex.match(command):
             return None
@@ -489,7 +488,7 @@ def resolve_mlrun_install_command(
 
 def resolve_upgrade_pip_command(commands=None):
     commands = commands or []
-    pip_upgrade_regex = re.compile(r"pip install --upgrade .*pip")
+    pip_upgrade_regex = re.compile(r".*pip install --upgrade .*pip.*")
     for command in commands:
         if pip_upgrade_regex.match(command):
             return None
@@ -507,7 +506,6 @@ def build_runtime(
     builder_env=None,
     client_version=None,
     client_python_version=None,
-    upgrade_pip=False,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -582,7 +580,6 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
-        upgrade_pip=upgrade_pip,
     )
     runtime.status.build_pod = None
     if status == "skipped":

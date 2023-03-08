@@ -699,20 +699,13 @@ def my_func(context):
         assert runtime.spec.build.image == "target/mlrun"
 
     @pytest.mark.parametrize(
-        "with_mlrun, upgrade_pip, base_image, commands, expected_to_upgrade",
+        "with_mlrun, commands, expected_to_upgrade",
         [
-            (True, True, "some/image", [], True),
-            (True, None, "some/image", [], True),
-            (False, None, "some/image", ["some command"], False),
-            (False, True, "some/image", ["some command"], True),
-            (True, False, "some/image", [], False),
-            (True, None, "some/image:3.5.2", [], True),
-            (True, None, "iguazio/image:3.5.2", [], True),
-            (False, None, "iguazio/image:3.5.2", ["some command"], False),
-            (True, False, "iguazio/image:3.5.2", [], False),
-            (True, None, "iguazio/image:3.5.3", [], False),
-            (False, None, "iguazio/image:3.5.3", ["some command"], False),
-            (False, True, "iguazio/image:3.5.3", ["some command"], True),
+            (True, [], True),
+            (False, ["some command"], False),
+            (False, ["python -m pip install pip"], False),
+            (True, ["python -m pip install --upgrade pip~=22.0"], False),
+            (True, ["python -m pip install --upgrade pandas"], True),
         ],
     )
     def test_deploy_upgrade_pip(
@@ -720,8 +713,6 @@ def my_func(context):
         db: Session,
         client: TestClient,
         with_mlrun,
-        upgrade_pip,
-        base_image,
         commands,
         expected_to_upgrade,
     ):
@@ -729,9 +720,9 @@ def my_func(context):
         mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
 
         runtime = self._generate_runtime()
-        runtime.spec.build.base_image = base_image
+        runtime.spec.build.base_image = "some/image"
         runtime.spec.build.commands = copy.deepcopy(commands)
-        runtime.deploy(with_mlrun=with_mlrun, upgrade_pip=upgrade_pip, watch=False)
+        runtime.deploy(with_mlrun=with_mlrun, watch=False)
         dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
         if expected_to_upgrade:
             expected_str = "RUN python -m pip install --upgrade pip~=23.0"
@@ -742,7 +733,7 @@ def my_func(context):
                 expected_str += '\nRUN python -m pip install "mlrun[complete]'
             assert expected_str in dockerfile
         else:
-            assert "pip install --upgrade pip" not in dockerfile
+            assert "pip install --upgrade pip~=23.0" not in dockerfile
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

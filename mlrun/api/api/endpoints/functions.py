@@ -254,11 +254,6 @@ async def build_function(
         with_mlrun = data.get("with_mlrun")
     else:
         with_mlrun = strtobool(data.get("with_mlrun", "on"))
-    if isinstance(data.get("upgrade_pip"), bool):
-        upgrade_pip = data.get("upgrade_pip")
-    else:
-        upgrade_pip = strtobool(data.get("upgrade_pip", "off"))
-
     skip_deployed = data.get("skip_deployed", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
@@ -272,7 +267,6 @@ async def build_function(
         data.get("builder_env"),
         client_version,
         client_python_version,
-        upgrade_pip,
     )
     return {
         "data": fn.to_dict(),
@@ -593,7 +587,6 @@ def _build_function(
     builder_env=None,
     client_version=None,
     client_python_version=None,
-    upgrade_pip=None,
 ):
     fn = None
     ready = None
@@ -687,7 +680,6 @@ def _build_function(
                 builder_env=builder_env,
                 client_version=client_version,
                 client_python_version=client_python_version,
-                upgrade_pip=upgrade_pip,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())

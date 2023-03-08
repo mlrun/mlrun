@@ -340,21 +340,8 @@ def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions
         )
 
 
-@pytest.mark.parametrize(
-    "with_mlrun,upgrade_pip",
-    [
-        (True, True),
-        (False, False),
-        (True, False),
-        (False, True),
-        (None, None),
-    ],
-)
-def test_build_function_pypi_installation_params(
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    with_mlrun,
-    upgrade_pip,
+def test_build_function_with_mlrun_bool(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
 
@@ -367,28 +354,24 @@ def test_build_function_pypi_installation_params(
         },
     }
     original_build_function = mlrun.api.api.endpoints.functions._build_function
-    request_body = {
-        "function": function_dict,
-    }
-    if with_mlrun is not None:
-        request_body["with_mlrun"] = with_mlrun
-    if upgrade_pip is not None:
-        request_body["upgrade_pip"] = upgrade_pip
-    function = mlrun.new_function(runtime=function_dict)
-    mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
-        return_value=(function, True)
-    )
-    response = client.post(
-        "build/function",
-        json=request_body,
-    )
-    assert response.status_code == HTTPStatus.OK.value
-    assert mlrun.api.api.endpoints.functions._build_function.call_args[0][3] == (
-        with_mlrun if with_mlrun is not None else True
-    )
-    assert mlrun.api.api.endpoints.functions._build_function.call_args[0][9] == (
-        upgrade_pip if upgrade_pip is not None else False
-    )
+    for with_mlrun in [True, False]:
+        request_body = {
+            "function": function_dict,
+            "with_mlrun": with_mlrun,
+        }
+        function = mlrun.new_function(runtime=function_dict)
+        mlrun.api.api.endpoints.functions._build_function = unittest.mock.Mock(
+            return_value=(function, True)
+        )
+        response = client.post(
+            "build/function",
+            json=request_body,
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert (
+            mlrun.api.api.endpoints.functions._build_function.call_args[0][3]
+            == with_mlrun
+        )
     mlrun.api.api.endpoints.functions._build_function = original_build_function
 
 

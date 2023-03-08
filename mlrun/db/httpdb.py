@@ -1089,7 +1089,6 @@ class HTTPRunDB(RunDBInterface):
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
-        upgrade_pip=None,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1102,14 +1101,12 @@ class HTTPRunDB(RunDBInterface):
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-        :param upgrade_pip:   Upgrade pip version before installing requirements
         """
 
         try:
             req = {
                 "function": func.to_dict(),
                 "with_mlrun": bool2str(with_mlrun),
-                "upgrade_pip": bool2str(upgrade_pip),
                 "skip_deployed": skip_deployed,
             }
             if mlrun_version_specifier:

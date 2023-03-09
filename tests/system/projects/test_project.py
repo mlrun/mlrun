@@ -632,6 +632,23 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert run_result.output("score")
 
+    def test_run_function_uses_user_defined_artifact_path_over_project_artifact_path(
+        self,
+    ):
+        func_name = "my-func"
+        self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        self.project.artifact_path = "/User/project_artifact_path"
+        user_artifact_path = "/User/user_artifact_path"
+
+        run = self.project.run_function(func_name, artifact_path=user_artifact_path)
+        assert run.spec.output_path == user_artifact_path
+
     def test_set_secrets(self):
         name = "set-secrets"
         self.custom_project_names_to_delete.append(name)

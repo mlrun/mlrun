@@ -569,7 +569,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_build_base_image=expected_build_base_image,
         )
 
-    def test_deploy_build_base_image(
+    def test_deploy_populate_nuclio_errors(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         function = self._generate_runtime(self.runtime_kind)

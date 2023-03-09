@@ -2557,6 +2557,7 @@ def _init_function_from_dict(f, project, name=None):
 
     if with_repo:
         func.spec.build.source = "./"
+        func.spec.build.load_source_on_run = project.spec.load_source_on_run
     if requirements:
         func.with_requirements(requirements)
 

@@ -252,16 +252,29 @@ class _Pickler:
 
 
 class Packager(ABC):
+    """
+    An abstract base class for a packager - a static class that handles an object that was given as an input to a MLRun
+    function or that was returned from a function and is needed to be logged to MLRun.
 
-    TYPES: Dict[Type, str] = {Any: "object"}
-    MODULE: str = None
+    The Packager has two main class methods and two main properties:
+
+    * ``TYPE`` - The object type this packager handles.
+    * ``DEFAULT_ARTIFACT_TYPE`` - The default artifact type to be used when the user didn't specify one.
+    * ``pack`` - Pack a returned object, logging it to MLRun while noting itself how to unpack it once needed.
+    * ``unpack`` - Unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the instructions noted while
+      originally packing it.
+
+
+    """
+    TYPE: Type = ...
+    DEFAULT_ARTIFACT_TYPE = "object"
 
     @classmethod
     def pack(
         cls, obj: Any, artifact_type: Union[str, None], instructions: dict
     ) -> Tuple[Artifact, dict]:
         if artifact_type is None:
-            artifact_type = cls.TYPES.get(type(obj), cls.TYPES[Any])
+            artifact_type = cls.DEFAULT_ARTIFACT_TYPE
 
         pack_method = getattr(cls, f"pack_{artifact_type}")
         cls._validate_instructions(method=pack_method, instructions=instructions)
@@ -282,14 +295,7 @@ class Packager(ABC):
 
     @classmethod
     def is_packable(cls, object_type: Type, artifact_type: str = None):
-        if cls.MODULE is not None:
-            module_name = inspect.getmodule(object_type).__name__
-            if cls.MODULE not in [
-                module_name.rsplit(".", split_count)[0]
-                for split_count in range(module_name.count(".") + 1)
-            ]:
-                return False
-        if Any not in cls.TYPES and object_type not in cls.TYPES:
+        if cls.TYPE is not ... and not issubclass(object_type, cls.TYPE):
             return False
         if (
             artifact_type is not None

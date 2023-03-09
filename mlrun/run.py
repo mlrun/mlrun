@@ -1356,12 +1356,12 @@ class _ContextHandler:
         Initialize a context handler.
         """
         # Initialize the maps:
-        if self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP is None:
-            self._init_default_objects_artifact_types_map()
-        if self._OUTPUTS_LOGGING_MAP is None:
-            self._init_outputs_logging_map()
-        if self._INPUTS_PARSING_MAP is None:
-            self._init_inputs_parsing_map()
+        # if self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP is None:
+        #     self._init_default_objects_artifact_types_map()
+        # if self._OUTPUTS_LOGGING_MAP is None:
+        #     self._init_outputs_logging_map()
+        # if self._INPUTS_PARSING_MAP is None:
+        #     self._init_inputs_parsing_map()
 
         # Set up a variable to hold the context:
         self._context: MLClientCtx = None

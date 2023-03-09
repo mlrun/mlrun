@@ -18,7 +18,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun import get_run_db, new_function, new_task
+from mlrun import MLClientCtx, get_run_db, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -254,6 +254,58 @@ def test_local_context(rundb_mock):
     ), "annotation not updated"
 
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
+
+
+def test_context_from_run_dict():
+    run_dict = {
+        "metadata": {
+            "name": "test-context-from-run-dict",
+            "project": "default",
+            "labels": {"label-key": "label-value"},
+            "annotations": {"annotation-key": "annotation-value"},
+        },
+        "spec": {
+            "parameters": {"p1": 1, "p2": "a string"},
+            "inputs": {"input-key": "input-url"},
+        },
+    }
+    runtime = mlrun.runtimes.base.BaseRuntime.from_dict(run_dict)
+    run = runtime._create_run_object(run_dict)
+    handler = "my_func"
+    out_path = "test_artifact_path"
+    run = runtime._enrich_run(
+        run,
+        handler,
+        run_dict["metadata"]["project"],
+        run_dict["metadata"]["name"],
+        run_dict["spec"]["parameters"],
+        run_dict["spec"]["inputs"],
+        returns="",
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=False,
+        scrape_metrics=None,
+        out_path=out_path,
+        artifact_path="",
+        workdir="",
+    )
+    context = MLClientCtx.from_dict(run.to_dict())
+    assert context.name == run_dict["metadata"]["name"]
+    assert context._project == run_dict["metadata"]["project"]
+    assert context._labels == run_dict["metadata"]["labels"]
+    assert context._annotations == run_dict["metadata"]["annotations"]
+    assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
+    assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
+    assert (
+        context.get_input("input-key").artifact_url
+        == run_dict["spec"]["inputs"]["input-key"]
+    )
+    assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
+    assert (
+        context.annotations["annotation-key"]
+        == run_dict["metadata"]["annotations"]["annotation-key"]
+    )
+    assert context.artifact_path == out_path
 
 
 def test_run_class_code():

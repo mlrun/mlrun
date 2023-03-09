@@ -1423,7 +1423,9 @@ class BaseRuntime(ModelObj):
                     "artifact/output path is not defined or is local and relative,"
                     " artifacts will not be visible in the UI"
                 )
-                if mlrun.runtimes.RuntimeKinds.is_artifact_path_mountable(self.kind):
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
+                    self.kind
+                ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         "absolute artifact_path must be specified when running remote tasks"
                     )

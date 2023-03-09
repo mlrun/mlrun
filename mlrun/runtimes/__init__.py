@@ -199,12 +199,12 @@ class RuntimeKinds(object):
         ]
 
     @staticmethod
-    def is_artifact_path_mountable(kind):
+    def requires_absolute_artifacts_path(kind):
         """
-        Returns True if the runtime kind supports mounting artifact paths, False otherwise.
+        Returns True if the runtime kind requires absolute artifacts' path, False otherwise.
         """
         if RuntimeKinds.is_local_runtime(kind):
-            return False
+            return True
 
         if kind not in [RuntimeKinds.dask]:
             return True

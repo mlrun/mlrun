@@ -175,7 +175,7 @@ def validate_tag_name(
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
-        log_message="Special characters are not permitted in tag names"
+        log_message="Special characters are not permitted in tag names",
     )
 
 
@@ -187,7 +187,7 @@ def validate_artifact_key_name(
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)"
+        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
 
 

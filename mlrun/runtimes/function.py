@@ -1234,6 +1234,9 @@ def deploy_nuclio_function(
             )
 
             try:
+
+                # the error might not be jsonable, so we'll try to parse it
+                # and extract the error message
                 json_err = exc.err.response.json()
                 if "error" in json_err:
                     err_message += f" {json_err['error']}"
@@ -1242,8 +1245,11 @@ def deploy_nuclio_function(
                         "Failed to deploy nuclio function",
                         nuclio_stacktrace=json_err["errorStackTrace"],
                     )
-            except Exception:
-                pass
+            except Exception as parse_exc:
+                logger.warning(
+                    "Failed to parse nuclio deploy error",
+                    parse_exc=err_to_str(parse_exc),
+                )
 
             mlrun.errors.raise_for_status(
                 exc.err.response,

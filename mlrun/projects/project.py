@@ -973,6 +973,14 @@ class MlrunProject(ModelObj):
             )
         self.spec.default_image = default_image
 
+    @property
+    def workflows(self) -> list:
+        return self.spec.workflows
+
+    @workflows.setter
+    def workflows(self, workflows):
+        self.spec.workflows = workflows
+
     def set_workflow(
         self,
         name,

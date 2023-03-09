@@ -610,6 +610,13 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
+    proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
+    run = proj1.run_function("func", local=True)
+    assert run.spec.output_path == proj1.spec.artifact_path
+
+    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    assert run.spec.output_path == "/not/tmp"
+
 
 def test_function_receives_project_default_image():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")

@@ -163,6 +163,10 @@ or pip install mlrun[google-cloud-storage] to install them.
 
 ### SQL data source
 
+```{admonition} Note
+Tech Preview 
+```
+
 `SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
 either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
@@ -286,7 +290,11 @@ explicitly each time with the path parameter, for example:</br>
 
 ### SQL target store
 
-The `SQLTarget` online target supports storey but does not support Spark.<br>
+```{admonition} Note
+Tech Preview 
+```
+
+The `SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
 To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 

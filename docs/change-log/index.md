@@ -16,55 +16,45 @@
 
 ## v1.3.0
 
-### Client/server matrix
+### Client/server matrix and prereqs to installing
 
+The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
+MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-- The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
-- The base images mlrun/mlrun:1.3.0 etc. are based on Python 3.9. <br>
-      For Iguazio <=3.5.2:
-	1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
-    2. Within the Jupyter service, open a terminal and run:
-     
-	```
-    install -y conda=23.1.0
-    install -y pip
+If you are installing on a Python 3.9 client, run these commands before installing:
+?????
+
+If you are installing on a CE Python 3.9 client, run these commands before installing:
+?????
+
+If you are installing on a Python 3.7 client, run these commands before installing:
+   ?????
+    1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
+    2. Within the Jupyter service, open a terminal and run (`install -y pip` ensures you have the latest resolver):
+    ```
+    $CONDA_HOME/bin/conda install -y conda=23.1.0
+    $CONDA_HOME/bin/conda install -y pip 
     conda create -n python39 python=3.9 ipykernel -y
     conda activate python39
     ./align_mlrun.sh
-	```
-	  
-- v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on 
-python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python 
-version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+    ```
+    
+If you are installing on a CE Python 3.7 client, run these commands before installing:
+?????
 
 ### New and updated features
-
-
-#### APIs
-
-- [Deprecated and removed APIs](#api-130)
-- These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
-- New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec.
- 
- 
-#### Infrastructure
-
-- MLRun server is based on Python 3.9.
-- The new log collection service improves the performance and reduces heavy IO operations from the API container. 
-The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
-worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
-The new service is transparent to the end-user: there are no UI or API changes. 
 
 #### Feature store
 
 - The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations).
-- Supports creating a feature vector over several feature sets with different entity. See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector).
-- Supports SQLSource for batch ingestion. See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
-- Supports SQLTarget for storey engine. (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
+- Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector).
+- Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
+- Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
 - Supports Spark using Redis as an online KV target, which cause a breaking change. See [Breaking changes](#breaking-changes).
-- The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).
-- Offline data can be registered as feature sets. See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data).
+- The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). 
+- Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). 
 - `get_offline_features` supports Spark Operator and Remote Spark.
 
 #### Logging data
@@ -93,6 +83,29 @@ relevant wizards under each phase heading: ingesting and processing data, develo
 
 <p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br>
 
+#### APIs
+
+- These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
+- New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec.
+ 
+ 
+#### Infrastructure improvements
+
+- MLRun server is based on Python 3.9.
+- The new log collection service improves the performance and reduces heavy IO operations from the API container. 
+The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
+worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
+The new service is transparent to the end-user: there are no UI or API changes. 
+
+### Breaking changes
+
+- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns <br>
+`<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
+
+- Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
+
+
+
 <a id="api-130"></a>
 ### Deprecated and removed APIs
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
@@ -102,9 +115,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.workflows`                  | `project.spec.workflows`, `get_or_create_project`, `load_project` |
-| `project.functions`                  | `project.spec.functions`                      |
-| `project.artifacts`                  | `project.spec.artifacts`                       |
+| `project.functions`                  | `project.get.functions`, `project.set.functions`, `project.list.functions` |
+| `project.artifacts`                  | `project.get.artifacts`, `project.set.artifacts`, `project.list.artifacts` |
 | `project.func()`                     | `project.get_function()`                       |
 | `project.create_vault_secrets()`     | NA                                   |
 | `project.get_vault_secret()`         | NA                                   |
@@ -143,22 +155,6 @@ such as `get_or_create_project`, `load_project` |
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
-### Breaking changes
-
-- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns <br>
-`<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
-
-- Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
-
-### Platform limitation
-
-When running v1.3.0 with a platform version < v3.5.3, you must upgrade pyopenssl to 22.1.0 or higher.
-Use this flow:
-```
-$CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip 
-./align_mlrun.sh
-```
 
 ### Closed issues
 
@@ -178,12 +174,8 @@ $CONDA_HOME/bin/conda install -y pip
 - Hyperparams run does not present artifacts iteration when selector is not define. [View in Git](https://github.com/mlrun/ui/pull/1635).
     
     
-### See more
-- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.3.0)
+### See also
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)
-
-
-
 
 
 ## v1.2.1
@@ -495,7 +487,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
 | 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
-| 3389 | Hyperparams run does not present artifacts iteration if a selector is not defined | Set a selector. |  |
 | 3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
 | 3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |

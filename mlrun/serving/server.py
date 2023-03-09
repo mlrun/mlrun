@@ -317,7 +317,9 @@ def v2_serving_init(context, namespace=None):
         current_functiton=os.environ.get("SERVING_CURRENT_FUNCTION", ""),
     )
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    context.logger.info("Initializing states")
+    context.logger.info(
+        "Initializing states", namespace=namespace or get_caller_globals()
+    )
     server.init_states(context, namespace or get_caller_globals())
     context.logger.info("Initializing graph steps")
     serving_handler = server.init_object(namespace or get_caller_globals())

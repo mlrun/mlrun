@@ -27,9 +27,11 @@
     2. Within the Jupyter service, open a terminal and run:
      
 	```
-	 conda create -n python39 python=3.9 ipykernel -y
-      conda activate python39
-      ./align_mlrun.sh
+    install -y conda=23.1.0
+    install -y pip
+    conda create -n python39 python=3.9 ipykernel -y
+    conda activate python39
+    ./align_mlrun.sh
 	```
 	  
 - v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on 
@@ -65,14 +67,14 @@ The new service is transparent to the end-user: there are no UI or API changes.
 - `get_offline_features` supports Spark Operator and Remote Spark.
 
 #### Logging data
-Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
+- Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
 part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. 
 See [more details](../tutorial/logging-with-hints.html).
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default `context` directory: `./`, which is the directory that the MLRun 
-    client runs from unless otherwise specified.  
+- When defining a new project from scratch, there is now a default `context` directory: `./`. This is the directory from which the MLRun 
+    client runs, unless otherwise specified.  
 
 #### Serving graphs
 
@@ -122,13 +124,14 @@ such as `get_or_create_project`, `load_project` |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | Dask `with_limits`                               | `with_scheduler_limits` / `with_worker_limits`    |
 | Dask `with_requests`                             | `with_scheduler_requests` / `with_worker_requests`    |
+| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
 | Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
 | `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
 | `mount_v3io_extended`                            | `mount_v3io`                   |
 | `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
-| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
+| `run_pipeline`                                   | `project.run`                                     |
 
 **REST APIs deprecated and removed from v1.3.0 code**
 
@@ -151,10 +154,9 @@ such as `get_or_create_project`, `load_project` |
 When running v1.3.0 with a platform version < v3.5.3, you must upgrade pyopenssl to 22.1.0 or higher.
 Use this flow:
 ```
-{{python3 -m pip install --upgrade pyopenssl>=23
-$CONDA_HOME/bin/conda update -y conda
-$CONDA_HOME/bin/conda install -y pip
-./align_mlrun.sh}}
+$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y pip 
+./align_mlrun.sh
 ```
 
 ### Closed issues

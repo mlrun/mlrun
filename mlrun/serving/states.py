@@ -329,40 +329,18 @@ class TaskStep(BaseStep):
                 self._inject_context = True
             return
 
-        if isinstance(self.class_name, type):
-            self._class_object = self.class_name
-            self.class_name = self.class_name.__name__
-
-        if not self._class_object:
-            if self.class_name == "$remote":
-
-                from mlrun.serving.remote import RemoteStep
-
-                self._class_object = RemoteStep
-            else:
-                self._class_object = get_class(
-                    self.class_name or self._default_class, namespace
-                )
-
+        self._class_object, self.class_name = self.get_step_class_object(
+            namespace=namespace
+        )
         if not self._object or reset:
             # init the step class + args
-            class_args = {}
-            for key, arg in self.class_args.items():
-                if key.startswith(callable_prefix):
-                    class_args[key[1:]] = get_function(arg, namespace)
-                else:
-                    class_args[key] = arg
-            class_args.update(extra_kwargs)
-
-            # add common args (name, context, ..) only if target class can accept them
-            argspec = getfullargspec(self._class_object)
-            for key in ["name", "context", "input_path", "result_path", "full_event"]:
-                if argspec.varkw or key in argspec.args:
-                    class_args[key] = getattr(self, key)
-            if argspec.varkw or "graph_step" in argspec.args:
-                class_args["graph_step"] = self
+            extracted_class_args = self.get_full_class_args(
+                namespace=namespace,
+                class_object=self._class_object,
+                **extra_kwargs,
+            )
             try:
-                self._object = self._class_object(**class_args)
+                self._object = self._class_object(**extracted_class_args)
             except TypeError as exc:
                 raise TypeError(
                     f"failed to init step {self.name}\n args={self.class_args}"
@@ -387,6 +365,40 @@ class TaskStep(BaseStep):
         self._set_error_handler()
         if mode != "skip":
             self._post_init(mode)
+
+    def get_full_class_args(self, namespace, class_object, **extra_kwargs):
+        class_args = {}
+        for key, arg in self.class_args.items():
+            if key.startswith(callable_prefix):
+                class_args[key[1:]] = get_function(arg, namespace)
+            else:
+                class_args[key] = arg
+        class_args.update(extra_kwargs)
+
+        # add common args (name, context, ..) only if target class can accept them
+        argspec = getfullargspec(class_object)
+        for key in ["name", "context", "input_path", "result_path", "full_event"]:
+            if argspec.varkw or key in argspec.args:
+                class_args[key] = getattr(self, key)
+        if argspec.varkw or "graph_step" in argspec.args:
+            class_args["graph_step"] = self
+        return class_args
+
+    def get_step_class_object(self, namespace):
+        class_name = self.class_name
+        class_object = self._class_object
+        if isinstance(class_name, type):
+            class_object = class_name
+            class_name = class_name.__name__
+        elif not class_object:
+            if class_name == "$remote":
+
+                from mlrun.serving.remote import RemoteStep
+
+                class_object = RemoteStep
+            else:
+                class_object = get_class(class_name or self._default_class, namespace)
+        return class_object, class_name
 
     def _is_local_function(self, context):
         # detect if the class is local (and should be initialized)

@@ -1189,7 +1189,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from pyspark.sql.functions import udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
+        udf1 = udf(lambda x: str(x) + "}:static", StringType())
         return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 

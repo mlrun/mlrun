@@ -279,15 +279,14 @@ class AbstractSparkRuntime(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deployment to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param is_kfp:  whether running inside KFP step (no need to use,
-                        being enriched automatically if running inside one)
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -896,6 +895,15 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
+
+    @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return "spark-role=driver"
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

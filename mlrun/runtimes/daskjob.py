@@ -15,6 +15,7 @@ import datetime
 import inspect
 import socket
 import time
+import typing
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -228,7 +229,7 @@ class DaskCluster(KubejobRuntime):
 
     @property
     def initialized(self):
-        return True if self._cluster else False
+        return bool(self._cluster)
 
     def _load_db_status(self):
         meta = self.metadata
@@ -388,13 +389,14 @@ class DaskCluster(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -676,7 +678,6 @@ def get_obj_status(selector=None, namespace=None):
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
-        print(pod)
         if status == "running":
             cluster = pod.metadata.labels.get("dask.org/cluster-name")
             logger.info(
@@ -704,6 +705,27 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Resolves the object ID from the run object.
+        In dask runtime, the object ID is the function name.
+        :param run: run object
+        :return: function name
+        """
+
+        function = run.get("spec", {}).get("function", None)
+        if function:
+
+            # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
+            # we only want the function name
+            project_and_function = function.split("@")[0]
+            return project_and_function.split("/")[-1]
+
+        return None
 
     def _enrich_list_resources_response(
         self,

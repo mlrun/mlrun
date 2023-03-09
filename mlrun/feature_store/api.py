@@ -407,7 +407,7 @@ def ingest(
         )
 
     if featureset is not None:
-        featureset.validate_steps()
+        featureset.validate_steps(namespace=namespace)
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
@@ -446,7 +446,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
-        featureset.validate_steps()
+        featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -665,7 +665,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
-    featureset.validate_steps()
+    featureset.validate_steps(namespace=namespace)
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

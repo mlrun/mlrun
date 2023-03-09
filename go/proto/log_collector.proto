@@ -22,7 +22,8 @@ service LogCollector {
   rpc StartLog(StartLogRequest) returns (BaseResponse) {}
   rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
   rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
-  rpc StopLog(StopLogRequest) returns (BaseResponse) {}
+  rpc StopLogs(StopLogsRequest) returns (BaseResponse) {}
+  rpc DeleteLogs(StopLogsRequest) returns (BaseResponse) {}
 }
 
 message BaseResponse {
@@ -64,7 +65,7 @@ message HasLogsResponse {
   string errorMessage = 4;
 }
 
-message StopLogRequest {
+message StopLogsRequest {
   string project = 1;
   repeated string runUIDs = 2;
 }

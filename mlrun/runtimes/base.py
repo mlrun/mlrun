@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import shlex
 import traceback
 import typing
 import uuid
@@ -185,10 +186,10 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
-    def set_db_connection(self, conn, is_api=False):
+    def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
-        self._is_api_server = is_api
+        self._is_api_server = mlrun.config.is_running_as_api()
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -283,6 +284,7 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
+                self._is_api_server = mlrun.config.is_running_as_api()
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
@@ -510,7 +512,12 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind):
+                if (
+                    watch
+                    and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind)
+                    # API shouldn't watch logs, its the client job to query the run logs
+                    and not mlrun.config.is_running_as_api()
+                ):
                     state, _ = run.logs(True, self._get_db())
                     if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
@@ -692,8 +699,15 @@ class BaseRuntime(ModelObj):
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
+
         runspec.metadata.name = normalize_name(
-            name or runspec.metadata.name or def_name
+            name=name or runspec.metadata.name or def_name,
+            # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
+            # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
+            # from the handler(function) name then we replace the underscore without warning the user.
+            # most of the times handlers will have `_` in the handler name (python convention is to separate function
+            # words with `_`), therefore we don't want to be noisy when normalizing the run name
+            verbose=bool(name or runspec.metadata.name),
         )
         verify_field_regex(
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
@@ -1203,11 +1217,9 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        if isinstance(requirements, str):
-            with open(requirements, "r") as fp:
-                requirements = fp.read().splitlines()
+        encoded_requirements = self._encode_requirements(requirements)
         commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = "python -m pip install " + " ".join(requirements)
+        new_command = f"python -m pip install {encoded_requirements}"
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
@@ -1381,6 +1393,38 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
+    def _encode_requirements(self, requirements_to_encode):
+
+        # if a string, read the file then encode
+        if isinstance(requirements_to_encode, str):
+            with open(requirements_to_encode, "r") as fp:
+                requirements_to_encode = fp.read().splitlines()
+
+        requirements = []
+        for requirement in requirements_to_encode:
+            requirement = requirement.strip()
+
+            # ignore empty lines
+            # ignore comments
+            if not requirement or requirement.startswith("#"):
+                continue
+
+            # -r / --requirement are flags and should not be escaped
+            # we allow such flags (could be passed within the requirements.txt file) and do not
+            # try to open the file and include its content since it might be a remote file
+            # given on the base image.
+            for req_flag in ["-r", "--requirement"]:
+                if requirement.startswith(req_flag):
+                    requirement = requirement[len(req_flag) :].strip()
+                    requirements.append(req_flag)
+                    break
+
+            # wrap in single quote to ensure that the requirement is treated as a single string
+            # quote the requirement to avoid issues with special characters, double quotes, etc.
+            requirements.append(shlex.quote(requirement))
+
+        return " ".join(requirements)
+
 
 def is_local(url):
     if not url:
@@ -1398,9 +1442,16 @@ class BaseRuntimeHandler(ABC):
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
         """
-        Should return the label selector should be used to get only resources of a specific object (with id object_id)
+        Should return the label selector to get only resources of a specific object (with id object_id)
         """
         pass
+
+    def _should_collect_logs(self) -> bool:
+        """
+        There are some runtimes which we don't collect logs for using the log collector
+        :return: whether should collect log for it
+        """
+        return True
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: typing.Union[RuntimeClassMode, str] = None
@@ -1688,6 +1739,15 @@ class BaseRuntimeHandler(ABC):
                 label_selector = object_label_selector
         return label_selector
 
+    @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return ""
+
     def _enrich_list_resources_response(
         self,
         response: Union[
@@ -1881,6 +1941,7 @@ class BaseRuntimeHandler(ABC):
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
         class_mode: typing.Union[RuntimeClassMode, str] = None,
+        with_main_runtime_resource_label_selector: bool = False,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
@@ -1896,7 +1957,28 @@ class BaseRuntimeHandler(ABC):
             object_id, label_selector
         )
 
+        if with_main_runtime_resource_label_selector:
+            main_runtime_resource_label_selector = (
+                self._get_main_runtime_resource_label_selector()
+            )
+            if main_runtime_resource_label_selector:
+                label_selector = ",".join(
+                    [label_selector, main_runtime_resource_label_selector]
+                )
+
         return label_selector
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Get the object id from the run object
+        Override this if the object id is not the run uid
+        :param run: run object
+        :return: object id
+        """
+        return run.get("metadata", {}).get("uid", None)
 
     def _wait_for_pods_deletion(
         self,

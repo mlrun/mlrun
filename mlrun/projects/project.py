@@ -56,6 +56,7 @@ from ..utils import (
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -165,6 +166,8 @@ def new_project(
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
@@ -262,6 +265,8 @@ def load_project(
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
+            # Validate that git source includes branch and refs
+            url = ensure_git_branch(url=url, repo=repo)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -279,6 +284,8 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     if not project.metadata.name:
         raise ValueError("project name must be specified")
     if not from_db or (url and url.startswith("git://")):
@@ -539,7 +546,7 @@ class ProjectSpec(ModelObj):
         self.branch = None
         self.tag = ""
         self.params = params or {}
-        self.conda = conda or {}
+        self.conda = conda or ""
         self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []
@@ -868,6 +875,16 @@ class MlrunProject(ModelObj):
         """
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
+
+        if self.spec.source.startswith("git://"):
+
+            source, reference, branch = resolve_git_reference_from_source(source)
+            if not branch and not reference:
+                logger.warn(
+                    "Please add git branch or refs to the source e.g.: "
+                    "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+                )
+
         self.spec.workdir = workdir or self.spec.workdir
         # reset function objects (to recalculate build attributes)
         self.sync_functions()
@@ -1473,6 +1490,14 @@ class MlrunProject(ModelObj):
             proj.set_function('./func.yaml')
             proj.set_function('hub://get_toy_data', 'getdata')
 
+            # set function requirements
+
+            # by providing a list of packages
+            proj.set_function('my.py', requirements=["requests", "pandas"])
+
+            # by providing a path to a pip requirements file
+            proj.set_function('my.py', requirements="requirements.txt")
+
         :param func:      function object or spec/code url, None refers to current Notebook
         :param name:      name of the function (under the project)
         :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
@@ -1653,7 +1678,8 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands and try again:\n"
+                        "Git is not configured, please run the following commands and run git push from the terminal "
+                        "once to store your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
@@ -2240,7 +2266,7 @@ class MlrunProject(ModelObj):
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object
-        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param dashboard:   DEPRECATED. Keep empty to allow auto-detection by MLRun API.
         :param models:      list of model items
         :param env:         dict of extra environment variables
         :param tag:         extra version tag

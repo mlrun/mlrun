@@ -427,7 +427,9 @@ class BaseStoreTarget(DataTargetBase):
         )
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, _ = mlrun.store_manager.get_or_create_store(
+            self.get_target_path_with_credentials()
+        )
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -589,6 +591,9 @@ class BaseStoreTarget(DataTargetBase):
     def get_target_path(self):
         path_object = self._target_path_object
         return path_object.get_absolute_path() if path_object else None
+
+    def get_target_path_with_credentials(self):
+        return self.get_target_path()
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -1175,6 +1180,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "user": parsed_endpoint.username if parsed_endpoint.username else None,
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
+
+    def get_target_path_with_credentials(self):
+        endpoint, uri = self._get_server_endpoint()
+        return endpoint
 
     def prepare_spark_df(self, df, key_columns):
         from pyspark.sql.functions import udf

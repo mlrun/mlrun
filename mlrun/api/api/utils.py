@@ -699,7 +699,7 @@ def submit_run_sync(
                 "Local runtimes can not be run through API (not locally)"
             )
         run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db, True)
+        fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")

@@ -27,6 +27,7 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import git
 import numpy as np
 import pandas
 import semver
@@ -260,16 +261,17 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name):
+def normalize_name(name: str, verbose: bool = True):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        warnings.warn(
-            "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-            "Replacing underscores with dashes.",
-            FutureWarning,
-        )
+        if verbose:
+            warnings.warn(
+                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
+                "Replacing underscores with dashes.",
+                FutureWarning,
+            )
         name = name.replace("_", "-")
     return name.lower()
 
@@ -787,7 +789,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
-    data = json.dumps(object_dict, sort_keys=True).encode()
+    # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
+    # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
+    # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
+    # it's valid here.
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
@@ -1240,3 +1246,35 @@ def filter_warnings(action, category):
         return wrapper
 
     return decorator
+
+
+def resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def ensure_git_branch(url: str, repo: git.Repo) -> str:
+    """Ensures git url includes branch.
+    If no branch or refs are included in the git source then will enrich the git url with the current active branch
+     as defined in the repo object. Otherwise, will just return the url and won't apply any enrichments.
+
+    :param url:   Git source url
+    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
+
+    :return:     Git source url with full valid path to the relevant branch
+
+    """
+    source, reference, branch = resolve_git_reference_from_source(url)
+    if not branch and not reference:
+        url = f"{url}#refs/heads/{repo.active_branch}"
+    return url

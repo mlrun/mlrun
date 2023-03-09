@@ -15,6 +15,7 @@
 import asyncio
 import json
 import typing
+import warnings
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
@@ -30,9 +31,9 @@ from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
+import mlrun.utils
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
-from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
@@ -539,7 +540,7 @@ class RemoteRuntime(KubeResource):
     ):
         """Deploy the nuclio function to the cluster
 
-        :param dashboard:  address of the nuclio dashboard service (keep blank for current cluster)
+        :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
@@ -586,7 +587,14 @@ class RemoteRuntime(KubeResource):
                 save_record = True
 
         else:
-            # todo: should be deprecated (only work via MLRun service)
+
+            warnings.warn(
+                "'dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
+                "Keep 'dashboard' value empty to allow auto-detection by MLRun API.",
+                # TODO: Remove in 1.5.0
+                FutureWarning,
+            )
+
             self.save(versioned=False)
             self._ensure_run_db()
             internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
@@ -626,7 +634,9 @@ class RemoteRuntime(KubeResource):
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
-            sleep(1)
+            sleep(
+                int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
+            )
             try:
                 text, last_log_timestamp = db.get_builder_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -783,7 +793,16 @@ class RemoteRuntime(KubeResource):
         verbose=None,
         use_function_from_db=None,
     ):
-        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead"""
+        """return as a Kubeflow pipeline step (ContainerOp), recommended to use mlrun.deploy_function() instead
+
+        :param dashboard:      DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+        :param project:        project name, defaults to function project
+        :param models:         model name and paths
+        :param env:            dict of environment variables
+        :param tag:            version tag
+        :param verbose:        verbose output
+        :param use_function_from_db:  use the function from the DB instead of the local function object
+        """
         models = {} if models is None else models
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -1166,6 +1185,16 @@ def deploy_nuclio_function(
     builder_env: dict = None,
     client_python_version: str = None,
 ):
+    """Deploys a nuclio function.
+
+    :param function:              nuclio function object
+    :param dashboard:             DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+    :param watch:                 wait for function to be ready
+    :param auth_info:             service AuthInfo
+    :param client_version:        mlrun client version
+    :param builder_env:           mlrun builder environment (for config/credentials)
+    :param client_python_version: mlrun client python version
+    """
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
         function,
@@ -1557,6 +1586,18 @@ def get_nuclio_deploy_status(
     resolve_address=True,
     auth_info: AuthInfo = None,
 ):
+    """
+    Get nuclio function deploy status
+
+    :param name:                function name
+    :param project:             project name
+    :param tag:                 function tag
+    :param dashboard:           DEPRECATED. Keep empty to allow auto-detection by MLRun API.
+    :param last_log_timestamp:  last log timestamp
+    :param verbose:             print logs
+    :param resolve_address:     whether to resolve function address
+    :param auth_info:           authentication information
+    """
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
     get_err_message = f"Failed to get function {name} deploy status"
@@ -1665,7 +1706,9 @@ def _compile_nuclio_archive_config(
         if source.startswith("git://"):
             source = source.replace("git://", "https://")
 
-        source, reference, branch = _resolve_git_reference_from_source(source)
+        source, reference, branch = mlrun.utils.resolve_git_reference_from_source(
+            source
+        )
         if not branch and not reference:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "git branch or refs must be specified in the source e.g.: "
@@ -1681,7 +1724,7 @@ def _compile_nuclio_archive_config(
 
         token = get_secret("GIT_TOKEN")
         if token:
-            username, password = get_git_username_password_from_token(token)
+            username, password = mlrun.utils.get_git_username_password_from_token(token)
 
         code_entry_attributes["username"] = username
         code_entry_attributes["password"] = password
@@ -1691,21 +1734,6 @@ def _compile_nuclio_archive_config(
     nuclio_spec.set_config("spec.build.path", source)
     nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
     nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
-
-
-def _resolve_git_reference_from_source(source):
-    # kaniko allow multiple "#" e.g. #refs/..#commit
-    split_source = source.split("#", 1)
-
-    # no reference was passed
-    if len(split_source) < 2:
-        return source, "", ""
-
-    reference = split_source[1]
-    if reference.startswith("refs/"):
-        return split_source[0], reference, ""
-
-    return split_source[0], "", reference
 
 
 def _resolve_work_dir_and_handler(handler):

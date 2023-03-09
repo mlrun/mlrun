@@ -29,7 +29,6 @@ from mlrun.errors import MLRunInvalidArgumentError
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, extend_artifact_path
 from .datastore import store_manager
-from .db import get_run_db
 from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
@@ -231,7 +230,7 @@ class MLClientCtx(object):
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
-                self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
+                self._rundb = mlrun.db.get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
         else:
@@ -976,6 +975,9 @@ class MLClientCtx(object):
         struct = {
             "metadata.labels": self._labels,
             "metadata.annotations": self._annotations,
+            "spec.parameters": self._parameters,
+            "spec.outputs": self._outputs,
+            "spec.inputs": {k: v.artifact_url for k, v in self._inputs.items()},
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),

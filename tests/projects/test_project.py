@@ -193,7 +193,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -258,7 +258,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -383,18 +383,20 @@ def _assert_project_function_objects(project, expected_function_objects):
 
 
 def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.MlrunProject(
+        "newproj", default_requirements=["pandas>1, <3"]
+    )
     project.set_function("hub://describe", "desc1", requirements=["x"])
     assert project.get_function("desc1", enrich=True).spec.build.commands == [
         "python -m pip install x",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
     assert project.get_function("desc2", enrich=True).spec.build.commands == [
         "python -m pip install y",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
 
@@ -772,3 +774,15 @@ def test_validating_large_int_params(
         )
 
     assert run_saved == (rundb_mock._runs != {})
+
+
+def test_load_project_with_git_enrichment(
+    context,
+    rundb_mock,
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(context=str(context), url=url, save=True)
+
+    assert (
+        project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
+    )

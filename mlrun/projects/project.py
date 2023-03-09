@@ -284,13 +284,15 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
-        # Remove original owner name for avoiding possible conflicts
-        project.spec.owner = None
+
     if not project.metadata.name:
         raise ValueError("project name must be specified")
-    if not from_db or (url and url.startswith("git://")):
+    if not from_db:
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
+        # Remove original owner name for avoiding possible conflicts when loading project from remote
+        project.spec.owner = None
+
     project.spec.repo = repo
     if repo:
         try:

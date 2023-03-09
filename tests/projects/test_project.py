@@ -786,3 +786,17 @@ def test_load_project_with_git_enrichment(
     assert (
         project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
     )
+
+
+def test_remove_owner_name_in_load_project_from_yaml():
+    # Create project and generate owner name
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.owner = "some_owner"
+
+    # Load the project from yaml and validate that the owner name was removed
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert project.spec.owner == "some_owner"
+    assert imported_project.spec.owner is None

@@ -1423,12 +1423,11 @@ class BaseRuntime(ModelObj):
                     "artifact/output path is not defined or is local and relative,"
                     " artifacts will not be visible in the UI"
                 )
-                if self.kind not in ["", "local", "handler", "dask"]:
-                    raise ValueError(
-                        "absolute artifact_path must be specified"
-                        " when running remote tasks"
+                if mlrun.runtimes.RuntimeKinds.is_artifact_path_mountable(self.kind):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "absolute artifact_path must be specified when running remote tasks"
                     )
-            elif not run.spec.volume_mounts:
+            elif not hasattr(self.spec, "volume_mounts") or not self.spec.volume_mounts:
                 message = (
                     "artifact/output path is local but no volume mounts were specified,"
                     " artifacts will not be visible in the UI"

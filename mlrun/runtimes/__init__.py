@@ -198,6 +198,18 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
         ]
 
+    @staticmethod
+    def is_artifact_path_mountable(kind):
+        """
+        Returns True if the runtime kind supports mounting artifact paths, False otherwise.
+        """
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [RuntimeKinds.dask]:
+            return True
+        return False
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 

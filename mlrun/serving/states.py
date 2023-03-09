@@ -828,6 +828,7 @@ class FlowStep(BaseStep):
 
         for step in self._steps.values():
             step.set_parent(self)
+            context.logger.info("Initializing step", step=step.name)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()
         self._post_init(mode)

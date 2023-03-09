@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import os.path
 import shlex
 import traceback
 import typing
@@ -426,20 +427,7 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
-
-        if is_local(run.spec.output_path):
-            print("abc")
-            logger.warning(
-                "artifact path is not defined or is local,"
-                " artifacts will not be visible in the UI"
-            )
-            if self.kind not in ["", "local", "handler", "dask"]:
-                raise ValueError(
-                    "absolute artifact_path must be specified"
-                    " when running remote tasks"
-                )
-        print("def")
-
+        self._validate_output_path(run)
         db = self._get_db()
 
         if not self.is_deployed():
@@ -1427,11 +1415,32 @@ class BaseRuntime(ModelObj):
 
         return " ".join(requirements)
 
+    def _validate_output_path(self, run):
+        if is_local(run.spec.output_path):
+            message = ""
+            if not os.path.isabs(run.spec.output_path):
+                message = (
+                    "artifact/output path is not defined or is local and relative,"
+                    " artifacts will not be visible in the UI"
+                )
+                if self.kind not in ["", "local", "handler", "dask"]:
+                    raise ValueError(
+                        "absolute artifact_path must be specified"
+                        " when running remote tasks"
+                    )
+            elif not run.spec.volume_mounts:
+                message = (
+                    "artifact/output path is local but no volume mounts were specified,"
+                    " artifacts will not be visible in the UI"
+                )
+            if message:
+                logger.warning(message, output_path=run.spec.output_path)
+
 
 def is_local(url):
     if not url:
         return True
-    return "://" not in url and not url.startswith("/")
+    return "://" not in url
 
 
 class BaseRuntimeHandler(ABC):

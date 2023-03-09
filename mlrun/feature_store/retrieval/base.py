@@ -247,9 +247,7 @@ class BaseMerger(abc.ABC):
                     new_columns.append((rename_col_dict[column], alias or column))
                 else:
                     new_columns.append((column, alias))
-            self._update_alias(
-                dictionary={name: alias for name, alias in new_columns}
-            )
+            self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
         # convert pandas entity_rows to spark DF if needed
         if (

@@ -1404,7 +1404,15 @@ class BaseRuntime(ModelObj):
         for requirement in requirements_to_encode:
             requirement = requirement.strip()
 
+            # ignore empty lines
+            # ignore comments
+            if not requirement or requirement.startswith("#"):
+                continue
+
             # -r / --requirement are flags and should not be escaped
+            # we allow such flags (could be passed within the requirements.txt file) and do not
+            # try to open the file and include its content since it might be a remote file
+            # given on the base image.
             for req_flag in ["-r", "--requirement"]:
                 if requirement.startswith(req_flag):
                     requirement = requirement[len(req_flag) :].strip()

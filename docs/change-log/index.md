@@ -45,6 +45,7 @@ version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images)
 
 - [Deprecated and removed APIs](#api-130)
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
+- New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec.
  
  
 #### Infrastructure
@@ -69,7 +70,7 @@ The new service is transparent to the end-user: there are no UI or API changes.
 #### Logging data
 - Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
 part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. 
-See [more details](../tutorial/logging-with-hints.html).
+See [more details](../cheat-sheet.html#logging-with-hints).
 
 #### Projects
 
@@ -174,7 +175,6 @@ $CONDA_HOME/bin/conda install -y pip
 - Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
 - Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).
 - Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).
-
     
     
 ### See more

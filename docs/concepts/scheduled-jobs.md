@@ -43,3 +43,16 @@ After loading the project (`load_project`), run the project with the scheduled w
 ```
 project.run("main", schedule='0 * * * *')
 ```
+
+```{admonition} Note
+1. Remote workflows can only be performed by a project with a **remote** source (git://github.com/mlrun/something.git, http://some/url/file.zip or http://some/url/file.tar.gz). So you need to either put your code in Git or archive it and then set a source to it.
+    * To set project source use the `project.set_source` method.
+    * To set workflow use the `project.set_workflow` method.
+2. Example for a remote GitHub project - https://github.com/mlrun/project-demo
+```
+
+To delete an existing scheduled workflow you can delete it from MLRun UI or run the example below:
+
+```
+project.run("main", schedule='0 * * * *',override=True)
+```

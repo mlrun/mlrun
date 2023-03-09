@@ -39,11 +39,12 @@ def make_dockerfile(
     commands=None,
     source=None,
     requirements=None,
-    workdir="/tmp/mlrun",
+    workdir=None,
     extra="",
     user_unix_id=None,
     enriched_group_id=None,
 ):
+    workdir = workdir or "/tmp/mlrun"
     dock = f"FROM {base_image}\n"
 
     if config.is_pip_ca_configured():

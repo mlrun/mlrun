@@ -67,11 +67,14 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-        logger.warning(
-            "Unable to parse nuclio version, assuming compatibility",
-            nuclio_version=mlconf.nuclio_version,
-            min_versions=min_versions,
-        )
+
+        # only log when version is set but invalid
+        if mlconf.nuclio_version:
+            logger.warning(
+                "Unable to parse nuclio version, assuming compatibility",
+                nuclio_version=mlconf.nuclio_version,
+                min_versions=min_versions,
+            )
         return True
 
     parsed_min_versions.sort(reverse=True)
@@ -1226,9 +1229,25 @@ def deploy_nuclio_function(
         )
     except nuclio.utils.DeployError as exc:
         if exc.err:
+            err_message = (
+                f"Failed to deploy nuclio function {project_name}/{function_name}"
+            )
+
+            try:
+                json_err = exc.err.response.json()
+                if "error" in json_err:
+                    err_message += f" {json_err['error']}"
+                if "errorStackTrace" in json_err:
+                    logger.warning(
+                        "Failed to deploy nuclio function",
+                        nuclio_stacktrace=json_err["errorStackTrace"],
+                    )
+            except Exception:
+                pass
+
             mlrun.errors.raise_for_status(
                 exc.err.response,
-                f"Failed to deploy function {project_name}/{function_name} to Nuclio",
+                err_message,
             )
         raise
 

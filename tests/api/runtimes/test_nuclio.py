@@ -21,7 +21,9 @@ import unittest.mock
 import deepdiff
 import kubernetes
 import nuclio
+import nuclio.utils
 import pytest
+import requests
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -566,6 +568,26 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name,
             expected_build_base_image=expected_build_base_image,
         )
+
+    def test_deploy_build_base_image(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+
+        # simulate a nuclio deploy error
+        response = requests.Response()
+        response._content = (
+            b'{"error": "Something bad happened - custom message from nuclio"}'
+        )
+        response.reason = "Bad Request"
+        response.status_code = 400
+
+        nuclio.deploy.deploy_config.side_effect = [
+            nuclio.utils.DeployError("Deployment failed", response)
+        ]
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+            self.execute_function(function)
+        assert "custom message from nuclio" in str(exc.value)
 
     def test_deploy_image_name_and_build_base_image(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock

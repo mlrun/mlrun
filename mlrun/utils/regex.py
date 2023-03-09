@@ -77,4 +77,4 @@ tag_name = label_value
 
 secret_key = k8s_secret_and_config_map_key
 
-artifact_key = [r"[^\/]+$"]
+artifact_key = [r"[^\/\\]+$"]

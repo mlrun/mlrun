@@ -597,6 +597,7 @@ class SQLDB(DBInterface):
         existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
+            # for backwards compatibility only validating key name on new artifacts
             validate_artifact_key_name(key, "artifact.key")
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
             existed = False

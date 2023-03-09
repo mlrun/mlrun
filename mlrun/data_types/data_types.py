@@ -27,7 +27,7 @@ class ValueType(str, Enum):
     INT8 = "int8"
     INT16 = "int16"
     INT32 = "int32"
-    INT64 = "int" or "int64"
+    INT64 = "int"
     INT128 = "int128"
     UINT8 = "uint8"
     UINT16 = "uint16"

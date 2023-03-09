@@ -130,7 +130,7 @@ class DaskFeatureMerger(BaseMerger):
 
         return self._reset_index(df).persist()
 
-    def _rename_columns_and_select(self, df, rename_col_dict, columns):
+    def _rename_columns_and_select(self, df, rename_col_dict, columns=None):
         return df.rename(
             columns=rename_col_dict,
         )

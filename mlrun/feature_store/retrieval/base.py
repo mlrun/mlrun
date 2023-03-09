@@ -229,11 +229,12 @@ class BaseMerger(abc.ABC):
                 df, rename_col_dict, columns=list(set(column_names + fs_entities))
             )
 
-            df = df_temp if df_temp is not None else df
+            if df_temp is not None:
+                df = df_temp
+                del df_temp
 
             dfs.append(df)
             del df
-            del df_temp
 
             keys.append([node.data["left_keys"], node.data["right_keys"]])
 
@@ -242,14 +243,12 @@ class BaseMerger(abc.ABC):
             if not self._drop_indexes:
                 new_columns.extend([(ind, ind) for ind in fs_entities])
             for column, alias in columns:
-                if column in rename_col_dict and alias:
-                    new_columns.append((rename_col_dict[column], alias))
-                elif column in rename_col_dict and not alias:
-                    new_columns.append((rename_col_dict[column], column))
+                if column in rename_col_dict:
+                    new_columns.append((rename_col_dict[column], alias or column))
                 else:
                     new_columns.append((column, alias))
             self._update_alias(
-                dictionary={name: alias for name, alias in new_columns if alias}
+                dictionary={name: alias for name, alias in new_columns}
             )
 
         # convert pandas entity_rows to spark DF if needed
@@ -275,30 +274,19 @@ class BaseMerger(abc.ABC):
                 self._update_alias(
                     key=entity_timestamp_column, val=entity_timestamp_column
                 )
-                all_columns = list(
-                    set([entity_timestamp_column] + list(self._alias.keys()))
-                )
-            else:
-                all_columns = list(
-                    set(
-                        [
-                            key
-                            for key, val in self._alias.items()
-                            if val == entity_timestamp_column
-                        ]
-                        + list(self._alias.keys())
-                    )
-                )
+            all_columns = list(self._alias.keys())
 
         df_temp = self._rename_columns_and_select(
             self._result_df, self._alias, columns=all_columns
         )
-        self._result_df = df_temp if df_temp is not None else self._result_df
-        del df_temp
+        if df_temp is not None:
+            self._result_df = df_temp
+            del df_temp
 
         df_temp = self._drop_columns_from_result()
-        self._result_df = df_temp if df_temp is not None else self._result_df
-        del df_temp
+        if df_temp is not None:
+            self._result_df = df_temp
+            del df_temp
 
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(

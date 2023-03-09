@@ -3655,7 +3655,6 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("join_type", ["inner", "outer"])
     def test_relation_join_multi_entities(self, engine, join_type, with_indexes):
-        """Test 3 option of using get offline feature with relations"""
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(

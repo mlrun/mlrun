@@ -39,7 +39,7 @@ def make_dockerfile(
     commands=None,
     source=None,
     requirements=None,
-    workdir="/mlrun",
+    workdir="/tmp/mlrun",
     extra="",
     user_unix_id=None,
     enriched_group_id=None,
@@ -312,6 +312,7 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime=None,
+    workdir=None,
 ):
     runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
@@ -404,6 +405,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
+        workdir=workdir,
     )
 
     kpod = make_kaniko_pod(
@@ -580,6 +582,7 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
+        workdir=build.workdir,
     )
     runtime.status.build_pod = None
     if status == "skipped":

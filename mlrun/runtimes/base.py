@@ -428,6 +428,7 @@ class BaseRuntime(ModelObj):
         )
 
         if is_local(run.spec.output_path):
+            print("abc")
             logger.warning(
                 "artifact path is not defined or is local,"
                 " artifacts will not be visible in the UI"
@@ -437,6 +438,7 @@ class BaseRuntime(ModelObj):
                     "absolute artifact_path must be specified"
                     " when running remote tasks"
                 )
+        print("def")
 
         db = self._get_db()
 

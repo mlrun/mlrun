@@ -36,6 +36,7 @@ from mlrun.utils.helpers import (
     resolve_image_tag_suffix,
     str_to_timestamp,
     update_in,
+    validate_artifact_key_name,
     validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
@@ -251,6 +252,36 @@ def test_validate_tag_name(tag_name, expected):
         validate_tag_name(
             tag_name,
             field_name="artifact.metadata,tag",
+        )
+
+
+@pytest.mark.parametrize(
+    "artifact_name,expected",
+    [
+        (
+            "artifact/name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "/artifact-name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "artifact-name/",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("artifact-name2.0", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifactNAME", does_not_raise()),
+    ],
+)
+def test_validate_artifact_name(artifact_name, expected):
+    with expected:
+        validate_artifact_key_name(
+            artifact_name,
+            field_name="artifact.key",
         )
 
 

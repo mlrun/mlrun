@@ -174,6 +174,17 @@ def validate_tag_name(
     )
 
 
+def validate_artifact_key_name(
+    artifact_key: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        artifact_key,
+        mlrun.utils.regex.artifact_key,
+        raise_on_failure=raise_on_failure,
+    )
+
+
 def get_regex_list_as_string(regex_list: List) -> str:
     """
     This function is used to combine a list of regex strings into a single regex,

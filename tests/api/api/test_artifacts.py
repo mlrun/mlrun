@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -23,7 +24,7 @@ import mlrun.artifacts
 from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
-KEY = "some-key/with-slash"
+KEY = "some-key"
 UID = "some-uid"
 TAG = "some-tag"
 LEGACY_API_PROJECTS_PATH = "projects"
@@ -53,6 +54,52 @@ def _create_project(client: TestClient, project_name: str = PROJECT):
     resp = client.post(LEGACY_API_PROJECTS_PATH, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
+
+
+def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
+    _create_project(client)
+    key_path = "some-key/with-slash"
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data="{}",
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=UID, key=key_path, tag=TAG
+        ),
+        data="{}",
+    )
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+def test_store_artifact_backwards_compatibility(db: Session, client: TestClient):
+    _create_project(client)
+    key_path = "some-key/with-slash"
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+    artifact2 = mlrun.artifacts.Artifact(key=KEY, body="1234")
+
+    with unittest.mock.patch(
+        "mlrun.utils.helpers.verify_field_regex",
+        use_effect=[True, None],
+    ):
+        resp = client.post(
+            STORE_API_ARTIFACTS_PATH.format(
+                project=PROJECT, uid=UID, key=key_path, tag=TAG
+            ),
+            data=artifact.to_json(),
+        )
+        assert resp.status_code == HTTPStatus.OK.value
+
+        resp = client.post(
+            STORE_API_ARTIFACTS_PATH.format(
+                project=PROJECT, uid=UID, key=key_path, tag=TAG
+            ),
+            data=artifact2.to_json(),
+        )
+        assert resp.status_code == HTTPStatus.OK.value
 
 
 def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):

@@ -206,7 +206,12 @@ class RuntimeKinds(object):
         if RuntimeKinds.is_local_runtime(kind):
             return True
 
-        if kind not in [RuntimeKinds.dask]:
+        if kind not in [
+            # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
+            # case the path is absolute) or remotely (in which case the path can be relative and will be passed
+            # to another run)
+            RuntimeKinds.dask
+        ]:
             return True
         return False
 

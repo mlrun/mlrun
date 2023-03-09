@@ -780,6 +780,8 @@ class TestProject(TestMLRunSystem):
             original_source,
             name=name,
         )
+        # Getting the expected source after possible enrichment:
+        expected_source = project.source
 
         run = project.run(
             "newflow",
@@ -791,8 +793,7 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
-        assert project_from_db.spec.source == original_source
-        assert project.spec.source == original_source
+        assert project_from_db.source == expected_source
 
         for engine in ["remote", "local", "kfp"]:
             project.run(
@@ -805,7 +806,7 @@ class TestProject(TestMLRunSystem):
 
             # Ensuring that the project's source has not changed in the db:
             project_from_db = self._run_db.get_project(name)
-            assert project_from_db.spec.source == original_source
+            assert project_from_db.source == expected_source
 
         # Ensuring that the loaded project is from the given source
         run = project.run(

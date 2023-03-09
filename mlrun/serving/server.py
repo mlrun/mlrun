@@ -312,12 +312,12 @@ def v2_serving_init(context, namespace=None):
         server.verbose = True
     if hasattr(context, "trigger"):
         server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
-    context.logger.info(
+    context.logger.info_with(
         "Setting current function",
         current_functiton=os.environ.get("SERVING_CURRENT_FUNCTION", ""),
     )
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
-    context.logger.info(
+    context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
     server.init_states(context, namespace or get_caller_globals())
@@ -326,7 +326,7 @@ def v2_serving_init(context, namespace=None):
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "_server", server)
-    context.logger.info("Serving was initialized", verbose=server.verbose)
+    context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
         context.logger.info(server.to_yaml())
 

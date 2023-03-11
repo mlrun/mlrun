@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from pyspark.sql import SparkSession
+
 from mlrun import get_or_create_ctx
 
 context = get_or_create_ctx("spark-function")

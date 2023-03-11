@@ -396,9 +396,14 @@ class BaseRuntime(ModelObj):
         run = self._create_run_object(runspec)
 
         if local:
+
+            # do not allow local function to be scheduled
+            if schedule is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "local and schedule cannot be used together"
+                )
             return self._run_local(
                 run,
-                schedule,
                 local_code_path,
                 project,
                 name,
@@ -458,6 +463,13 @@ class BaseRuntime(ModelObj):
             run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
+            db_str = "self" if self._is_api_server else self.spec.rundb
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=db_str,
+            )
             self._store_function(run, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
@@ -573,7 +585,9 @@ class BaseRuntime(ModelObj):
                 logger.info("Or click for UI", ui_url=ui_url)
         if result:
             run = RunObject.from_dict(result)
-            logger.info(f"run executed, status={run.status.state}")
+            logger.info(
+                f"run executed, status={run.status.state}", name=run.metadata.name
+            )
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
                     logger.error(f"runtime error: {run.status.error}")
@@ -612,7 +626,6 @@ class BaseRuntime(ModelObj):
     def _run_local(
         self,
         runspec,
-        schedule,
         local_code_path,
         project,
         name,
@@ -623,10 +636,6 @@ class BaseRuntime(ModelObj):
         returns,
         artifact_path,
     ):
-        if schedule is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "local and schedule cannot be used together"
-            )
         # allow local run simulation with a flip of a flag
         command = self
         if local_code_path:
@@ -705,7 +714,7 @@ class BaseRuntime(ModelObj):
             # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
             # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
             # from the handler(function) name then we replace the underscore without warning the user.
-            # most of the times handlers will have `_` in the handler name (python convention is to separate function
+            # most of the time handlers will have `_` in the handler name (python convention is to separate function
             # words with `_`), therefore we don't want to be noisy when normalizing the run name
             verbose=bool(name or runspec.metadata.name),
         )
@@ -793,7 +802,7 @@ class BaseRuntime(ModelObj):
         try:
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
-                logger.info(f"task scheduled, {resp}")
+                logger.info("successfully scheduled", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:
@@ -855,8 +864,6 @@ class BaseRuntime(ModelObj):
             )
 
     def _store_function(self, runspec, meta, db):
-        db_str = "self" if self._is_api_server else self.spec.rundb
-        logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
         meta.labels["kind"] = self.kind
         if "owner" not in meta.labels:
             meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()

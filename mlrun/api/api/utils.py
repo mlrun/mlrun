@@ -701,29 +701,45 @@ def submit_run_sync(
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
-        # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            get_scheduler().create_schedule(
-                db_session,
-                auth_info,
-                task["metadata"]["project"],
-                task["metadata"]["name"],
-                schemas.ScheduleKinds.job,
-                data,
-                cron_trigger,
-                schedule_labels,
-            )
+            created = False
+
+            try:
+                get_scheduler().update_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug("No existing schedule found, creating a new one")
+                get_scheduler().create_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    schemas.ScheduleKinds.job,
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+                created = True
             project = task["metadata"]["project"]
 
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
+                # indicate whether it was created or updated
+                "action": "created" if created else "updated",
             }
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed

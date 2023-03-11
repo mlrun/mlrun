@@ -48,6 +48,36 @@ pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 PROJECT = "some-project"
 
 
+def test_submit_run_sync(db: Session, client: TestClient):
+    auth_info = mlrun.api.schemas.AuthInfo()
+    tests.api.api.utils.create_project(client, PROJECT)
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client
+    )
+    submit_job_body = {
+        "schedule": "0 * * * *",
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}:{function_tag}",
+            },
+            "metadata": {"name": "sometask", "project": project},
+        },
+        "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
+        },
+    }
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "created"
+
+    # submit again, make sure it was updated
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "updated"
+
+
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
     db: Session, client: TestClient
 ):

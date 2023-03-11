@@ -25,8 +25,10 @@ import urllib.parse
 import aiohttp
 import fastapi
 import requests.adapters
+import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
@@ -211,6 +213,7 @@ class Client(
     def delete_project(
         self,
         session: str,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
@@ -244,6 +247,12 @@ class Client(
                 "Project not found in Iguazio. Considering deletion as successful",
                 name=name,
                 deletion_strategy=deletion_strategy,
+            )
+
+            # we will not get project deletion request in this case,
+            # we need to make sure the project is deleted from our DB as well
+            mlrun.api.crud.Projects().delete_project(
+                db_session, name, deletion_strategy
             )
             return False
         else:

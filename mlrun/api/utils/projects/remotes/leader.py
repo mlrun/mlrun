@@ -16,6 +16,8 @@ import abc
 import datetime
 import typing
 
+import sqlalchemy.orm
+
 import mlrun.api.schemas
 
 
@@ -42,6 +44,7 @@ class Member(abc.ABC):
     def delete_project(
         self,
         session: str,
+        db_session: sqlalchemy.orm.Session,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,

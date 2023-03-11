@@ -1427,12 +1427,12 @@ class BaseRuntime(ModelObj):
                     self.kind
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
-                        "absolute artifact_path must be specified when running remote tasks"
+                        "artifact path (`artifact_path`) must be absolute for remote tasks"
                     )
             elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
                 message = (
-                    "artifact/output path is local but no volume mounts were specified,"
-                    " artifacts will not be visible in the UI"
+                    "artifact output path is local while no volume mount is specified. "
+                    "artifacts would not be visible via UI."
                 )
             if message:
                 logger.warning(message, output_path=run.spec.output_path)

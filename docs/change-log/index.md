@@ -120,9 +120,10 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | ------------------------------------ | --------------------------------------------- |
 | `project.functions`                  | `project.get.functions`, `project.set.functions`, `project.list.functions` |
 | `project.artifacts`                  | `project.get.artifacts`, `project.set.artifacts`, `project.list.artifacts` |
+| `project.workflows`                  | `project.spec.workflows`                       |
 | `project.func()`                     | `project.get_function()`                       |
-| `project.create_vault_secrets()`     | NA                                   |
-| `project.get_vault_secret()`         | NA                                   |
+| `project.create_vault_secrets()`     | NA                                             |
+| `project.get_vault_secret()`         | NA                                             |
 | `MlrunProjectLegacy` class           | `MlrunProject`                                 |
 | Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step`                        |
 | `mount_path` parameter in mount_v3io() | `volume_mounts`                        |

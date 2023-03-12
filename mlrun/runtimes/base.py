@@ -1407,6 +1407,11 @@ class BaseRuntime(ModelObj):
             if not requirement or requirement.startswith("#"):
                 continue
 
+            # ignore inline comments as well
+            inline_comment = requirement.split(" #")
+            if len(inline_comment) > 1:
+                requirement = inline_comment[0].strip()
+
             # -r / --requirement are flags and should not be escaped
             # we allow such flags (could be passed within the requirements.txt file) and do not
             # try to open the file and include its content since it might be a remote file

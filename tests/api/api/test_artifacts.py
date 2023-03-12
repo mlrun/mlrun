@@ -60,12 +60,14 @@ def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
     _create_project(client)
     key_path = "some-key/with-slash"
 
+    # sanity, valid key path works
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
         data="{}",
     )
     assert resp.status_code == HTTPStatus.OK.value
 
+    # use invalid key path, expect its validation to fail
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(
             project=PROJECT, uid=UID, key=key_path, tag=TAG
@@ -78,28 +80,37 @@ def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
 def test_store_artifact_backwards_compatibility(db: Session, client: TestClient):
     _create_project(client)
     key_path = "some-key/with-slash"
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
-    artifact2 = mlrun.artifacts.Artifact(key=KEY, body="1234")
+    artifact = mlrun.artifacts.Artifact(key=key_path, body="123")
+    artifact2 = mlrun.artifacts.Artifact(key=key_path, body="1234")
 
     with unittest.mock.patch(
-        "mlrun.utils.helpers.verify_field_regex",
-        use_effect=[True, None],
+        "mlrun.utils.helpers.verify_field_regex", return_value=True
     ):
         resp = client.post(
             STORE_API_ARTIFACTS_PATH.format(
-                project=PROJECT, uid=UID, key=key_path, tag=TAG
+                project=PROJECT, uid=UID, key=key_path, tag="latest"
             ),
             data=artifact.to_json(),
         )
         assert resp.status_code == HTTPStatus.OK.value
 
-        resp = client.post(
-            STORE_API_ARTIFACTS_PATH.format(
-                project=PROJECT, uid=UID, key=key_path, tag=TAG
-            ),
-            data=artifact2.to_json(),
-        )
-        assert resp.status_code == HTTPStatus.OK.value
+    resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT))
+    assert (
+        resp.status_code == HTTPStatus.OK.value and len(resp.json()["artifacts"]) == 1
+    )
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=UID, key=key_path, tag="latest"
+        ),
+        data=artifact2.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT))
+    assert (
+        resp.status_code == HTTPStatus.OK.value and len(resp.json()["artifacts"]) == 1
+    )
 
 
 def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging
 import os
 import pathlib
 import sys
@@ -1503,7 +1504,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
 
         resp = fstore.get_offline_features(vec, engine="local")
-        local_engine_res = resp.to_dataframe()
+        local_engine_res = resp.to_dataframe().sort_index(axis=1)
 
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(
@@ -1513,8 +1514,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_service=self.spark_service,
             target=target,
         )
-        spark_engine_res = resp.to_dataframe()
+        spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        assert local_engine_res.sort_index(axis=1).equals(
-            spark_engine_res.sort_index(axis=1)
-        )
+        self._logger.info(f"result of LOCAL engine merger: \n {local_engine_res}")
+        self._logger.info(f"result of SPARK engine merger: \n {spark_engine_res}")
+
+        assert local_engine_res.equals(spark_engine_res)

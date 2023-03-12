@@ -308,6 +308,31 @@ def test_context_from_run_dict():
     assert context.artifact_path == out_path
 
 
+@pytest.mark.parametrize(
+    "state, error, expected_state",
+    [
+        ("running", None, "completed"),
+        ("completed", None, "completed"),
+        (None, "error message", "error"),
+        (None, "", "error"),
+    ],
+)
+def test_context_set_state(rundb_mock, state, error, expected_state):
+    project_name = "test_context_error"
+    mlrun.mlconf.artifact_path = out_path
+    context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+
+    with context:
+        context.set_state(execution_state=state, error=error, commit=False)
+        context.commit(completed=True)
+
+    assert context._state == expected_state, "task state was not set correctly"
+    assert context._error == error, "task error was not set"
+
+
 def test_run_class_code():
     cases = [
         ({"y": 3}, {"rx": 0, "ry": 3, "ra1": 1}),

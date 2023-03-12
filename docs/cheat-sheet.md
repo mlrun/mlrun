@@ -14,7 +14,6 @@
     - [Resource management](#resource-management)
     - [Building docker images](#building-docker-images)
 - [Multi-stage workflows (batch pipelines)](#multi-stage-workflows-batch-pipelines)
-- [Logging with hints](#logging-with-hints)
 - [Logging](#logging)
 - [Experiment tracking](#experiment-tracking)
 - [Model Inferencing and serving](#model-inferencing-and-serving)
@@ -571,6 +570,20 @@ Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Autom
 context.log_result(key="accuracy", value=0.934)
 context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
+```
+
+### Experiment tracking using `returns` (new in v1.3.0)
+
+- Inputs automatically use the type hint, or are assumed to be a DataItem
+- Use the `returns` argument to specify the return values.
+
+```
+log_with_returns_run = notebook_functions.run(
+    handler="log_with_returns",
+    inputs={"df": DATA_PATH},
+    returns=["returns_data", "returns_result"],
+    local=True,
+)
 ```
 
 ### Automatic logging

@@ -36,7 +36,7 @@ To call the function with an `input` you can use the `inputs` dictionary attribu
 a simple parameter, use the `params` dictionary attribute. The input value is the specific item uri
 (per data store schema) as explained in [Shared data stores](../store/datastore.html#shared-data-stores).
 
-From v1.3, DataItems are automatically parsed to the hinted type when a type hint is available.
+From v1.3, `DataItem` objects are automatically parsed to the hinted type when a type hint is available.
 
 Reading the data results from the run, you can easily get a run output artifact as a `DataItem` (so that you can view/use the artifact) using:
 

@@ -28,9 +28,6 @@ data movement, tracking, and security in an optimal way.  Read more about [data 
 
 When a type hint is available for an argument, MLRun automatically parses the DataItem to the hinted type (when the hinted type is supported).
 
-Inside the function you can access the parameters/inputs by simply adding them as parameters to the function, or you can get them from the context object (using `get_param()` and ` get_input()`).
-
-
 You can use `run_function` as a `project` methods, or as global (`mlrun.`) methods. For example:
 
     # run the "train" function in myproject

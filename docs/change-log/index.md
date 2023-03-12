@@ -103,8 +103,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
 | `project.workflows`                  | `project.spec.workflows`, `get_or_create_project`, `load_project` |
-| `project.functions`                  | `project.spec.functions`                      |
-| `project.artifacts`                  | `project.spec.artifacts`                       |
+| `project.functions`                  | `project.list_functions() / project.set_function()`                      |
+| `project.artifacts`                  | `project.list_artifacts() / project.set_artifact() / project.get_artifact()`                       |
 | `project.func()`                     | `project.get_function()`                       |
 | `project.create_vault_secrets()`     | NA                                   |
 | `project.get_vault_secret()`         | NA                                   |

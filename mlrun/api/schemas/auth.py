@@ -12,22 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
+import mlrun.api.utils.helpers
 
-class ProjectsRole(str, enum.Enum):
+
+class ProjectsRole(mlrun.api.utils.helpers.StrEnum):
     iguazio = "iguazio"
     mlrun = "mlrun"
     nuclio = "nuclio"
     nop = "nop"
 
 
-class AuthorizationAction(str, enum.Enum):
+class AuthorizationAction(mlrun.api.utils.helpers.StrEnum):
     read = "read"
     create = "create"
     update = "update"
@@ -38,7 +39,7 @@ class AuthorizationAction(str, enum.Enum):
     store = "store"
 
 
-class AuthorizationResourceTypes(str, enum.Enum):
+class AuthorizationResourceTypes(mlrun.api.utils.helpers.StrEnum):
     project = "project"
     log = "log"
     runtime_resource = "runtime-resource"

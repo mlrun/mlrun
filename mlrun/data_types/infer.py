@@ -17,6 +17,8 @@ import pandas as pd
 import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
 
+from mlrun.utils import logger
+
 from .data_types import InferOptions, pa_type_to_value_type, pd_schema_to_value_type
 
 default_num_bins = 20
@@ -38,7 +40,13 @@ def infer_schema_from_df(
 
     def upsert_entity(name, value_type):
         if name in current_entities:
-            entities[name].value_type = value_type
+            old_type = entities[name].value_type
+            if old_type != value_type:
+                logger.warning(
+                    f"Overriding type of entity '{name}' from '{old_type}' to '{value_type}'. "
+                    "This may result in errors or unusable data."
+                )
+                entities[name].value_type = value_type
         else:
             entities[name] = {"name": name, "value_type": value_type}
 
@@ -47,7 +55,6 @@ def infer_schema_from_df(
         df = df.reset_index().drop("index", axis=1)
 
     schema = pyarrow.Schema.from_pandas(df)
-    index_type = None
     for i in range(len(schema)):
         column = schema.names[i]
         value_type = pa_type_to_value_type(schema.types[i])
@@ -105,23 +112,19 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.names:
         df = df.reset_index()
-    for col, values in df.describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    ).items():
+    for col, values in df.describe(include="all", datetime_is_numeric=True).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            # TODO: why is 50% excluded from the results?
-            if stat != "50%":
-                if isinstance(val, (float, np.floating, np.float64)):
-                    stats_dict[stat] = float(val)
-                elif isinstance(val, (int, np.integer, np.int64)):
-                    # boolean values are considered subclass of int
-                    if isinstance(val, bool):
-                        stats_dict[stat] = bool(val)
-                    else:
-                        stats_dict[stat] = int(val)
+            if isinstance(val, (float, np.floating, np.float64)):
+                stats_dict[stat] = float(val)
+            elif isinstance(val, (int, np.integer, np.int64)):
+                # boolean values are considered subclass of int
+                if isinstance(val, bool):
+                    stats_dict[stat] = bool(val)
                 else:
-                    stats_dict[stat] = str(val)
+                    stats_dict[stat] = int(val)
+            else:
+                stats_dict[stat] = str(val)
 
         if InferOptions.get_common_options(
             options, InferOptions.Histogram

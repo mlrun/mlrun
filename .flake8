@@ -3,5 +3,4 @@ max-line-length = 120
 extend-ignore = E203, W503
 
 # exclude these dirs
-exclude = .git,venv,playground
-
+exclude = .git,venv*,playground,mlrun/api/proto

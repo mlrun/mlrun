@@ -468,24 +468,14 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
         )
 
-        # Getting the path for the time series DB
-        events_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=self.project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
-            )
-        )
-        (
-            _,
-            _,
-            events_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(events_path)
+        # Generate the required tsdb paths
+        tsdb_path, filtered_path = self._generate_tsdb_paths()
 
         # Delete time series DB resources
         try:
             frames.delete(
                 backend=model_monitoring_constants.StoreTarget.TSDB,
-                table=events_path,
+                table=filtered_path,
                 if_missing=v3io_frames.frames_pb2.IGNORE,
             )
         except v3io_frames.errors.CreateError:
@@ -493,9 +483,37 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             pass
 
         # Final cleanup of tsdb path
-        events_path.replace("://u", ":///u")
-        store, _ = mlrun.store_manager.get_or_create_store(events_path)
-        store.rm(events_path, recursive=True)
+        tsdb_path.replace("://u", ":///u")
+        store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
+        store.rm(tsdb_path, recursive=True)
+
+    def _generate_tsdb_paths(self) -> typing.Tuple[str, str]:
+        """Generate a short path to the TSDB resources and a filtered path for the frames object
+
+        :return: A tuple of:
+             [0] = Short path to the TSDB resources
+             [1] = Filtered path to TSDB events without schema and container
+        """
+        # Full path for the time series DB events
+        full_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=self.project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+            )
+        )
+
+        # Generate the main directory with the TSDB resources
+        tsdb_path = mlrun.utils.model_monitoring.parse_model_endpoint_project_prefix(
+            full_path, self.project
+        )
+
+        # Generate filtered path without schema and container as required by the frames object
+        (
+            _,
+            _,
+            filtered_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(full_path)
+        return tsdb_path, filtered_path
 
     @staticmethod
     def build_kv_cursor_filter_expression(

@@ -13,15 +13,16 @@
 # limitations under the License.
 #
 import datetime
-import enum
 import typing
 
 import pydantic
 
+import mlrun.api.utils.helpers
+
 from .object import ObjectKind, ObjectStatus
 
 
-class ProjectsFormat(str, enum.Enum):
+class ProjectsFormat(mlrun.api.utils.helpers.StrEnum):
     full = "full"
     name_only = "name_only"
     # internal - allowed only in follower mode, only for the leader for upgrade purposes
@@ -31,20 +32,20 @@ class ProjectsFormat(str, enum.Enum):
 class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
-    labels: typing.Optional[dict]
-    annotations: typing.Optional[dict]
+    labels: typing.Optional[dict] = {}
+    annotations: typing.Optional[dict] = {}
 
     class Config:
         extra = pydantic.Extra.allow
 
 
-class ProjectDesiredState(str, enum.Enum):
+class ProjectDesiredState(mlrun.api.utils.helpers.StrEnum):
     online = "online"
     offline = "offline"
     archived = "archived"
 
 
-class ProjectState(str, enum.Enum):
+class ProjectState(mlrun.api.utils.helpers.StrEnum):
     unknown = "unknown"
     creating = "creating"
     deleting = "deleting"
@@ -69,10 +70,10 @@ class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
     owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
-    params: typing.Optional[dict] = None
-    functions: typing.Optional[list] = None
-    workflows: typing.Optional[list] = None
-    artifacts: typing.Optional[list] = None
+    params: typing.Optional[dict] = {}
+    functions: typing.Optional[list] = []
+    workflows: typing.Optional[list] = []
+    artifacts: typing.Optional[list] = []
     artifact_path: typing.Optional[str] = None
     conda: typing.Optional[str] = None
     source: typing.Optional[str] = None
@@ -104,7 +105,7 @@ class ProjectSummary(pydantic.BaseModel):
     runs_failed_recent_count: int
     runs_running_count: int
     schedules_count: int
-    pipelines_running_count: int
+    pipelines_running_count: typing.Optional[int] = None
 
 
 class IguazioProject(pydantic.BaseModel):

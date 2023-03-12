@@ -13,12 +13,12 @@
 # limitations under the License.
 import os
 import pathlib
-import warnings
 from io import StringIO
 from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 from pandas.io.json import build_table_schema
 
 import mlrun
@@ -268,9 +268,11 @@ class DatasetArtifact(Artifact):
         artifact.spec.header = preview_df.columns.values.tolist()
         artifact.status.preview = preview_df.values.tolist()
         artifact.spec.schema = build_table_schema(preview_df)
-        if (
-            stats
-            or (
+
+        # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
+        if stats or (
+            stats is None
+            and (
                 artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
             )
             or ignore_preview_limits
@@ -279,125 +281,51 @@ class DatasetArtifact(Artifact):
 
     @property
     def column_metadata(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.column_metadata
 
     @column_metadata.setter
     def column_metadata(self, column_metadata):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.column_metadata = column_metadata
 
     @property
     def schema(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.schema instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.schema
 
     @schema.setter
     def schema(self, schema):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.schema instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.schema = schema
 
     @property
     def header(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.header instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.header
 
     @header.setter
     def header(self, header):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.header instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.header = header
 
     @property
     def preview(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.preview instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.status.preview
 
     @preview.setter
     def preview(self, preview):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.preview instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.status.preview = preview
 
     @property
     def stats(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         return self.status.stats
 
     @stats.setter
     def stats(self, stats):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the status, use artifact.status.stats instead"
-            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
-            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            PendingDeprecationWarning,
-        )
         self.status.stats = stats
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyTableArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + ["schema", "header"]
     kind = "table"
@@ -445,6 +373,12 @@ class LegacyTableArtifact(LegacyArtifact):
         return csv_buffer.getvalue()
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyDatasetArtifact' will be removed in 1.5.0, use 'DatasetArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyDatasetArtifact(LegacyArtifact):
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]

@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
+import mlrun.api.utils.helpers
 
-class SecretProviderName(str, Enum):
+
+class SecretProviderName(mlrun.api.utils.helpers.StrEnum):
     """Enum containing names of valid providers for secrets."""
 
     vault = "vault"
@@ -27,7 +28,7 @@ class SecretProviderName(str, Enum):
 
 class SecretsData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secrets: Optional[dict]
+    secrets: Optional[dict] = {}
 
 
 class AuthSecretData(BaseModel):
@@ -45,7 +46,7 @@ class AuthSecretData(BaseModel):
 
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secret_keys: Optional[list]
+    secret_keys: Optional[list] = []
 
 
 class UserSecretCreationRequest(SecretsData):

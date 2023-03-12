@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List, Union
+from typing import Dict, List, Optional, Union
 
 import kfp
 
@@ -72,6 +72,7 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
+    returns: Optional[List[Union[str, Dict[str, str]]]] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -87,26 +88,32 @@ def run_function(
 
     example (use with function object)::
 
-        function = mlrun.import_function("hub://sklearn_classifier")
-        run1 = run_function(function, params={"data": url})
+        LABELS = "is_error"
+        MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
+        DATA_PATH = "s3://bigdata/data.parquet"
+        function = mlrun.import_function("hub://auto_trainer")
+        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                      inputs={"dataset": DATA_PATH})
 
     example (use with project)::
 
         # create a project with two functions (local and from marketplace)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        project.set_function("hub://sklearn_classifier", "train")
+        project.set_function("hub://auto_trainer", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
-        run2 = run_function("train", params={"data": run1.outputs["data"]})
+        run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                     inputs={"dataset": run1.outputs["data"]})
 
     example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url})
-            run2 = run_function("train", params={"data": run1.outputs["data"]})
+            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                         inputs={"dataset": run1.outputs["data"]})
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 
@@ -118,7 +125,9 @@ def run_function(
     :param selector:        selection criteria for hyper params e.g. "max.accuracy"
     :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                             see: :py:class:`~mlrun.model.HyperParamOptions`
-    :param inputs:          input objects (dict of key: path)
+    :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be parsed
+                            during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
+                            in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
     :param outputs:         list of outputs which can pass in the workflow
     :param workdir:         default input artifacts path
     :param labels:          labels to tag the job/run with ({key:val, ..})
@@ -132,8 +141,19 @@ def run_function(
     :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
-                            https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                            https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param returns:         List of log hints - configurations for how to log the returning values from the handler's
+                            run (as artifacts or results). The list's length must be equal to the amount of returning
+                            objects. A log hint may be given as:
+
+                            * A string of the key to use to log the returning value as result or as an artifact. To
+                              specify The artifact type, it is possible to pass a string in the following structure:
+                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                              artifact type is specified, the object's default artifact type will be used.
+                            * A dictionary of configurations to use when logging. Further info per object type and
+                              artifact type can be given there. The artifact key must appear in the dictionary as
+                              "key": "the_key".
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -143,6 +163,7 @@ def run_function(
         hyper_params=hyperparams,
         hyper_param_options=hyper_param_options,
         inputs=inputs,
+        returns=returns,
         base=base_task,
         selector=selector,
     )
@@ -170,11 +191,11 @@ def run_function(
             verbose=verbose,
             watch=watch,
             local=local,
+            artifact_path=artifact_path
             # workflow artifact_path has precedence over the project artifact_path equivalent to
             # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
-            artifact_path=pipeline_context.workflow_artifact_path
-            or (project.artifact_path if project else None)
-            or artifact_path,
+            or pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None),
             auto_build=auto_build,
             schedule=schedule,
         )
@@ -210,7 +231,7 @@ def build_function(
     image=None,
     base_image=None,
     commands: list = None,
-    secret_name="",
+    secret_name=None,
     requirements: Union[str, List[str]] = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,
@@ -306,7 +327,7 @@ def deploy_function(
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object
-    :param dashboard:  url of the remote Nuclio dashboard (when not local)
+    :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
@@ -331,12 +352,11 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
-        if mock_nuclio and mock_nuclio == "auto":
-            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
-        mock = True if mock_nuclio and mock is None else mock
+        mock = mlrun.mlconf.use_nuclio_mock(mock)
         function._set_as_mock(mock)
         if mock:
+            # make sure the latest ver is saved in the DB (same as in function.deploy())
+            function.save()
             return DeployStatus(
                 state="ready",
                 outputs={"endpoint": "Mock", "name": function.metadata.name},

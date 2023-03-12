@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-ARG MLRUN_PYTHON_VERSION=3.7.13
+ARG MLRUN_PYTHON_VERSION=3.9
 
-FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
@@ -41,8 +41,10 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
+
 # install miniconda
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \

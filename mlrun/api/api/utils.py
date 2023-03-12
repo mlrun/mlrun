@@ -40,6 +40,7 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
@@ -48,9 +49,7 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-    #  version can be changed to details=kw
-    raise HTTPException(status_code=status, detail={"reason": kw})
+    raise HTTPException(status_code=status, detail=kw)
 
 
 def log_path(project, uid) -> Path:
@@ -185,7 +184,7 @@ def _generate_function_and_task_from_submit_run_body(
 
 async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
-        _submit_run, db_session, auth_info, data
+        submit_run_sync, db_session, auth_info, data
     )
     return response
 
@@ -228,6 +227,15 @@ def apply_enrichment_and_validation_on_function(
 
     if ensure_security_context:
         ensure_function_security_context(function, auth_info)
+
+
+def ensure_function_auth_and_sensitive_data_is_masked(
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    allow_empty_access_key: bool = False,
+):
+    ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
+    mask_function_sensitive_data(function, auth_info)
 
 
 def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
@@ -418,7 +426,16 @@ def _mask_v3io_access_key_env_var(
         )
 
 
-def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
+def ensure_function_has_auth_set(
+    function: mlrun.runtimes.BaseRuntime,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    allow_empty_access_key: bool = False,
+):
+    """
+    :param function:    Function object.
+    :param auth_info:   The auth info of the request.
+    :param allow_empty_access_key: Whether to raise an error if access key wasn't set or requested to get generated
+    """
     if (
         not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
@@ -439,10 +456,17 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 ]
 
             function.metadata.credentials.access_key = auth_info.access_key
+
         if not function.metadata.credentials.access_key:
+            if allow_empty_access_key:
+                # skip further enrichment as we allow empty access key
+                return
+
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"
             )
+
+        # after access key was passed or enriched with the condition above, we mask it with creating auth secret
         if not function.metadata.credentials.access_key.startswith(
             mlrun.model.Credentials.secret_reference_prefix
         ):
@@ -650,7 +674,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
 
 
-def _submit_run(
+def submit_run_sync(
     db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
@@ -662,6 +686,7 @@ def _submit_run(
     """
     run_uid = None
     project = None
+    response = None
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
@@ -674,7 +699,7 @@ def _submit_run(
                 "Local runtimes can not be run through API (not locally)"
             )
         run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db, True)
+        fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
@@ -701,7 +726,22 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
-            run = fn.run(task, watch=False)
+            # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
+            # locally from the mlrun service pod) - include project secrets and the caller's access key
+            param_file_secrets = (
+                mlrun.api.crud.Secrets()
+                .list_project_secrets(
+                    task["metadata"]["project"],
+                    mlrun.api.schemas.SecretProviderName.kubernetes,
+                    allow_secrets_from_k8s=True,
+                )
+                .secrets
+            )
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
+
+            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:
@@ -714,7 +754,10 @@ def _submit_run(
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

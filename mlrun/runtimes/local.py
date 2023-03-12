@@ -34,6 +34,7 @@ from nuclio import Event
 import mlrun
 from mlrun.lists import RunList
 
+from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
@@ -83,7 +84,7 @@ class ParallelRunner:
                 log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
                 resp = self._update_run_state(resp)
             except RunError as err:
-                resp = self._update_run_state(resp, err=str(err))
+                resp = self._update_run_state(resp, err=err_to_str(err))
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
@@ -272,7 +273,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get("kind") == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
@@ -305,11 +306,28 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 tmp=tmp,
                 host=socket.gethostname(),
             )
-            fn = self._get_handler(handler, context)
-            global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
-            return context.to_dict()
+            try:
+                fn = self._get_handler(handler, context)
+                global_context.set(context)
+                sout, serr = exec_from_params(fn, runobj, context)
+                log_std(
+                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
+                )
+                return context.to_dict()
+            # if RunError was raised it means that the error was raised as part of running the function
+            # ( meaning the state was already updated to error ) therefore we just re-raise the error
+            except RunError as err:
+                raise err
+            # this exception handling is for the case where we fail on pre-loading or post-running the function
+            # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
+            except Exception as exc:
+                # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
+                # by the caller and will set the state to error ( in `update_run_state` )
+                context.set_state(error=err_to_str(exc), commit=True)
+                logger.error(f"run error, {traceback.format_exc()}")
+                raise RunError(
+                    "failed on pre-loading / post-running of the function"
+                ) from exc
 
         else:
             command = self.spec.command
@@ -413,6 +431,10 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     old_level = logger.level
     if runobj.spec.verbose:
         logger.set_logger_level("DEBUG")
+
+    # Prepare the inputs type hints (user may pass type hints as part of the inputs keys):
+    runobj.spec.extract_type_hints_from_inputs()
+    # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
     kwargs = get_func_arg(handler, runobj, context)
 
     stdout = _DupStdout()
@@ -424,11 +446,25 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         try:
             if cwd:
                 os.chdir(cwd)
-            val = handler(**kwargs)
+            # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
+            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user.
+            # outputs are logged only if log hints are provided by the user):
+            val = mlrun.handler(
+                inputs=(
+                    runobj.spec.inputs_type_hints
+                    if runobj.spec.inputs_type_hints
+                    else True  # True will use type hints if provided in user's code.
+                ),
+                outputs=(
+                    runobj.spec.returns
+                    if runobj.spec.returns
+                    else None  # None will turn off outputs logging.
+                ),
+            )(handler)(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
-            err = str(exc)
-            logger.error(traceback.format_exc())
+            err = err_to_str(exc)
+            logger.error(f"execution error, {traceback.format_exc()}")
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 
@@ -438,7 +474,9 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     context.set_logger_stream(sys.stdout)
     if val:
         context.log_result("return", val)
-    context.commit()
+
+    # completion will be ignored if error is set
+    context.commit(completed=True)
     logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 

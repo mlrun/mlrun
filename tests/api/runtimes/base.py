@@ -340,6 +340,9 @@ class TestRuntimeBase:
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(
+            return_value="Mocked pod logs"
+        )
 
     def _mock_create_namespaced_custom_object(self):
         def _generate_custom_object(
@@ -383,11 +386,14 @@ class TestRuntimeBase:
     def execute_function(self, runtime, **kwargs):
         # simulating sending to API - serialization through dict
         runtime = runtime.from_dict(runtime.to_dict())
+        # set watch to False, to mimic the API behavior (API doesn't watch on the job)
+        kwargs.update({"watch": False})
         self._execute_run(runtime, **kwargs)
 
     def _reset_mocks(self):
         get_k8s().v1api.create_namespaced_pod.reset_mock()
         get_k8s().v1api.list_namespaced_pod.reset_mock()
+        get_k8s().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
         mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.reset_mock()
@@ -656,6 +662,7 @@ class TestRuntimeBase:
         assert_namespace_env_variable=True,
         expected_labels=None,
         expected_env_from_secrets={},
+        expected_args=None,
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -730,6 +737,9 @@ class TestRuntimeBase:
             assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
+
+        if expected_args:
+            assert container_spec.args == expected_args
 
     def _assert_container_resources(
         self, container_spec, expected_limits, expected_requests

@@ -8,7 +8,7 @@ one you can view at https://mlrun.readthedocs.io
 We use [sphinx](https://www.sphinx-doc.org/en/master/) for documentation.
 The documentation files are in
 [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
-The master document is `docs/index.rst`. Every file included in the `.. toctree::`
+The master document is `docs/contents.rst`. Every file included in the `.. toctree::`
 section publishes as a separate HTML page.
 
 The configuration is at: `docs/conf.py`.
@@ -27,7 +27,7 @@ Ask @yaronha to add you to the project if you don't have access.
 
 ## Structure 
 
-The master file is `docs/index.rst`
+The master file is `docs/contents.rst`
 
 ## Language (usage) guidelines
 
@@ -42,7 +42,7 @@ used to specify the default), the value can be fixed number for constants or $me
 - To join two nouns, use a - (hyphen). <br>
 - Use colons or &mdash; when separating text (not hyphen):
    - Yes: `v3io` storage through API: 
-   - Yes: `v3io` storage through API&mdash; 
+   - Yes: `v3io` storage through API &mdash; (m dashes are always surrounded by spaces)
    - No: `v3io` storage through API - 
 - For a range of numbers, use the &ndash;  For example: The range is 2&ndash;4. 
 
@@ -85,6 +85,20 @@ Do not use may in place of can!
 - Yes: You can update the code using...
 - Yes: As use-cases evolve, other types of storage access might be needed.
 - No: As use-cases evolve, other types of storage access may be needed.
+
+## Cheat sheet
+
+**x-refs**
+
+To x-ref a file by name and not location, use the file id.
+
+Target file starts with:
+      (mlops-dev-flow)=
+      # MLOps development flow
+
+X-ref looks like one of:
+{ref}`mlops-dev-flow`
+{ref}`title<mlops-dev-flow>`
 
 ## Documenting APIs
 

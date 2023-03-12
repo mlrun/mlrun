@@ -16,10 +16,10 @@ import os
 import pathlib
 import tempfile
 import typing
-import warnings
 import zipfile
 
 import yaml
+from deprecated import deprecated
 
 import mlrun
 import mlrun.errors
@@ -447,410 +447,138 @@ class Artifact(ModelObj):
 
     @property
     def inline(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.inline
 
     @inline.setter
     def inline(self, body):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.inline instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.inline = body
 
     @property
     def tag(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.tag instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.tag
 
     @tag.setter
     def tag(self, tag):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.tag instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.tag = tag
 
     @property
     def key(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.key instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.key
 
     @key.setter
     def key(self, key):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.key instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.key = key
 
     @property
     def src_path(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.src_path instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.src_path
 
     @src_path.setter
     def src_path(self, src_path):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.src_path instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.src_path = src_path
 
     @property
     def target_path(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.target_path instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.target_path
 
     @target_path.setter
     def target_path(self, target_path):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.target_path instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.target_path = target_path
 
     @property
     def producer(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.producer instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.producer
 
     @producer.setter
     def producer(self, producer):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.producer instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.producer = producer
 
     @property
     def format(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.format instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.format
 
     @format.setter
     def format(self, format):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.format instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.format = format
 
     @property
     def viewer(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.viewer instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.viewer
 
     @viewer.setter
     def viewer(self, viewer):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.viewer instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.viewer = viewer
 
     @property
     def size(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.size instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.size
 
     @size.setter
     def size(self, size):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.size instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.size = size
 
     @property
     def db_key(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.db_key instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.db_key
 
     @db_key.setter
     def db_key(self, db_key):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.db_key instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.db_key = db_key
 
     @property
     def sources(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.sources instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.sources
 
     @sources.setter
     def sources(self, sources):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.sources instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.sources = sources
 
     @property
     def extra_data(self):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.extra_data instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.extra_data
 
     @extra_data.setter
     def extra_data(self, extra_data):
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.spec.extra_data instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.extra_data = extra_data
 
     @property
     def labels(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.metadata.labels instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.labels
 
     @labels.setter
     def labels(self, labels):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.labels instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.labels = labels
 
     @property
     def iter(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.metadata.iter instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.iter
 
     @iter.setter
     def iter(self, iter):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.iter instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.iter = iter
 
     @property
     def tree(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.metadata.tree instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.tree
 
     @tree.setter
     def tree(self, tree):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.tree instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.tree = tree
 
     @property
     def project(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.metadata.project instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.project
 
     @project.setter
     def project(self, project):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.project instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.project = project
 
     @property
     def hash(self):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use artifact.metadata.hash instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         return self.metadata.hash
 
     @hash.setter
     def hash(self, hash):
-        """This is a property of the metadata, look there for documentation
-        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
-        warnings.warn(
-            "This is a property of the metadata, use artifact.metadata.hash instead"
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            PendingDeprecationWarning,
-        )
         self.metadata.hash = hash
 
     def generate_target_path(self, artifact_path, producer):
@@ -867,17 +595,6 @@ class DirArtifactSpec(ArtifactSpec):
 
 class DirArtifact(Artifact):
     kind = "dir"
-
-    _dict_fields = [
-        "key",
-        "kind",
-        "iter",
-        "tree",
-        "src_path",
-        "target_path",
-        "description",
-        "db_key",
-    ]
 
     @property
     def spec(self) -> DirArtifactSpec:
@@ -978,6 +695,12 @@ class LinkArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyArtifact' will be removed in 1.5.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class LegacyArtifact(ModelObj):
 
     _dict_fields = [
@@ -1139,6 +862,12 @@ class LegacyArtifact(ModelObj):
         return generate_target_path(self, artifact_path, producer)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyDirArtifact' will be removed in 1.5.0, use 'DirArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
         "key",
@@ -1169,6 +898,12 @@ class LegacyDirArtifact(LegacyArtifact):
             store_manager.object(url=target).upload(file_path)
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyLinkArtifact' will be removed in 1.5.0, use 'LinkArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyLinkArtifact(LegacyArtifact):
     _dict_fields = LegacyArtifact._dict_fields + [
         "link_iteration",

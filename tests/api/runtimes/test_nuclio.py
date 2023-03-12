@@ -21,7 +21,9 @@ import unittest.mock
 import deepdiff
 import kubernetes
 import nuclio
+import nuclio.utils
 import pytest
+import requests
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -122,7 +124,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def _execute_run(self, runtime, **kwargs):
-        deploy_nuclio_function(runtime)
+        deploy_nuclio_function(runtime, **kwargs)
 
     def _generate_runtime(
         self, kind=None, labels=None
@@ -352,6 +354,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         else:
             assert deploy_spec.get("securityContext") is None
 
+    def test_compile_function_config_with_special_character_labels(
+        self, db: Session, client: TestClient
+    ):
+        """
+        Test that compiling function configuration with labels containing special characters correctly sets them
+        """
+        function = self._generate_runtime(self.runtime_kind)
+        key, val = "test.label.com/env", "test"
+        function.set_label(key, val)
+        _, _, config = compile_function_config(function)
+        assert config["metadata"]["labels"].get(key) == val
+
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
         Expect no ingress template to be created, thought its mode is "always",
@@ -554,6 +568,26 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name,
             expected_build_base_image=expected_build_base_image,
         )
+
+    def test_deploy_populate_nuclio_errors(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+
+        # simulate a nuclio deploy error
+        response = requests.Response()
+        response._content = (
+            b'{"error": "Something bad happened - custom message from nuclio"}'
+        )
+        response.reason = "Bad Request"
+        response.status_code = 400
+
+        nuclio.deploy.deploy_config.side_effect = [
+            nuclio.utils.DeployError("Deployment failed", response)
+        ]
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+            self.execute_function(function)
+        assert "custom message from nuclio" in str(exc.value)
 
     def test_deploy_image_name_and_build_base_image(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
@@ -784,6 +818,43 @@ class TestNuclioRuntime(TestRuntimeBase):
                 deploy_metadata["annotations"].get("annotation-key")
                 == "annotation-value"
             )
+
+    @pytest.mark.parametrize(
+        "client_version,client_python_version,nuclio_version,expected_nuclio_runtime",
+        [
+            ("1.2.0", None, "1.5.9", "python:3.6"),
+            ("1.2.0", None, "1.9.15", "python:3.7"),
+            (None, None, "1.5.9", "python:3.6"),
+            (None, None, "1.9.15", "python:3.7"),
+            ("1.3.0", "3.7", "1.11.9", "python:3.7"),
+            ("1.3.0", "3.9", "1.11.9", "python:3.9"),
+            ("1.3.0", "3.9", "1.5.9", "python:3.9"),
+            ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
+            ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
+        ],
+    )
+    def test_deploy_with_runtime(
+        self,
+        db: Session,
+        client: TestClient,
+        client_version,
+        client_python_version,
+        nuclio_version,
+        expected_nuclio_runtime,
+    ):
+        mlconf.nuclio_version = nuclio_version
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(
+            function,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_nuclio_runtime=expected_nuclio_runtime,
+        )
 
     def test_deploy_python_decode_string_env_var_enrichment(
         self, db: Session, client: TestClient
@@ -1045,12 +1116,129 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_deploy_function_with_build_secret(self):
+    @pytest.mark.parametrize(
+        "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
+        "default_build_secret_name,expected_secret_name",
+        [
+            ("", "", "", "", None),
+            ("my-secret", "", "", "", "my-secret"),
+            ("my-secret", None, "", "", "my-secret"),
+            ("my-secret", None, None, None, "my-secret"),
+            ("my-secret", "my-secret", "", "", "my-secret"),
+            (None, "my-secret", "", "", "my-secret"),
+            (None, "my-secret", None, None, "my-secret"),
+            ("my-image-pull-secret", "my-build-secret", "", "", "my-image-pull-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-default-image-pull-secret",
+            ),
+            (None, None, "", "my-default-builder-secret", "my-default-builder-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-other-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+            (
+                "",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+            (
+                "my-default-image-pull-secret",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+        ],
+    )
+    def test_deploy_function_with_image_pull_secret(
+        self,
+        image_pull_secret_name,
+        build_secret_name,
+        default_image_pull_secret_name,
+        default_build_secret_name,
+        expected_secret_name,
+    ):
+        mlrun.mlconf.function.spec.image_pull_secret.default = (
+            default_image_pull_secret_name
+        )
+        mlrun.mlconf.httpdb.builder.docker_registry_secret = default_build_secret_name
         fn = self._generate_runtime()
-        fn.spec.build.secret = "applied"
+
+        if image_pull_secret_name is not None:
+            fn.set_image_pull_configuration(
+                image_pull_secret_name=image_pull_secret_name
+            )
+
+        if build_secret_name is not None:
+            fn.spec.build.secret = build_secret_name
+
         _, _, deployed_config = compile_function_config(fn)
-        # expects spec.build.secret to overwrite Nuclio spec["spec"]["imagePullSecrets"]
-        assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
+        assert deployed_config["spec"].get("imagePullSecrets") == expected_secret_name
 
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)

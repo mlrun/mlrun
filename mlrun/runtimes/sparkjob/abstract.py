@@ -26,13 +26,14 @@ import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
+from mlrun.errors import err_to_str
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ...execution import MLClientCtx
 from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
-from ...platforms.iguazio import mount_v3io_extended, mount_v3iod
+from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
     get_in,
     logger,
@@ -41,7 +42,7 @@ from ...utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
-from ..base import RunError
+from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import get_item_name
@@ -273,17 +274,19 @@ class AbstractSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -297,6 +300,7 @@ class AbstractSparkRuntime(KubejobRuntime):
             skip_deployed=skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 
@@ -441,7 +445,10 @@ class AbstractSparkRuntime(KubejobRuntime):
             job,
             "spec.image",
             self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version")
+                client_version=runobj.metadata.labels.get("mlrun/client_version"),
+                client_python_version=runobj.metadata.labels.get(
+                    "mlrun/client_python_version"
+                ),
             ),
         )
 
@@ -610,8 +617,8 @@ with ctx:
             return resp
         except ApiException as exc:
             crd = f"{AbstractSparkRuntime.group}/{AbstractSparkRuntime.version}/{AbstractSparkRuntime.plural}"
-            logger.error(f"Exception when creating SparkJob ({crd}): {exc}")
-            raise RunError(f"Exception when creating SparkJob: {exc}")
+            logger.error(f"Exception when creating SparkJob ({crd}): {err_to_str(exc)}")
+            raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
         k8s = self._get_k8s()
@@ -625,7 +632,7 @@ with ctx:
                 name,
             )
         except ApiException as exc:
-            print(f"Exception when reading SparkJob: {exc}")
+            print(f"Exception when reading SparkJob: {err_to_str(exc)}")
         return resp
 
     def _update_igz_jars(self, deps):
@@ -642,7 +649,7 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        self.apply(mount_v3io_extended(name="v3io"))
+        self.apply(mount_v3io(name="v3io"))
 
         # if we only want to mount v3io on the driver, move v3io
         # mounts from common volume mounts to driver volume mounts
@@ -669,19 +676,26 @@ with ctx:
                 "file://" + config.spark_history_server_path
             )
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_limits & with_executor_limits"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
-    def with_requests(self, mem=None, cpu=None):
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'"
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
         )
 
     def with_node_selection(
@@ -815,6 +829,9 @@ with ctx:
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
+    class_modes = {
+        RuntimeClassMode.run: "spark",
+    }
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
@@ -833,11 +850,16 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                     .replace("Z", "+00:00")
                 )
             else:
-                completion_time = datetime.fromisoformat(
-                    crd_object.get("status", {})
-                    .get("lastSubmissionAttemptTime")
-                    .replace("Z", "+00:00")
+                last_submission_attempt_time = crd_object.get("status", {}).get(
+                    "lastSubmissionAttemptTime"
                 )
+                if last_submission_attempt_time:
+                    last_submission_attempt_time = last_submission_attempt_time.replace(
+                        "Z", "+00:00"
+                    )
+                    completion_time = datetime.fromisoformat(
+                        last_submission_attempt_time
+                    )
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(
@@ -875,8 +897,13 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["spark"]
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return "spark-role=driver"
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
@@ -886,7 +913,7 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             AbstractSparkRuntime.plural,
         )
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,

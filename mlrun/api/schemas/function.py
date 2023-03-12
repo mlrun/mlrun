@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 import typing
-from enum import Enum
 
 import pydantic
 
+import mlrun.api.utils.helpers
 
-# Ideally we would want this to be class FunctionState(str, enum.Enum) which is the "FastAPI-compatible" way of creating
-# schemas
+
+# Ideally we would want this to be class FunctionState(mlrun.api.utils.helpers.StrEnum) which is the
+# "FastAPI-compatible" way of creating schemas
 # But, when we save a function to the DB, we pickle the body, which saves the state as an instance of this class (and
 # not just a string), then if for some reason we downgrade to 0.6.4, before we had this class, we fail reading (pickle
 # load) the function from the DB.
@@ -45,7 +46,7 @@ class FunctionState:
     build = "build"
 
 
-class PreemptionModes(str, Enum):
+class PreemptionModes(mlrun.api.utils.helpers.StrEnum):
     # makes function pods be able to run on preemptible nodes
     allow = "allow"
     # makes the function pods run on preemptible nodes only
@@ -58,7 +59,7 @@ class PreemptionModes(str, Enum):
 
 # used when running in Iguazio (otherwise use disabled mode)
 # populates mlrun.mlconf.function.spec.security_context.enrichment_mode
-class SecurityContextEnrichmentModes(str, Enum):
+class SecurityContextEnrichmentModes(mlrun.api.utils.helpers.StrEnum):
     # always use the user id of the user that triggered the 1st run / created the function
     # NOTE: this mode is incomplete and not fully supported yet
     retain = "retain"

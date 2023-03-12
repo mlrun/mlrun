@@ -215,7 +215,8 @@ dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-models")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = 'NodePort'
-dask.with_limits(mem="6G")
+dask.with_worker_limits(mem="6G")
+dask.with_scheduler_limits(mem="1G")
 dask.spec.nthreads = 5
 dask.apply(mlrun.mount_v3io())
 dask.client

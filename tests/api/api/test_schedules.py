@@ -13,18 +13,21 @@
 # limitations under the License.
 #
 import http
-import uuid
 
 import fastapi.testclient
+import httpx
+import pytest
 import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.main
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import tests.api.api.utils
 from mlrun.api import schemas
 from mlrun.api.utils.singletons.db import get_db
+from tests.common_fixtures import aioresponses_mock
 
 ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
 
@@ -80,203 +83,220 @@ def test_list_schedules(
     )
 
 
-def test_redirection_from_worker_to_chief_create_schedule(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/schedules"
-
-    for test_case in [
-        # project doesn't exists, expecting to fail before forwarding to chief
-        {
-            "body": _create_schedule(),
-            "expected_status": http.HTTPStatus.NOT_FOUND.value,
-            "expected_body": {
-                "detail": {
-                    "reason": f"MLRunNotFoundError('Project {project} does not exist')"
-                }
-            },
-            "expect_response_from_chief": False,
-            "create_project": False,
-        },
+@pytest.mark.parametrize(
+    "method, body, expected_status, expected_body, expected_response_from_chief, create_project",
+    [
+        # project doesn't exist, expecting to fail before forwarding to chief
+        [
+            "POST",
+            tests.api.api.utils.compile_schedule(),
+            http.HTTPStatus.NOT_FOUND.value,
+            {"detail": "MLRunNotFoundError('Project {project_name} does not exist')"},
+            False,
+            False,
+        ],
         # project exists, expecting to create
-        {
-            "body": _create_schedule(),
-            "expected_status": http.HTTPStatus.CREATED.value,
-            "expected_body": {},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-        body = test_case.get("body")
-        create_project = test_case.get("create_project", True)
-        expect_response_from_chief = test_case.get("expect_response_from_chief", True)
-
-        if create_project:
-            tests.api.api.utils.create_project(client, project)
-        if expect_response_from_chief:
-            httpserver.expect_ordered_request(
-                endpoint, method="POST"
-            ).respond_with_json(expected_response, status=expected_status)
-            url = httpserver.url_for("")
-            mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.post(endpoint, data=body)
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
-
-
-def test_redirection_from_worker_to_chief_update_schedule(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+        [
+            "POST",
+            tests.api.api.utils.compile_schedule(),
+            http.HTTPStatus.CREATED.value,
+            {},
+            True,
+            True,
+        ],
+    ],
+)
+@pytest.mark.asyncio
+async def test_redirection_from_worker_to_chief_create_schedule(
+    db: sqlalchemy.orm.Session,
+    async_client: httpx.AsyncClient,
+    aioresponses_mock: aioresponses_mock,
+    method: str,
+    body: dict,
+    expected_status: int,
+    expected_body: dict,
+    expected_response_from_chief: bool,
+    create_project: bool,
 ):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
     project = "test-project"
-    schedule_name = "test_scheduler"
-    endpoint = (
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/schedules/{schedule_name}"
+    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
+        project=project,
     )
+    _format_expected_body(expected_body, project_name=project)
 
-    for test_case in [
-        # we don't check if the project exists in update schedule, but rather query from the db and raise exception
-        # if schedule doesn't exists
-        {
-            "body": _create_schedule(),
-            "expected_status": http.HTTPStatus.NOT_FOUND.value,
-            "expected_body": {
-                "detail": {
-                    "reason": f"MLRunNotFoundError('Schedule not found: project={project}, name={schedule_name}')"
-                }
-            },
-        },
-        # updating schedule failed for unknown reason
-        {
-            "body": _create_schedule(),
-            "expected_status": http.HTTPStatus.NOT_FOUND.value,
-            "expected_body": {
-                "detail": {
-                    "reason": f"MLRunNotFoundError('Schedule not found: project={project}, name={schedule_name}')"
-                }
-            },
-        },
-        # project exists, expecting to create
-        {
-            "body": _create_schedule(),
-            "expected_status": http.HTTPStatus.OK.value,
-            "expected_body": {},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-        body = test_case.get("body")
-
-        httpserver.expect_ordered_request(endpoint, method="PUT").respond_with_json(
-            expected_response, status=expected_status
+    if create_project:
+        await tests.api.api.utils.create_project_async(async_client, project)
+    if expected_response_from_chief:
+        aioresponses_mock.post(
+            chief_mocked_url, status=expected_status, payload=expected_body
         )
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.put(endpoint, data=body)
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
+    response = await async_client.post(endpoint, data=body)
+    assert response.status_code == expected_status
+    assert response.json() == expected_body
 
 
-def test_redirection_from_worker_to_chief_delete_schedule(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    schedule_name = "test_scheduler"
-    endpoint = (
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/schedules/{schedule_name}"
-    )
-
-    for test_case in [
+@pytest.mark.parametrize(
+    "method, body, expected_status, expected_body",
+    [
         # deleting schedule failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
+        [
+            "DELETE",
+            None,
+            http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            {"detail": "Unknown error"},
+        ],
         # deleting schedule succeeded
-        {
-            "expected_status": http.HTTPStatus.NOT_FOUND.value,
-            "expected_body": {},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(endpoint, method="DELETE").respond_with_json(
-            expected_response, status=expected_status
-        )
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.delete(endpoint)
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
-
-
-def test_redirection_from_worker_to_chief_delete_schedules(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+        [
+            "DELETE",
+            None,
+            http.HTTPStatus.NOT_FOUND.value,
+            {},
+        ],
+        # we don't check if the project exists in update schedule, but rather query from the db and raise exception
+        # if schedule doesn't exist
+        [
+            "PUT",
+            tests.api.api.utils.compile_schedule(),
+            http.HTTPStatus.NOT_FOUND.value,
+            {
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+            },
+        ],
+        # updating schedule failed for unknown reason
+        [
+            "PUT",
+            tests.api.api.utils.compile_schedule(),
+            http.HTTPStatus.NOT_FOUND.value,
+            {
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+            },
+        ],
+        # project exists, expecting to create
+        ["PUT", tests.api.api.utils.compile_schedule(), http.HTTPStatus.OK.value, {}],
+    ],
+)
+@pytest.mark.asyncio
+async def test_redirection_from_worker_to_chief_schedule(
+    db: sqlalchemy.orm.Session,
+    async_client: httpx.AsyncClient,
+    aioresponses_mock: aioresponses_mock,
+    method: str,
+    body: dict,
+    expected_status: int,
+    expected_body: dict,
 ):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/schedules"
+    project_name = "test-project"
+    schedule_name = "test_schedule"
+    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
+        project=project_name, endpoint_suffix=schedule_name
+    )
 
-    for test_case in [
-        # deleting schedule failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
-        # deleting project's schedules succeeded
-        {
-            "expected_status": http.HTTPStatus.NOT_FOUND.value,
-            "expected_body": {},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
+    # template the expected body
+    _format_expected_body(
+        expected_body, project_name=project_name, schedule_name=schedule_name
+    )
 
-        httpserver.expect_ordered_request(endpoint, method="DELETE").respond_with_json(
-            expected_response, status=expected_status
-        )
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.delete(endpoint)
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
+    # what the chief will return
+    aioresponses_mock.add(
+        chief_mocked_url,
+        method,
+        status=expected_status,
+        payload=expected_body,
+    )
+    response = await async_client.request(method, endpoint, data=body)
+    assert response.status_code == expected_status
+    assert response.json() == expected_body
+    aioresponses_mock.assert_called_once()
 
 
-def test_redirection_from_worker_to_chief_invoke_schedule(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+@pytest.mark.parametrize(
+    "expected_status, expected_body",
+    [
+        [
+            # invoking schedule failed for unknown reason
+            http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            {"detail": {"reason": "Unknown error"}},
+        ],
+        [
+            # expecting to succeed
+            http.HTTPStatus.NOT_FOUND.value,
+            {},
+        ],
+    ],
+)
+@pytest.mark.asyncio
+async def test_redirection_from_worker_to_chief_delete_schedules(
+    db: sqlalchemy.orm.Session,
+    async_client: httpx.AsyncClient,
+    aioresponses_mock: aioresponses_mock,
+    expected_status: int,
+    expected_body: dict,
 ):
+
+    # so get_scheduler().list_schedules, which is called in the delete_schedules endpoint, will return something
+    await mlrun.api.utils.singletons.scheduler.initialize_scheduler()
+    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
+        project="test-project",
+    )
+
+    aioresponses_mock.delete(
+        chief_mocked_url,
+        status=expected_status,
+        payload=expected_body,
+    )
+
+    response = await async_client.delete(endpoint)
+    assert response.status_code == expected_status
+    assert response.json() == expected_body
+
+
+@pytest.mark.parametrize(
+    "expected_status, expected_body",
+    [
+        [
+            # invoking schedule failed for unknown reason
+            http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            {"detail": {"reason": "unknown error"}},
+        ],
+        [
+            # expecting to succeed
+            http.HTTPStatus.OK.value,
+            {},
+        ],
+    ],
+)
+@pytest.mark.asyncio
+async def test_redirection_from_worker_to_chief_invoke_schedule(
+    db: sqlalchemy.orm.Session,
+    async_client: httpx.AsyncClient,
+    aioresponses_mock: aioresponses_mock,
+    expected_status: int,
+    expected_body: dict,
+):
+    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
+        project="test-project", endpoint_suffix="test_scheduler/invoke"
+    )
+
+    aioresponses_mock.post(
+        chief_mocked_url,
+        status=expected_status,
+        payload=expected_body,
+    )
+
+    response = await async_client.post(endpoint)
+    assert response.status_code == expected_status
+    assert response.json() == expected_body
+
+
+def _prepare_test_redirection_from_worker_to_chief(project, endpoint_suffix=""):
+    mlrun.mlconf.httpdb.clusterization.chief.url = "http://chief:8080"
     mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project = "test-project"
-    schedule_name = "test_scheduler"
-    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/schedules/{schedule_name}/invoke"
-
-    for test_case in [
-        # invoking schedule failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "unknown error"}},
-        },
-        # expecting to succeed
-        {
-            "expected_status": http.HTTPStatus.OK.value,
-            "expected_body": {},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(endpoint, method="POST").respond_with_json(
-            expected_response, status=expected_status
-        )
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.post(endpoint)
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
+    mlrun.mlconf.httpdb.clusterization.worker.request_timeout = 3
+    endpoint = f"projects/{project}/schedules"
+    if endpoint_suffix:
+        endpoint = f"{endpoint}/{endpoint_suffix}"
+    chief_mocked_url = f"{mlrun.mlconf.httpdb.clusterization.chief.url}{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}"
+    return endpoint, chief_mocked_url
 
 
 def _get_and_assert_single_schedule(
@@ -289,15 +309,7 @@ def _get_and_assert_single_schedule(
     assert result[0]["name"] == schedule_name
 
 
-def _create_schedule(schedule_name: str = None, to_json: bool = True):
-    if not schedule_name:
-        schedule_name = f"schedule-name-{str(uuid.uuid4())}"
-    schedule = mlrun.api.schemas.ScheduleInput(
-        name=schedule_name,
-        kind=mlrun.api.schemas.ScheduleKinds.job,
-        scheduled_object={"metadata": {"name": "something"}},
-        cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
-    )
-    if not to_json:
-        return schedule
-    return mlrun.utils.dict_to_json(schedule.dict())
+def _format_expected_body(expected_body: dict, **kwargs):
+    if "detail" in expected_body:
+        expected_body["detail"] = expected_body["detail"].format(**kwargs)
+    return expected_body

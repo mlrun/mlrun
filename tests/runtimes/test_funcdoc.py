@@ -144,15 +144,31 @@ def test_ast_none():
 
 
 def test_ast_compound():
+    param_types = []
     with open(f"{tests_root_directory}/runtimes/arc.txt") as fp:
         code = fp.read()
+
+        # collect the types of the function parameters
+        # assumes each param is in a new line for simplicity
+        for line in code.splitlines()[3:12]:
+            if ":" not in line:
+                param_types.append(None)
+                continue
+
+            param_type = line[line.index(":") + 1 :]
+            if "=" in param_type:
+                param_type = param_type[: param_type.index("=")]
+            param_type = param_type[:-1].strip()
+            param_types.append(param_type)
 
     fn = ast_func(code)
     info = funcdoc.ast_func_info(fn)
     for i, param in enumerate(info["params"]):
         if i in (4, 8):
             continue
-        assert param["type"], f"{i}: {param}"
+        assert (
+            param["type"] == param_types[i]
+        ), f"param at index {i} has a bad type value. param: {param}"
 
 
 underscore_code = """

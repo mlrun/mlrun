@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 import sqlalchemy.dialects.mysql
 from sqlalchemy import (
+    BOOLEAN,
     JSON,
     Column,
     ForeignKey,
@@ -206,6 +207,11 @@ with warnings.catch_warnings():
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        # requested logs column indicates whether logs were requested for this run
+        # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
+        # False - logs were not requested for this run
+        # True - logs were requested for this run
+        requested_logs = Column(BOOLEAN, default=False, index=True)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
@@ -401,7 +407,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class FeatureVector(Base, BaseModel):
         __tablename__ = "feature_vectors"
@@ -441,7 +448,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class MarketplaceSource(Base, BaseModel):
         __tablename__ = "marketplace_sources"
@@ -471,7 +479,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class DataVersion(Base, BaseModel):
         __tablename__ = "data_versions"

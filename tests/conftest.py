@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shutil
 import traceback
 import typing
 from datetime import datetime
@@ -31,11 +30,8 @@ tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ
 
-shutil.rmtree(results, ignore_errors=True, onerror=None)
-Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
 environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
 environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
-print(f"KFP: {results}/kfp/")
 
 rundb_path = f"{results}/rundb"
 logs_path = f"{results}/logs"

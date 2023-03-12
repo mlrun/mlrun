@@ -22,15 +22,14 @@ from mlrun import DataItem
 
 
 # download the image archive
-def open_archive(context, archive_url: DataItem, target_path, refresh=False):
+def open_archive(context, archive_url: DataItem, target_path):
     """Open a file/object archive into a target directory
 
-    Currently supports zip and tar.gz
+    Currently, supports zip and tar.gz
 
     :param context:      function execution context
     :param archive_url:  url of archive file
     :param target_path:  file system path to store extracted files
-    :param key:          key of archive contents in artifact store
     """
     os.makedirs(target_path, exist_ok=True)
 

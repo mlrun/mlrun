@@ -42,7 +42,7 @@ def _build_feature_vector_graph(
             f"query-{name}",
             features=column_names,
             table=featureset.uri,
-            key=entity_list,
+            key_field=entity_list,
             aliases=aliases,
             fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
         )

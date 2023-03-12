@@ -1299,7 +1299,7 @@ def _generate_original_function(
     volumes=None,
     volume_mounts=None,
 ):
-    function_name = "function_name"
+    function_name = "function-name"
     project = "some-project"
     function_tag = "function_tag"
     original_function = {

@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -30,7 +32,11 @@ from mlrun.utils.helpers import (
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
+    get_regex_list_as_string,
+    resolve_image_tag_suffix,
     str_to_timestamp,
+    update_in,
+    validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -48,93 +54,85 @@ def test_retry_until_successful_fatal_failure():
         )
 
 
-def test_run_name_regex():
-    cases = [
-        {"value": "asd", "valid": True},
-        {"value": "Asd", "valid": True},
-        {"value": "AsA", "valid": True},
-        {"value": "As-123_2.8A", "valid": True},
-        {"value": "1As-123_2.8A5", "valid": True},
-        {
-            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
-            "valid": True,
-        },
-        {
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("asd", does_not_raise()),
+        ("Asd", does_not_raise()),
+        ("AsA", does_not_raise()),
+        ("As-123_2.8A", does_not_raise()),
+        ("1As-123_2.8A5", does_not_raise()),
+        (
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
+            does_not_raise(),
+        ),
+        (
             # Invalid because the first letter is -
-            "value": "-As-123_2.8A",
-            "valid": False,
-        },
-        {
+            "-As-123_2.8A",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
             # Invalid because the last letter is .
-            "value": "As-123_2.8A.",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A.",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
             # Invalid because $ is not allowed
-            "value": "As-123_2.8A$a",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A$a",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
             # Invalid because it's more then 63 characters
-            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
-            "valid": False,
-        },
-    ]
-    for case in cases:
-        try:
-            verify_field_regex("test_field", case["value"], mlrun.utils.regex.run_name)
-        except Exception:
-            if case["valid"]:
-                raise
-        else:
-            if not case["valid"]:
-                raise
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_run_name_regex(value, expected):
+    with expected:
+        verify_field_regex("test_field", value, mlrun.utils.regex.run_name)
 
 
-def test_spark_job_name_regex():
-    cases = [
-        {"value": "asd", "valid": True},
-        {"value": "asdlnasd-123123-asd", "valid": True},
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("asd", does_not_raise()),
+        ("asdlnasd-123123-asd", does_not_raise()),
         # DNS-1035
-        {"value": "t012312-asdasd", "valid": True},
-        {
+        ("t012312-asdasd", does_not_raise()),
+        (
             # Starts with alphanumeric number
-            "value": "012312-asdasd",
-            "valid": False,
-        },
-        {"value": "As-123_2.8A", "valid": False},
-        {"value": "1As-123_2.8A5", "valid": False},
-        {
+            "012312-asdasd",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("As-123_2.8A", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("1As-123_2.8A5", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        (
             # Invalid because the first letter is -
-            "value": "-As-123_2.8A",
-            "valid": False,
-        },
-        {
+            "-As-123_2.8A",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
             # Invalid because the last letter is .
-            "value": "As-123_2.8A.",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A.",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
             # Invalid because $ is not allowed
-            "value": "As-123_2.8A$a",
-            "valid": False,
-        },
+            "As-123_2.8A$a",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
         # sprakjob length 29
-        {"value": "asdnoinasoidas-asdaskdlnaskdl", "valid": True},
-        {"value": "asdnoinasoidas-asdaskdlnaskdl2", "valid": False},
-    ]
-    for case in cases:
-        try:
-            verify_field_regex(
-                "test_field", case["value"], mlrun.utils.regex.sparkjob_name
-            )
-        except Exception as exc:
-            print(exc)
-            if case["valid"]:
-                raise
-        else:
-            if not case["valid"]:
-                raise
+        ("asdnoinasoidas-asdaskdlnaskdl", does_not_raise()),
+        (
+            "asdnoinasoidas-asdaskdlnaskdl2",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_spark_job_name_regex(value, expected):
+    with expected:
+        verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
 
 
 def test_extend_hub_uri():
@@ -173,6 +171,87 @@ def test_extend_hub_uri():
             expected_output = case["expected_output"]
             output, _ = extend_hub_uri_if_needed(input_uri)
             assert expected_output == output
+
+
+@pytest.mark.parametrize(
+    "regex_list,value,expected_str,expected",
+    [
+        (
+            [r"^.{0,9}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "blabla123",
+            "(?=^.{0,9}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            True,
+        ),
+        (
+            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "blabla123",
+            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "bla^%",
+            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "abcde",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            True,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "abababe",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "bcea",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            False,
+        ),
+    ],
+)
+def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
+    regex_str = get_regex_list_as_string(regex_list)
+    assert expected_str == regex_str
+    match = re.match(regex_str, value)
+    assert match if expected else match is None
+
+
+@pytest.mark.parametrize(
+    "tag_name,expected",
+    [
+        (
+            "tag_with_char!@#",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "tag^name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "(tagname)",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "tagname%",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("tagname2.0", does_not_raise()),
+        ("tag-name", does_not_raise()),
+        ("tag-NAME", does_not_raise()),
+        ("tag_name", does_not_raise()),
+    ],
+)
+def test_validate_tag_name(tag_name, expected):
+    with expected:
+        validate_tag_name(
+            tag_name,
+            field_name="artifact.metadata,tag",
+        )
 
 
 def test_enrich_image():
@@ -346,6 +425,51 @@ def test_enrich_image():
             "expected_output": "some/image",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.0",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0-py37",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:1.2.0",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.2.0",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
@@ -362,8 +486,48 @@ def test_enrich_image():
         image = case["image"]
         expected_output = case["expected_output"]
         client_version = case.get("client_version")
-        output = enrich_image_url(image, client_version)
+        client_python_version = case.get("client_python_version")
+        output = enrich_image_url(image, client_version, client_python_version)
         assert output == expected_output
+
+
+@pytest.mark.parametrize(
+    "mlrun_version,python_version,expected",
+    [
+        ("1.3.0", "3.7.13", "-py37"),
+        ("1.3.0", "3.9.13", ""),
+        ("1.3.0", None, ""),
+        ("1.3.0", "3.8.13", ""),
+        ("1.3.0", "3.9.0", ""),
+        ("1.2.0", "3.7.0", ""),
+        ("1.2.0", "3.8.0", ""),
+        ("1.3.0-rc12", "3.7.13", "-py37"),
+        ("1.3.0-rc12", "3.9.13", ""),
+        ("1.3.0-rc12", None, ""),
+        ("1.3.0-rc12", "3.8.13", ""),
+        ("1.3.1", "3.7.13", "-py37"),
+        ("1.3.1", "3.9.13", ""),
+        ("1.3.1", None, ""),
+        ("1.3.1", "3.8.13", ""),
+        ("1.3.1-rc12", "3.7.13", "-py37"),
+        ("1.3.1-rc12", "3.9.13", ""),
+        # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
+        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
+        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
+        # defining a version)
+        ("0.0.0-unstable", "3.7.13", "-py37"),
+        ("0.0.0-unstable", "3.9.13", ""),
+        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        # we can remove them
+        ("1.4.0", "3.9.13", ""),
+        ("1.4.0", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.9.13", ""),
+    ],
+)
+def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
+    assert resolve_image_tag_suffix(mlrun_version, python_version) == expected
 
 
 def test_get_parsed_docker_registry():
@@ -412,27 +576,29 @@ def test_get_parsed_docker_registry():
         assert case["expected_repository"] == repository
 
 
-def test_parse_store_uri():
-    cases = [
-        {"uri": "store:///123", "expected_output": (StorePrefix.Artifact, "123")},
-        {"uri": "store://xyz", "expected_output": (StorePrefix.Artifact, "xyz")},
-        {
-            "uri": "store://feature-sets/123",
-            "expected_output": (StorePrefix.FeatureSet, "123"),
-        },
-        {
-            "uri": "store://feature-vectors/456",
-            "expected_output": (StorePrefix.FeatureVector, "456"),
-        },
-        {
-            "uri": "store://artifacts/890",
-            "expected_output": (StorePrefix.Artifact, "890"),
-        },
-        {"uri": "xxx://xyz", "expected_output": (None, "")},
-    ]
-    for case in cases:
-        output = parse_store_uri(case["uri"])
-        assert case["expected_output"] == output
+@pytest.mark.parametrize(
+    "uri,expected_output",
+    [
+        ("store:///123", (StorePrefix.Artifact, "123")),
+        ("store://xyz", (StorePrefix.Artifact, "xyz")),
+        (
+            "store://feature-sets/123",
+            (StorePrefix.FeatureSet, "123"),
+        ),
+        (
+            "store://feature-vectors/456",
+            (StorePrefix.FeatureVector, "456"),
+        ),
+        (
+            "store://artifacts/890",
+            (StorePrefix.Artifact, "890"),
+        ),
+        ("xxx://xyz", (None, "")),
+    ],
+)
+def test_parse_store_uri(uri, expected_output):
+    output = parse_store_uri(uri)
+    assert expected_output == output
 
 
 def test_fill_artifact_path_template():
@@ -469,6 +635,46 @@ def test_fill_artifact_path_template():
                 case["artifact_path"], case.get("project")
             )
             assert case["expected_artifact_path"] == filled_artifact_path
+
+
+def test_update_in():
+    obj = {}
+    update_in(obj, "a.b.c", 2)
+    assert obj["a"]["b"]["c"] == 2
+    update_in(obj, "a.b.c", 3)
+    assert obj["a"]["b"]["c"] == 3
+
+    update_in(obj, "a.b.d", 3, append=True)
+    assert obj["a"]["b"]["d"] == [3]
+    update_in(obj, "a.b.d", 4, append=True)
+    assert obj["a"]["b"]["d"] == [3, 4]
+
+
+@pytest.mark.parametrize(
+    "keys,val",
+    [
+        (
+            ["meta", "label", "tags.data.com/env"],
+            "value",
+        ),
+        (
+            ["spec", "handler"],
+            [1, 2, 3],
+        ),
+        (["metadata", "test", "labels", "test.data"], 1),
+        (["metadata.test", "test.test", "labels", "test.data"], True),
+        (["metadata", "test.middle.com", "labels", "test.data"], "data"),
+    ],
+)
+def test_update_in_with_dotted_keys(keys, val):
+    obj = {}
+    # Join the keys list with dots to form a single key string.
+    # If a key in the list has dots, wrap it with escaping (\\).
+    key = ".".join([key if "." not in key else f"\\{key}\\" for key in keys])
+    update_in(obj, key, val)
+    for key in keys:
+        obj = obj.get(key)
+    assert obj == val
 
 
 @pytest.mark.parametrize("actual_list", [[1], [1, "asd"], [None], ["asd", 23]])

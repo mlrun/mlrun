@@ -24,7 +24,7 @@ from typing import Union
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
-from ..errors import MLRunInvalidArgumentError
+from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
@@ -33,6 +33,7 @@ from .utils import _extract_input_data, _update_result_body
 callable_prefix = "_"
 path_splitter = "/"
 previous_step = "$prev"
+queue_class_names = [">>", "$queue"]
 
 
 class GraphError(Exception):
@@ -173,19 +174,20 @@ class BaseStep(ModelObj):
 
     def _log_error(self, event, err, **kwargs):
         """on failure log (for sync mode)"""
+        error_message = err_to_str(err)
         self.context.logger.error(
-            f"step {self.name} got error {err} when processing an event:\n {event.body}"
+            f"step {self.name} got error {error_message} when processing an event:\n {event.body}"
         )
-        message = traceback.format_exc()
-        self.context.logger.error(message)
+        error_trace = traceback.format_exc()
+        self.context.logger.error(error_trace)
         self.context.push_error(
-            event, f"{err}\n{message}", source=self.fullname, **kwargs
+            event, f"{error_message}\n{error_trace}", source=self.fullname, **kwargs
         )
 
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
         if self._on_error_handler:
-            event.error = str(err)
+            event.error = err_to_str(err)
             event.origin_state = self.fullname
             return self._on_error_handler(event)
 
@@ -327,44 +329,22 @@ class TaskStep(BaseStep):
                 self._inject_context = True
             return
 
-        if isinstance(self.class_name, type):
-            self._class_object = self.class_name
-            self.class_name = self.class_name.__name__
-
-        if not self._class_object:
-            if self.class_name == "$remote":
-
-                from mlrun.serving.remote import RemoteStep
-
-                self._class_object = RemoteStep
-            else:
-                self._class_object = get_class(
-                    self.class_name or self._default_class, namespace
-                )
-
+        self._class_object, self.class_name = self.get_step_class_object(
+            namespace=namespace
+        )
         if not self._object or reset:
             # init the step class + args
-            class_args = {}
-            for key, arg in self.class_args.items():
-                if key.startswith(callable_prefix):
-                    class_args[key[1:]] = get_function(arg, namespace)
-                else:
-                    class_args[key] = arg
-            class_args.update(extra_kwargs)
-
-            # add common args (name, context, ..) only if target class can accept them
-            argspec = getfullargspec(self._class_object)
-            for key in ["name", "context", "input_path", "result_path", "full_event"]:
-                if argspec.varkw or key in argspec.args:
-                    class_args[key] = getattr(self, key)
-            if argspec.varkw or "graph_step" in argspec.args:
-                class_args["graph_step"] = self
+            extracted_class_args = self.get_full_class_args(
+                namespace=namespace,
+                class_object=self._class_object,
+                **extra_kwargs,
+            )
             try:
-                self._object = self._class_object(**class_args)
+                self._object = self._class_object(**extracted_class_args)
             except TypeError as exc:
                 raise TypeError(
-                    f"failed to init step {self.name}, {exc}\n args={self.class_args}"
-                )
+                    f"failed to init step {self.name}\n args={self.class_args}"
+                ) from exc
 
             # determine the right class handler to use
             handler = self.handler
@@ -385,6 +365,40 @@ class TaskStep(BaseStep):
         self._set_error_handler()
         if mode != "skip":
             self._post_init(mode)
+
+    def get_full_class_args(self, namespace, class_object, **extra_kwargs):
+        class_args = {}
+        for key, arg in self.class_args.items():
+            if key.startswith(callable_prefix):
+                class_args[key[1:]] = get_function(arg, namespace)
+            else:
+                class_args[key] = arg
+        class_args.update(extra_kwargs)
+
+        # add common args (name, context, ..) only if target class can accept them
+        argspec = getfullargspec(class_object)
+        for key in ["name", "context", "input_path", "result_path", "full_event"]:
+            if argspec.varkw or key in argspec.args:
+                class_args[key] = getattr(self, key)
+        if argspec.varkw or "graph_step" in argspec.args:
+            class_args["graph_step"] = self
+        return class_args
+
+    def get_step_class_object(self, namespace):
+        class_name = self.class_name
+        class_object = self._class_object
+        if isinstance(class_name, type):
+            class_object = class_name
+            class_name = class_name.__name__
+        elif not class_object:
+            if class_name == "$remote":
+
+                from mlrun.serving.remote import RemoteStep
+
+                class_object = RemoteStep
+            else:
+                class_object = get_class(class_name or self._default_class, namespace)
+        return class_object, class_name
 
     def _is_local_function(self, context):
         # detect if the class is local (and should be initialized)
@@ -814,6 +828,7 @@ class FlowStep(BaseStep):
 
         for step in self._steps.values():
             step.set_parent(self)
+            context.logger.info_with("Initializing step", step=step.name)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()
         self._post_init(mode)
@@ -1072,12 +1087,12 @@ class FlowStep(BaseStep):
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
 
-        :param filename:  target filepath for the image (None for the notebook)
-        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
-        :param source:    source step to add to the graph
-        :param targets:   list of target steps to add to the graph
-        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
-        :return: graphviz graph object
+        :param filename:  target filepath for the graph image (None for the notebook)
+        :param format:    the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph image
+        :param targets:   list of target steps to add to the graph image
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see https://graphviz.org/doc/info/attrs.html)
+        :return:          graphviz graph object
         """
         return _generate_graphviz(
             self,
@@ -1156,7 +1171,14 @@ def _add_graphviz_flow(
     # draw targets after the last step (if specified)
     if targets:
         for target in targets or []:
-            graph.node(target.fullname, label=target.name, shape=target.get_shape())
+            target_kind, target_name = target.name.split("/", 1)
+            if target_kind != target_name:
+                label = (
+                    f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+                )
+            else:
+                label = target_name
+            graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)
@@ -1245,7 +1267,7 @@ def params_to_step(
         step.input_path = input_path or step.input_path
         step.result_path = result_path or step.result_path
 
-    elif class_name and class_name in [">>", "$queue"]:
+    elif class_name and class_name in queue_class_names:
         if "path" not in class_args:
             raise MLRunInvalidArgumentError(
                 "path=<stream path or None> must be specified for queues"

@@ -12,8 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+import os
+from sys import executable
+
+import pytest
+
 import mlrun
+import mlrun.feature_store.common
+import mlrun.model
 import tests.system.base
+
+
+def exec_run(args):
+    cmd = [executable, "-m", "mlrun", "run"] + args
+    out = os.popen(" ".join(cmd)).read()
+    return out
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -35,6 +49,25 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying kubejob function")
         function.deploy()
 
+    def test_deploy_function_with_requirements_file(self):
+        # ML-3518
+        code_path = str(self.assets_path / "kubejob_function_custom_requirements.py")
+        requirements_path = str(self.assets_path / "requirements.txt")
+        function = mlrun.code_to_function(
+            name="simple-function",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+            requirements=requirements_path,
+        )
+        function.deploy()
+        run = function.run(handler="mycls::do")
+        outputs = run.outputs
+        assert "requests" in outputs, "requests not in outputs"
+        assert "chardet" in outputs, "chardet not in outputs"
+        assert "pyhive" in outputs, "pyhive not in outputs"
+
     def test_deploy_function_without_image_with_requirements(self):
         # ML-2669
         code_path = str(self.assets_path / "kubejob_function.py")
@@ -46,13 +79,60 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             kind="job",
             project=self.project_name,
             filename=code_path,
-            requirements=["pandas"],
+            requirements=[
+                # ML-3518
+                "pandas>=1.5.0, <1.6.0",
+            ],
         )
         assert function.spec.image == ""
         assert function.spec.build.base_image == expected_base_image
         function.deploy()
         assert function.spec.image == expected_spec_image
         function.run()
+
+    def test_store_function_is_not_failing_if_generate_access_key_not_requested(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        function_name = "simple-function"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+        hash_key = function.save(versioned=True)
+        function = mlrun.get_run_db().get_function(
+            function_name, project=self.project_name, tag="latest", hash_key=hash_key
+        )
+        assert not function["metadata"].get("credentials", {}).get("access_key", None)
+
+    def test_store_function_after_run_local_verify_credentials_are_masked(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        function_name = "simple-function"
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+        function.run(local=True)
+        assert function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.generate_access_key
+        )
+
+        hash_key = mlrun.get_run_db().store_function(
+            function.to_dict(), function_name, self.project_name
+        )
+        masked_function = mlrun.get_run_db().get_function(
+            function.metadata.name, self.project_name, tag="latest", hash_key=hash_key
+        )
+        masked_function_obj = mlrun.new_function(runtime=masked_function)
+        assert masked_function_obj.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        )
+        # TODO: once env is sanitized attribute no need to use the camelCase anymore and rather access it is k8s class
+        assert (
+            masked_function_obj.get_env("V3IO_ACCESS_KEY")["secretKeyRef"] is not None
+        )
 
     def test_deploy_function_after_deploy(self):
         # ML-2701
@@ -98,6 +178,94 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.status.results["project_param"] == project_param
         assert run.status.results["param1"] == local_param
 
+    def test_function_handler_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        assert run.status.results["some-arg-by-handler"] == args[1]
+        assert run.status.results["my-args"] == [
+            "/usr/local/bin/mlrun",
+            "run",
+            "--name",
+            "function-with-args-handler",
+            "--from-env",
+            "--handler",
+            "handler",
+            "--origin-file",
+            code_path,
+            "*",
+            "--some-arg",
+            "a-value-123",
+        ]
+
+    def test_function_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["my-args"] == [
+            "function_with_args.py",
+            "--some-arg",
+            "a-value-123",
+        ]
+
+    @pytest.mark.enterprise
+    def test_new_function_with_args(self):
+        """
+        skip this test on ce because it requires uploading artifacts to target store
+        we don't allow uploading to s3 from tests and we only allow downloading compressed files from remote sources
+        here we upload the python code file to v3io
+        """
+        code_path = str(self.assets_path / "function_with_args.py")
+        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+        art = project.log_artifact(
+            "my_code_artifact", local_path=code_path, format="py"
+        )
+
+        function = mlrun.new_function(
+            name="new-function-with-args",
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+            source=art.get_target_path(),
+            command="my_code_artifact.py --another-one 123",
+        )
+
+        args = ["--some-arg", "val-with-artifact"]
+        function.spec.args = args
+        function.deploy()
+        run = function.run()
+        assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["another-one"] == "123"
+        assert run.status.results["my-args"] == [
+            "my_code_artifact.py",
+            "--another-one",
+            "123",
+            "--some-arg",
+            "val-with-artifact",
+        ]
+
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         cases = [
@@ -126,3 +294,74 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run(handler="json.dumps", params={"obj": {"x": 99}})
         print(run.status.results)
         assert run.output("return") == '{"x": 99}'
+
+    def test_run_cli_watch_remote_job(self):
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(sleep_func)
+        self.project.sync_functions(save=True)
+
+        run_name = "watch-test"
+        # ideally we wouldn't add sleep to a test, but in this scenario where we want to make sure that we actually
+        # wait for the run to finish, and because we can't be sure how long it will take to spawn the pod and run the
+        # function, we need to set pretty long timeout
+        time_to_sleep = 30
+        args = [
+            "--name",
+            run_name,
+            "--func-url",
+            f"db://{self.project_name}/sleep-function",
+            "--watch",
+            "--project",
+            self.project_name,
+            "--param",
+            f"time_to_sleep={time_to_sleep}",
+            "--handler",
+            "handler",
+        ]
+        start_time = datetime.datetime.now()
+        exec_run(args)
+        end_time = datetime.datetime.now()
+
+        assert (
+            end_time - start_time
+        ).seconds >= time_to_sleep, "run did not wait for completion"
+
+        runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
+        assert len(runs) == 1
+
+    def test_function_handler_set_labels_and_annotations(self):
+        code_path = str(self.assets_path / "handler.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="test-func",
+            kind="job",
+            handler="set_labels_and_annotations_handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        run = function.run()
+        assert run.metadata.labels.get("label1") == "label-value1"
+        assert run.metadata.annotations.get("annotation1") == "annotation-value1"
+
+    def test_normalize_run_name(self):
+        function = mlrun.feature_store.common.RunConfig().to_function(
+            default_kind="job",
+            default_image="mlrun/mlrun",
+        )
+        function.with_code(str(self.assets_path / "handler.py"))
+
+        task = mlrun.model.new_task(
+            name="ASC_merger", handler="set_labels_and_annotations_handler"
+        )
+        run = function.run(task, project=self.project_name)
+
+        # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
+        assert run.metadata.name == "asc-merger"

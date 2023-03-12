@@ -20,7 +20,7 @@ import mlrun.api.schemas
 
 class Provider(abc.ABC):
     @abc.abstractmethod
-    def query_permissions(
+    async def query_permissions(
         self,
         resource: str,
         action: mlrun.api.schemas.AuthorizationAction,
@@ -30,7 +30,7 @@ class Provider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def filter_by_permissions(
+    async def filter_by_permissions(
         self,
         resources: typing.List,
         opa_resource_extractor: typing.Callable,

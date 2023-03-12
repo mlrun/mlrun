@@ -316,17 +316,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # import the training function from the marketplace (hub://)
-        train = mlrun.import_function("hub://sklearn_classifier")
+        # Import the auto trainer function from the marketplace (hub://)
+        train = mlrun.import_function("hub://auto_trainer")
 
         for name, pkg in model_names.items():
 
-            # run the function and specify input dataset path and some parameters (algorithm and label column name)
+            # Run the function and specify input dataset path and some parameters (algorithm and label column name)
             train_run = train.run(
                 name=name,
                 inputs={"dataset": path},
-                params={"model_pkg_class": pkg, "label_column": label_column},
-                artifact_path=f"v3io:///projects/{name}/artifacts",
+                params={"model_class": pkg, "label_columns": label_column},
             )
 
             # Add the model to the serving function's routing spec
@@ -421,6 +420,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
         for endpoint in endpoints_list.endpoints:
+            # Validate that the model endpoint record has been updated through the stream process
+            assert endpoint.status.first_request != endpoint.status.last_request
             data = client.read(
                 backend="tsdb",
                 table=tsdb_path,
@@ -578,6 +579,18 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         # Deploy the serving function
         serving_fn.deploy()
+
+        # Validate that the model monitoring batch access key is replaced with an internal secret
+        batch_function = mlrun.get_run_db().get_function(
+            name="model-monitoring-batch", project=self.project_name
+        )
+        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
+        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        assert batch_access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix + auth_secret
+        )
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)

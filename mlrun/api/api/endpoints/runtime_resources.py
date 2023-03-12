@@ -18,6 +18,7 @@ import typing
 
 import fastapi
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun
 import mlrun.api.api.deps
@@ -28,17 +29,6 @@ import mlrun.api.utils.auth.verifier
 router = fastapi.APIRouter()
 
 
-@router.get("/runtimes", response_model=mlrun.api.schemas.RuntimeResourcesOutput)
-# TODO: remove when 0.6.6 is no longer relevant
-def list_runtime_resources_legacy(
-    label_selector: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-):
-    _list_runtime_resources("*", auth_info, label_selector)
-
-
 @router.get(
     "/projects/{project}/runtime-resources",
     response_model=typing.Union[
@@ -47,7 +37,7 @@ def list_runtime_resources_legacy(
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ],
 )
-def list_runtime_resources(
+async def list_runtime_resources(
     project: str,
     label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
     kind: typing.Optional[str] = None,
@@ -59,36 +49,16 @@ def list_runtime_resources(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    return _list_runtime_resources(
+    return await _list_runtime_resources(
         project, auth_info, label_selector, group_by, kind, object_id
     )
-
-
-@router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
-# TODO: remove when 0.6.6 is no longer relevant
-def list_runtime_resources_by_kind_legacy(
-    kind: str,
-    label_selector: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-):
-    runtime_resources_output = _list_runtime_resources(
-        "*", auth_info, label_selector, kind_filter=kind
-    )
-    if runtime_resources_output:
-        return runtime_resources_output[0]
-    else:
-        return mlrun.api.schemas.KindRuntimeResources(
-            kind=kind, resources=mlrun.api.schemas.RuntimeResources()
-        )
 
 
 @router.delete(
     "/projects/{project}/runtime-resources",
     response_model=mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
 )
-def delete_runtime_resources(
+async def delete_runtime_resources(
     project: str,
     label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
     kind: typing.Optional[str] = None,
@@ -104,7 +74,7 @@ def delete_runtime_resources(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    return _delete_runtime_resources(
+    return await _delete_runtime_resources(
         db_session,
         auth_info,
         project,
@@ -116,87 +86,7 @@ def delete_runtime_resources(
     )
 
 
-@router.delete("/runtimes", status_code=http.HTTPStatus.NO_CONTENT.value)
-# TODO: remove when 0.6.6 is no longer relevant
-def delete_runtimes_legacy(
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        force=force,
-        grace_period=grace_period,
-        return_body=False,
-    )
-
-
-@router.delete("/runtimes/{kind}", status_code=http.HTTPStatus.NO_CONTENT.value)
-# TODO: remove when 0.6.6 is no longer relevant
-def delete_runtime_legacy(
-    kind: str,
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        kind,
-        force=force,
-        grace_period=grace_period,
-        return_body=False,
-    )
-
-
-@router.delete(
-    "/runtimes/{kind}/{object_id}", status_code=http.HTTPStatus.NO_CONTENT.value
-)
-# TODO: remove when 0.6.6 is no longer relevant
-def delete_runtime_object_legacy(
-    kind: str,
-    object_id: str,
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        kind,
-        object_id,
-        force,
-        grace_period,
-        return_body=False,
-    )
-
-
-def _delete_runtime_resources(
+async def _delete_runtime_resources(
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
@@ -214,7 +104,7 @@ def _delete_runtime_resources(
         grouped_by_project_runtime_resources_output,
         is_non_project_runtime_resource_exists,
         not_allowed_projects_exist,
-    ) = _get_runtime_resources_allowed_projects(
+    ) = await _get_runtime_resources_allowed_projects(
         project,
         auth_info,
         label_selector,
@@ -245,7 +135,8 @@ def _delete_runtime_resources(
             )
         else:
             computed_label_selector = permissions_label_selector
-        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
+        await run_in_threadpool(
+            mlrun.api.crud.RuntimeResources().delete_runtime_resources,
             db_session,
             kind,
             object_id,
@@ -255,7 +146,8 @@ def _delete_runtime_resources(
         )
     if is_non_project_runtime_resource_exists:
         # delete one more time, without adding the allowed projects selector
-        mlrun.api.crud.RuntimeResources().delete_runtime_resources(
+        await run_in_threadpool(
+            mlrun.api.crud.RuntimeResources().delete_runtime_resources,
             db_session,
             kind,
             object_id,
@@ -276,7 +168,7 @@ def _delete_runtime_resources(
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
-def _list_runtime_resources(
+async def _list_runtime_resources(
     project: str,
     auth_info: mlrun.api.schemas.AuthInfo,
     label_selector: typing.Optional[str] = None,
@@ -295,7 +187,7 @@ def _list_runtime_resources(
         grouped_by_project_runtime_resources_output,
         _,
         _,
-    ) = _get_runtime_resources_allowed_projects(
+    ) = await _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter, object_id
     )
     return mlrun.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
@@ -305,7 +197,7 @@ def _list_runtime_resources(
     )
 
 
-def _get_runtime_resources_allowed_projects(
+async def _get_runtime_resources_allowed_projects(
     project: str,
     auth_info: mlrun.api.schemas.AuthInfo,
     label_selector: typing.Optional[str] = None,
@@ -319,21 +211,21 @@ def _get_runtime_resources_allowed_projects(
     bool,
 ]:
     if project != "*":
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
     grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput
-    grouped_by_project_runtime_resources_output = (
-        mlrun.api.crud.RuntimeResources().list_runtime_resources(
-            project,
-            kind,
-            object_id,
-            label_selector,
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
-        )
+    grouped_by_project_runtime_resources_output = await run_in_threadpool(
+        mlrun.api.crud.RuntimeResources().list_runtime_resources,
+        project,
+        kind,
+        object_id,
+        label_selector,
+        mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
     )
+
     projects = []
     is_non_project_runtime_resource_exists = False
     for (
@@ -344,7 +236,7 @@ def _get_runtime_resources_allowed_projects(
             is_non_project_runtime_resource_exists = True
             continue
         projects.append(project)
-    allowed_projects = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_projects = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
         lambda project: (

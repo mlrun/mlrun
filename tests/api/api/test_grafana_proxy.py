@@ -57,8 +57,8 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
-        unittest.mock.Mock(
+    mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
             return_value=(
                 mlrun.api.schemas.AuthInfo(
                     username=None,

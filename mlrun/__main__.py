@@ -17,15 +17,17 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
-from os import environ, path
+from os import environ, path, remove
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
 from urllib.parse import urlparse
 
 import click
+import dotenv
 import pandas as pd
 import yaml
 from tabulate import tabulate
@@ -35,6 +37,7 @@ import mlrun
 from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
+from .errors import err_to_str
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
@@ -63,13 +66,26 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
+def validate_base_argument(ctx, param, value):
+    if value and value.startswith("-"):
+        raise click.BadParameter(
+            f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
+            f"correctly. Preferably use '--' to separate options and arguments "
+            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
+            ctx=ctx,
+            param=param,
+        )
+
+    return value
+
+
 @click.group()
 def main():
     pass
 
 
-@main.command()
-@click.argument("url", type=str, required=False)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("url", type=str, required=False, callback=validate_base_argument)
 @click.option(
     "--param",
     "-p",
@@ -168,6 +184,11 @@ def main():
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--returns",
+    multiple=True,
+    help="Logging configurations for the handler's returning values",
+)
 def run(
     url,
     param,
@@ -210,6 +231,7 @@ def run(
     auto_build,
     run_args,
     ensure_project,
+    returns,
 ):
     """Execute a task and inject parameters."""
 
@@ -298,7 +320,14 @@ def run(
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
-        if suffix != ".py" and mode != "pass" and url_file != "{codefile}":
+
+        # * is a placeholder for the url file when we want to use url args and let mlrun resolve the url file
+        if (
+            suffix != ".py"
+            and mode != "pass"
+            and url_file != "{codefile}"
+            and url_file != "*"
+        ):
             print(
                 f"command/url ({url}) must specify a .py file when not in 'pass' mode"
             )
@@ -324,6 +353,11 @@ def run(
         with open(url_file, "w") as fp:
             fp.write(code)
 
+    # at this point the url placeholder should have been resolved to the actual url file
+    if url == "*":
+        print("command/url '*' placeholder is not allowed when code is not from env")
+        exit(1)
+
     if url:
         if not name and not runtime:
             name = path.splitext(path.basename(url))[0]
@@ -345,6 +379,9 @@ def run(
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(
+        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+    )
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
@@ -373,22 +410,25 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
-        # if pod is running inside kfp pod, we don't really need the run logs to be printed actively, we can just
-        # pull the run state, and print it at the end
-        # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
-        watch = watch or None if kfp else False
+        if kfp:
+            # if pod is running inside kfp pod, we don't really need the run logs to be printed actively, we can just
+            # pull the run state, and pull the logs periodically
+            # we will set watch=None only when the pod is running inside kfp, and this tells the run to pull state
+            # and logs periodically
+            # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
+            watch = watch or None
         resp = fn.run(
             runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
         )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print(f"runtime error: {err}")
+        print(f"runtime error: {err_to_str(err)}")
         exit(1)
 
 
-@main.command()
-@click.argument("func_url", type=str, required=False)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("func_url", type=str, required=False, callback=validate_base_argument)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
 @click.option("--tag", default="", help="function tag")
@@ -461,12 +501,14 @@ def build(
             print("Runtime:")
             pprint(runtime)
         func = new_function(runtime=runtime)
-    elif func_url.startswith("db://"):
-        func_url = func_url[5:]
-        func = import_function(func_url)
+
     elif func_url:
-        func_url = "function.yaml" if func_url == "." else func_url
+        if func_url.startswith("db://"):
+            func_url = func_url[5:]
+        elif func_url == ".":
+            func_url = "function.yaml"
         func = import_function(func_url)
+
     else:
         print("please specify the function path or url")
         exit(1)
@@ -522,7 +564,7 @@ def build(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print(f"deploy error, {err}")
+            print(f"deploy error, {err_to_str(err)}")
             exit(1)
 
         state = func.status.state
@@ -543,8 +585,8 @@ def build(
         exit(1)
 
 
-@main.command()
-@click.argument("spec", type=str, required=False)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("spec", type=str, required=False, callback=validate_base_argument)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
     "--func-url",
@@ -552,7 +594,12 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
-@click.option("--dashboard", "-d", default="", help="nuclio dashboard url")
+@click.option(
+    "--dashboard",
+    "-d",
+    default="",
+    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
+)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")
@@ -632,10 +679,18 @@ def deploy(
             function.set_env(k, v)
     function.verbose = verbose
 
+    if dashboard:
+        warnings.warn(
+            "'--dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
+            "Keep '--dashboard' value empty to allow auto-detection by MLRun API.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
+
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
-        print(f"deploy error: {err}")
+        print(f"deploy error: {err_to_str(err)}")
         exit(1)
 
     print(f"function deployed, address={addr}")
@@ -645,22 +700,29 @@ def deploy(
         fp.write(function.status.nuclio_name)
 
 
-@main.command()
-@click.argument("pod", type=str)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("pod", type=str, callback=validate_base_argument)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
     "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
 )
 def watch(pod, namespace, timeout):
     """Read current or previous task (pod) logs."""
+    print("This command will be deprecated in future version !!!\n")
     k8s = K8sHelper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print(f"Pod {pod} last status is: {status}")
 
 
-@main.command()
-@click.argument("kind", type=str)
-@click.argument("name", type=str, default="", required=False)
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("kind", type=str, callback=validate_base_argument)
+@click.argument(
+    "name",
+    type=str,
+    default="",
+    required=False,
+    callback=validate_base_argument,
+)
 @click.option("--selector", "-s", default="", help="label selector")
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option("--uid", help="unique ID")
@@ -669,38 +731,31 @@ def watch(pod, namespace, timeout):
 @click.option("--db", help="db path/url")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
-    """List/get one or more object per kind/class."""
+    """List/get one or more object per kind/class.
+
+    KIND - resource type to list/get: run | runtime | workflow | artifact | function
+    NAME - optional, resource name or category
+    """
 
     if db:
         mlconf.dbpath = db
-
+    if not project:
+        print("warning, project parameter was not specified using default !")
     if kind.startswith("po"):
-        k8s = K8sHelper(namespace)
-        if name:
-            resp = k8s.get_pod(name, namespace)
-            print(resp)
-            return
+        print("Unsupported, use 'get runtimes' instead")
+        return
 
-        items = k8s.list_pods(namespace, selector)
-        print(f"{'state':10} {'started':16} {'type':8} name")
-        for i in items:
-            task = i.metadata.labels.get("mlrun/class", "")
-            if task:
-                name = i.metadata.name
-                state = i.status.phase
-                start = ""
-                if i.status.start_time:
-                    start = i.status.start_time.strftime("%b %d %H:%M:%S")
-                print(f"{state:10} {start:16} {task:8} {name}")
     elif kind.startswith("runtime"):
         run_db = get_run_db(db or mlconf.dbpath)
-        if name:
-            # the runtime identifier is its kind
-            runtime = run_db.list_runtime_resources(kind=name, label_selector=selector)
+        # the name field is used as function kind, set to None if empty
+        name = name if name else None
+        runtimes = run_db.list_runtime_resources(
+            label_selector=selector, kind=name, project=project
+        )
+        for runtime in runtimes:
             print(dict_to_yaml(runtime.dict()))
-            return
-        runtimes = run_db.list_runtime_resources(label_selector=selector)
-        print(dict_to_yaml(runtimes.dict()))
+            print()
+
     elif kind.startswith("run"):
         run_db = get_run_db()
         if name:
@@ -751,9 +806,38 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             ]
             lines.append(line)
         print(tabulate(lines, headers=headers))
+
+    elif kind.startswith("workflow"):
+        run_db = get_run_db()
+        if project == "*":
+            print("warning, reading workflows for all projects may take a long time !")
+            pipelines = run_db.list_pipelines(project=project, page_size=200)
+            pipe_runs = pipelines.runs
+            while pipelines.next_page_token is not None:
+                pipelines = run_db.list_pipelines(
+                    project=project, page_token=pipelines.next_page_token
+                )
+                pipe_runs.extend(pipelines.runs)
+        else:
+            pipelines = run_db.list_pipelines(project=project)
+            pipe_runs = pipelines.runs
+
+        lines = []
+        headers = ["project", "name", "status", "created at", "finished at"]
+        for pipe_run in pipe_runs:
+            line = [
+                pipe_run["project"],
+                pipe_run["name"],
+                pipe_run["status"],
+                pipe_run["created_at"],
+                pipe_run["finished_at"],
+            ]
+            lines.append(line)
+        print(tabulate(lines, headers=headers))
+
     else:
         print(
-            "currently only get pods | runs | artifacts | func [name] | runtime are supported"
+            "currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
 
 
@@ -765,11 +849,31 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
 @click.option("--verbose", is_flag=True, help="verbose log")
 @click.option("--background", "-b", is_flag=True, help="run in background process")
-def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
+@click.option("--artifact-path", "-a", help="default artifact path")
+@click.option(
+    "--update-env",
+    default="",
+    is_flag=False,
+    flag_value=mlrun.config.default_env_file,
+    help=f"update the specified mlrun .env file (if TEXT not provided defaults to {mlrun.config.default_env_file})",
+)
+def db(
+    port,
+    dirpath,
+    dsn,
+    logs_path,
+    data_volume,
+    verbose,
+    background,
+    artifact_path,
+    update_env,
+):
     """Run HTTP api/database server"""
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
-    env.pop("MLRUN_ENV_FILE", None)
+    env["MLRUN_IGNORE_ENV_FILE"] = "true"
+    env["MLRUN_DBPATH"] = ""
+
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
@@ -784,6 +888,13 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
         env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
     if verbose:
         env["MLRUN_LOG_LEVEL"] = "DEBUG"
+    if artifact_path or "MLRUN_ARTIFACT_PATH" not in env:
+        if not artifact_path:
+            artifact_path = (
+                env.get("MLRUN_HTTPDB__DATA_VOLUME", "./artifacts").rstrip("/")
+                + "/{{project}}"
+            )
+        env["MLRUN_ARTIFACT_PATH"] = path.realpath(path.expanduser(artifact_path))
 
     env["MLRUN_IS_API_SERVER"] = "true"
 
@@ -795,6 +906,7 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
+    pid = None
     if background:
         print("Starting MLRun API service in the background...")
         child = Popen(
@@ -804,14 +916,27 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
             stderr=open("mlrun-stderr.log", "w"),
             start_new_session=True,
         )
+        pid = child.pid
         print(
-            f"background pid: {child.pid}, logs written to mlrun-stdout.log and mlrun-stderr.log"
+            f"background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
+            f"`kill {pid}` (linux/mac) or `taskkill /pid {pid} /t /f` (windows), to kill the mlrun service process"
         )
     else:
         child = Popen(cmd, env=env)
         returncode = child.wait()
         if returncode != 0:
             raise SystemExit(returncode)
+    if update_env:
+        # update mlrun client env file with the API path, so client will use the new DB
+        # update and PID, allow killing the correct process in a config script
+        filename = path.expanduser(update_env)
+        dotenv.set_key(
+            filename, "MLRUN_DBPATH", f"http://localhost:{port or 8080}", quote_mode=""
+        )
+        dotenv.set_key(filename, "MLRUN_MOCK_NUCLIO_DEPLOYMENT", "auto", quote_mode="")
+        if pid:
+            dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
+        print(f"updated configuration in {update_env} .env file")
 
 
 @main.command()
@@ -895,10 +1020,16 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+# TODO: Remove --ensure-project in 1.5.0
 @click.option(
     "--ensure-project",
     is_flag=True,
     help="ensure the project exists, if not, create project",
+)
+@click.option(
+    "--save/--no-save",
+    default=True,
+    help="create and save the project if not exist",
 )
 @click.option(
     "--schedule",
@@ -908,6 +1039,21 @@ def logs(uid, project, offset, db, watch):
     "for help see: "
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
+)
+# TODO: Remove in 1.6.0 --overwrite-schedule and -os, keep --override-workflow and -ow
+@click.option(
+    "--override-workflow",
+    "--overwrite-schedule",
+    "-ow",
+    "-os",
+    "override_workflow",
+    is_flag=True,
+    help="Override a schedule when submitting a new one with the same name.",
+)
+@click.option(
+    "--save-secrets",
+    is_flag=True,
+    help="Store the project secrets as k8s secrets",
 )
 def project(
     context,
@@ -934,17 +1080,25 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    override_workflow,
+    save_secrets,
+    save,
 ):
     """load and/or run a project"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if ensure_project:
+        warnings.warn(
+            "'ensure_project' is deprecated and will be removed in 1.5.0, use 'save' (True by default) instead. ",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
+
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
-    )
+    proj = load_project(context, url, name, init_git=init_git, clone=clone, save=save)
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
@@ -965,7 +1119,13 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
+        # Used to run a workflow with secrets in runtime, without using or storing k8s secrets.
+        # To run a scheduled workflow or to use those secrets in other runs, save
+        # the secrets in k8s and use the --save-secret flag
+        proj._secrets = secret_store
+        if save_secrets:
+            proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:
@@ -981,8 +1141,6 @@ def project(
             args = fill_params(arguments)
 
         print(f"running workflow {run} file: {workflow_path}")
-        message = ""
-        had_error = False
         gitops = (
             git_issue
             or environ.get("GITHUB_EVENT_PATH")
@@ -999,8 +1157,8 @@ def project(
             )
         try:
             proj.run(
-                run,
-                workflow_path,
+                name=run,
+                workflow_path=workflow_path,
                 arguments=args,
                 artifact_path=artifact_path,
                 namespace=namespace,
@@ -1012,16 +1170,13 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
+                override=override_workflow,
             )
+
         except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {exc}"
-            had_error = True
-            print(message)
-
-        if had_error:
+            message = f"failed to run pipeline, {err_to_str(exc)}"
             proj.notifiers.push(message, "error")
-        if had_error:
             exit(1)
 
     elif sync:
@@ -1029,7 +1184,7 @@ def project(
         proj.sync_functions(save=True)
 
 
-def validate_kind(ctx, param, value):
+def validate_runtime_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value is not None and value not in possible_kinds:
         raise click.BadParameter(
@@ -1039,7 +1194,7 @@ def validate_kind(ctx, param, value):
 
 
 @main.command()
-@click.argument("kind", callback=validate_kind, default=None, required=False)
+@click.argument("kind", callback=validate_runtime_kind, default=None, required=False)
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
@@ -1118,9 +1273,100 @@ def watch_stream(url, shard_ids, seek, interval, is_json):
 
 
 @main.command(name="config")
-def show_config():
-    """Show configuration & exit"""
-    print(mlconf.dump_yaml())
+@click.argument("command", type=str, default="", required=False)
+@click.option(
+    "--env-file",
+    "-f",
+    default="",
+    help="path to the mlrun .env file (defaults to '~/.mlrun.env')",
+)
+@click.option("--api", "-a", type=str, help="api service url")
+@click.option("--artifact-path", "-p", help="default artifacts path")
+@click.option("--username", "-u", help="username (for remote access)")
+@click.option("--access-key", "-k", help="access key (for remote access)")
+@click.option(
+    "--env-vars",
+    "-e",
+    default=[],
+    multiple=True,
+    help="additional env vars, e.g. -e AWS_ACCESS_KEY_ID=<key-id>",
+)
+def show_or_set_config(
+    command, env_file, api, artifact_path, username, access_key, env_vars
+):
+    """get or set mlrun config
+
+    \b
+    Commands:
+        get (default) - list the local or remote configuration
+                        (can specify the remote api + credentials or an env_file)
+        set           - set configuration parameters in mlrun default or specified .env file
+        clear         - delete the default or specified config .env file
+
+    \b
+    Examples:
+        # read the default config
+        mlrun config
+        # read config using an env file (with connection details)
+        mlrun config -f mymlrun.env
+        # set configuration and write it to the default env file (~/.mlrun.env)
+        mlrun config set -a http://localhost:8080 -u joe -k mykey -e AWS_ACCESS_KEY_ID=<key-id>
+
+    """
+    op = command.lower()
+    if not op or op == "get":
+        # print out the configuration (default or based on the specified env/api)
+        if env_file and not path.isfile(path.expanduser(env_file)):
+            print(f"error, env file {env_file} does not exist")
+            exit(1)
+        if env_file or api:
+            mlrun.set_environment(
+                api,
+                artifact_path=artifact_path,
+                access_key=access_key,
+                username=username,
+                env_file=env_file,
+            )
+        print(mlconf.dump_yaml())
+
+    elif op == "set":
+        # update the env settings in the default or specified .env file
+        filename = path.expanduser(env_file or mlrun.config.default_env_file)
+        if not path.isfile(filename):
+            print(
+                f".env file {filename} not found, creating new and setting configuration"
+            )
+        else:
+            print(f"updating configuration in .env file {filename}")
+        env_dict = {
+            "MLRUN_DBPATH": api,
+            "MLRUN_ARTIFACT_PATH": artifact_path,
+            "V3IO_USERNAME": username,
+            "V3IO_ACCESS_KEY": access_key,
+        }
+        for key, value in env_dict.items():
+            if value:
+                dotenv.set_key(filename, key, value, quote_mode="")
+        if env_vars:
+            for key, value in list2dict(env_vars).items():
+                dotenv.set_key(filename, key, value, quote_mode="")
+        if env_file:
+            # if its not the default file print the usage details
+            print(
+                f"to use the {env_file} .env file add the following to your development environment:\n"
+                f"MLRUN_ENV_FILE={env_file}"
+            )
+
+    elif op == "clear":
+        filename = path.expanduser(env_file or mlrun.config.default_env_file)
+        if not path.isfile(filename):
+            print(f".env file {filename} not found")
+        else:
+            print(f"deleting .env file {filename}")
+            remove(filename)
+
+    else:
+        print(f"Error, unsupported config option {op}")
 
 
 def fill_params(params, params_dict=None):
@@ -1197,7 +1443,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
                 function.spec.command = command
             runtime = function.to_dict()
     except Exception as exc:
-        logger.error(f"function {func_url} not found, {exc}")
+        logger.error(f"function {func_url} not found, {err_to_str(exc)}")
         return None
 
     if not runtime:

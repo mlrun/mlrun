@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
+import mlrun.api.utils.helpers
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.utils.model_monitoring import EndpointType, create_model_endpoint_id
 
@@ -29,14 +29,14 @@ class ModelMonitoringStoreKinds:
 
 class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     uid: Optional[str]
 
     class Config:
         extra = Extra.allow
 
 
-class ModelMonitoringMode(str, enum.Enum):
+class ModelMonitoringMode(mlrun.api.utils.helpers.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
@@ -50,7 +50,7 @@ class ModelEndpointSpec(ObjectSpec):
     label_names: Optional[List[str]]
     stream_path: Optional[str]
     algorithm: Optional[str]
-    monitor_configuration: Optional[dict]
+    monitor_configuration: Optional[dict] = {}
     active: Optional[bool]
     monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
 
@@ -106,14 +106,14 @@ class Features(BaseModel):
 
 
 class ModelEndpointStatus(ObjectStatus):
-    feature_stats: Optional[dict]
-    current_stats: Optional[dict]
+    feature_stats: Optional[dict] = {}
+    current_stats: Optional[dict] = {}
     first_request: Optional[str]
     last_request: Optional[str]
     accuracy: Optional[float]
     error_count: Optional[int]
     drift_status: Optional[str]
-    drift_measures: Optional[dict]
+    drift_measures: Optional[dict] = {}
     metrics: Optional[Dict[str, Metric]]
     features: Optional[List[Features]]
     children: Optional[List[str]]

@@ -322,11 +322,17 @@ class ServingRuntime(RemoteRuntime):
 
         # Applying model monitoring configurations
         self.spec.track_models = True
-        self.spec.tracking_policy = model_monitoring.TrackingPolicy()
+        self.spec.tracking_policy = None
         if tracking_policy:
-            self.spec.tracking_policy = self.spec.tracking_policy.from_dict(
-                tracking_policy
-            )
+            if isinstance(tracking_policy, dict):
+                # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
+                self.spec.tracking_policy = model_monitoring.TrackingPolicy.from_dict(
+                    tracking_policy
+                )
+            else:
+                # Tracking_policy is already a `model_monitoring.TrackingPolicy` object
+                self.spec.tracking_policy = tracking_policy
+
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
@@ -561,11 +567,11 @@ class ServingRuntime(RemoteRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            self._add_project_k8s_secrets_to_spec(
+            self._add_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), project=self.metadata.project
             )
         else:
-            self._add_project_k8s_secrets_to_spec(None, project=self.metadata.project)
+            self._add_k8s_secrets_to_spec(None, project=self.metadata.project)
 
     def deploy(
         self,
@@ -578,7 +584,7 @@ class ServingRuntime(RemoteRuntime):
     ):
         """deploy model serving function to a local/remote cluster
 
-        :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
+        :param dashboard: DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging
@@ -638,7 +644,9 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
-            "tracking_policy": self.spec.tracking_policy,
+            "tracking_policy": self.spec.tracking_policy.to_dict()
+            if self.spec.tracking_policy
+            else None,
             "default_content_type": self.spec.default_content_type,
         }
 
@@ -727,8 +735,6 @@ class ServingRuntime(RemoteRuntime):
 
     def _set_as_mock(self, enable):
         if not enable:
-            if self._mock_server:
-                self.invoke = self._old_invoke
             self._mock_server = None
             return
 
@@ -736,17 +742,4 @@ class ServingRuntime(RemoteRuntime):
             "Deploying serving function MOCK (for simulation)...\n"
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
-        server = self.to_mock_server()
-        self._mock_server = server
-        self._old_invoke = self.invoke
-
-        def invoke(
-            path: str,
-            body=None,
-            method: str = None,
-            headers: dict = None,
-            **kwargs,
-        ):
-            return self._mock_server.test(path, body, method, headers)
-
-        self.invoke = invoke
+        self._mock_server = self.to_mock_server()

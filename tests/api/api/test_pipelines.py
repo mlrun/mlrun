@@ -21,24 +21,12 @@ import deepdiff
 import fastapi.testclient
 import kfp
 import kfp_server_api.models
-import pytest
 import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import tests.conftest
-
-
-@pytest.fixture
-def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(return_value=True)
-    )
-    kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
-    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    return kfp_client_mock
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
@@ -125,7 +113,7 @@ def test_get_pipeline_no_project_opa_validation(
         return_value=project
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
@@ -217,30 +205,6 @@ def test_create_pipeline(
     _mock_pipelines_creation(kfp_client_mock)
     response = client.post(
         f"projects/{project}/pipelines",
-        data=contents,
-        headers={"content-type": "application/yaml"},
-    )
-    response_body = response.json()
-    assert response_body["id"] == "some-run-id"
-
-
-def test_create_pipeline_legacy(
-    db: sqlalchemy.orm.Session,
-    client: fastapi.testclient.TestClient,
-    kfp_client_mock: kfp.Client,
-) -> None:
-    pipeline_file_path = (
-        tests.conftest.tests_root_directory
-        / "api"
-        / "api"
-        / "assets"
-        / "pipelines.yaml"
-    )
-    with open(str(pipeline_file_path), "r") as file:
-        contents = file.read()
-    _mock_pipelines_creation(kfp_client_mock)
-    response = client.post(
-        "submit_pipeline",
         data=contents,
         headers={"content-type": "application/yaml"},
     )

@@ -39,7 +39,6 @@ class Secrets(
     internal_secrets_key_prefix = "mlrun."
     # make it a subset of internal since key map are by definition internal
     key_map_secrets_key_prefix = f"{internal_secrets_key_prefix}map."
-    secret_reference_prefix = "$ref:"
 
     def generate_client_project_secret_key(
         self, client_type: SecretsClientType, name: str, subtype=None
@@ -53,9 +52,6 @@ class Secrets(
         self, client_type: SecretsClientType
     ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
-
-    def generate_secret_ref(self, secret_name: str) -> str:
-        return f"{self.secret_reference_prefix}{secret_name}"
 
     @staticmethod
     def validate_project_secret_key_regex(
@@ -117,6 +113,21 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {secrets.provider}"
             )
+
+    def read_auth_secret(
+        self, secret_name, raise_on_not_found=False
+    ) -> mlrun.api.schemas.AuthSecretData:
+        (
+            username,
+            access_key,
+        ) = mlrun.api.utils.singletons.k8s.get_k8s().read_auth_secret(
+            secret_name, raise_on_not_found=raise_on_not_found
+        )
+        return mlrun.api.schemas.AuthSecretData(
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            username=username,
+            access_key=access_key,
+        )
 
     def store_auth_secret(
         self,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import logging
 from copy import copy
 from enum import Enum
 from typing import List, Union
@@ -176,7 +177,7 @@ class FeatureVector(ModelObj):
             df = fstore.get_offline_features(vector).to_dataframe()
 
             # return an online/real-time feature service
-            svc = fs.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
@@ -319,10 +320,14 @@ class FeatureVector(ModelObj):
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
-                raise mlrun.errors.MLRunInvalidArgumentError(
+                logging.log(
+                    logging.WARN,
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set.name [as alias])"
+                    " you need to use another alias (feature-set.name [as alias])"
+                    f" by default it changed to be {alias}_{feature_set_full_name}",
                 )
+                alias = f"{alias}_{feature_set_full_name}"
+
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
             feature_set_fields[feature_set_full_name].append((name, alias))
@@ -446,11 +451,11 @@ class OnlineVectorService:
         example::
 
             # accept list of dict, return list of dict
-            svc = fs.get_online_feature_service(vector)
+            svc = fstore.get_online_feature_service(vector)
             resp = svc.get([{"name": "joe"}, {"name": "mike"}])
 
             # accept list of list, return list of list
-            svc = fs.get_online_feature_service(vector, as_list=True)
+            svc = fstore.get_online_feature_service(vector, as_list=True)
             resp = svc.get([["joe"], ["mike"]])
 
         :param entity_rows:  list of list/dict with input entity data/rows
@@ -566,7 +571,7 @@ class FixedWindowType(Enum):
         try:
             from storey import FixedWindowType as QueryByKeyFixedWindowType
         except ImportError as exc:
-            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+            raise ImportError("storey not installed, use pip install storey") from exc
         if self == FixedWindowType.LastClosedWindow:
             return QueryByKeyFixedWindowType.LastClosedWindow
         elif self == FixedWindowType.CurrentOpenWindow:

@@ -24,6 +24,7 @@ import requests
 import urllib3
 
 import mlrun.errors
+from mlrun.errors import err_to_str
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -89,8 +90,8 @@ class DataStore:
         return None
 
     def open(self, filepath, mode):
-        fs = self.get_filesystem(False)
-        return fs.open(filepath, mode)
+        file_system = self.get_filesystem(False)
+        return file_system.open(filepath, mode)
 
     def _join(self, key):
         if self.subpath:
@@ -151,6 +152,30 @@ class DataStore:
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
+            filesystem = self.get_filesystem()
+            if filesystem:
+                if filesystem.isdir(url):
+
+                    def reader(*args, **kwargs):
+                        base_path = args[0]
+                        file_entries = filesystem.listdir(base_path)
+                        filenames = []
+                        for file_entry in file_entries:
+                            if (
+                                file_entry["name"].endswith(".csv")
+                                and file_entry["size"] > 0
+                                and file_entry["type"] == "file"
+                            ):
+                                filename = file_entry["name"]
+                                filename = filename.split("/")[-1]
+                                filenames.append(filename)
+                        dfs = []
+                        for filename in filenames:
+                            updated_args = [f"{base_path}/{filename}"]
+                            updated_args.extend(args[1:])
+                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        return pd.concat(dfs)
+
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
@@ -170,7 +195,7 @@ class DataStore:
                     from storey.utils import find_filters, find_partitions
 
                     filters = []
-                    partitions_time_attributes = find_partitions(url, fs)
+                    partitions_time_attributes = find_partitions(url, file_system)
 
                     find_filters(
                         partitions_time_attributes,
@@ -189,9 +214,9 @@ class DataStore:
         else:
             raise Exception(f"file type unhandled {url}")
 
-        fs = self.get_filesystem()
-        if fs:
-            if self.supports_isdir() and fs.isdir(url) or df_module == dd:
+        file_system = self.get_filesystem()
+        if file_system:
+            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -200,10 +225,10 @@ class DataStore:
 
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if fs.protocol != "file":
-                    # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                if file_system.protocol != "file":
+                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
                     # support the storage_options parameter.
-                    file = fs.open(url)
+                    file = file_system.open(url)
 
                 return reader(file, **kwargs)
 
@@ -452,7 +477,7 @@ def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -463,7 +488,7 @@ def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -476,7 +501,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 

@@ -22,11 +22,10 @@ __all__ = [
     "handler",
     "ArtifactType",
     "get_secret_or_env",
-    "is_running_as_api",
 ]
 
-import json
-from os import environ, getenv, path
+import warnings
+from os import environ, path
 
 import dotenv
 
@@ -35,7 +34,7 @@ from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
-from .model import NewTask, RunObject, RunTemplate, new_task
+from .model import RunObject, RunTemplate, new_task
 from .platforms import (
     VolumeMount,
     auto_mount,
@@ -56,7 +55,7 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
-    ArtifactType,
+    _run_pipeline,
     code_to_function,
     function_to_module,
     get_dataitem,
@@ -70,7 +69,7 @@ from .run import (
     run_pipeline,
     wait_for_pipeline_completion,
 )
-from .runtimes import new_model_server
+from .runtimes import ArtifactType, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
 
@@ -87,19 +86,6 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     kfp_ep = f"https://dashboard.{igz_domain}/pipelines"
     environ["KF_PIPELINES_UI_ENDPOINT"] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
-
-_is_running_as_api = None
-
-
-def is_running_as_api():
-    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
-    global _is_running_as_api
-
-    if _is_running_as_api is None:
-        # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(getenv("MLRUN_IS_API_SERVER", "false"))
-
-    return _is_running_as_api
 
 
 def set_environment(
@@ -130,9 +116,11 @@ def set_environment(
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
-    :param project:        default project name
+    :param project:        default project name (deprecated in 1.3.0 and will be removed in 1.5.0) - use project
+                           APIs such as `get_or_create_project`, `load_project` to configure the active project
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
+                           (deprecated in 1.3.0 and will be removed in 1.5.0)
     :param username:       name of the user to authenticate
     :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
     :param mock_functions: set to True to create local/mock functions instead of real containers,
@@ -141,6 +129,14 @@ def set_environment(
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
+    if user_project or project:
+        warnings.warn(
+            "'user_project' and 'project' are deprecated in 1.3.0, and will be removed in 1.5.0, use project "
+            "APIs such as 'get_or_create_project', 'load_project' to configure the active project.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
+
     if env_file:
         set_env_from_file(env_file)
 

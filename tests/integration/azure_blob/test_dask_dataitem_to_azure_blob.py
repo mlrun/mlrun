@@ -149,7 +149,7 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
     # rather than a single parquet file
     from adlfs import AzureBlobFileSystem
 
-    fs = AzureBlobFileSystem(
+    file_system = AzureBlobFileSystem(
         account_name=os.getenv("AZURE_STORAGE_ACCOUNT_NAME"),
         account_key=os.getenv("AZURE_STORAGE_ACCOUNT_KEY"),
         connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
@@ -161,10 +161,10 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
     # Verify that a directory was created, rather than a file
     path = target_path.partition("//")[2]
     path = os.path.join(path, "demo_data.parquet")
-    assert fs.isdir(path) is True
+    assert file_system.isdir(path) is True
 
     # Verify that a collection of files was written
-    files = fs.ls(path)
+    files = file_system.ls(path)
     assert len(files) > 4
 
     df2 = ddf2.compute()

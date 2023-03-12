@@ -248,8 +248,8 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -310,8 +310,8 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     artifact_uid = "artifact_uid_1"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -352,8 +352,8 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
 
     db.store_artifact(
         db_session,
@@ -391,9 +391,9 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
-    artifact_2_tag_2 = "artifact_tag_two_again"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
+    artifact_2_tag_2 = "artifact-tag-two-again"
 
     db.store_artifact(
         db_session,
@@ -421,7 +421,8 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     )
 
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_1_key)
-    assert len(artifacts) == 1
+    # Should return 2 tags ('latest' and artifact_1_tag)
+    assert len(artifacts) == 2
     artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
     assert len(artifacts) == 1
     artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag_2)
@@ -434,11 +435,29 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     # Negative test - wrong tag, no deletions
     db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_1_tag)
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
-    assert len(artifacts) == 1
 
+    # Should return 3 tags ('latest' and artifact_2_tag and artifact_2_tag_2)
+    assert len(artifacts) == 3
+    assert (
+        deepdiff.DeepDiff(
+            [artifact["metadata"]["tag"] for artifact in artifacts],
+            ["latest", artifact_2_tag, artifact_2_tag_2],
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    tags = db.list_artifact_tags(db_session, project)
+    assert len(tags) == 3
+
+    # Delete the artifact object (should delete all tags of the same artifact object)
     db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_2_tag_2)
     artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
     assert len(artifacts) == 0
+
+    # Assert all tags were deleted
+    tags = db.list_artifact_tags(db_session, project)
+    assert len(tags) == 0
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
+import mlrun.api.utils.helpers
 import mlrun.errors
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
@@ -28,7 +28,7 @@ from mlrun.config import config
 class MarketplaceObjectMetadata(BaseModel):
     name: str
     description: str = ""
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     updated: Optional[datetime]
     created: Optional[datetime]
 
@@ -37,7 +37,7 @@ class MarketplaceObjectMetadata(BaseModel):
 
 
 # Currently only functions are supported. Will add more in the future.
-class MarketplaceSourceType(str, enum.Enum):
+class MarketplaceSourceType(mlrun.api.utils.helpers.StrEnum):
     functions = "functions"
 
 
@@ -45,7 +45,7 @@ class MarketplaceSourceType(str, enum.Enum):
 class MarketplaceSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
-    credentials: Optional[dict] = None
+    credentials: Optional[dict] = {}
 
 
 class MarketplaceSource(BaseModel):

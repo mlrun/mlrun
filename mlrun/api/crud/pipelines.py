@@ -29,6 +29,7 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 
@@ -66,10 +67,13 @@ class Pipelines(
         if project != "*":
             run_dicts = []
             while page_token is not None:
+                # kfp doesn't allow us to pass both a page_token and the filter. When we have a token from previous
+                # call, we will strip out the filter and use the token to continue (the token contains the details of
+                # the filter that was used to create it)
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
-                    filter=filter_,
+                    filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
                 page_token = response.next_page_token
@@ -127,7 +131,7 @@ class Pipelines(
 
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {exc}"
+                f"Failed getting kfp run: {err_to_str(exc)}"
             ) from exc
 
         return run
@@ -182,9 +186,11 @@ class Pipelines(
             logger.warning(
                 "Failed creating pipeline",
                 traceback=traceback.format_exc(),
-                exc=str(exc),
+                exc=err_to_str(exc),
             )
-            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {exc}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Failed creating pipeline: {err_to_str(exc)}"
+            )
         finally:
             pipeline_file.close()
 

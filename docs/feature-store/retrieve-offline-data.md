@@ -28,7 +28,7 @@ AZ Blob store or any other type of available storage.
 
 Once instantiated with a target, the feature vector holds a reference to the instantiated dataset and references it as its current offline source.
 
-You can also use MLRun's `log_dataset()` to log the specific dataset to the project as a specific dataset resource.
+You can also use MLRun's {py:meth}`~mlrun.projects.MlrunProject.log_dataset` to log the specific dataset to the project as a specific dataset resource.
 
 ## Training
 

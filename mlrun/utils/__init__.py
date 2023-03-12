@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .async_http import AsyncClientWithRetry  # noqa
 from .azure_vault import AzureVaultStore  # noqa
 from .clones import get_git_username_password_from_token  # noqa
 from .helpers import *  # noqa

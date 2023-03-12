@@ -258,6 +258,7 @@ def test_validate_tag_name(tag_name, expected):
 @pytest.mark.parametrize(
     "artifact_name,expected",
     [
+        # Invalid names
         (
             "artifact/name",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
@@ -274,6 +275,7 @@ def test_validate_tag_name(tag_name, expected):
             "artifact-name\\test",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
+        # Valid names
         ("artifact-name2.0", does_not_raise()),
         ("artifact-name", does_not_raise()),
         ("artifact-name", does_not_raise()),

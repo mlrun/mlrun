@@ -79,10 +79,14 @@ def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
 
 def test_store_artifact_backwards_compatibility(db: Session, client: TestClient):
     _create_project(client)
+    # Invalid key name
     key_path = "some-key/with-slash"
+
+    # Creating two artifacts with different bodies and the same invalid key
     artifact = mlrun.artifacts.Artifact(key=key_path, body="123")
     artifact2 = mlrun.artifacts.Artifact(key=key_path, body="1234")
 
+    # Store an artifact with invalid key (by mocking the regex)
     with unittest.mock.patch(
         "mlrun.utils.helpers.verify_field_regex", return_value=True
     ):
@@ -94,11 +98,13 @@ def test_store_artifact_backwards_compatibility(db: Session, client: TestClient)
         )
         assert resp.status_code == HTTPStatus.OK.value
 
+    # Ascertain that the artifact exists in the database and that it can be retrieved
     resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT))
     assert (
         resp.status_code == HTTPStatus.OK.value and len(resp.json()["artifacts"]) == 1
-    )
+    ), "Expected a successful request and an existing record"
 
+    # Make a store request to an existing artifact with an invalid key name, and ensure that it is successful
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(
             project=PROJECT, uid=UID, key=key_path, tag="latest"

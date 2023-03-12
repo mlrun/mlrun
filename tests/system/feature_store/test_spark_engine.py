@@ -1515,7 +1515,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        self._logger.info(f"result of LOCAL engine merger: \n {local_engine_res}")
-        self._logger.info(f"result of SPARK engine merger: \n {spark_engine_res}")
+        self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
+        self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
 
         assert local_engine_res.equals(spark_engine_res)

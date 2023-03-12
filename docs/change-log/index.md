@@ -120,10 +120,9 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | ------------------------------------ | --------------------------------------------- |
 | `project.functions`                  | `project.get.functions`, `project.set.functions`, `project.list.functions` |
 | `project.artifacts`                  | `project.get.artifacts`, `project.set.artifacts`, `project.list.artifacts` |
-| `project.workflows`                  | `project.spec.workflows`                       |
 | `project.func()`                     | `project.get_function()`                       |
-| `project.create_vault_secrets()`     | NA                                             |
-| `project.get_vault_secret()`         | NA                                             |
+| `project.create_vault_secrets()`     | NA                                   |
+| `project.get_vault_secret()`         | NA                                   |
 | `MlrunProjectLegacy` class           | `MlrunProject`                                 |
 | Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step`                        |
 | `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
@@ -175,8 +174,8 @@ such as `get_or_create_project`, `load_project` |
 - Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
 - Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).
 - Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).
-- Hyperparams run does not present artifacts iteration when selector is not define. [View in Git](https://github.com/mlrun/ui/pull/1635).
-- Fix MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/ui/pull/2888).
+- Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635).
+- Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/ui/pull/2888).
 - Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969).
     
 
@@ -514,4 +513,3 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |------ | ---- | --------------------------------------------------------------------|
 | 1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
 | 1.3.0 |     | See [Deprecated APIs](#api-130).|
-| |  | |

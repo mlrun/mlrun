@@ -738,8 +738,8 @@ def submit_run_sync(
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
-                # indicate whether it was created or updated
-                "action": "created" if created else "updated",
+                # indicate whether it was created or modified
+                "action": "created" if created else "modified",
             }
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed

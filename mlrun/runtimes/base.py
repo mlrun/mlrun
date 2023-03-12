@@ -802,7 +802,8 @@ class BaseRuntime(ModelObj):
         try:
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
-                logger.info("successfully scheduled", **resp)
+                action = resp.pop("action", "created")
+                logger.info(f"task schedule {action}", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:

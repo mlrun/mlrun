@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import pathlib
 import re
 import tarfile
@@ -45,8 +45,8 @@ def make_dockerfile(
     enriched_group_id=None,
 ):
     # TODO: save the tmpdir and reuse it for build cache
-    tmpdir = tempfile.mkdtemp()
     if not workdir:
+        tmpdir = tempfile.mkdtemp()
         workdir = f"{tmpdir}/mlrun"
     dock = f"FROM {base_image}\n"
 
@@ -63,7 +63,7 @@ def make_dockerfile(
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
-            source_dir = f"{tmpdir}/source"
+            source_dir = os.path.join(workdir, "source")
             stage1 = f"""
             FROM {base_image} AS extractor
             RUN apt-get update -qqy && apt install --assume-yes unzip

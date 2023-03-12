@@ -33,13 +33,14 @@ If you are installing on a Python 3.7 client, run these commands before installi
    ?????
     1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
     2. Within the Jupyter service, open a terminal and run (`install -y pip` ensures you have the latest resolver):
-    ```
+
+```
     $CONDA_HOME/bin/conda install -y conda=23.1.0
     $CONDA_HOME/bin/conda install -y pip 
     conda create -n python39 python=3.9 ipykernel -y
     conda activate python39
     ./align_mlrun.sh
-    ```
+```
     
 If you are installing on a CE Python 3.7 client, run these commands before installing:
 ?????
@@ -52,7 +53,7 @@ If you are installing on a CE Python 3.7 client, run these commands before insta
 - Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector).
 - Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
 - Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
-- Supports Spark using Redis as an online KV target, which cause a breaking change. See [Breaking changes](#breaking-changes).
+- Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes).
 - The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). 
 - Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). 
 - `get_offline_features` supports Spark Operator and Remote Spark.
@@ -83,6 +84,8 @@ relevant wizards under each phase heading: ingesting and processing data, develo
 
 <p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br>
 
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)
+
 #### APIs
 
 - These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
@@ -99,7 +102,7 @@ The new service is transparent to the end-user: there are no UI or API changes.
 
 ### Breaking changes
 
-- The behavior of ingest with aggregation changed in v1.3.0. Now, when you ingest a "timestamp" column, it returns <br>
+- The behavior of ingest with aggregation changed in v1.3.0 (storey, spark, pandas engines). Now, when you ingest a "timestamp" column, it returns <br>
 `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
 
 - Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
@@ -172,10 +175,10 @@ such as `get_or_create_project`, `load_project` |
 - Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).
 - Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).
 - Hyperparams run does not present artifacts iteration when selector is not define. [View in Git](https://github.com/mlrun/ui/pull/1635).
+- Fix MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/ui/pull/2888).
+- Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969).
     
-    
-### See also
-- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)
+
 
 
 ## v1.2.1

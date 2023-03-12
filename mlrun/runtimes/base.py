@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import os.path
 import shlex
 import traceback
 import typing
@@ -426,18 +427,7 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
-
-        if is_local(run.spec.output_path):
-            logger.warning(
-                "artifact path is not defined or is local,"
-                " artifacts will not be visible in the UI"
-            )
-            if self.kind not in ["", "local", "handler", "dask"]:
-                raise ValueError(
-                    "absolute artifact_path must be specified"
-                    " when running remote tasks"
-                )
-
+        self._validate_output_path(run)
         db = self._get_db()
 
         if not self.is_deployed():
@@ -1425,11 +1415,33 @@ class BaseRuntime(ModelObj):
 
         return " ".join(requirements)
 
+    def _validate_output_path(self, run):
+        if is_local(run.spec.output_path):
+            message = ""
+            if not os.path.isabs(run.spec.output_path):
+                message = (
+                    "artifact/output path is not defined or is local and relative,"
+                    " artifacts will not be visible in the UI"
+                )
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
+                    self.kind
+                ):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                    )
+            elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
+                message = (
+                    "artifact output path is local while no volume mount is specified. "
+                    "artifacts would not be visible via UI."
+                )
+            if message:
+                logger.warning(message, output_path=run.spec.output_path)
+
 
 def is_local(url):
     if not url:
         return True
-    return "://" not in url and not url.startswith("/")
+    return "://" not in url
 
 
 class BaseRuntimeHandler(ABC):

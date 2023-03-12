@@ -44,8 +44,10 @@ def make_dockerfile(
     user_unix_id=None,
     enriched_group_id=None,
 ):
-    tmpdir = tempfile.mkdtemp()
-    workdir = workdir or f"{tmpdir}/mlrun"
+    if not workdir:
+        # TODO: save the tmpdir and reuse it for build cache
+        tmpdir = tempfile.mkdtemp()
+        workdir = f"{tmpdir}/mlrun"
     dock = f"FROM {base_image}\n"
 
     if config.is_pip_ca_configured():

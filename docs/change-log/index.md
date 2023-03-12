@@ -61,7 +61,7 @@ If you are installing on a CE Python 3.7 client, run these commands before insta
 #### Logging data
 - Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
 part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. 
-See [more details](../cheat-sheet.html#logging-with-hints).
+See [more details](../cheat-sheet.html#experiment-tracking-using-returns-new-in-v1-3-0).
 
 #### Projects
 

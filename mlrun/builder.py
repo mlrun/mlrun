@@ -44,9 +44,9 @@ def make_dockerfile(
     user_unix_id=None,
     enriched_group_id=None,
 ):
+    # TODO: save the tmpdir and reuse it for build cache
+    tmpdir = tempfile.mkdtemp()
     if not workdir:
-        # TODO: save the tmpdir and reuse it for build cache
-        tmpdir = tempfile.mkdtemp()
         workdir = f"{tmpdir}/mlrun"
     dock = f"FROM {base_image}\n"
 
@@ -63,7 +63,7 @@ def make_dockerfile(
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
-            source_dir = "./source"
+            source_dir = f"{tmpdir}/source"
             stage1 = f"""
             FROM {base_image} AS extractor
             RUN apt-get update -qqy && apt install --assume-yes unzip

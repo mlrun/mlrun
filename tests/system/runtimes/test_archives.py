@@ -350,17 +350,28 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         resp = deployment.function.invoke("")
         assert "tag=" in resp.decode()
 
-    def test_with_igz_spark_from_source(self):
+    @pytest.mark.enterprise
+    @pytest.mark.parametrize("pull_at_runtime, workdir", [(False, "")])
+    def test_with_igz_spark_from_source(self, pull_at_runtime, workdir):
         self._upload_code_to_cluster()
         fn = mlrun.new_function(
-            name="spark-test", kind="spark", command="spark_session.py"
+            name="spark-test", kind="spark", command="spark-submit spark_session.py"
         )
         fn.with_igz_spark()
 
+        # spark requires requests
+        fn.with_driver_limits(cpu="1300m")
+        fn.with_driver_requests(cpu=1, mem="512m")
+
+        fn.with_executor_limits(cpu="1400m")
+        fn.with_executor_requests(cpu=1, mem="512m")
+
         fn.with_source_archive(
-            source=self.remote_code_dir + "spark_session.tar.gz", pull_at_runtime=False
+            source=self.remote_code_dir + "spark_session.tar.gz",
+            pull_at_runtime=pull_at_runtime,
         )
-        fn.spec.build.workdir = "/tmp/mlrun"
+        # fn.spec.build.workdir = "/tmp/mlrun"
+        fn.spec.build.workdir = workdir
 
         fn = self.project.set_function(func=fn, with_repo=False)
 

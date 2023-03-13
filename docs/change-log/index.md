@@ -26,7 +26,9 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 MLRun is pre-installed in CE Jupyter.
 
 To install on a **Python 3.9** client, run:<br>
- `./align_mlrun.sh`
+```
+./align_mlrun.sh
+```
 
 To install on a **Python 3.7** client, run:
   
@@ -34,15 +36,17 @@ To install on a **Python 3.7** client, run:
 2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
 
 ```$CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip
+   $CONDA_HOME/bin/conda install -y pip
 ```
 3.  If you are going to work with python 3.9, create a new conda env and activate it:
 ```
     conda create -n python39 python=3.9 ipykernel -y
     conda activate python39
 ```
-4. Install mlrun:<br>
-`./align_mlrun.sh`
+4. Install mlrun:
+```
+./align_mlrun.sh
+```
     
 ### New and updated features
 
@@ -104,7 +108,11 @@ $CONDA_HOME/bin/conda install -y pip
 | ML-3104 | These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`. |
 | ML-3204 | New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec. |
  
- 
+####  Documentation
+
+Improvements to [Set up your environment](../install/remote.html).
+
+
 #### Infrastructure improvements 
 
 | ID   | Description                                                    |
@@ -189,7 +197,7 @@ such as `get_or_create_project`, `load_project` |
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
 | ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
 | ML-3104 | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969). |
-| ML-3380 | Dpcumentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
+| ML-3380 | Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
 
 
 ## v1.2.1
@@ -499,7 +507,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | ML-2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
-|  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
+| NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
 | ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | ML-2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |

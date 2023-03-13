@@ -459,6 +459,19 @@ Passing objects from MLRun function to another has never been easier:
 - Inputs are automatically parsed to their hinted type. If type hints are not in code, they can be passed in the inputs keys.
 - Use the `returns` argument to specify how to log a function's returning values.
 
+```
+def my_handler(df):
+    ...
+    return processed_df, result
+    
+log_with_returns_run = my_func.run(
+    handler="",
+    inputs={"df: pandas.DataFrame": DATA_PATH},
+    returns=["processed_data", "sum"],
+    local=True,
+)
+```
+
 ### Automatic logging
 
 ```python

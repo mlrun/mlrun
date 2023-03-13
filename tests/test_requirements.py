@@ -299,6 +299,9 @@ def _load_requirements(path):
                 continue
             line = line.strip()
 
+            if len(line.split(" #")) > 1:
+                line = line.split(" #")[0]
+
             # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
             if "#egg=" in line:
                 _, package = line.split("#egg=")

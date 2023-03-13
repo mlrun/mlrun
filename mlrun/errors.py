@@ -129,10 +129,7 @@ def err_to_str(err):
     error_strings = []
     while err and err not in errors:
         errors.append(err)
-        err_msg = str(err)
-        if not err_msg:
-            err_msg = err.__class__.__name__
-        error_strings.append(err_msg)
+        error_strings.append(repr(err))
         err = err.__cause__
 
     return ", caused by: ".join(error_strings)

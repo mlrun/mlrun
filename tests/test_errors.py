@@ -33,21 +33,21 @@ def test_error_single():
     try:
         raise Exception("a")
     except Exception as ex:
-        assert err_to_str(ex) == "a"
+        assert err_to_str(ex) == "Exception('a')"
 
 
 def test_error_with_no_description():
     try:
         raise AttributeError
     except Exception as ex:
-        assert err_to_str(ex) == "AttributeError"
+        assert err_to_str(ex) == "AttributeError()"
 
 
 def test_error_chain_n2():
     try:
         raise Exception("b") from Exception("a")
     except Exception as ex:
-        assert err_to_str(ex) == "b, caused by: a"
+        assert err_to_str(ex) == "Exception('b'), caused by: Exception('a')"
 
 
 def test_error_chain_n3():
@@ -57,7 +57,10 @@ def test_error_chain_n3():
         b.__cause__ = a
         raise Exception("c") from b
     except Exception as ex:
-        assert err_to_str(ex) == "c, caused by: b, caused by: a"
+        assert (
+            err_to_str(ex)
+            == "Exception('c'), caused by: Exception('b'), caused by: Exception('a')"
+        )
 
 
 def test_error_circular_chain():
@@ -65,7 +68,7 @@ def test_error_circular_chain():
     b = Exception("b")
     a.__cause__ = b
     b.__cause__ = a
-    assert err_to_str(b) == "b, caused by: a"
+    assert err_to_str(b) == "Exception('b'), caused by: Exception('a')"
 
 
 def test_raise_for_aiohttp_client_response_status():

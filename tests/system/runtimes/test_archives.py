@@ -351,17 +351,11 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     @pytest.mark.enterprise
-    @pytest.mark.parametrize(
-        "pull_at_runtime, workdir",
-        [
-            (False, ""),
-            (True, ""),
-        ],
-    )
-    def test_with_igz_spark_from_source(self, pull_at_runtime, workdir):
+    @pytest.mark.parametrize("pull_at_runtime", [False, True])
+    def test_with_igz_spark_from_source(self, pull_at_runtime):
         self._upload_code_to_cluster()
         fn = mlrun.new_function(
-            name="spark-test", kind="spark", command="spark-submit spark_session.py"
+            name="spark-test", kind="spark", command="spark_session.py"
         )
         fn.with_igz_spark()
 
@@ -376,9 +370,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             source=self.remote_code_dir + "spark_session.tar.gz",
             pull_at_runtime=pull_at_runtime,
         )
-        fn.spec.workdir = workdir
-
         fn = self.project.set_function(func=fn, with_repo=False)
 
-        spark_run = fn.run(artifact_path="/User", auto_build=True)
+        spark_run = fn.run(auto_build=True)
         assert spark_run.status.state == RunStates.completed

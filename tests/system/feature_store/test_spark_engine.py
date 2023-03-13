@@ -379,6 +379,54 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
+    def test_ingest_to_redis_numeric_index(self):
+        key = "movements"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [RedisNoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"movements": 4.614601941071927}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "patient_id": "305-90-1613",
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
     # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
@@ -1455,7 +1503,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
 
         resp = fstore.get_offline_features(vec, engine="local")
-        local_engine_res = resp.to_dataframe()
+        local_engine_res = resp.to_dataframe().sort_index(axis=1)
 
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(
@@ -1465,8 +1513,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_service=self.spark_service,
             target=target,
         )
-        spark_engine_res = resp.to_dataframe()
+        spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        assert local_engine_res.sort_index(axis=1).equals(
-            spark_engine_res.sort_index(axis=1)
-        )
+        self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
+        self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
+
+        assert local_engine_res.equals(spark_engine_res)

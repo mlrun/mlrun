@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pathlib
+import re
 import tarfile
 import tempfile
 from base64 import b64decode, b64encode
@@ -327,12 +328,17 @@ def build_image(
         requirements_list = None
         requirements_path = requirements
 
+    commands = commands or []
     if with_mlrun:
-        commands = commands or []
+        # mlrun prerequisite - upgrade pip
+        upgrade_pip_command = resolve_upgrade_pip_command(commands)
+        if upgrade_pip_command:
+            commands.append(upgrade_pip_command)
+
         mlrun_command = resolve_mlrun_install_command(
-            mlrun_version_specifier, client_version
+            mlrun_version_specifier, client_version, commands
         )
-        if mlrun_command not in commands:
+        if mlrun_command:
             commands.append(mlrun_command)
 
     if not inline_code and not source and not commands:
@@ -447,7 +453,15 @@ def get_kaniko_spec_attributes_from_runtime():
     ]
 
 
-def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=None):
+def resolve_mlrun_install_command(
+    mlrun_version_specifier=None, client_version=None, commands=None
+):
+    commands = commands or []
+    install_mlrun_regex = re.compile(r".*pip install .*mlrun.*")
+    for command in commands:
+        if install_mlrun_regex.match(command):
+            return None
+
     unstable_versions = ["unstable", "0.0.0+unstable"]
     unstable_mlrun_version_specifier = (
         f"{config.package_path}[complete] @ git+"
@@ -470,6 +484,16 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
                 f"{config.package_path}[complete]=={config.version}"
             )
     return f'python -m pip install "{mlrun_version_specifier}"'
+
+
+def resolve_upgrade_pip_command(commands=None):
+    commands = commands or []
+    pip_upgrade_regex = re.compile(r".*pip install --upgrade .*pip.*")
+    for command in commands:
+        if pip_upgrade_regex.match(command):
+            return None
+
+    return f"python -m pip install --upgrade pip{config.httpdb.builder.pip_version}"
 
 
 def build_runtime(

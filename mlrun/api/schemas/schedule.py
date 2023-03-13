@@ -71,6 +71,12 @@ class ScheduleCronTrigger(BaseModel):
             timezone=timezone,
         )
 
+    def to_crontab(self) -> str:
+        """
+        Convert the trigger to a crontab expression.
+        """
+        return f"{self.minute} {self.hour} {self.day} {self.month} {self.day_of_week}"
+
 
 class ScheduleKinds(mlrun.api.utils.helpers.StrEnum):
     job = "job"

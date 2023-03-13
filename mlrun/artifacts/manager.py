@@ -18,7 +18,13 @@ from os.path import isdir
 import mlrun.config
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, is_relative_path, logger, validate_tag_name
+from ..utils import (
+    is_legacy_artifact,
+    is_relative_path,
+    logger,
+    validate_artifact_key_name,
+    validate_tag_name,
+)
 from .base import (
     Artifact,
     DirArtifact,
@@ -175,6 +181,7 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
+        validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"

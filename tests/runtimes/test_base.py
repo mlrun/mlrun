@@ -99,6 +99,10 @@ class TestAutoMount:
                 ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
                 "'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'",
             ),
+            # handle comments
+            (["# dont care", "faker"], "faker"),
+            (["faker # inline dontcare"], "faker"),
+            (["faker #inline dontcare2"], "faker"),
         ],
     )
     def test_encode_requirements(self, requirements, encoded_requirements):

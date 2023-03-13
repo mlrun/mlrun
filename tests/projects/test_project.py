@@ -610,6 +610,13 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
+    proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
+    run = proj1.run_function("func", local=True)
+    assert run.spec.output_path == proj1.spec.artifact_path
+
+    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    assert run.spec.output_path == "/not/tmp"
+
 
 def test_function_receives_project_default_image():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -786,3 +793,17 @@ def test_load_project_with_git_enrichment(
     assert (
         project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
     )
+
+
+def test_remove_owner_name_in_load_project_from_yaml():
+    # Create project and generate owner name
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.owner = "some_owner"
+
+    # Load the project from yaml and validate that the owner name was removed
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert project.spec.owner == "some_owner"
+    assert imported_project.spec.owner is None

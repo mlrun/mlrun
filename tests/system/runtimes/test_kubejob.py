@@ -49,6 +49,25 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying kubejob function")
         function.deploy()
 
+    def test_deploy_function_with_requirements_file(self):
+        # ML-3518
+        code_path = str(self.assets_path / "kubejob_function_custom_requirements.py")
+        requirements_path = str(self.assets_path / "requirements.txt")
+        function = mlrun.code_to_function(
+            name="simple-function",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+            requirements=requirements_path,
+        )
+        function.deploy()
+        run = function.run(handler="mycls::do")
+        outputs = run.outputs
+        assert "requests" in outputs, "requests not in outputs"
+        assert "chardet" in outputs, "chardet not in outputs"
+        assert "pyhive" in outputs, "pyhive not in outputs"
+
     def test_deploy_function_without_image_with_requirements(self):
         # ML-2669
         code_path = str(self.assets_path / "kubejob_function.py")
@@ -60,7 +79,10 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             kind="job",
             project=self.project_name,
             filename=code_path,
-            requirements=["pandas"],
+            requirements=[
+                # ML-3518
+                "pandas>=1.5.0, <1.6.0",
+            ],
         )
         assert function.spec.image == ""
         assert function.spec.build.base_image == expected_base_image

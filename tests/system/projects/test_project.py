@@ -632,6 +632,23 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert run_result.output("score")
 
+    def test_run_function_uses_user_defined_artifact_path_over_project_artifact_path(
+        self,
+    ):
+        func_name = "my-func"
+        self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        self.project.artifact_path = "/User/project_artifact_path"
+        user_artifact_path = "/User/user_artifact_path"
+
+        run = self.project.run_function(func_name, artifact_path=user_artifact_path)
+        assert run.spec.output_path == user_artifact_path
+
     def test_set_secrets(self):
         name = "set-secrets"
         self.custom_project_names_to_delete.append(name)
@@ -780,6 +797,8 @@ class TestProject(TestMLRunSystem):
             original_source,
             name=name,
         )
+        # Getting the expected source after possible enrichment:
+        expected_source = project.source
 
         run = project.run(
             "newflow",
@@ -791,8 +810,7 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
-        assert project_from_db.spec.source == original_source
-        assert project.spec.source == original_source
+        assert project_from_db.source == expected_source
 
         for engine in ["remote", "local", "kfp"]:
             project.run(
@@ -805,7 +823,7 @@ class TestProject(TestMLRunSystem):
 
             # Ensuring that the project's source has not changed in the db:
             project_from_db = self._run_db.get_project(name)
-            assert project_from_db.spec.source == original_source
+            assert project_from_db.source == expected_source
 
         # Ensuring that the loaded project is from the given source
         run = project.run(

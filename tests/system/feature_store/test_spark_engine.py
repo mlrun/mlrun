@@ -1532,4 +1532,5 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
         self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
 
+        assert spark_engine_res.shape == (2, 2)
         assert local_engine_res.equals(spark_engine_res)

@@ -28,8 +28,8 @@ To install on a **Python 3.9** client, run:<br>
 
 To install on a **Python 3.7** client, run:
   
-    1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
-    2. Within the Jupyter service, open a terminal and run (`install -y pip` ensures you have the latest resolver):
+1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
+2. Within the Jupyter service, open a terminal and run `install -y pip` (ensures you have the latest resolver):
 
 ```
     $CONDA_HOME/bin/conda install -y conda=23.1.0
@@ -48,62 +48,75 @@ To install on a **Python 3.7 CER** client, run:
 
 #### Feature store
 
-- The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations).
-- Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector).
-- Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source).
-- Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store).
-- Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes).
-- The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). 
-- Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). 
-- `get_offline_features` supports Spark Operator and Remote Spark.
+
+| ID            | Description                                                    |
+| ------------- | ----------------------------------------------------------------- |
+| ML-2709 | The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations). |
+| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
+| ML-2610 | Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source). |
+| ML-2610 | Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store). |
+| ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
+| ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
+| ML-2592 | Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). |
+| ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark. |
+
+
 
 #### Logging data
-- Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instaed you use log hints. This is 
-part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. 
-See [more details](../cheat-sheet.html#experiment-tracking-using-returns-new-in-v1-3-0).
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instesd you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../cheat-sheet.html#experiment-tracking-using-returns-new-in-v1-3-0). |
+
 
 #### Projects
 
-- When defining a new project from scratch, there is now a default `context` directory: `./`. This is the directory from which the MLRun 
-    client runs, unless otherwise specified.  
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3048 | When defining a new project from scratch, there is now a default `context` directory: \"`./`". This is the directory from which the MLRun client runs, unless otherwise specified. |   
 
 #### Serving graphs
 
-- Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.html#graph-that-splits-and-rejoins).
-- Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming).
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.html#graph-that-splits-and-rejoins). |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.html#queue-streaming). |
 
-#### Storey
-- The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the 
-    time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/mlrun/pull/2660), and in 
-    [Storey git](https://github.com/mlrun/storey/pull/394).
 
-#### UI
-- The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the 
-relevant wizards under each phase heading: ingesting and processing data, developing and training a model, deploying and monitoring the project.
+#### Storey 
 
-<p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br>
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2502 | The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/mlrun/pull/2660), and in [Storey git](https://github.com/mlrun/storey/pull/394). |
+ 
 
-- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)
+#### UI 
 
-#### APIs
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-1186 | The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the relevant wizards under each phase heading: ingesting and processing data, developing and training a model, deploying and monitoring the project. <p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br> |
+| NA | [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0) |
 
-- These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`.
-- New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec.
+
+#### APIs 
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+|  | These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`. |
+| ML-3204 | New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec. |
  
  
-#### Infrastructure improvements
+#### Infrastructure improvements 
 
-- MLRun server is based on Python 3.9.
-- The new log collection service improves the performance and reduces heavy IO operations from the API container. 
-The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and 
-worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request.
-The new service is transparent to the end-user: there are no UI or API changes. 
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2609 |  MLRun server is based on Python 3.9. |
+| ML-2732 | The new log collection service improves the performance and reduces heavy IO operations from the API container. The new MLRun log collector service is a grpc server, which runs as sidecar in the mlrun-api pod (chief and worker). The service is responsible for collecting logs from run pods, writing to persisted files, and reading them on request. The new service is transparent to the end-user: there are no UI or API changes. |
 
-### Breaking changes
+### Breaking changes 
+
 
 - The behavior of ingest with aggregation changed in v1.3.0 (storey, spark, pandas engines). Now, when you ingest a "timestamp" column, it returns <br>
 `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
-
 - Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
 
 
@@ -160,24 +173,25 @@ such as `get_or_create_project`, `load_project` |
 
 ### Closed issues
 
-- Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611).
-- Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632).
-- Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).
-- Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).
-- `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).
-- Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613).
-- `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and 
-    docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988).
-- Fix: Failed MLRun Nuclio deploy needs better error messages.     
-- Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism. 
-- Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).
-- Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).
-- Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).
-- Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635).
-- Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/ui/pull/2888).
-- Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969).
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3286 | Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611). |
+| ML-2534 | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632). |
+| ML-3316 | Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617). |
+| ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
+| ML-2896 | `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131). |
+| ML-3365 / 3349 | Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613). |
+| ML-3283 | `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988). |
+| ML- | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
+| ML-2191 | Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism.  |
+| ML-2810 | Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123). |
+| ML-3378 | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418). |
+| ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
+| ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
+| ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
+| ML-3104 | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969). |
+| ML-3380 | Documentation: Added details on [aggregation in windows](../feature-store/transformations.html#aggregations). [View in Git](https://github.com/mlrun/mlrun/pull/3081) |
     
-
 
 
 ## v1.2.1

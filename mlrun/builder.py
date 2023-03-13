@@ -313,7 +313,6 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime=None,
-    workdir=None,
 ):
     runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
@@ -398,9 +397,9 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    if not workdir and not runtime.spec.workdir and source_to_copy:
+    if not runtime.spec.workdir and source_to_copy:
         tmpdir = tempfile.mkdtemp()
-        runtime.spec.workdir = workdir = f"{tmpdir}/mlrun"
+        runtime.spec.workdir = f"{tmpdir}/mlrun"
 
     dock = make_dockerfile(
         base_image,
@@ -410,7 +409,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=workdir or runtime.spec.workdir,
+        workdir=runtime.spec.workdir,
     )
 
     kpod = make_kaniko_pod(
@@ -587,7 +586,6 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
-        workdir=runtime.spec.workdir,
     )
     runtime.status.build_pod = None
     if status == "skipped":

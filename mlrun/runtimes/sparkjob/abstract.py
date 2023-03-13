@@ -559,8 +559,8 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
-                self.spec.command = os.path.join(
-                    "local://", self.spec.workdir or "", self.spec.command
+                self.spec.command = "local://" + os.path.join(
+                    self.spec.workdir or "", self.spec.command
                 )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 

@@ -351,7 +351,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     @pytest.mark.enterprise
-    @pytest.mark.parametrize("pull_at_runtime", [True])
+    @pytest.mark.parametrize("pull_at_runtime", [False])
     def test_with_igz_spark_from_source(self, pull_at_runtime):
         self._upload_code_to_cluster()
         fn = mlrun.new_function(

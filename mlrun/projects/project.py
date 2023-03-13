@@ -2556,7 +2556,7 @@ def _init_function_from_dict(f, project, name=None):
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
-        func.spec.build.source = "./"
+        func.spec.build.source = project.spec.source
     if requirements:
         func.with_requirements(requirements)
 

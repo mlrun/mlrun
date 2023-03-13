@@ -489,7 +489,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
-| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
+| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16 MB | NA      | v1.2.1 |
 | 3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
 | 3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |

@@ -1500,8 +1500,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)
 
-        self._logger.info(f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}")
-        self._logger.info(f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}")
+        self._logger.info(
+            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+        )
+        self._logger.info(
+            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+        )
 
         vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
 
@@ -1511,7 +1515,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
         self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
 
-        vec_for_spark = fstore.FeatureVector("vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"])
+        vec_for_spark = fstore.FeatureVector(
+            "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
+        )
 
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(

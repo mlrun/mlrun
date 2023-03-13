@@ -39,7 +39,7 @@ def make_dockerfile(
     commands=None,
     source=None,
     requirements=None,
-    workdir=None,
+    workdir="/mlrun",
     extra="",
     user_unix_id=None,
     enriched_group_id=None,

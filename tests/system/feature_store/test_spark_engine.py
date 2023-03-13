@@ -1489,9 +1489,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df_left.to_parquet(path=left_path, filesystem=fsys)
         df_right.to_parquet(path=right_path, filesystem=fsys)
 
-        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts")
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
         fset1.set_targets(["parquet"], with_defaults=False)
-        fset2 = fstore.FeatureSet("fs2", entities=["ent"], timestamp_key="ts")
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
         fset2.set_targets(["parquet"], with_defaults=False)
 
         source_left = ParquetSource("pq1", path=left_path)
@@ -1500,14 +1500,28 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)
 
-        vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+        self._logger.info(
+            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+        )
+        self._logger.info(
+            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+        )
+
+        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
 
         resp = fstore.get_offline_features(vec, engine="local")
         local_engine_res = resp.to_dataframe().sort_index(axis=1)
 
+        self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
+        self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
+
+        vec_for_spark = fstore.FeatureVector(
+            "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
+        )
+
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(
-            vec,
+            vec_for_spark,
             engine="spark",
             run_config=fstore.RunConfig(local=False, kind="remote-spark"),
             spark_service=self.spark_service,
@@ -1518,4 +1532,5 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
         self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
 
+        assert spark_engine_res.shape == (2, 2)
         assert local_engine_res.equals(spark_engine_res)

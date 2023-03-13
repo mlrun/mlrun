@@ -16,21 +16,18 @@
 
 ## v1.3.0
 
-### Client/server matrix and prereqs to installing
+### Client/server matrix, prereqs and installing
 
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-If you are installing on a Python 3.9 client, run these commands before installing:
-?????
+To install on a **Python 3.9** client, run:<br>
+ `./align_mlrun.sh`
 
-If you are installing on a CE Python 3.9 client, run these commands before installing:
-?????
-
-If you are installing on a Python 3.7 client, run these commands before installing:
-   ?????
+To install on a **Python 3.7** client, run:
+  
     1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
     2. Within the Jupyter service, open a terminal and run (`install -y pip` ensures you have the latest resolver):
 
@@ -42,8 +39,10 @@ If you are installing on a Python 3.7 client, run these commands before installi
     ./align_mlrun.sh
 ```
     
-If you are installing on a CE Python 3.7 client, run these commands before installing:
-?????
+To install on a **Python 3.9 CER** client, run:
+
+To install on a **Python 3.7 CER** client, run:
+
 
 ### New and updated features
 
@@ -298,7 +297,7 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 
 - The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
 - Slack now notifies when a project fails in `load_and_run()`. [View in Git](https://github.com/mlrun/mlrun/pull/2794).
-- Timeout is executed properly when running a pipeline in CLI. [View in Git]https://github.com/mlrun/mlrun/pull/2635).
+- Timeout is executed properly when running a pipeline in CLI. [View in Git](https://github.com/mlrun/mlrun/pull/2635).
 - Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains 
 API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 
@@ -342,7 +341,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 improve handling of high workloads against the MLRun DB. You can configure the number of workers for an MLRun 
 service, which is applied to the service's user-created pods. The default is 2. 
    - v1.1.0 cannot run on top of 3.0.x.
-   - For Iguazio <v3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
+   - For Iguazio versions prior to v3.5.0, the number of workers is set to 1 by default. To change this number, contact support (helm-chart change required).
    - Multi-instance is not supported for MLrun running on SQLite.
 -  Supports pipeline scheduling.
       
@@ -481,35 +480,35 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ## Open issues
 
-| ID   | Description                                            | Workaround                                    | Opened |
+| ID   | Description                                            | Workaround                                    | Opened in |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
-| 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
-| 2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
-| 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
+| ML-2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
+| ML-2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
+| ML-1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
-| 2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
+| ML-2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 |  | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
-| 3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
-| 3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
-| 2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
-| 3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
+| ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
+| ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
+| ML-2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
+| ML-3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
 
     
     
 ## Limitations
 
 
-| ID   | Description                                                    | Workaround                           | Opened | 
+| ID   | Description                                                    | Workaround                           | Opened in | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
-| 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
-| 3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
-| 3381 | Private repo is not supported as a marketplace hub             | NA                                     | 1.2.1 | 
+| ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
+| ML-3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
+| ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
  
 
 ## Deprecations
 
     
-| In v.  | ID |Description                                                          |
+| In   | ID |Description                                                          |
 |------ | ---- | --------------------------------------------------------------------|
-| 1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
-| 1.3.0 |     | See [Deprecated APIs](#api-130).|
+| v1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
+| v1.3.0 |     | See [Deprecated APIs](#api-130).|

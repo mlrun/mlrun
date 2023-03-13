@@ -23,27 +23,27 @@ The MLRun server is now based on Python 3.9. It's recommended to move the client
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
+MLRun is pre-installed in CE Jupyter.
+
 To install on a **Python 3.9** client, run:<br>
  `./align_mlrun.sh`
 
 To install on a **Python 3.7** client, run:
   
 1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
-2. Within the Jupyter service, open a terminal and run `install -y pip` (ensures you have the latest resolver):
+2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
 
+```$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y pip
 ```
-    $CONDA_HOME/bin/conda install -y conda=23.1.0
-    $CONDA_HOME/bin/conda install -y pip 
+3.  If you are going to work with python 3.9, create a new conda env and activate it:
+```
     conda create -n python39 python=3.9 ipykernel -y
     conda activate python39
-    ./align_mlrun.sh
 ```
+4. Install mlrun:<br>
+`./align_mlrun.sh`
     
-To install on a **Python 3.9 CER** client, run:
-
-To install on a **Python 3.7 CER** client, run:
-
-
 ### New and updated features
 
 #### Feature store
@@ -136,10 +136,11 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | `project.create_vault_secrets()`     | NA                                   |
 | `project.get_vault_secret()`         | NA                                   |
 | `MlrunProjectLegacy` class           | `MlrunProject`                                 |
-| Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step`                        |
+| Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step` |
 | `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
 | `NewTask`                            | `run_function()`                        |
-
+| Dask `with_limits`                   | `with_scheduler_limits` / `with_worker_limits`    |
+| Dask `with_requests`                 | `with_scheduler_requests` / `with_worker_requests`    |
 
 
 **Deprecated APIs, will be removed in v1.5.0**<br>
@@ -150,8 +151,6 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 such as `get_or_create_project`, `load_project` |
 | `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
-| Dask `with_limits`                               | `with_scheduler_limits` / `with_worker_limits`    |
-| Dask `with_requests`                             | `with_scheduler_requests` / `with_worker_requests`    |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |
 | Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
 | `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
@@ -190,8 +189,6 @@ such as `get_or_create_project`, `load_project` |
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
 | ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
 | ML-3104 | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969). |
-| ML-3380 | Documentation: Added details on [aggregation in windows](../feature-store/transformations.html#aggregations). [View in Git](https://github.com/mlrun/mlrun/pull/3081) |
-    
 
 
 ## v1.2.1

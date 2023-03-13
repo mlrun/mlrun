@@ -101,7 +101,7 @@ $CONDA_HOME/bin/conda install -y pip
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-|  | These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`. |
+| ML-3104 | These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`. |
 | ML-3204 | New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec. |
  
  
@@ -189,6 +189,7 @@ such as `get_or_create_project`, `load_project` |
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
 | ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
 | ML-3104 | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969). |
+| ML-3380 | Dpcumentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
 
 
 ## v1.2.1
@@ -502,8 +503,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | ML-2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
-| ML-3424 | Documentation missing a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
-
+| ML-3424 | Documentation: request a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
+| ML-3480 | Documentation: request details on label parapeter of feature set definition | NA                        | v1.2.1 |
     
     
 ## Limitations

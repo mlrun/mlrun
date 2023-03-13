@@ -453,19 +453,11 @@ context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
 ```
 
-### Experiment tracking using `returns` (new in v1.3.0)
+### Track returning values using `returns` (new in v1.3.0)
 
-- Inputs automatically use the type hint, or are assumed to be a DataItem
-- Use the `returns` argument to specify the return values.
-
-```
-log_with_returns_run = notebook_functions.run(
-    handler="log_with_returns",
-    inputs={"df": DATA_PATH},
-    returns=["returns_data", "returns_result"],
-    local=True,
-)
-```
+Passing objects from MLRun function to another has never been easier:
+- Inputs are automatically parsed to their hinted type. If type hints are not in code, they can be passed in the inputs keys.
+- Use the `returns` argument to specify how to log a function's returning values.
 
 ### Automatic logging
 

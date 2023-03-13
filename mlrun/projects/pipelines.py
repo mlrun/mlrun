@@ -80,7 +80,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        override: bool = None,
         cleanup_ttl: int = None,
     ):
         if ttl:
@@ -103,7 +102,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.override = override
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -843,30 +841,6 @@ class _RemoteRunner(_PipelineRunner):
             workflow_handler=workflow_handler,
             namespace=namespace,
         )
-
-        if workflow_spec.schedule:
-            is_scheduled = True
-            schedule_name = runspec.spec.parameters.get("workflow_name")
-            run_db = mlrun.get_run_db()
-
-            try:
-                run_db.get_schedule(project.name, schedule_name)
-            except mlrun.errors.MLRunNotFoundError:
-                is_scheduled = False
-
-            if workflow_spec.override:
-                if is_scheduled:
-                    logger.info(f"Deleting schedule {schedule_name}")
-                    run_db.delete_schedule(project.name, schedule_name)
-                else:
-                    logger.info(
-                        f"No schedule by name '{schedule_name}' was found, nothing to override."
-                    )
-            elif is_scheduled:
-                raise mlrun.errors.MLRunConflictError(
-                    f"There is already a schedule for workflow {schedule_name}."
-                    " If you want to override this schedule use 'override=True' (SDK) or '--override-workflow' (CLI)"
-                )
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.

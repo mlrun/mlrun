@@ -674,14 +674,14 @@ class TestProject(TestMLRunSystem):
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
         # overwriting nothing
-        project.run(workflow_name, schedule=schedules[0], override=True)
+        project.run(workflow_name, schedule=schedules[0])
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[0]
         ), "Failed to override nothing"
 
         # overwriting schedule:
-        project.run(workflow_name, schedule=schedules[1], dirty=True, override=True)
+        project.run(workflow_name, schedule=schedules[1], dirty=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[1]
@@ -703,7 +703,6 @@ class TestProject(TestMLRunSystem):
             "-d",
             "-r",
             workflow_name,
-            "-ow",  # stands for override-workflow
             "--schedule",
             f"'{schedules[2]}'",
         ]
@@ -712,20 +711,6 @@ class TestProject(TestMLRunSystem):
         assert (
             schedule.scheduled_object["schedule"] == schedules[2]
         ), "Failed to override from CLI"
-
-        # without override workflow from cli:
-        args = [
-            project_dir,
-            "-n",
-            name,
-            "-d",
-            "-r",
-            workflow_name,
-            "--schedule",
-            f"'{schedules[1]}'",
-        ]
-        out = exec_project(args)
-        assert "use 'override=True' (SDK) or '--override-workflow' (CLI)" in out
 
     def test_timeout_warning(self):
         name = "timeout-warning-test"
@@ -841,29 +826,3 @@ class TestProject(TestMLRunSystem):
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
         assert schedule.scheduled_object["schedule"] == schedule_str
-
-    def test_backwards_compatibility_overwrite(self):
-        # TODO: Remove in 1.6.0 when removing overwrite from SDK
-        name = "set-workflow"
-        self.custom_project_names_to_delete.append(name)
-
-        # _create_project contains set_workflow inside:
-        project = self._create_project(name)
-
-        archive_path = f"v3io:///projects/{project.name}/archived.zip"
-        project.export(archive_path)
-        project.spec.source = archive_path
-        project.save()
-        print(project.to_yaml())
-
-        schedule = "*/20 * * * *"
-        project.run("main", schedule=schedule)
-        self._assert_scheduled(name, schedule)
-
-        schedule = "*/21 * * * *"
-        project.run("main", schedule=schedule, override=True)
-        self._assert_scheduled(name, schedule)
-
-        schedule = "*/22 * * * *"
-        project.run("main", schedule=schedule, overwrite=True)
-        self._assert_scheduled(name, schedule)

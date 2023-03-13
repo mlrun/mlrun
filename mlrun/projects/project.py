@@ -1864,8 +1864,6 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
-        overwrite: bool = False,
-        override: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
@@ -1897,8 +1895,6 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
-        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
@@ -1952,21 +1948,11 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
-        if schedule:
-            if override or overwrite:
-                if overwrite:
-                    logger.warn(
-                        "Please use override (SDK) or --override-workflow (CLI) "
-                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
-                        "This will be removed in 1.6.0",
-                        # TODO: Remove in 1.6.0
-                    )
-                workflow_spec.override = True
-            # Schedule = True -> use workflow_spec.schedule
-            if not isinstance(schedule, bool):
-                workflow_spec.schedule = schedule
-        else:
+        if not schedule:
             workflow_spec.schedule = None
+        elif not isinstance(schedule, bool):
+            # Schedule = True -> use workflow_spec.schedule
+            workflow_spec.schedule = schedule
 
         inner_engine = None
         if engine and engine.startswith("remote"):

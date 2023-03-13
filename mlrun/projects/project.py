@@ -1562,7 +1562,7 @@ class MlrunProject(ModelObj):
             if image:
                 function_object.spec.image = image
             if with_repo:
-                function_object.spec.build.source = "./"
+                function_object.spec.build.source = self.spec.source
             if requirements:
                 function_object.with_requirements(requirements)
             if not name:

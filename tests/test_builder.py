@@ -832,7 +832,7 @@ def test_builder_workdir(monkeypatch, workdir, expected_workdir):
         kind="job",
     )
     if workdir is not None:
-        function.spec.build.workdir = workdir
+        function.spec.workdir = workdir
     function.spec.build.source = "some-source.tgz"
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),

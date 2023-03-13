@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -559,7 +559,9 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
-                self.spec.command = "local://" + self.spec.command
+                self.spec.command = os.path.join(
+                    "local://", self.spec.workdir, self.spec.command
+                )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)

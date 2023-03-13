@@ -44,10 +44,6 @@ def make_dockerfile(
     user_unix_id=None,
     enriched_group_id=None,
 ):
-    # TODO: save the tmpdir and reuse it for build cache
-    if not workdir:
-        tmpdir = tempfile.mkdtemp()
-        workdir = f"{tmpdir}/mlrun"
     dock = f"FROM {base_image}\n"
 
     if config.is_pip_ca_configured():
@@ -402,6 +398,10 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
+    if not workdir and not runtime.spec.workdir and source_to_copy:
+        tmpdir = tempfile.mkdtemp()
+        runtime.spec.workdir = workdir = f"{tmpdir}/mlrun"
+
     dock = make_dockerfile(
         base_image,
         commands,
@@ -410,7 +410,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=workdir,
+        workdir=workdir or runtime.spec.workdir,
     )
 
     kpod = make_kaniko_pod(
@@ -587,7 +587,7 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
-        workdir=build.workdir,
+        workdir=runtime.spec.workdir,
     )
     runtime.status.build_pod = None
     if status == "skipped":

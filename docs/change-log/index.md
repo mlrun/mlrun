@@ -177,28 +177,32 @@ such as `get_or_create_project`, `load_project` |
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
+### Deprecated CLI
+
+The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
 
 ### Closed issues
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3286 | Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611). |
-| ML-2534 | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632). |
-| ML-3316 | Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617). |
-| ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
-| ML-2896 | `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131). |
-| ML-3365 / 3349 | Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613). |
-| ML-3283 | `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988). |
-| ML- | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
 | ML-2191 | Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism.  |
+| ML-2421 | Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/storey/pull/3248). |
+| ML-2534 | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632). |
 | ML-2810 | Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123). |
-| ML-3378 | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418). |
-| ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
-| ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
-| ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
+| ML-2896 | `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131). |
 | ML-3104 | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969). |
+| ML-3119 | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888). |
+| ML-3283 | `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988). |
+| ML-3286 | Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611). |
+| ML-3316 | Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617). |
+| ML-3365 / 3349 | Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613). |
+| ML-3378 | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418). |
 | ML-3380 | Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
-
+| ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
+| ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/storey/pull/3246). |
+| ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
+| ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
+| ML- | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
 
 ## v1.2.1
 
@@ -502,18 +506,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID   | Description                                            | Workaround                                    | Opened in |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
-| ML-2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
-| ML-2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
 | ML-1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
-| [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
+| ML-2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
+| ML-2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
 | ML-2407 | Kafka ingestion service on sn empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
-| NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |
-| ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
+| ML-2489 | Cannot pickle a class inside an mlrun function. | Use cloudpickle instead of pickle | v1.2.0 |
+| [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
-| ML-2421 | Artifact logged via SDK with "/" in the name cannot be viewed in the UI. The main project dashboard opens instead. | NA | v1.1.0 |
+| ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
 | ML-3424 | Documentation: request a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
 | ML-3480 | Documentation: request details on label parapeter of feature set definition | NA                        | v1.2.1 |
-    
+| NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |    
     
 ## Limitations
 

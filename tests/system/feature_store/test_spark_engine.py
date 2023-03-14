@@ -55,7 +55,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
-    pq_target = "testdata_target.parquet"
+    pq_target = "testdata_target"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -1518,8 +1518,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
-
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        print(f"target before clean {target.as_df()}")
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        for f in fsys.listdir(self.get_remote_pq_target_path()):
+            fsys._rm(f['name'])
+        print(f"target after clean {target.as_df()}")
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",

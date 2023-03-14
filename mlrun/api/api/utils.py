@@ -106,7 +106,7 @@ def get_obj_path(schema, path, user=""):
 
 # Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
 # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
-def get_allowed_path_prefixes_list() -> list[str]:
+def get_allowed_path_prefixes_list() -> typing.List[str]:
     real_path = config.httpdb.real_path
     allowed_file_paths = config.httpdb.allowed_file_paths or ""
     allowed_paths_list = [

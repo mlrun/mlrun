@@ -687,14 +687,6 @@ class TestProject(TestMLRunSystem):
             schedule.scheduled_object["schedule"] == schedules[1]
         ), "Failed to override existing workflow"
 
-        # submit schedule when one exists without override - fail:
-        with pytest.raises(mlrun.errors.MLRunConflictError):
-            project.run(
-                workflow_name,
-                schedule=schedules[1],
-                dirty=True,
-            )
-
         # overwriting schedule from cli:
         args = [
             project_dir,

@@ -55,16 +55,14 @@ To install on a **Python 3.7** client, run:
 
 | ID            | Description                                                    |
 | ------------- | ----------------------------------------------------------------- |
-| ML-2709 | The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations). |
-| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
+| ML-2592 | Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). |
 | ML-2610 | Supports SQLSource for batch ingestion (Tech Preview). See [SQL data source](../data-prep/ingest-data-fs.html#sql-data-source). |
 | ML-2610 | Supports SQLTarget for storey engine (Tech Preview). (Spark is not yet supported.) See [SQL target store](../data-prep/ingest-data-fs.html#sql-target-store). |
-| ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
-| ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
-| ML-2592 | Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.html#create-a-feature-set-without-ingesting-its-data). |
+| ML-2709 | The Spark engine now supports the steps: `MapValues`, `Imputer`, `OneHotEncoder`, `DropFeatures`; and supports extracting the time parts from the date in the `DateExtractor` step. See [Data transformations](../serving/available-steps.html#data-transformations). |
 | ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark. |
-
-
+| ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
+| ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
+| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
 
 #### Logging data
 | ID   | Description                                                    |
@@ -202,7 +200,7 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/storey/pull/3246). |
 | ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
 | ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
-| ML- | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
+|  | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
 
 ## v1.2.1
 

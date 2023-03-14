@@ -17,6 +17,7 @@ FROM quay.io/mlrun/cuda:${CUDA_VER}-base-ubuntu20.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="py39_23.1.0-1"
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -37,7 +38,7 @@ RUN apt-get update && \
         wget && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -f -b -p /opt/conda && \
     rm ~/installconda.sh && \
     conda init bash

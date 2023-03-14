@@ -70,7 +70,8 @@ MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 # expected to be in the form of '-py<major><minor>' e.g. '-py39'
-MLRUN_ANACONDA_PYTHON_DISTRIBUTION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
+MLRUN_ANACONDA_VERSION ?= 23.1.0-1
+MLRUN_ANACONDA_PYTHON_DISTRIBUTION ?= $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2"_$(MLRUN_ANACONDA_VERSION)"}')
 MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
@@ -332,6 +333,7 @@ prebake-models-gpu: ## Build prebake models GPU docker image
 		--file dockerfiles/models-gpu/prebaked.Dockerfile \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		--tag $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED) \
@@ -345,6 +347,7 @@ push-prebake-models-gpu: ## Push prebake models GPU docker image
 prebake-models-gpu-py37: ## Build prebake models GPU docker image  for python 3.7
 	docker build \
 		--file dockerfiles/models-gpu/py37/prebaked.Dockerfile \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--tag $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED) \
 		.
 

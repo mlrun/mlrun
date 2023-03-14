@@ -17,6 +17,7 @@ FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="py37_23.1.0-1"
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -42,7 +43,7 @@ RUN apt-get update && \
         wget && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-py37_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \

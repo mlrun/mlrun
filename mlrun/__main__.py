@@ -1040,16 +1040,6 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
-# TODO: Remove in 1.6.0 --overwrite-schedule and -os, keep --override-workflow and -ow
-@click.option(
-    "--override-workflow",
-    "--overwrite-schedule",
-    "-ow",
-    "-os",
-    "override_workflow",
-    is_flag=True,
-    help="Override a schedule when submitting a new one with the same name.",
-)
 @click.option(
     "--save-secrets",
     is_flag=True,
@@ -1080,7 +1070,6 @@ def project(
     timeout,
     ensure_project,
     schedule,
-    override_workflow,
     save_secrets,
     save,
 ):
@@ -1170,7 +1159,6 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
-                override=override_workflow,
             )
 
         except Exception as exc:

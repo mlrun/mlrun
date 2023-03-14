@@ -15,9 +15,7 @@
 import importlib
 import sys
 import inspect
-from abc import ABC
 from enum import Enum
-from collections import OrderedDict
 from types import MethodType, ModuleType
 from typing import Any, Dict, List, Union, Type, Tuple
 import os
@@ -30,17 +28,6 @@ from mlrun.datastore import DataItem
 from mlrun.execution import MLClientCtx
 
 
-class PickleModule(Enum):
-    """
-    An enum to specify all supported pickling modules.
-    """
-
-    PICKLE = "pickle"
-    PICKLE5 = "pickle5"
-    JOBLIB = "joblib"
-    CLOUDPICKLE = "cloudpickle"
-
-
 class _Pickler:
     """
     A static class to pickle objects with multiple modules while capturing the environment of the pickled object. The
@@ -48,36 +35,24 @@ class _Pickler:
     and / or python versions)
     """
 
-    class Labels:
-        """
-        The labels the pickler is noting when pickling an object. According to these labels, when the pickler will try
-        to un-pickle the object, it will know to warn the user.
-        """
-
-        PICKLE_MODULE_NAME = "pickle_module_name"
-        PICKLE_MODULE_VERSION = "pickle_module_version"
-        OBJECT_MODULE_NAME = "object_module_name"
-        OBJECT_MODULE_VERSION = "object_module_version"
-        PYTHON_VERSION = "python_version"
-
     @staticmethod
     def pickle(
-        obj: Any, pickle_module_name: PickleModule, output_path: str = None
-    ) -> Tuple[str, Dict[str, str]]:
+        obj: Any, pickle_module_name: str, output_path: str = None
+    ) -> Tuple[str, Dict[str, Union[str, None]]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 
         :param obj:                The object to pickle.
-        :param pickle_module_name: The pickle module to use.
+        :param pickle_module_name: The pickle module to use. For example: "pickle", "joblib", "cloudpickle".
         :param output_path:        The output path to save the 'pkl' file to. If not provided, the pickle will be saved
                                    to a temporary directory. The user is responsible to clean the temporary directory.
 
-        :return: A tuple of the path of the 'pkl' file and a dictionary of labels the pickler noted.
+        :return: A tuple of the path of the 'pkl' file and the instructions the pickler noted.
         """
         # Get the modules and versions:
-        pickle_module = _Pickler._get_module(source=pickle_module_name.value)
+        pickle_module = _Pickler._get_module(source=pickle_module_name)
         pickle_module_version = _Pickler._get_module_version(
-            module_name=pickle_module_name.value
+            module_name=pickle_module_name
         )
         object_module = _Pickler._get_module(source=obj)
         object_module_name = _Pickler._get_module_name(module=object_module)
@@ -87,15 +62,15 @@ class _Pickler:
         python_version = _Pickler._get_python_version()
 
         # Construct the pickler labels dictionary (versions may not be available):
-        labels = {
-            _Pickler.Labels.OBJECT_MODULE_NAME: object_module_name,
-            _Pickler.Labels.PICKLE_MODULE_NAME: pickle_module_name.value,
-            _Pickler.Labels.PYTHON_VERSION: python_version,
+        instructions = {
+            "object_module_name": object_module_name,
+            "pickle_module_name": pickle_module_name,
+            "python_version": python_version,
         }
         if object_module_version is not None:
-            labels[_Pickler.Labels.OBJECT_MODULE_VERSION] = object_module_version
+            instructions["object_module_version"] = object_module_version
         if pickle_module_version is not None:
-            labels[_Pickler.Labels.PICKLE_MODULE_VERSION] = pickle_module_version
+            instructions["pickle_module_version"] = pickle_module_version
 
         # Generate a temporary output path if not provided:
         if output_path is None:
@@ -105,62 +80,72 @@ class _Pickler:
         with open(output_path, "wb") as pkl_file:
             pickle_module.dump(obj, pkl_file)
 
-        return output_path, labels
+        return output_path, instructions
 
     @staticmethod
     def unpickle(
         pickle_path: str,
-        labels: Dict[str, str],
+        pickle_module_name: str,
+        object_module_name: str = None,
+        python_version: str = None,
+        pickle_module_version: str = None,
+        object_module_version: str = None,
     ) -> Any:
         """
-        Unpickle an object using the given Pickler labels. The module to use for unpickling the object is read from the
-        labels and so are the environment the object was originally pickled in. Warnings may be raised in case any of
-        the versions are mismatching.
+        Unpickle an object using the given instructions. Warnings may be raised in case any of the versions are
+        mismatching (only if provided - not None).
 
-        :param pickle_path: Path to the 'pkl' file to un-pickle.
-        :param labels:      Pickler labels noted during the pickling of the object.
+        :param pickle_path:           Path to the 'pkl' file to un-pickle.
+        :param pickle_module_name:    Module to use for unpickling the object.
+        :param object_module_name:    The original object's module. Used to verify the current interpreter object module
+                                      version match the pickled object version before unpickling the object.
+        :param python_version:        The python version in which the original object was pickled. Used to verify the
+                                      current interpreter python version match the pickled object version before
+                                      unpickling the object.
+        :param pickle_module_version: The pickle module version. Used to verify the current interpreter module version
+                                      match the one who pickled the object before unpickling it.
+        :param object_module_version: The original object's module version to match to the interpreter's module version.
 
         :return: The un-pickled object.
         """
         # Check the python version against the pickled object:
-        python_version = _Pickler._get_python_version()
-        if labels[_Pickler.Labels.PYTHON_VERSION] != python_version:
-            warnings.warn(
-                f"MLRun is trying to load an object that was pickled on python version "
-                f"'{labels[_Pickler.Labels.PYTHON_VERSION]}' but the current python version is '{python_version}'. "
-                f"When using pickle, it is recommended to save and load an object on the same python version to reduce "
-                f"unexpected errors."
-            )
+        if python_version is not None:
+            current_python_version = _Pickler._get_python_version()
+            if python_version != current_python_version:
+                warnings.warn(
+                    f"MLRun is trying to load an object that was pickled on python version "
+                    f"'{python_version}' but the current python version is '{current_python_version}'. "
+                    f"When using pickle, it is recommended to save and load an object on the same python version to "
+                    f"reduce unexpected errors."
+                )
 
         # Get the pickle module:
-        pickle_module = _Pickler._get_module(
-            source=labels[_Pickler.Labels.PICKLE_MODULE_NAME]
-        )
+        pickle_module = _Pickler._get_module(source=pickle_module_name)
 
         # Check the pickle module against the pickled object (only if the version is given):
-        if _Pickler.Labels.PICKLE_MODULE_VERSION in labels:
-            pickle_module_version = _Pickler._get_module_version(
-                module_name=labels[_Pickler.Labels.PICKLE_MODULE_NAME]
+        if pickle_module_version is not None:
+            current_pickle_module_version = _Pickler._get_module_version(
+                module_name=pickle_module_name
             )
-            if labels[_Pickler.Labels.PICKLE_MODULE_VERSION] != pickle_module_version:
+            if pickle_module_version != current_pickle_module_version:
                 warnings.warn(
                     f"MLRun is trying to load an object that was pickled using "
-                    f"{labels[_Pickler.Labels.PICKLE_MODULE_NAME]} version "
-                    f"{labels[_Pickler.Labels.PICKLE_MODULE_VERSION]} but the current module version is "
-                    f"'{pickle_module_version}'. When using pickle, it is recommended to save and load an object using "
-                    f"the same pickling module version to reduce unexpected errors."
+                    f"{pickle_module_name} version {pickle_module_version} but the current module version is "
+                    f"'{current_pickle_module_version}'. "
+                    f"When using pickle, it is recommended to save and load an "
+                    f"object using the same pickling module version to reduce unexpected errors."
                 )
 
         # Check the object module against the pickled object (only if the version is given):
-        if _Pickler.Labels.OBJECT_MODULE_VERSION in labels:
-            object_module_version = _Pickler._get_module_version(
-                module_name=labels[_Pickler.Labels.OBJECT_MODULE_NAME]
+        if object_module_version is not None and object_module_name is not None:
+            current_object_module_version = _Pickler._get_module_version(
+                module_name=object_module_name
             )
-            if labels[_Pickler.Labels.OBJECT_MODULE_VERSION] != object_module_version:
+            if object_module_version != current_object_module_version:
                 warnings.warn(
-                    f"MLRun is trying to load an object from module {labels[_Pickler.Labels.OBJECT_MODULE_NAME]} "
-                    f"version {labels[_Pickler.Labels.OBJECT_MODULE_VERSION]} but the current module version is "
-                    f"'{object_module_version}'. When using pickle, it is recommended to save and load an object using "
+                    f"MLRun is trying to load an object from module {object_module_name} version "
+                    f"{object_module_version} but the current module version is '{current_object_module_version}'. "
+                    f"When using pickle, it is recommended to save and load an object using "
                     f"the same exact module version to reduce unexpected errors."
                 )
 
@@ -189,7 +174,7 @@ class _Pickler:
         """
         Get a module name.
 
-        :param module: A module object to get it's name. The main module name is returned.
+        :param module: A module object to get its name. Only the main module name is returned.
 
         :return: The module's name.
         """
@@ -209,7 +194,9 @@ class _Pickler:
         try:
             # Since Python 3.8, `version` is part of `importlib.metadata`. Before 3.8, we'll use the module
             # `importlib_metadata` to get `version`.
-            if sys.version_info[1] > 7:
+            if (
+                sys.version_info[1] > 7
+            ):  # TODO: Remove once Python 3.7 is not supported.
                 from importlib.metadata import version
             else:
                 from importlib_metadata import version
@@ -251,57 +238,146 @@ class _Pickler:
         return f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
 
-class Packager(ABC):
+# The default pickle module to use for pickling objects:
+_DEFAULT_PICKLE_MODULE = "cloudpickle"
+
+
+class Packager:
     """
-    An abstract base class for a packager - a static class that handles an object that was given as an input to a MLRun
-    function or that was returned from a function and is needed to be logged to MLRun.
+    An abstract base class for a packager - a static class that have two main duties:
 
-    The Packager has two main class methods and two main properties:
+    1. Packing - get an object that was returned from a function and log it to MLRun. The user can specify packing
+       configurations to the packager using log hints.
+    2. Unpacking - get a ``mlrun.DataItem`` (an input to a MLRun function) and parse it to the desired hinted type. The
+       packager is using the instructions it notetd itself when orignaly packing the object.
 
-    * ``TYPE`` - The object type this packager handles.
-    * ``DEFAULT_ARTIFACT_TYPE`` - The default artifact type to be used when the user didn't specify one.
-    * ``pack`` - Pack a returned object, logging it to MLRun while noting itself how to unpack it once needed.
-    * ``unpack`` - Unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the instructions noted while
-      originally packing it.
+    The Packager has two main class methods and three main class variables:
 
+    * Class variables:
+       * ``TYPE`` - The object type this packager handles. Defaulted to any type.
+       * ``DEFAULT_ARTIFACT_TYPE`` - The default artifact type to be used when the user didn't specify one. Defaulted to
+         "object".
+    * Class methods:
+       * ``pack`` - Pack a returned object, logging it to MLRun using the pprovieded log hint configurations while
+         noting itself instructions for how to unpack it once needed.
+       * ``unpack`` - Unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the instructions noted
+         while originally packing it.
+       * ``is_packable`` - Whether to use this packager to pack / unpack an object by the required artifact type.
 
+    All the class methods mentioned (``pack``, ``unpack`` and ``is_packable``) have a default logic that should be
+    satisfying most use cases. In order to work with this logic, you shouldn't override the methods, but follow the
+    guidelines below:
+
+    * ``pack`` is getting the object and sending it to the relevant packing method by the artifact type given (if
+      artifact type was not provided, the default one will be used). For example: if the artifact type is "object" then
+      the class method ``pack_object`` must be implemented. The signature of each pack class method must be:
+
+      >>> @classmethod
+      ... def pack_x(cls, obj: Any, ...) -> Tuple[Artifact, dict]:
+      ...     pass
+
+      Wehre 'x' is the artifact type, 'obj' is the object to pack, ... are aditional custom log hint configurations and
+      the returning values are the packed artifact and the instructions for unpacking it. The log hint configurations
+      are sent by the user and shouldn't be mandatory, meaning they should have a default value.
+    * ``unpack`` is getting a ``DataItem`` and sending it to the relevant unpacking method by the artifact type (if
+      artifact type was not provided, the default one will be used). For example: if the artifact type stored within
+      the ``DataItem`` is "object" then the class method ``unpack_object`` must be implemented. The signature of each
+      unpack class method must be:
+
+      >>> @classmethod
+      ... def unpack_x(cls, data_item: mlrun.DataItem, ...) -> Any:
+      ...     pass
+
+      Wehre 'x' is the artifact type, 'data_item' is the artifact's data item to unpack, ... are the instructitons that
+      were originaly returned from ``pack_x`` (Each instruction must be optional (have a default value) to support
+      objects from this type that were not packaged but customly logged) and the returning value is the unpacked
+      object.
+    * ``is_packable`` is getting the object and the artifact type desired to pack and log it as. So, it is automatically
+      looking for all pack class methods implemented to collect the supported artifact types. So, if ``PackagerX`` has
+      ``pack_y`` and ``pack_z`` that means the artifact typpes supported are 'y' and 'z'.
     """
+
+    # The type of object this packager can pack and unpack:
     TYPE: Type = ...
+    # The default artifact type to pack as or unpack from:
     DEFAULT_ARTIFACT_TYPE = "object"
 
     @classmethod
     def pack(
-        cls, obj: Any, artifact_type: Union[str, None], instructions: dict
+        cls, obj: Any, artifact_type: Union[str, None], configurations: dict
     ) -> Tuple[Artifact, dict]:
+        """
+        Pack an object as the given artifact type using the provided configurations.
+
+        :param obj:            The object to pack.
+        :param artifact_type:  Artifact type to log to MLRun.
+        :param configurations: Log hints configurations to pass to the packing method.
+
+        :return: A tuple of the packed artifact and unpacking instructions.
+        """
+        # Get default artifact type in case it was not provided:
         if artifact_type is None:
             artifact_type = cls.DEFAULT_ARTIFACT_TYPE
 
+        # Get the packing method according to the artifact type:
         pack_method = getattr(cls, f"pack_{artifact_type}")
-        cls._validate_instructions(method=pack_method, instructions=instructions)
-        return pack_method(obj, **instructions)
+
+        # Validate correct configurations were passed:
+        cls._validate_method_arguments(
+            method=pack_method,
+            arguments=configurations,
+            arguments_type=cls._ArgumentsType.CONFIGURATIONS,
+        )
+
+        # Call the packing method and return:
+        return pack_method(obj, **configurations)
 
     @classmethod
     def unpack(
         cls,
         data_item: DataItem,
         artifact_type: str,
-        type_hint: Type,
-        type_packaged: Type,
         instructions: dict,
     ) -> Any:
+        """
+        Unpack the data item's artifact by the provided type using the given instructions.
+
+        :param data_item:     The data input to unpack.
+        :param artifact_type: The artifact type to unpack the data item as.
+        :param instructions:  Additional instructions to pass to the unpacking method.
+
+        :return: The unpacked data item's object.
+        """
         unpack_method = getattr(cls, f"unpack_{artifact_type}")
-        cls._validate_instructions(method=unpack_method, instructions=instructions)
+        cls._validate_method_arguments(
+            method=unpack_method,
+            arguments=instructions,
+            arguments_type=cls._ArgumentsType.INSTRUCTIONS,
+        )
         return unpack_method(data_item, **instructions)
 
     @classmethod
-    def is_packable(cls, object_type: Type, artifact_type: str = None):
+    def is_packable(cls, object_type: Type, artifact_type: str = None) -> bool:
+        """
+        Check if this packager can pack an object of the provided type as the provided artifact type.
+
+        :param object_type:   The object type to pack.
+        :param artifact_type: The artifact type to log the object as.
+
+        :return: True if packable and False otherwise.
+        """
+        # Check type (ellipses means any type):
         if cls.TYPE is not ... and not issubclass(object_type, cls.TYPE):
             return False
+
+        # Check the artifact type:
         if (
             artifact_type is not None
             and artifact_type not in cls._get_supported_artifact_types()
         ):
             return False
+
+        # Packable:
         return True
 
     @classmethod
@@ -309,32 +385,114 @@ class Packager(ABC):
         cls,
         obj: Any,
         key: str,
-        pickle_module_name: str = PickleModule.CLOUDPICKLE.value,
-    ):
-        pkl_file, labels = _Pickler.pickle(
-            obj=obj, pickle_module_name=PickleModule(pickle_module_name)
+        pickle_module_name: str = _DEFAULT_PICKLE_MODULE,
+    ) -> Tuple[Artifact, dict]:
+        """
+        Pack a python object, pickling it into a pkl file and store it in an artifact.
+
+        :param obj:                The object to pack and log.
+        :param key:                The artifact's key.
+        :param pickle_module_name: The pickle module name to use for serializing the object.
+
+        :return: The artifacts and it's pickling instructions.
+        """
+        # Pickle the object to file:
+        pkl_path, instructions = _Pickler.pickle(
+            obj=obj, pickle_module_name=pickle_module_name
         )
-        artifact = Artifact(key=key, src_path=pkl_file)
-        artifact.metadata.labels = labels
+
+        # Initialize an artifact to the pkl file:
+        artifact = Artifact(key=key, src_path=pkl_path)
+
+        return artifact, instructions
 
     @classmethod
-    def unpack_object(cls, data_item: DataItem, pickler_labels: Dict[str, str]):
+    def unpack_object(
+        cls,
+        data_item: DataItem,
+        pickle_module_name: str = _DEFAULT_PICKLE_MODULE,
+        object_module_name: str = None,
+        python_version: str = None,
+        pickle_module_version: str = None,
+        object_module_version: str = None,
+    ) -> Any:
+        """
+        Unpack the data item's object, unpickle it using the instructions and return.
+
+        Warnings of mismatching python and module versions between the original pickling interpreter and this one may be
+        raised.
+
+        :param data_item:             The data item holding the pkl file.
+        :param pickle_module_name:    Module to use for unpickling the object.
+        :param object_module_name:    The original object's module. Used to verify the current interpreter object module
+                                      version match the pickled object version before unpickling the object.
+        :param python_version:        The python version in which the original object was pickled. Used to verify the
+                                      current interpreter python version match the pickled object version before
+                                      unpickling the object.
+        :param pickle_module_version: The pickle module version. Used to verify the current interpreter module version
+                                      match the one who pickled the object before unpickling it.
+        :param object_module_version: The original object's module version to match to the interpreter's module version.
+
+        :return: The un-pickled python object.
+        """
+        # Get the pkl file to local directory:
         pickle_path = data_item.local()
-        return _Pickler.unpickle(pickle_path=pickle_path, labels=pickler_labels)
+
+        # Unpickle and return:
+        return _Pickler.unpickle(
+            pickle_path=pickle_path,
+            pickle_module_name=pickle_module_name,
+            object_module_name=object_module_name,
+            python_version=python_version,
+            pickle_module_version=pickle_module_version,
+            object_module_version=object_module_version,
+        )
+
+    class _ArgumentsType:
+        """
+        Library class for the arguments type to send for `_validate_method_arguments`. Configurations is the term for
+        the kwargs sent to packing methods and instructions are the term for the kwargs sent in unpacking methods.
+        """
+
+        INSTRUCTIONS = "instructions"
+        CONFIGURATIONS = "configurations"
 
     @classmethod
-    def _get_supported_artifact_types(cls):
+    def _get_supported_artifact_types(cls) -> List[str]:
+        """
+        Get all the supported artifact types on this packager.
+
+        :return: A list of all the supported artifact types.
+        """
         return [key[len("pack_") :] for key in cls.__dict__ if key.startswith("pack_")]
 
     @classmethod
-    def _validate_instructions(cls, method: MethodType, instructions: dict):
-        possible_instructions = inspect.signature(method).parameters
-        for instruction_key, instruction_value in instructions.items():
-            if instruction_key not in possible_instructions:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Unexpected instruction given: '{instruction_key}'. "
-                    f"Possible instructions are: {', '.join(possible_instructions.keys())}"
-                )
+    def _validate_method_arguments(
+        cls, method: MethodType, arguments: dict, arguments_type: str
+    ):
+        """
+        Validate keyword arguments to pass to a method. Used for validating log hint configurations for packing methods
+        and instructions for unpacking methods.
+
+        :param method:         The method to validate the arguments for.
+        :param arguments:      Keyword arguments to validate.
+        :param arguments_type: A string to use for the error message. Should be on of the `_ArgumentType` class
+                               variables.
+
+        :raise MLRunInvalidArgumentError: In case the arguments do not match the provided method.
+        """
+        # Get the possible arguments from the functions:
+        possible_arguments = inspect.signature(method).parameters
+
+        # Validate all given arguments are correct:
+        incorrect_arguments = [
+            argument for argument in arguments if argument not in possible_arguments
+        ]
+        if incorrect_arguments:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected {arguments_type} given: {', '.join(incorrect_arguments)}. "
+                f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}"
+            )
 
 
 # builtins_packagers.py
@@ -342,15 +500,11 @@ class Packager(ABC):
 # numpy_packagers.py
 
 
-class NumberPackager(Packager):
-    TYPES = [int, float]
-
-
 class StringPackager(Packager):
-    TYPES = [str]
+    TYPE = str
 
 
 class PathPackager(StringPackager):
     from pathlib import Path
 
-    TYPES = [Path]
+    TYPE = Path

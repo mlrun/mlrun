@@ -699,9 +699,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.spec.build.source = "git://github.com/mock/repo"
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported
-        with pytest.raises(
-            mlrun.errors.MLRunPreconditionFailedError,
-        ) as exc:
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
             runtime.run()
 
         assert (

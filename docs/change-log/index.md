@@ -146,7 +146,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | `MlrunProjectLegacy` class           | `MlrunProject`                                 |
 | Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step` |
 | `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
-| `NewTask`                            | `run_function()`                        |
+| `NewTask`                            | `new_task()`                        |
 | Dask `with_limits`                   | `with_scheduler_limits` / `with_worker_limits`    |
 | Dask `with_requests`                 | `with_scheduler_requests` / `with_worker_requests`    |
 

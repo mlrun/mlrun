@@ -3,63 +3,66 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
   },
   "editable": true,
-  "gnetId": null,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 8,
-  "iteration": 1627466479152,
+  "id": 18,
   "links": [
     {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "targetBlank": true,
       "title": "Model Monitoring - Performance",
       "type": "link",
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
     {
-      "icon": "dashboard",
-      "includeVars": false,
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "targetBlank": true,
       "title": "Model Monitoring - Overview",
-      "tooltip": "",
       "type": "link",
-      "url": "/d/g0M4uh0Mz"
+      "url": "d/g0M4uh0Mz/model-monitoring-overview"
     }
   ],
+  "liveNow": false,
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": null,
+            "align": "auto",
             "displayMode": "auto",
-            "filterable": false
+            "filterable": false,
+            "inspect": false
           },
-          "mappings": [
-            {
-              "from": "",
-              "id": 0,
-              "text": "",
-              "to": "",
-              "type": 1
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -191,8 +194,15 @@
         "x": 0,
         "y": 0
       },
-      "id": 12,
+      "id": 22,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [
           {
@@ -201,19 +211,20 @@
           }
         ]
       },
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODEL\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
           "type": "table"
         }
       ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "",
       "transformations": [
         {
           "id": "organize",
@@ -242,24 +253,20 @@
       "type": "table"
     },
     {
-      "datasource": "model-monitoring",
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": null,
+            "align": "auto",
             "displayMode": "auto",
-            "filterable": false
+            "filterable": false,
+            "inspect": false
           },
-          "mappings": [
-            {
-              "from": "",
-              "id": 0,
-              "text": "",
-              "to": "",
-              "type": 1
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -370,6 +377,22 @@
                 "value": "center"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "drift_measures"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": false
+              },
+              {
+                "id": "mappings",
+                "value": []
+              }
+            ]
           }
         ]
       },
@@ -379,8 +402,15 @@
         "x": 0,
         "y": 3
       },
-      "id": 21,
+      "id": 25,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [
           {
@@ -389,35 +419,42 @@
           }
         ]
       },
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "target_endpoint=overall_feature_analysis;endpoint_id=$MODEL;project=$PROJECT",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields=drift_measures;",
           "type": "table"
         }
       ],
-      "timeFrom": null,
-      "timeShift": null,
       "title": "Overall Drift Analysis",
       "transformations": [
         {
-          "id": "organize",
+          "id": "extractFields",
           "options": {
-            "excludeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "endpoint_id": "Endpoint ID",
-              "first_request": "First Request",
-              "function": "Function",
-              "last_request": "Last Request",
-              "latency_avg_1s": "Average Latency",
-              "model": "Model",
-              "model_class": "Model Class",
-              "predictions_per_second_count_1s": "Predictions/sec",
-              "tag": "Tag"
+            "format": "json",
+            "replace": false,
+            "source": "drift_measures"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "tvd_sum",
+                "tvd_mean",
+                "hellinger_sum",
+                "hellinger_mean",
+                "kld_sum",
+                "kld_mean"
+              ]
             }
           }
         }
@@ -426,24 +463,20 @@
       "type": "table"
     },
     {
-      "datasource": "model-monitoring",
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
+      },
       "description": "Feature analysis of the latest batch",
       "fieldConfig": {
         "defaults": {
           "custom": {
             "align": "center",
             "displayMode": "auto",
-            "filterable": false
+            "filterable": false,
+            "inspect": false
           },
-          "mappings": [
-            {
-              "from": "",
-              "id": 0,
-              "text": "",
-              "to": "",
-              "type": 1
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -459,20 +492,6 @@
           }
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Feature"
-            },
-            "properties": []
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Actual Min"
-            },
-            "properties": []
-          },
           {
             "matcher": {
               "id": "byName",
@@ -553,55 +572,332 @@
         "x": 0,
         "y": 6
       },
-      "id": 14,
+      "id": 29,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [
           {
-            "desc": false,
-            "displayName": "Feature"
+            "desc": true,
+            "displayName": "Field"
           }
         ]
       },
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
-          "target": "target_endpoint=individual_feature_analysis;endpoint_id=$MODEL;project=$PROJECT",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields= current_stats;",
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
+          "hide": false,
+          "refId": "B",
+          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= feature_stats;",
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
+          "hide": false,
+          "refId": "C",
+          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= drift_measures;",
           "type": "table"
         }
       ],
-      "timeFrom": null,
-      "timeShift": null,
       "title": "Features Analysis",
       "transformations": [
         {
+          "id": "extractFields",
+          "options": {
+            "format": "auto",
+            "replace": false,
+            "source": "current_stats"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "auto",
+            "source": "feature_stats"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "replace": false,
+            "source": "drift_measures"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "allValues"
+            ]
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "feature_stats"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "current_stats"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "timestamp"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "drift_measures"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "kld_sum"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "kld_mean"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "tvd_mean"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "tvd_sum"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "hellinger_sum"
+                  }
+                },
+                "fieldName": "Field"
+              },
+              {
+                "config": {
+                  "id": "equal",
+                  "options": {
+                    "value": "hellinger_mean"
+                  }
+                },
+                "fieldName": "Field"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "replace": false,
+            "source": "All values"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Field",
+                "0",
+                "1",
+                "2"
+              ]
+            }
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "replace": false,
+            "source": "0"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "1"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "2"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Field",
+                "mean 1",
+                "min 1",
+                "max 1",
+                "mean 2",
+                "min 2",
+                "tvd",
+                "hellinger",
+                "kld",
+                "max 2"
+              ]
+            }
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "mean 1",
+            "renamePattern": "Actual Mean"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "min 1",
+            "renamePattern": "Actual Min"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "max 1",
+            "renamePattern": "Actual Max"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "mean 2",
+            "renamePattern": "Expected Mean"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "min 2",
+            "renamePattern": "Expected Min"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "max 2",
+            "renamePattern": "Expected Max"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "tvd",
+            "renamePattern": "TVD"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "hellinger",
+            "renamePattern": "Hellinger"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "kld",
+            "renamePattern": "KLD"
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "count": true,
-              "idx": true,
-              "model": true
-            },
+            "excludeByName": {},
             "indexByName": {
-              "actual_max": 3,
-              "actual_mean": 2,
-              "actual_min": 1,
-              "expected_max": 4,
-              "expected_mean": 5,
-              "expected_min": 6,
-              "feature_name": 0
+              "Actual Max": 6,
+              "Actual Mean": 2,
+              "Actual Min": 4,
+              "Expected Max": 5,
+              "Expected Mean": 1,
+              "Expected Min": 3,
+              "Field": 0,
+              "Hellinger": 8,
+              "KLD": 9,
+              "TVD": 7
             },
-            "renameByName": {
-              "actual_max": "Actual Max",
-              "actual_mean": "Actual Mean",
-              "actual_min": "Actual Min",
-              "expected_max": "Expected Min",
-              "expected_mean": "Expected Mean",
-              "expected_min": "Expected Max",
-              "feature_name": "Feature"
-            }
+            "renameByName": {}
           }
         }
       ],
@@ -613,12 +909,9 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 1,
@@ -649,7 +942,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -659,16 +952,18 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='endpoint_features';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODELENDPOINT'  AND record_type=='endpoint_features';",
           "type": "timeserie"
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Incoming Features",
       "tooltip": {
         "shared": true,
@@ -679,46 +974,39 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     }
   ],
   "refresh": "1m",
-  "schemaVersion": 26,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
-        "allValue": null,
         "current": {},
-        "datasource": "model-monitoring",
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "PEC14ECF472278438"
+        },
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -727,26 +1015,27 @@
         "name": "PROJECT",
         "options": [],
         "query": "target_endpoint=list_projects",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
       },
       {
-        "allValue": null,
         "current": {},
-        "datasource": "iguazio",
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "PiBy-ta4z"
+        },
         "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
         "hide": 0,
         "includeAll": false,
-        "label": "Model",
+        "label": "Model Endpoint",
         "multi": false,
-        "name": "MODEL",
+        "name": "MODELENDPOINT",
         "options": [],
         "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
         "refresh": 1,
@@ -754,7 +1043,6 @@
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -769,5 +1057,6 @@
   "timezone": "",
   "title": "Model Monitoring - Details",
   "uid": "AohIXhAMk",
-  "version": 3
+  "version": 2,
+  "weekStart": ""
 }

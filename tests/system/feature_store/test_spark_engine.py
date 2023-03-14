@@ -1522,7 +1522,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"target before clean {target.as_df()}")
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         for f in fsys.listdir(self.get_remote_pq_target_path()):
-            fsys._rm(f['name'])
+            fsys._rm(f["name"])
         print(f"target after clean {target.as_df()}")
         resp = fstore.get_offline_features(
             vec_for_spark,

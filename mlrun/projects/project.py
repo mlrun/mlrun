@@ -1562,7 +1562,7 @@ class MlrunProject(ModelObj):
             if image:
                 function_object.spec.image = image
             if with_repo:
-                function_object.spec.build.source = self.spec.source
+                function_object.spec.build.source = "./"
             if requirements:
                 function_object.with_requirements(requirements)
             if not name:
@@ -2556,7 +2556,7 @@ def _init_function_from_dict(f, project, name=None):
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
-        func.spec.build.source = project.spec.source
+        func.spec.build.source = "./"
     if requirements:
         func.with_requirements(requirements)
 

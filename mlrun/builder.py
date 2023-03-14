@@ -352,6 +352,8 @@ def build_image(
         if source
         else None
     )
+    v3io = v3io or (not path.isabs(source) and mlrun.mlconf.is_running_on_iguazio())
+
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
     )
@@ -365,6 +367,7 @@ def build_image(
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
+    # source is remote
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
@@ -376,6 +379,7 @@ def build_image(
         context = source
         source_to_copy = "."
 
+    # source is local / v3io
     else:
         if v3io:
             source = parsed_url.path
@@ -422,6 +426,7 @@ def build_image(
         registry=registry,
     )
 
+    # TODO: support mount for open source
     if to_mount:
         kpod.mount_v3io(
             remote=source_dir_to_mount,

@@ -291,7 +291,7 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "mean"
+            "sum"
           ],
           "fields": "",
           "values": false

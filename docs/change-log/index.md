@@ -183,7 +183,6 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2191 | Fix: Second call to Slack notifier with same webhook does not add another notifier. Resolved by the future (not yet released) notification mechanism.  |
 | ML-2421 | Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/storey/pull/3248). |
 | ML-2534 | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632). |
 | ML-2810 | Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123). |

@@ -86,7 +86,7 @@ Defaults to return as a return value to the caller.
 - **engine_args** &mdash; kwargs for the processing engine
 - **query** &mdash; The query string used to filter rows
 - **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
-- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'inner'`. The Spark retrieval engine only supports entities based on `inner` join (ie. no support for `relations`, no support for `outer`, `left`, `right` joins) 
+- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'inner'`. The Spark retrieval engine only supports entities-based `inner` join (ie. no support for `relations`, no support for `outer`, `left`, `right` joins) 
    - left: use only keys from left frame (SQL: left outer join)
    - right: use only keys from right frame (SQL: right outer join)
    - outer: use union of keys from both frames (SQL: full outer join)

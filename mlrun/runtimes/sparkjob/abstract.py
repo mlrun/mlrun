@@ -366,7 +366,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         if self.spec.build.source and self.spec.build.load_source_on_run:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "Sparkjob does not support loading source code on run"
+                "Sparkjob does not support loading source code on run, "
+                "use func.with_source_archive(pull_at_runtime=False)"
             )
 
         super()._pre_run(runobj, execution)

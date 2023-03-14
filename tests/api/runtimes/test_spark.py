@@ -701,6 +701,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         # expect pre-condition error, not supported
         with pytest.raises(
             mlrun.errors.MLRunPreconditionFailedError,
-            match="Sparkjob does not support loading source code on run",
-        ):
+        ) as exc:
             runtime.run()
+
+        assert (
+            str(exc.value) == "Sparkjob does not support loading source code on run, "
+            "use func.with_source_archive(pull_at_runtime=False)"
+        )

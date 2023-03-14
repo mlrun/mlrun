@@ -73,26 +73,30 @@ FeaeturesetValidator | Y      | N     | Y      |
  
 
 ## Sources
-| Class name                                       | Description                                   |   
-|--------------------------------------------------|---------------------------------|
-| [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource) | Reads Google BigQuery query results as input source for a flow.  |
-| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource) | Reads a CSV file as input source for a flow.   |
-| [storey.sources.DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow. | 
-| [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource) | Sets the HTTP-endpoint source for the flow. |
-| [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource) | Sets the kafka source for the flow. |
-| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource) | Reads the Parquet file/dir as the input source for a flow.  |
-| [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource) | Sets the stream source for the flow. If the stream doesn’t exist it creates it.  | 
-
+| Class name                                                                                                        | Description                                                                     | storey | spark | pandas |
+| --------------------------------------------------                                                                | ---------------------------------                                               | ---    | ---   | ---    |
+| [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Reads Google BigQuery query results as input source for a flow.                 | N      | Y     | Y      |
+| [mlrun.datastore.SnowFlakeSource]                                                                                 | Reads SnowFlak query results as input source for a flow.                        | N      | Y     | N      |
+| [mlrun.datastore.SQLSource]                                                                                       | Reads SQL query results as input source for a flow.                             | Y      | N     | Y      |
+| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource)            | Reads a CSV file as input source for a flow.                                    | Y      | Y     | Y      |
+| [storey.sources.DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow.                                    | Y      | N     | N      |
+| [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)                              | Sets the HTTP-endpoint source for the flow.                                     | Y      | N     | N      |
+| [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource)                            | Sets the kafka source for the flow.                                             | Y      | N     | N      |
+| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource)    | Reads the Parquet file/dir as the input source for a flow.                      | Y      | Y     | Y      |
+| [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)                          | Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Targets
-| Class name                                       | Description                                   |   
-|--------------------------------------------------|-------------------------------------------------------|
-| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget) | Writes events to a CSV file. |
-| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)  | Persists the data in *table* to its associated storage by key. |
-| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget) | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. |
-| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget) | Writes all incoming events into a V3IO stream. |
-| [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame)  | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame.| 
-| [mlrun.datastore.TSBDTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.TSDBTarget) | Writes incoming events to TSDB table. | 
+| Class name                                                                                                                | Description                                                                                                  | storey | spark | pandas |
+| --------------------------------------------------                                                                        | -------------------------------------------------------                                                      | ---    | ---   | ---    |
+| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)                    | Writes events to a CSV file.                                                                                 | Y      | Y     | Y      |
+| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)                | Persists the data in V3IO *table* to its associated storage by key.                                          | Y      | Y     | Y      |
+| [mlrun.datastore.RedisNoSqlTarget]                                                                                        | Persists the data in Redis *table* to its associated storage by key.                                         | Y      | Y     | N      |
+| [mlrun.datastore.SqlTarget]                                                                                               | Persists the data in SQL *table* to its associated storage by key.                                           | Y      | N     | Y      |
+| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)            | The Parquet target storage driver, used to materialize feature set/vector data into parquet files.           | Y      | Y     | Y      |
+| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)              | Writes all incoming events into a V3IO stream.                                                               | Y      | N     | N      |
+| [mlrun.datastore.KafkaTarget]                                                                                             | Writes all incoming events into a Kafka stream.                                                              | Y      | N     | N      |
+| [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame) | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame. | Y      | N     | N      |
+| [mlrun.datastore.TSBDTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.TSDBTarget)                  | Writes incoming events to TSDB table.                                                                        | Y      | N     | Y      |
 
 ## Models
 | Class name                                       | Description                                   |   

@@ -301,14 +301,16 @@ class SQLDB(RunDBInterface):
 
         return self._transform_db_error(
             mlrun.api.crud.Functions().list_functions,
-            self.session,
-            project,
-            name,
-            tag,
-            labels,
+            db_session=self.session,
+            project=project,
+            name=name,
+            tag=tag,
+            labels=labels,
         )
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
         )

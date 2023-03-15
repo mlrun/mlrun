@@ -431,6 +431,10 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     old_level = logger.level
     if runobj.spec.verbose:
         logger.set_logger_level("DEBUG")
+
+    # Prepare the inputs type hints (user may pass type hints as part of the inputs keys):
+    runobj.spec.extract_type_hints_from_inputs()
+    # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
     kwargs = get_func_arg(handler, runobj, context)
 
     stdout = _DupStdout()
@@ -442,7 +446,21 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         try:
             if cwd:
                 os.chdir(cwd)
-            val = handler(**kwargs)
+            # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
+            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user.
+            # outputs are logged only if log hints are provided by the user):
+            val = mlrun.handler(
+                inputs=(
+                    runobj.spec.inputs_type_hints
+                    if runobj.spec.inputs_type_hints
+                    else True  # True will use type hints if provided in user's code.
+                ),
+                outputs=(
+                    runobj.spec.returns
+                    if runobj.spec.returns
+                    else None  # None will turn off outputs logging.
+                ),
+            )(handler)(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)

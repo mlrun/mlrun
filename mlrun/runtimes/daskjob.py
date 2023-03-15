@@ -15,9 +15,11 @@ import datetime
 import inspect
 import socket
 import time
+import typing
 from os import environ
 from typing import Dict, List, Optional, Union
 
+from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
@@ -227,7 +229,7 @@ class DaskCluster(KubejobRuntime):
 
     @property
     def initialized(self):
-        return True if self._cluster else False
+        return bool(self._cluster)
 
     def _load_db_status(self):
         meta = self.metadata
@@ -250,7 +252,7 @@ class DaskCluster(KubejobRuntime):
     def _start(self, watch=True):
         if self._is_remote_api():
             self.try_auto_mount_based_on_config()
-            self.fill_credentials()
+            self._fill_credentials()
             db = self._get_db()
             if not self.is_deployed():
                 raise RunError(
@@ -387,13 +389,14 @@ class DaskCluster(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -407,10 +410,15 @@ class DaskCluster(KubejobRuntime):
             show_on_failure=show_on_failure,
         )
 
+    # TODO: Remove in 1.5.0
+    @deprecated(
+        version="1.3.0",
+        reason="'Dask gpus' will be removed in 1.5.0, use 'with_scheduler_limits' / 'with_worker_limits' instead",
+        category=FutureWarning,
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        raise NotImplementedError(
-            "Use with_scheduler_limits/with_worker_limits to set GPU resources",
-        )
+        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
+        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
     def with_limits(
         self,
@@ -597,13 +605,16 @@ def enrich_dask_cluster(
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    # TODO: 'dask-worker' has deprecation notice, user 'dask worker' instead
+    # TODO: 'dask-worker' is deprecated, new dask CLI was introduced in 2022.10.0.
+    #  Upgrade when we drop python 3.7 support and use 'dask worker' instead
     worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
-    memory_limit = spec.resources.get("limits", {}).get("memory")
+    memory_limit = spec.worker_resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])
     if spec.args:
         worker_args.extend(spec.args)
+    # TODO: 'dask-scheduler' is deprecated, new dask CLI was introduced in 2022.10.0.
+    #  Upgrade when we drop python 3.7 support and use 'dask scheduler' instead
     scheduler_args = ["dask-scheduler"]
 
     container_kwargs = {
@@ -667,7 +678,6 @@ def get_obj_status(selector=None, namespace=None):
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
-        print(pod)
         if status == "running":
             cluster = pod.metadata.labels.get("dask.org/cluster-name")
             logger.info(
@@ -695,6 +705,27 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> typing.Optional[str]:
+        """
+        Resolves the object ID from the run object.
+        In dask runtime, the object ID is the function name.
+        :param run: run object
+        :return: function name
+        """
+
+        function = run.get("spec", {}).get("function", None)
+        if function:
+
+            # a dask run's function field is in the format <project-name>/<function-name>@<run-uid>
+            # we only want the function name
+            project_and_function = function.split("@")[0]
+            return project_and_function.split("/")[-1]
+
+        return None
 
     def _enrich_list_resources_response(
         self,
@@ -788,7 +819,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             response.service_resources = service_resources
         return response
 
-    def _delete_resources(
+    def _delete_extra_resources(
         self,
         db: DBInterface,
         db_session: Session,

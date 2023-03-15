@@ -51,9 +51,7 @@ from mlrun.utils import get_in, logger, parse_versioned_object_uri
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
-    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-    #  version can be changed to details=kw
-    raise HTTPException(status_code=status, detail={"reason": kw})
+    raise HTTPException(status_code=status, detail=kw)
 
 
 def log_path(project, uid) -> Path:
@@ -333,6 +331,15 @@ def apply_enrichment_and_validation_on_function(
         ensure_function_security_context(function, auth_info)
 
 
+def ensure_function_auth_and_sensitive_data_is_masked(
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    allow_empty_access_key: bool = False,
+):
+    ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
+    mask_function_sensitive_data(function, auth_info)
+
+
 def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
@@ -521,7 +528,16 @@ def _mask_v3io_access_key_env_var(
         )
 
 
-def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
+def ensure_function_has_auth_set(
+    function: mlrun.runtimes.BaseRuntime,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    allow_empty_access_key: bool = False,
+):
+    """
+    :param function:    Function object.
+    :param auth_info:   The auth info of the request.
+    :param allow_empty_access_key: Whether to raise an error if access key wasn't set or requested to get generated
+    """
     if (
         not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
@@ -542,10 +558,17 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 ]
 
             function.metadata.credentials.access_key = auth_info.access_key
+
         if not function.metadata.credentials.access_key:
+            if allow_empty_access_key:
+                # skip further enrichment as we allow empty access key
+                return
+
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"
             )
+
+        # after access key was passed or enriched with the condition above, we mask it with creating auth secret
         if not function.metadata.credentials.access_key.startswith(
             mlrun.model.Credentials.secret_reference_prefix
         ):
@@ -778,31 +801,47 @@ def submit_run_sync(
                 "Local runtimes can not be run through API (not locally)"
             )
         run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db, True)
+        fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
-        # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            get_scheduler().create_schedule(
-                db_session,
-                auth_info,
-                task["metadata"]["project"],
-                task["metadata"]["name"],
-                schemas.ScheduleKinds.job,
-                data,
-                cron_trigger,
-                schedule_labels,
-            )
+            created = False
+
+            try:
+                get_scheduler().update_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug("No existing schedule found, creating a new one")
+                get_scheduler().create_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    schemas.ScheduleKinds.job,
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+                created = True
             project = task["metadata"]["project"]
 
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
+                # indicate whether it was created or modified
+                "action": "created" if created else "modified",
             }
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed

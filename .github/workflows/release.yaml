@@ -83,18 +83,20 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
+      - uses: actions/checkout@v3
       - name: Set up python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.7
-      - uses: actions/checkout@v3
+          python-version: 3.9
+          cache: pip
       - name: Build & push to pypi
         run: |
-          pip install twine
-          pip install wheel
+          pip install twine wheel
           export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
           export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
-          MLRUN_VERSION=${{ github.event.inputs.version }} make publish-package
+          MLRUN_VERSION="$INPUT_VERSION" make publish-package
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
 
   create-releases:
     name: Create release & tag v${{ github.event.inputs.version }}
@@ -128,7 +130,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: 3.9
           cache: pip
       - name: Install dependencies
         run: |
@@ -137,7 +139,10 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          make release-notes MLRUN_OLD_VERSION=v${{ github.event.inputs.previous_version }} MLRUN_VERSION=v${{ github.event.inputs.version }} MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+          make release-notes MLRUN_OLD_VERSION="v$INPUT_PREVIOUS_VERSION" MLRUN_VERSION="v$INPUT_VERSION" MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+        env:
+          INPUT_PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
       - name: resolve release notes
         id: resolve-release-notes
         run: |

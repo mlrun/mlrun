@@ -20,17 +20,20 @@ import re
 import sys
 import time
 import typing
+import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import git
 import numpy as np
 import pandas
 import semver
 import yaml
 from dateutil import parser
+from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -128,6 +131,7 @@ class run_keys:
     input_path = "input_path"
     output_path = "output_path"
     inputs = "inputs"
+    returns = "returns"
     artifacts = "artifacts"
     outputs = "outputs"
     data_stores = "data_stores"
@@ -135,13 +139,17 @@ class run_keys:
 
 
 def verify_field_regex(
-    field_name, field_value, patterns, raise_on_failure: bool = True
+    field_name,
+    field_value,
+    patterns,
+    raise_on_failure: bool = True,
+    log_message: str = "Field is malformed. Does not match required pattern",
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
             log_func(
-                "Field is malformed. Does not match required pattern",
+                log_message,
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
@@ -168,6 +176,19 @@ def validate_tag_name(
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
+        log_message="Special characters are not permitted in tag names",
+    )
+
+
+def validate_artifact_key_name(
+    artifact_key: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        artifact_key,
+        mlrun.utils.regex.artifact_key,
+        raise_on_failure=raise_on_failure,
+        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
 
 
@@ -257,11 +278,18 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name):
+def normalize_name(name: str, verbose: bool = True):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
-    name = name.replace("_", "-")
+    if "_" in name:
+        if verbose:
+            warnings.warn(
+                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
+                "Replacing underscores with dashes.",
+                FutureWarning,
+            )
+        name = name.replace("_", "-")
     return name.lower()
 
 
@@ -315,8 +343,26 @@ def verify_list_and_update_in(
     update_in(obj, key, value, append, replace)
 
 
+def _split_by_dots_with_escaping(key: str):
+    """
+    splits the key by dots, taking escaping into account so that an escaped key can contain dots
+    """
+    parts = []
+    current_key, escape = "", False
+    for char in key:
+        if char == "." and not escape:
+            parts.append(current_key)
+            current_key = ""
+        elif char == "\\":
+            escape = not escape
+        else:
+            current_key += char
+    parts.append(current_key)
+    return parts
+
+
 def update_in(obj, key, value, append=False, replace=True):
-    parts = key.split(".") if isinstance(key, str) else key
+    parts = _split_by_dots_with_escaping(key) if isinstance(key, str) else key
     for part in parts[:-1]:
         sub = obj.get(part, missing)
         if sub is missing:
@@ -608,7 +654,11 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_meta(artifact_path=None, ttl=None, *args):
+def new_pipe_metadata(
+    artifact_path: str = None,
+    cleanup_ttl: int = None,
+    op_transformers: typing.List[typing.Callable] = None,
+):
     from kfp.dsl import PipelineConf
 
     def _set_artifact_path(task):
@@ -620,15 +670,28 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
         return task
 
     conf = PipelineConf()
-    ttl = ttl or int(config.kfp_ttl)
-    if ttl:
-        conf.set_ttl_seconds_after_finished(ttl)
+    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
+
+    if cleanup_ttl:
+        conf.set_ttl_seconds_after_finished(cleanup_ttl)
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
-    for op in args:
-        if op:
-            conf.add_op_transformer(op)
+    if op_transformers:
+        for op_transformer in op_transformers:
+            conf.add_op_transformer(op_transformer)
     return conf
+
+
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'new_pipe_meta' will be removed in 1.5.0",
+    category=FutureWarning,
+)
+def new_pipe_meta(artifact_path=None, ttl=None, *args):
+    return new_pipe_metadata(
+        artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=args
+    )
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
@@ -743,7 +806,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
-    data = json.dumps(object_dict, sort_keys=True).encode()
+    # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
+    # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
+    # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
+    # it's valid here.
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
@@ -987,7 +1054,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found") from exc
+        raise ImportError(f"Failed to import {class_name}") from exc
     return class_object
 
 
@@ -1182,3 +1249,49 @@ def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"{field_name} must be numeric (str/int types)")
     return int(field_value)
+
+
+def filter_warnings(action, category):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+
+            # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
+            with warnings.catch_warnings():
+                warnings.simplefilter(action, category)
+                return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def ensure_git_branch(url: str, repo: git.Repo) -> str:
+    """Ensures git url includes branch.
+    If no branch or refs are included in the git source then will enrich the git url with the current active branch
+     as defined in the repo object. Otherwise, will just return the url and won't apply any enrichments.
+
+    :param url:   Git source url
+    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
+
+    :return:     Git source url with full valid path to the relevant branch
+
+    """
+    source, reference, branch = resolve_git_reference_from_source(url)
+    if not branch and not reference:
+        url = f"{url}#refs/heads/{repo.active_branch}"
+    return url

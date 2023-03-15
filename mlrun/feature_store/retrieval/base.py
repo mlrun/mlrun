@@ -136,16 +136,17 @@ class BaseMerger(abc.ABC):
                 if not index_columns_missing:
                     if self.engine == "local" or self.engine == "spark":
                         df.set_index(self._index_columns, inplace=True)
-                    elif self.engine == "dask" and len(self._index_columns) == 1:
-                        return df.set_index(self._index_columns[0])
-                    elif self.engine == "dask" and len(self._index_columns) != 1:
-                        return self._reset_index(self._result_df)
-                    else:
-                        logger.info(
-                            "The entities will stay as columns because "
-                            "Dask dataframe does not yet support multi-indexes"
-                        )
-                        return self._result_df
+                    elif self.engine == "dask":
+                        if len(self._index_columns) == 1:
+                            return df.set_index(self._index_columns[0])
+                        elif len(self._index_columns) != 1:
+                            return self._reset_index(self._result_df)
+                        else:
+                            logger.info(
+                                "The entities will stay as columns because "
+                                "Dask dataframe does not yet support multi-indexes"
+                            )
+                            return self._result_df
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
@@ -196,6 +197,11 @@ class BaseMerger(abc.ABC):
             entity_timestamp_column = (
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
+        elif entity_df is not None and featureset_dfs:
+            # when `entity_rows` passed to `get_offline_features`
+            # keys[0] mention the way that `entity_rows`  joins to the first `featureset`
+            # and it can join only by the entities of the first `featureset`
+            keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
         for featureset, featureset_df, lr_key, columns in zip(
             featuresets, featureset_dfs, keys, all_columns

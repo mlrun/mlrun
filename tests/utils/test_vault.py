@@ -93,7 +93,8 @@ def test_vault_end_to_end():
     )
 
     # This API executes on the client side
-    project_secrets = project.get_vault_secret_keys()
+    vault = VaultStore()
+    project_secrets = vault.get_secrets(["aws_key", "github_key"], project=project_name)
     assert project_secrets == ["aws_key", "github_key"], "secrets not created"
 
     # Create function and set container configuration

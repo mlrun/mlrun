@@ -218,7 +218,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, session, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
+    ):
         pass
 
     @abstractmethod
@@ -530,7 +538,9 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project, category):
+    def list_artifact_tags(
+        self, session, project, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         return []
 
     def create_marketplace_source(

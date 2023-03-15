@@ -138,8 +138,10 @@ class CSVSource(BaseSourceDriver):
         )
         if time_field is not None:
             warnings.warn(
-                "CSVSource's time_field parameter is deprecated, use parse_dates instead",
-                PendingDeprecationWarning,
+                "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "Use parse_dates instead.",
+                # TODO: remove in 1.5.0
+                FutureWarning,
             )
             if isinstance(parse_dates, (int, str)):
                 parse_dates = [parse_dates]
@@ -206,7 +208,7 @@ class CSVSource(BaseSourceDriver):
         )
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
 
 class ParquetSource(BaseSourceDriver):
@@ -466,7 +468,7 @@ class BigQuerySource(BaseSourceDriver):
             )
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
     def to_spark_df(self, session, named_view=False, time_field=None):
         options = copy(self.attributes.get("spark_options", {}))
@@ -640,8 +642,9 @@ class DataFrameSource:
     ):
         if time_field:
             warnings.warn(
-                "DataFrameSource's time_field parameter is deprecated and has no effect",
-                PendingDeprecationWarning,
+                "DataFrameSource's time_field parameter has no effect. "
+                "It is deprecated in 1.3.0 and will be removed in 1.5.0",
+                FutureWarning,
             )
 
         self._df = df
@@ -965,7 +968,7 @@ class SQLSource(BaseSourceDriver):
         pass
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
 
 # map of sources (exclude DF source which is not serializable)

@@ -28,7 +28,7 @@ class SecretProviderName(mlrun.api.utils.helpers.StrEnum):
 
 class SecretsData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secrets: Optional[dict]
+    secrets: Optional[dict] = {}
 
 
 class AuthSecretData(BaseModel):
@@ -46,7 +46,7 @@ class AuthSecretData(BaseModel):
 
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secret_keys: Optional[list]
+    secret_keys: Optional[list] = []
 
 
 class UserSecretCreationRequest(SecretsData):

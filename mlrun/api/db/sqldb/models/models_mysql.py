@@ -448,7 +448,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class FeatureVector(Base, BaseModel):
         __tablename__ = "feature_vectors"
@@ -488,7 +489,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class MarketplaceSource(Base, BaseModel):
         __tablename__ = "marketplace_sources"
@@ -518,7 +520,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class DataVersion(Base, BaseModel):
         __tablename__ = "data_versions"

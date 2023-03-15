@@ -43,27 +43,67 @@ to the [feature store example](./basic-demo.html).
 ## Aggregations
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
-the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations allow adding a new feature to the 
-feature-set that is created by performing some aggregate function over feature's values within a time-based 
-sliding window.
+the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
+feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
+sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
+aggregations. 
 
-For example, if a feature-set contains stock trading data including the specific bid price for each bid at any
-given time, you could introduce aggregate features that show the minimal and maximal bidding price over all 
-the bids in the last hour, per stock ticker (which is the entity in question). To do that, use the code:
+A window can be measured in years, days, hours, seconds, minutes. 
+A window can be a single window, e.g. ‘1h’, ‘1d’, or a 
+list of same unit windows e.g. [‘1h’, ‘6h’]. If you define the time period (in addition to the window), then you have a sliding window. If 
+you don't define the time period, then the time period and the window are the same.
+All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
-```python
-import mlrun.feature_store as fstore
-# create a new feature set
-quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
-quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
-```
+- Sliding window
+   
+   Sliding windows are fixed-size, overlapping, windows (defined by `windows`) that are evaluated at a sliding
+   interval (defined by `period`).  
+   The period size must be an integral divisor of the window size. 
+      
+   The following figure illustrates sliding windows of size 20 seconds, and periods of 10 seconds. Since the period is less than the 
+   window size, the windows contain overlapping data. In this example, events E4-E6 are in Windows 1 and 2. When Window 2 is evaluated 
+   at time t = 30 seconds, events E4-E6 are dropped from the event queue.
+   
+   <img src="../_static/images/sliding-window.png" width="1200" height="200">   
+   
+   The following code illustrates a feature-set that contains stock trading data including the specific bid price for each bid at any
+   given time. You can add aggregate features that show the minimal and maximal bidding price over all 
+   the bids in the last 60 minutes, evaluated (sliding) at a 10 minute interval, per stock ticker (which is the entity in question). 
 
-Once this is executed, the feature-set has new features introduced, with their names produced from the aggregate
-parameters, using this format: `{column}_{operation}_{window}`. Thus, the example above generates two new features:
-`bid_min_1h` and `bid_max_1h`. If the function gets an optional `name` parameter, features are produced in `{name}_{operation}_{window}` format.
-If the `name` parameter is not specified, features are produced in `{column_name}_{operation}_{window}` format.
-These features can then be fed into predictive models or be used for additional 
-processing and feature generation.
+   ```python
+   import mlrun.feature_store as fstore
+   # create a new feature set
+   quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m", name="price")
+   ```
+   
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` every 10 minutes. 
+   
+- Fixed window
+
+   A fixed window has a fixed-size, is non-overlapping, and gapless. 
+   A fixed time window is used for aggregating over a time period, (or day of the week). For example, how busy is a 
+   restaurant between 1 and 2 pm.<br>
+   When using a fixed window, each record in an in-application stream belongs to a specific window. The record is processed only once 
+   (when the query processes the window to which the record belongs).  
+   
+    <img src="../_static/images/fixed-window.png" width="1200" height="200">  
+   
+   To define a fixed window, omit the time period. Using the above example, but for a fixed window:
+   
+   ```python
+   import mlrun.feature_store as fstore
+   # create a new feature set
+   quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"] name="price")
+   ```
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.
+   
+   
+If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
+If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
+    
+These features can be fed into predictive models or be used for additional processing and feature generation.
 
 ```{admonition} Notes
 - Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
@@ -100,9 +140,10 @@ See the [built-in steps](../serving/available-steps.html).
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 
 feature-set and configuring it with sources and targets, what MLRun does behind the scenes is to add steps to the 
-execution graph that wraps methods and classes, which perform the actions. When defining an async execution graph,
+execution graph that wraps methods and classes that perform the actions. When defining an async execution graph,
+
 `storey` classes are used. For example, when defining a Parquet data-target in MLRun, a graph step is created that 
-wraps storey's {py:func}`~storey.writers.WriteToParquet` function.
+wraps storey's {py:func}`~storey.targets.ParquetTarget` function.
 ```
 
 To use a function:
@@ -111,7 +152,7 @@ To use a function:
 2. Add steps to the graph using the various graph functions, such as {py:func}`~mlrun.feature_store.graph.to()`. 
    The function object passed to the step should point at the transformation function being used.
 
-The following is an example for adding a simple `filter` to the graph, that drops any bid which is lower than
+The following is an example for adding a simple `filter` to the graph, that drops any bid that is lower than
 50USD:
 
 ```python
@@ -121,7 +162,7 @@ quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")
 In the example above, the parameter `_fn` denotes a callable expression that is passed to the `storey.Filter`
 class as the parameter `fn`. The callable parameter can also be a Python function, in which case there's no need for
 parentheses around it. This call generates a step in the graph called `filter` that calls the expression provided
-with the event being propagated through the graph as data is fed to the feature-set.
+with the event being propagated through the graph as the data is fed to the feature-set.
 
 ## Custom transformations
 

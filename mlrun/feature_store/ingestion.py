@@ -96,7 +96,7 @@ def init_featureset_graph(
         targets = [target for target in targets if not target.is_offline]
     for chunk in chunks:
         event = MockEvent(body=chunk)
-        if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
+        if len(featureset.spec.entities) and isinstance(event.body, pd.DataFrame):
             # set the entities to be the indexes of the df
             event.body = entities_to_index(featureset, event.body)
 
@@ -154,7 +154,14 @@ def run_spark_graph(df, featureset, namespace, spark):
     graph = featureset.spec.graph.copy()
     if graph.engine != "sync":
         raise mlrun.errors.MLRunInvalidArgumentError("spark must use sync graph")
-
+    for step_dict in graph.steps.values():
+        if step_dict.class_name in [
+            "mlrun.feature_store.steps.FeaturesetValidator",
+            "mlrun.feature_store.steps.SetEventMetadata",
+        ]:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{step_dict.class_name} is not supported for spark engine."
+            )
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
     server.init_object(namespace)

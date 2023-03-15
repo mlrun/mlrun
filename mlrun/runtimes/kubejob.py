@@ -145,7 +145,7 @@ class KubejobRuntime(KubeResource):
             self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
-        if secret:
+        if secret is not None:
             self.spec.build.secret = secret
         if source:
             self.spec.build.source = source
@@ -171,13 +171,14 @@ class KubejobRuntime(KubeResource):
     ) -> bool:
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """

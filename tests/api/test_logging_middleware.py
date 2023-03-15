@@ -105,13 +105,24 @@ middleware_modes = [
 # must add it here since we're adding routes
 @pytest.fixture(params=middleware_modes)
 def client(request) -> typing.Generator:
-    if request.param == "without_middleware":
-        # HACKY
-        app.user_middleware = []
-        app.middleware_stack = app.build_middleware_stack()
-    app.include_router(test_router, prefix="/test")
-    with TestClient(app) as c:
-        yield c
+
+    # save a copy of the middlewares. we would want to restore them once we're done with the test
+    user_middleware = app.user_middleware.copy()
+    try:
+        if request.param == "without_middleware":
+
+            # this overrides the webapp middlewares by removing the logging middleware
+            app.user_middleware = []
+            app.middleware_stack = app.build_middleware_stack()
+        app.include_router(test_router, prefix="/test")
+        with TestClient(app) as c:
+            yield c
+    finally:
+
+        # restore back the middlewares
+        if request.param == "without_middleware":
+            app.user_middleware = user_middleware
+            app.middleware_stack = app.build_middleware_stack()
 
 
 def test_logging_middleware(db: Session, client: TestClient) -> None:

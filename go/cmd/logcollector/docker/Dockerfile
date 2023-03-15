@@ -14,7 +14,7 @@
 
 ARG GO_VERSION=1.19
 
-FROM golang:${GO_VERSION} as build-binary
+FROM gcr.io/iguazio/golang:${GO_VERSION} as build-binary
 
 RUN mkdir /app
 WORKDIR /app
@@ -26,7 +26,12 @@ COPY go.mod go.sum /app/
 RUN go mod download
 
 ADD . /app/
-RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -o main cmd/logcollector/main.go
+
+# build
+RUN GOOS=linux \
+    GOARCH=amd64 \
+    CGO_ENABLED=0 \
+    go build -a -installsuffix cgo -ldflags="-s -w" -o main cmd/logcollector/main.go
 
 FROM alpine:latest as install-health-probe
 
@@ -39,7 +44,7 @@ RUN wget -qO/app/grpc_health_probe \
     https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /app/grpc_health_probe
 
-FROM scratch
+FROM gcr.io/iguazio/alpine:3.17
 COPY --from=build-binary /app/main /main
 COPY --from=install-health-probe /app/grpc_health_probe /grpc_health_probe
 

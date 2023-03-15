@@ -926,8 +926,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         """
         Handling config maps deletion
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         uids = []
         for crd_dict in deleted_resources:
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)

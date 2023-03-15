@@ -461,7 +461,9 @@ class BaseMerger(abc.ABC):
             for current_node in self:
                 pass
             current_node.next = node
-            self.len += 1
+            while node:
+                self.len += 1
+                node = node.next
 
         def add_after(self, target_node, new_node):
             new_node.next = target_node.next

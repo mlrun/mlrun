@@ -196,6 +196,7 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ML-3378 | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418). |
 | ML-3380 | Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
+| ML-3424 | Documentation: new matrix of which engines support which [sources](../serving/available-steps.html#sources)/[targets](../serving/available-steps.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).
 | ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/storey/pull/3246). |
 | ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
 | ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241. |
@@ -512,7 +513,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
-| ML-3424 | Documentation: request a matrix of which engines support which sources/targets | NA                        | v1.2.1 |
 | ML-3480 | Documentation: request details on label parapeter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 |    
     

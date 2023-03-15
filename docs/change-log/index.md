@@ -67,7 +67,7 @@ To install on a **Python 3.7** client, run:
 #### Logging data
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instesd you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../cheat-sheet.html#experiment-tracking-using-returns-new-in-v1-3-0). |
+| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instesd you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../track-returning-values-using-returns-new-in-v1-3-0). |
 
 
 #### Projects
@@ -198,8 +198,9 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
 | ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/storey/pull/3246). |
 | ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
+| ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241. |
 | ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
-|  | Fix: Failed MLRun Nuclio deploy needs better error messages.      |
+
 
 ## v1.2.1
 

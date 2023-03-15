@@ -557,7 +557,6 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-
 def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
     """
     Get all runs with notification configs which became terminal since the last call to the function

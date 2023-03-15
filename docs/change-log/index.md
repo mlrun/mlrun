@@ -183,7 +183,7 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2421 | Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/storey/pull/3248). |
+| ML-2421 | Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/mlrun/pull/3248). |
 | ML-2534 | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632). |
 | ML-2810 | Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123). |
 | ML-2896 | `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131). |
@@ -197,9 +197,9 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ML-3380 | Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
 | ML-3389 | Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
 | ML-3424 | Documentation: new matrix of which engines support which [sources](../serving/available-steps.html#sources)/[targets](../serving/available-steps.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).
-| ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/storey/pull/3246). |
+| ML-3575 | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/mlrun/pull/3246). |
 | ML-3403 | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
-| ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241. |
+| ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241). |
 | ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
 
 

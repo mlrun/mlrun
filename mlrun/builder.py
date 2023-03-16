@@ -330,16 +330,22 @@ def build_image(
 
     commands = commands or []
     if with_mlrun:
+        internal_commands = []
         # mlrun prerequisite - upgrade pip
         upgrade_pip_command = resolve_upgrade_pip_command(commands)
         if upgrade_pip_command:
-            commands.append(upgrade_pip_command)
+            internal_commands.append(upgrade_pip_command)
 
         mlrun_command = resolve_mlrun_install_command(
-            mlrun_version_specifier, client_version, commands
+            mlrun_version_specifier, client_version
         )
         if mlrun_command:
-            commands.append(mlrun_command)
+            # install mlrun first, so that it can't override libraries installed by the user
+            internal_commands.append(mlrun_command)
+
+        # first upgrade pip and install mlrun as necessary, then run user commands, in this order, to avoid
+        # overriding libraries the user installed
+        commands = internal_commands + commands
 
     if not inline_code and not source and not commands:
         logger.info("skipping build, nothing to add")
@@ -454,14 +460,9 @@ def get_kaniko_spec_attributes_from_runtime():
 
 
 def resolve_mlrun_install_command(
-    mlrun_version_specifier=None, client_version=None, commands=None
+    mlrun_version_specifier=None,
+    client_version=None,
 ):
-    commands = commands or []
-    install_mlrun_regex = re.compile(r".*pip install .*mlrun.*")
-    for command in commands:
-        if install_mlrun_regex.match(command):
-            return None
-
     unstable_versions = ["unstable", "0.0.0+unstable"]
     unstable_mlrun_version_specifier = (
         f"{config.package_path}[complete] @ git+"

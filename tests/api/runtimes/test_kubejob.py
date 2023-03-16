@@ -727,13 +727,15 @@ def my_func(context):
         runtime.deploy(with_mlrun=with_mlrun, watch=False)
         dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
         if expected_to_upgrade:
-            expected_str = ""
+            expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+            if with_mlrun:
+                expected_str += (
+                    "\nRUN python -m pip install "
+                    '"mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"'
+                )
             if commands:
                 expected_str += "\nRUN "
                 expected_str += "\nRUN ".join(commands)
-            expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-            if with_mlrun:
-                expected_str += '\nRUN python -m pip install "mlrun[complete]'
             assert expected_str in dockerfile
         else:
             assert (

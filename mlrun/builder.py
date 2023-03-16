@@ -397,9 +397,15 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    if not runtime.spec.workdir and source_to_copy:
+    if source_to_copy and (
+        not runtime.spec.workdir or not path.isabs(runtime.spec.workdir)
+    ):
+        # the user may give a relative workdir to the source where the code is located
+        # add the relative workdir to the target source copy path
         tmpdir = tempfile.mkdtemp()
-        runtime.spec.workdir = f"{tmpdir}/mlrun"
+        relative_workdir = runtime.spec.workdir or ""
+        _, _, relative_workdir = relative_workdir.partition("./")
+        runtime.spec.workdir = path.join(tmpdir, "mlrun", relative_workdir)
 
     dock = make_dockerfile(
         base_image,

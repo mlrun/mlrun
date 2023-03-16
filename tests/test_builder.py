@@ -815,6 +815,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     [
         (None, r"WORKDIR .*\/tmp.*\/mlrun"),
         ("", r"WORKDIR .*\/tmp.*\/mlrun"),
+        ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
         ("/some/workdir", r"WORKDIR \/some\/workdir"),
     ],
 )

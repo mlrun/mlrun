@@ -704,10 +704,14 @@ class RemoteRuntime(KubeResource):
         self, service_type: str, add_templated_ingress_host_mode: str = None
     ):
         """
-        :param service_type:                      service type (ClusterIP, NodePort)
-        :param add_templated_ingress_host_mode:   ingress host mode (never, always, onClusterIP),
+        Enables to control the service type of the pod and the addition of templated ingress host
+
+        :param service_type:                      service type (ClusterIP, NodePort), default to
+                                                  mlrun.mlconf.httpdb.nuclio.service_type
+        :param add_templated_ingress_host_mode:   add templated ingress host mode (never, always, onClusterIP),
                                                   see mlrun.mlconf.httpdb.nuclio.add_templated_ingress_host_mode
-                                                  for full description
+                                                  for the default and more information
+
         """
         self.spec.service_type = service_type
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode

@@ -84,11 +84,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             self._logger.info(f"{df_name}-passthrough_{passthrough}:")
             self._logger.info(df)
 
-    def get_remote_pq_target_path(self, without_prefix=False):
+    def get_remote_pq_target_path(self, without_prefix=False, clean_up=True):
         path = "v3io://"
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_target
+        if clean_up:
+            fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+            for f in fsys.listdir(path):
+                fsys._rm(f["name"])
         return path
 
     @classmethod
@@ -1176,12 +1180,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=False),
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
         source_df = source.to_dataframe()
+        resp_df.set_index(key, drop=True, inplace=True)  # TODO : delete in ML-3373
         source_df.set_index(key, drop=True, inplace=True)
+        target_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
@@ -1519,11 +1527,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
-        print(f"target before clean {target.as_df()}")
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
-        for f in fsys.listdir(self.get_remote_pq_target_path()):
-            fsys._rm(f["name"])
-        print(f"target after clean {target.as_df()}")
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",

@@ -49,6 +49,12 @@ class Artifacts(
                 f"Artifact with conflicting project name - {data['project']} while request project : {project}."
                 f"key={key}, uid={uid}, data={data}"
             )
+        data_key = data["metadata"]["key"]
+        if (key and data_key) and data_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting key name - {data_key} while request key : {key}."
+                f"key={key}, uid={uid}, data={data}"
+            )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,

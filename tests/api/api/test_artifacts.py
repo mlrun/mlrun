@@ -119,6 +119,23 @@ def test_store_artifact_backwards_compatibility(db: Session, client: TestClient)
     )
 
 
+def test_update_artifact_with_conflicted_key_names(db: Session, client: TestClient):
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key="test", tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+
 def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
     _create_project(client)
     tag = "test_tag_with_characters@#$#%^"

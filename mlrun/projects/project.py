@@ -869,12 +869,22 @@ class MlrunProject(ModelObj):
     def set_source(self, source, pull_at_runtime=False, workdir=None):
         """set the project source code path(can be git/tar/zip archive)
 
-        :param source:     valid path to git, zip, or tar file, (or None for current) e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
+        :param source:          valid absolute path or URL to git, zip, or tar file, (or None for current) e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
-        :param workdir:    the relative workdir path (under the context dir)
+        :param workdir:         the relative workdir path (under the context dir)
         """
+        if not pull_at_runtime and "://" not in source and not path.isabs(source):
+            raise ValueError(
+                "Source must be a valid url or absolute path when 'pull_at_runtime' is False"
+            )
+
+        if source.endswith(".zip") and not pull_at_runtime:
+            logger.warn(
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
+            )
+
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
 
@@ -1562,6 +1572,7 @@ class MlrunProject(ModelObj):
             if image:
                 function_object.spec.image = image
             if with_repo:
+                # TODO: understand how ./ works pulling in runtime (does it assume mount and workdir?)
                 function_object.spec.build.source = "./"
             if requirements:
                 function_object.with_requirements(requirements)

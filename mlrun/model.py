@@ -369,8 +369,8 @@ class ImageBuilder(ModelObj):
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must be a compressed (tar.gz / zip) file, a git repo, "
-                "a file path or in the project's context (.)"
+                f"source ({source}) must be a compressed (tar.gz / zip) file, a git repo, "
+                f"a file path or in the project's context (.)"
             )
 
         self._source = source

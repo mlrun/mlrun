@@ -3,20 +3,28 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
   },
   "editable": true,
-  "gnetId": null,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 25,
-  "iteration": 1668331353565,
+  "id": 32,
   "links": [
     {
       "asDropdown": true,
@@ -39,18 +47,16 @@
       "url": "d/AohIXhAMk/model-monitoring-details"
     }
   ],
+  "liveNow": false,
   "panels": [
     {
       "aliasColors": {},
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 1,
@@ -81,7 +87,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -91,6 +97,10 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODELENDPOINT'  AND record_type=='drift_measures';",
@@ -98,9 +108,7 @@
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Drift Measures",
       "tooltip": {
         "shared": true,
@@ -111,33 +119,24 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     },
     {
@@ -145,12 +144,9 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 0,
@@ -178,7 +174,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -188,6 +184,10 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_5m,latency_avg_1h;\nfilter=endpoint_id=='$MODELENDPOINT';",
@@ -195,9 +195,7 @@
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Average Latency",
       "tooltip": {
         "shared": true,
@@ -207,33 +205,24 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     },
     {
@@ -241,12 +230,9 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 0,
@@ -274,7 +260,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -284,6 +270,10 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;\nfilter=endpoint_id=='$MODELENDPOINT';",
@@ -291,9 +281,7 @@
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Predictions/s (5 minute average)",
       "tooltip": {
         "shared": true,
@@ -303,33 +291,24 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     },
     {
@@ -337,12 +316,9 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 0,
@@ -370,7 +346,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -380,6 +356,10 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_count_5m,predictions_count_1h;\nfilter=endpoint_id=='$MODELENDPOINT';",
@@ -387,9 +367,7 @@
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Predictions Count",
       "tooltip": {
         "shared": true,
@@ -399,33 +377,24 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     },
     {
@@ -433,12 +402,9 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "iguazio",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
       },
       "fill": 1,
       "fillGradient": 1,
@@ -469,7 +435,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.2.0",
+      "pluginVersion": "9.2.2",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -479,6 +445,10 @@
       "steppedLine": false,
       "targets": [
         {
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODELENDPOINT'  AND record_type=='custom_metrics';",
@@ -486,9 +456,7 @@
         }
       ],
       "thresholds": [],
-      "timeFrom": null,
       "timeRegions": [],
-      "timeShift": null,
       "title": "Custom Metrics",
       "tooltip": {
         "shared": true,
@@ -499,45 +467,39 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
-        "buckets": null,
         "mode": "time",
-        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         },
         {
           "format": "short",
-          "label": null,
           "logBase": 1,
-          "max": null,
-          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false,
-        "alignLevel": null
+        "align": false
       }
     }
   ],
-  "refresh": "1m",
-  "schemaVersion": 26,
+  "refresh": false,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
-        "allValue": null,
-        "datasource": "model-monitoring",
+        "current": {},
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "PEC14ECF472278438"
+        },
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -551,28 +513,29 @@
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
       },
       {
-        "allValue": null,
-        "datasource": "model-monitoring",
-        "definition": "project=$PROJECT;target_endpoint=list_endpoints_ids",
+        "current": {},
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "PiBy-ta4z"
+        },
+        "definition": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=uid;",
         "hide": 0,
         "includeAll": false,
         "label": "Model Endpoint",
         "multi": false,
         "name": "MODELENDPOINT",
         "options": [],
-        "query": "project=$PROJECT;target_endpoint=list_endpoints_ids",
+        "query": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=uid;",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -580,12 +543,13 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Performance",
   "uid": "9CazA-UGz",
-  "version": 4
+  "version": 2,
+  "weekStart": ""
 }

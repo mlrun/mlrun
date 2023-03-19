@@ -89,7 +89,7 @@ class TimeSeriesTarget:
 
 
 class ModelEndpointTarget:
-    KV = "kv"
+    V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
 
 

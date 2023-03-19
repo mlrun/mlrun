@@ -234,6 +234,14 @@ class ModelEndpoint(BaseModel):
                 else:
                     flatten_dict[key] = model_endpoint_dictionary[k_object][key]
 
+        if mlrun.model_monitoring.EventFieldType.METRICS not in flatten_dict:
+            # Initialize metrics dictionary
+            flatten_dict[mlrun.model_monitoring.EventFieldType.METRICS] = {
+                mlrun.model_monitoring.EventKeyMetrics.GENERIC: {
+                    mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+                    mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                }
+            }
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
         flatten_dict.pop(mlrun.model_monitoring.EventFieldType.FEATURES, None)
         return flatten_dict

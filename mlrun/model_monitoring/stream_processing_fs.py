@@ -281,7 +281,7 @@ class EventStreamProcessor:
                 table=self.kv_path,
             )
 
-        if self.model_endpoint_store_target == ModelEndpointTarget.KV:
+        if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
         # Steps 11-18 - TSDB branch
@@ -438,6 +438,7 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
 
         # Write labels as json string as required by the DB format
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
+
         return e
 
 
@@ -457,6 +458,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -526,6 +528,7 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
@@ -635,7 +638,15 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             return None
 
         if endpoint_id not in self.first_request:
+            # Set time for the first request of the current endpoint
             self.first_request[endpoint_id] = timestamp
+
+        # Validate that the request time of the current event is later than the previous request time
+        self._validate_last_request_timestamp(
+            endpoint_id=endpoint_id, timestamp=timestamp
+        )
+
+        # Set time for the last reqeust of the current endpoint
         self.last_request[endpoint_id] = timestamp
 
         if not self.is_valid(
@@ -713,6 +724,26 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         storey_event = storey.Event(body=events, key=endpoint_id)
         return storey_event
 
+    def _validate_last_request_timestamp(self, endpoint_id: str, timestamp: str):
+        """Validate that the request time of the current event is later than the previous request time that has
+        already been processed.
+
+        :param endpoint_id: The unique id of the model endpoint.
+        :param timestamp:   Event request time as a string.
+
+        :raise MLRunPreconditionFailedError: If the request time of the current is later than the previous request time.
+        """
+
+        if (
+            endpoint_id in self.last_request
+            and self.last_request[endpoint_id] > timestamp
+        ):
+
+            logger.error(
+                f"current event request time {timestamp} is earlier than the last request time "
+                f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
+            )
+
     @staticmethod
     def is_list_of_numerics(
         field: typing.List[typing.Union[int, float, dict, list]],
@@ -737,12 +768,20 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 endpoint_id=endpoint_id,
             )
 
-            # If model endpoint found, validate first_request and error_count values
+            # If model endpoint found, get first_request, last_request and error_count values
             if endpoint_record:
                 first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
+
                 if first_request:
                     self.first_request[endpoint_id] = first_request
+
+                last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
+                if last_request:
+
+                    self.last_request[endpoint_id] = last_request
+
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
+
                 if error_count:
                     self.error_count[endpoint_id] = error_count
 
@@ -987,7 +1026,7 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
     def do(self, event: typing.Dict):
         update_endpoint_record(
             project=self.project,
-            endpoint_id=event[EventFieldType.ENDPOINT_ID],
+            endpoint_id=event.pop(EventFieldType.ENDPOINT_ID),
             attributes=event,
         )
         return event
@@ -1022,6 +1061,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.keys = set()
 
     def do(self, event: typing.Dict):
+
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)
@@ -1031,6 +1071,7 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")
+
         return event
 
 

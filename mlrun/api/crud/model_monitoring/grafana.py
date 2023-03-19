@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-import json
 from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
@@ -62,53 +61,15 @@ def grafana_list_projects(
     return projects_output.projects
 
 
-async def grafana_list_endpoints_ids(
-    db_session: Session,
-    auth_info: mlrun.api.schemas.AuthInfo,
-    query_parameters: Dict[str, str],
-) -> List[str]:
-    """
-    List model endpoints unique ids. Will be used as a filter in Performance and Details grafana dashboards.
-
-    :param db_session:        A session that manages the current dialog with the database. Note that this parameter is
-                              required by the API even though it is not being used in this function.
-    :param auth_info:         The auth info of the request.
-    :param query_parameters:  Dictionary of query parameters attached to the request. Using the query params, retrieve
-                              the relevant project name.
-
-    :return: List of model endpoints ids for a given project.
-    """
-
-    project = query_parameters.get("project")
-
-    # Create model endpoint target object and list the model endpoints unique ids.
-    endpoint_list = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
-        auth_info=auth_info,
-        project=project,
-    )
-    endpoint_ids = [endpoint_id.metadata.uid for endpoint_id in endpoint_list.endpoints]
-    return endpoint_ids
+# TODO: remove in 1.5.0 the following functions: grafana_list_endpoints, grafana_individual_feature_analysis,
+#  grafana_overall_feature_analysis, grafana_income_features, parse_query_parameters, drop_grafana_escape_chars,
 
 
 async def grafana_list_endpoints(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
-) -> GrafanaTable:
-    """
-    List model endpoints records from the database into a list of GrafanaTable object. Will be used across all the
-    model monitoring dashboards. In addition, the user can filter the model endpoints using the query parameters.
-
-    :param body:              The body from the API request as a dictionary. Used for getting the time ranges for the
-                              metrics of the model endpoints.
-    :param query_parameters:  Dictionary of query parameters attached to the request. Using the query params, retrieve
-                              the relevant project name along with potential filters.
-    :param auth_info:         The auth info of the request.
-
-    :return: GrafanaTable object that represents the model endpoints records.
-    """
-
+) -> List[GrafanaTable]:
     project = query_parameters.get("project")
 
     # Filters
@@ -131,8 +92,6 @@ async def grafana_list_endpoints(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-
-    # Generate a list of model endpoints based on user permissions
     endpoint_list = await run_in_threadpool(
         mlrun.api.crud.ModelEndpoints().list_model_endpoints,
         auth_info=auth_info,
@@ -155,77 +114,6 @@ async def grafana_list_endpoints(
     )
     endpoint_list.endpoints = allowed_endpoints
 
-    # Generate GrafanaTable object based on to the model endpoints list
-    table = generate_model_endpoints_grafana_table(endpoint_list.endpoints)
-
-    return table
-
-
-async def grafana_get_model_endpoint(
-    body: Dict[str, Any],
-    query_parameters: Dict[str, str],
-    auth_info: mlrun.api.schemas.AuthInfo,
-) -> GrafanaTable:
-    """
-    Get a model endpoint record from the database and return it as a GrafanaTable object. Will be used in Performance
-    and Details model monitoring dashboards. In addition, the user can filter the model endpoint data using the
-    query parameters.
-
-    :param body:              The body from the API request as a dictionary. Used for getting the time ranges for the
-                              metrics of the model endpoint.
-    :param query_parameters:  Dictionary of query parameters attached to the request. Using the query params, retrieve
-                              the relevant project name along with potential filters.
-    :param auth_info:         The auth info of the request.
-
-    :return: GrafanaTable object that represents the model endpoint record.
-    """
-
-    # Get project name and model endpoint id from the query parameters
-    project = query_parameters.get("project")
-    endpoint_id = query_parameters.get("endpoint_id")
-
-    # Metrics to include
-    metrics = query_parameters.get("metrics", "")
-    metrics = metrics.split(",") if metrics else []
-
-    # Time range for metrics
-    start = body.get("rangeRaw", {}).get("start", "now-1h")
-    end = body.get("rangeRaw", {}).get("end", "now")
-
-    if project:
-        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.api.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-
-    # Generate model endpoint object
-    endpoint = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
-        endpoint_id=endpoint_id,
-        auth_info=auth_info,
-        project=project,
-        metrics=metrics,
-        start=start,
-        end=end,
-    )
-
-    # Generate GrafanaTable object based on the endpoint object
-    table = generate_model_endpoints_grafana_table([endpoint])
-
-    return table
-
-
-def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
-    """Define a new GrafanaTable object for the model endpoints table. In addition, append the model endpoints data
-    from a model endpoints list.
-
-    :param endpoint_list: List of model endpoint objects.
-
-    :return: GrafanaTable object with the model endpoints data.
-    """
-
-    # Define the table columns
     columns = [
         GrafanaColumn(text="endpoint_id", type="string"),
         GrafanaColumn(text="endpoint_function", type="string"),
@@ -233,17 +121,25 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
         GrafanaColumn(text="endpoint_model_class", type="string"),
         GrafanaColumn(text="first_request", type="time"),
         GrafanaColumn(text="last_request", type="time"),
+        GrafanaColumn(text="accuracy", type="number"),
         GrafanaColumn(text="error_count", type="number"),
         GrafanaColumn(text="drift_status", type="number"),
-        GrafanaColumn(text="predictions_per_second", type="number"),
-        GrafanaColumn(text="latency_avg_1h", type="number"),
     ]
 
-    # Create the GrafanaTable object
+    metric_columns = []
+
+    found_metrics = set()
+    for endpoint in endpoint_list.endpoints:
+        if endpoint.status.metrics is not None:
+            for key in endpoint.status.metrics.keys():
+                if key not in found_metrics:
+                    found_metrics.add(key)
+                    metric_columns.append(GrafanaColumn(text=key, type="number"))
+
+    columns = columns + metric_columns
     table = GrafanaTable(columns=columns)
 
-    # Fill the table with the provided model endpoints list
-    for endpoint in endpoint_list:
+    for endpoint in endpoint_list.endpoints:
         row = [
             endpoint.metadata.uid,
             endpoint.spec.function_uri,
@@ -251,19 +147,18 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
             endpoint.spec.model_class,
             endpoint.status.first_request,
             endpoint.status.last_request,
+            endpoint.status.accuracy,
             endpoint.status.error_count,
             endpoint.status.drift_status,
-            endpoint.status.metrics[mlrun.model_monitoring.EventKeyMetrics.GENERIC][
-                mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND
-            ],
-            endpoint.status.metrics[mlrun.model_monitoring.EventKeyMetrics.GENERIC][
-                mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H
-            ],
         ]
+
+        if endpoint.status.metrics is not None and metric_columns:
+            for metric_column in metric_columns:
+                row.append(endpoint.status.metrics[metric_column.text])
 
         table.add_row(*row)
 
-    return table
+    return [table]
 
 
 async def grafana_individual_feature_analysis(
@@ -326,7 +221,7 @@ async def grafana_individual_feature_analysis(
             drift_measure.get("kld"),
         )
 
-    return table
+    return [table]
 
 
 async def grafana_overall_feature_analysis(
@@ -372,7 +267,7 @@ async def grafana_overall_feature_analysis(
             endpoint.status.drift_measures.get("kld_mean"),
         )
 
-    return table
+    return [table]
 
 
 async def grafana_incoming_features(
@@ -412,7 +307,7 @@ async def grafana_incoming_features(
         return time_series
 
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind=mlrun.model_monitoring.ModelMonitoringStoreKinds.EVENTS
+        project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -528,12 +423,3 @@ def validate_query_parameters(
             f"{query_parameters['target_endpoint']} unsupported in query parameters: {query_parameters}. "
             f"Currently supports: {','.join(supported_endpoints)}"
         )
-
-
-def _json_loads_or_default(string: Optional[str], default: Any):
-    if string is None:
-        return default
-    obj = json.loads(string)
-    if not obj:
-        return default
-    return obj

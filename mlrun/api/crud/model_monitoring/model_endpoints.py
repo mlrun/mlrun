@@ -78,7 +78,7 @@ class ModelEndpoints:
     ) -> mlrun.api.schemas.ModelEndpoint:
         """
         Creates model endpoint record in DB. The DB target type is defined under
-        `mlrun.config.model_endpoint_monitoring.store_type` (KV by default).
+        `mlrun.config.model_endpoint_monitoring.store_type` (V3IO-NOSQL by default).
 
         :param db_session:             A session that manages the current dialog with the database.
         :param model_endpoint:         Model endpoint object to update.

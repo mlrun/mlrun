@@ -25,7 +25,7 @@ from .model_endpoint_store import ModelEndpointStore
 class ModelEndpointStoreType(enum.Enum):
     """Enum class to handle the different store type values for saving a model endpoint record."""
 
-    KV = "kv"
+    v3io_nosql = "v3io-nosql"
     SQL = "sql"
 
     def to_endpoint_store(
@@ -50,7 +50,7 @@ class ModelEndpointStoreType(enum.Enum):
 
         """
 
-        if self.value == ModelEndpointStoreType.KV.value:
+        if self.value == ModelEndpointStoreType.v3io_nosql.value:
 
             from .kv_model_endpoint_store import KVModelEndpointStore
 

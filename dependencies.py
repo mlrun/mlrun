@@ -100,7 +100,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
 
 def _is_ignored(line: str) -> bool:
     line = line.strip()
-    return (not line) or (line[0] == "#")
+    return (not line) or (line[0] == "#") or line.startswith("git+")
 
 
 def _extract_package_from_egg(line: str) -> str:

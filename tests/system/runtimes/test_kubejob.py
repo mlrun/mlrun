@@ -105,7 +105,13 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         )
         assert not function["metadata"].get("credentials", {}).get("access_key", None)
 
+    @pytest.mark.enterprise
     def test_store_function_after_run_local_verify_credentials_are_masked(self):
+        """
+        This test is verifying that when running a function locally and then storing it with requesting to generate
+        access key, the credentials are masked.
+        Skip on CE because we don't have auth in CE and therefore there are no credentials to mask.
+        """
         code_path = str(self.assets_path / "kubejob_function.py")
         function_name = "simple-function"
         function = mlrun.code_to_function(

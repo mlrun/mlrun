@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import os.path
 import shlex
 import traceback
 import typing
@@ -396,9 +397,14 @@ class BaseRuntime(ModelObj):
         run = self._create_run_object(runspec)
 
         if local:
+
+            # do not allow local function to be scheduled
+            if schedule is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "local and schedule cannot be used together"
+                )
             return self._run_local(
                 run,
-                schedule,
                 local_code_path,
                 project,
                 name,
@@ -426,18 +432,7 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
-
-        if is_local(run.spec.output_path):
-            logger.warning(
-                "artifact path is not defined or is local,"
-                " artifacts will not be visible in the UI"
-            )
-            if self.kind not in ["", "local", "handler", "dask"]:
-                raise ValueError(
-                    "absolute artifact_path must be specified"
-                    " when running remote tasks"
-                )
-
+        self._validate_output_path(run)
         db = self._get_db()
 
         if not self.is_deployed():
@@ -458,6 +453,13 @@ class BaseRuntime(ModelObj):
             run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
+            db_str = "self" if self._is_api_server else self.spec.rundb
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=db_str,
+            )
             self._store_function(run, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
@@ -573,7 +575,9 @@ class BaseRuntime(ModelObj):
                 logger.info("Or click for UI", ui_url=ui_url)
         if result:
             run = RunObject.from_dict(result)
-            logger.info(f"run executed, status={run.status.state}")
+            logger.info(
+                f"run executed, status={run.status.state}", name=run.metadata.name
+            )
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
                     logger.error(f"runtime error: {run.status.error}")
@@ -612,7 +616,6 @@ class BaseRuntime(ModelObj):
     def _run_local(
         self,
         runspec,
-        schedule,
         local_code_path,
         project,
         name,
@@ -623,10 +626,6 @@ class BaseRuntime(ModelObj):
         returns,
         artifact_path,
     ):
-        if schedule is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "local and schedule cannot be used together"
-            )
         # allow local run simulation with a flip of a flag
         command = self
         if local_code_path:
@@ -705,7 +704,7 @@ class BaseRuntime(ModelObj):
             # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
             # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
             # from the handler(function) name then we replace the underscore without warning the user.
-            # most of the times handlers will have `_` in the handler name (python convention is to separate function
+            # most of the time handlers will have `_` in the handler name (python convention is to separate function
             # words with `_`), therefore we don't want to be noisy when normalizing the run name
             verbose=bool(name or runspec.metadata.name),
         )
@@ -793,7 +792,8 @@ class BaseRuntime(ModelObj):
         try:
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
-                logger.info(f"task scheduled, {resp}")
+                action = resp.pop("action", "created")
+                logger.info(f"task schedule {action}", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:
@@ -855,8 +855,6 @@ class BaseRuntime(ModelObj):
             )
 
     def _store_function(self, runspec, meta, db):
-        db_str = "self" if self._is_api_server else self.spec.rundb
-        logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
         meta.labels["kind"] = self.kind
         if "owner" not in meta.labels:
             meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -1409,6 +1407,11 @@ class BaseRuntime(ModelObj):
             if not requirement or requirement.startswith("#"):
                 continue
 
+            # ignore inline comments as well
+            inline_comment = requirement.split(" #")
+            if len(inline_comment) > 1:
+                requirement = inline_comment[0].strip()
+
             # -r / --requirement are flags and should not be escaped
             # we allow such flags (could be passed within the requirements.txt file) and do not
             # try to open the file and include its content since it might be a remote file
@@ -1425,11 +1428,33 @@ class BaseRuntime(ModelObj):
 
         return " ".join(requirements)
 
+    def _validate_output_path(self, run):
+        if is_local(run.spec.output_path):
+            message = ""
+            if not os.path.isabs(run.spec.output_path):
+                message = (
+                    "artifact/output path is not defined or is local and relative,"
+                    " artifacts will not be visible in the UI"
+                )
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
+                    self.kind
+                ):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                    )
+            elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
+                message = (
+                    "artifact output path is local while no volume mount is specified. "
+                    "artifacts would not be visible via UI."
+                )
+            if message:
+                logger.warning(message, output_path=run.spec.output_path)
+
 
 def is_local(url):
     if not url:
         return True
-    return "://" not in url and not url.startswith("/")
+    return "://" not in url
 
 
 class BaseRuntimeHandler(ABC):

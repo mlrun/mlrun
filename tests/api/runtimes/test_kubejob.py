@@ -554,7 +554,9 @@ def my_func(context):
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
-        expected_commands = ["python -m pip install faker python-dotenv"]
+        expected_commands = [
+            "python -m pip install faker python-dotenv 'chardet>=3.0.2, <4.0'"
+        ]
         assert (
             deepdiff.DeepDiff(
                 expected_commands,

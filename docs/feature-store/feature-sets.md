@@ -57,11 +57,11 @@ stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 
 ## Create a feature set without ingesting its data
 
-You can define and register a feature set (and use it in a feature vector) without ingesting its data into MLRun offline targets.
+You can define and register a feature set (and use it in a feature vector) without ingesting its data into MLRun offline targets. This supports all batch sources.
 
 The use-case for this is when you have a large amount of data in a remote storage that is ready to be consumed by a model-training pipeline.
-When this feature is enabled on a feature set, data is **not** saved to the offline target during ingestion. Instead, when  
-`get_offline_features` is called on a vector containing that feature set, that data is read directly from the source.
+When this feature is enabled on a feature set, data is **not** saved to the offline target during ingestion. Instead, when `get_offline_features` 
+is called on a vector containing that feature set, that data is read directly from the source.
 Online targets are still ingested, and their value represents a timeslice of the offline source.
 Transformations are not allowed when this feature is enabled: no computation graph, no aggregations, etc.
 Enable this feature by including `passthrough=True` in the feature set definition. All three ingestion engines (Storey, Spark, Pandas) 

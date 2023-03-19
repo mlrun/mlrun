@@ -44,7 +44,9 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+        value="v3io-nosql"
+    )
 
     endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
@@ -227,13 +229,6 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    # # Initialize endpoint store target object
-    # store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
-    #
-    # endpoint_store = store_type_object.to_endpoint_store(
-    #     project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
-    # )
-
     features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
         feature_names, stats, stats
     )
@@ -282,7 +277,9 @@ def test_generating_tsdb_paths():
     usually important when the user call the delete project API and as a result the TSDB resources should be deleted"""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+        value="v3io-nosql"
+    )
     endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )

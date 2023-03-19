@@ -153,8 +153,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | Project APIs 
-such as `get_or_create_project`, `load_project` |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | 
 | `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |

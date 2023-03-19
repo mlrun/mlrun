@@ -198,6 +198,23 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
         ]
 
+    @staticmethod
+    def requires_absolute_artifacts_path(kind):
+        """
+        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        """
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
+            # case the path can be relative) or remotely (in which case the path must be absolute and will be passed
+            # to another run)
+            RuntimeKinds.dask
+        ]:
+            return True
+        return False
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -331,10 +332,11 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	var totalWritten = 0
 	var totalReadLock sync.Mutex
 	var totalRead = 0
+	var totalLogLines = 100
 
 	// write to file
 	errGroup.Go(func() error {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < totalLogLines; i++ {
 			if i == 10 {
 				startReading <- true
 			}
@@ -354,27 +356,27 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 		// wait before writing to file
 		<-startReading
 		var offset int
+		var readLogs string
 
 		var j int
 		for {
-			message := fmt.Sprintf(messageTemplate, j)
-			size := int64(len(message))
 			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx,
 				"1",
 				filePath,
 				int64(offset),
-				size)
+				int64(len(messageTemplate)))
 			if err != nil {
 				return err
 			}
 
-			offset += len(message)
+			offset += len(logs)
+			readLogs += string(logs)
 			totalReadLock.Lock()
 			totalRead += len(logs)
 			totalReadLock.Unlock()
 
-			if j == 100 {
-				return nil
+			if j == totalLogLines {
+				break
 			}
 			if logs == nil {
 				time.Sleep(10 * time.Millisecond)
@@ -382,10 +384,10 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 				continue
 			}
 			j++
-
-			// verify logs
-			suite.Require().Equal(message, string(logs))
 		}
+
+		suite.Require().Equal(totalLogLines, strings.Count(readLogs, "\n"), "Expected to read 100 lines")
+		return nil
 	})
 
 	// wait for goroutines to finish

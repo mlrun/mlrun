@@ -95,7 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.3.13"},
+        "storey": {"~=1.3.15"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
@@ -298,6 +298,9 @@ def _load_requirements(path):
             if _is_ignored_requirement_line(line):
                 continue
             line = line.strip()
+
+            if len(line.split(" #")) > 1:
+                line = line.split(" #")[0]
 
             # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
             if "#egg=" in line:

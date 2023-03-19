@@ -136,8 +136,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.functions`                  | `project.get_functions`, `project.set_functions`, `project.list_functions` |
-| `project.artifacts`                  | `project.get_artifacts`, `project.set_artifacts`, `project.list_artifacts` |
+| `project.functions`                  | `project.get_function`, `project.set_function`, `project.list_function` |
+| `project.artifacts`                  | `project.get_artifact`, `project.set_artifact`, `project.list_artifact` |
 | `project.func()`                     | `project.get_function()`                       |
 | `project.create_vault_secrets()`     | NA                                   |
 | `project.get_vault_secret()`         | NA                                   |

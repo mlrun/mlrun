@@ -67,7 +67,7 @@ To install on a **Python 3.7** client, run:
 #### Logging data
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instead you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../track-returning-values-using-returns-new-in-v1-3-0). |
+| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instead you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../cheat-sheet.html#track-returning-values-using-returns-new-in-v1-3-0). |
 
 
 #### Projects

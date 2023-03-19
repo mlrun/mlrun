@@ -56,7 +56,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
-    pq_target = "testdata_target.parquet"
+    pq_target = "testdata_target"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -85,11 +85,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             self._logger.info(f"{df_name}-passthrough_{passthrough}:")
             self._logger.info(df)
 
-    def get_remote_pq_target_path(self, without_prefix=False):
+    def get_remote_pq_target_path(self, without_prefix=False, clean_up=True):
         path = "v3io://"
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_target
+        if clean_up:
+            fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+            for f in fsys.listdir(path):
+                fsys._rm(f["name"])
         return path
 
     @classmethod
@@ -372,6 +376,54 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "spo2": 99,
                     "spo2_is_error": False,
                     "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
+    def test_ingest_to_redis_numeric_index(self):
+        key = "movements"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [RedisNoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"movements": 4.614601941071927}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "patient_id": "305-90-1613",
                     "movements_is_error": False,
                     "turn_count": 0.3582583538239813,
                     "turn_count_is_error": False,
@@ -1130,8 +1182,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
             engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
@@ -1140,6 +1192,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
 
         source_df = source.to_dataframe()
+        source_df.set_index(key, drop=True, inplace=True)
+        target_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
         resp_df.reset_index(drop=True, inplace=True)
@@ -1836,9 +1890,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df_left.to_parquet(path=left_path, filesystem=fsys)
         df_right.to_parquet(path=right_path, filesystem=fsys)
 
-        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts")
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
         fset1.set_targets(["parquet"], with_defaults=False)
-        fset2 = fstore.FeatureSet("fs2", entities=["ent"], timestamp_key="ts")
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
         fset2.set_targets(["parquet"], with_defaults=False)
 
         source_left = ParquetSource("pq1", path=left_path)
@@ -1847,21 +1901,36 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)
 
-        vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+        self._logger.info(
+            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+        )
+        self._logger.info(
+            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+        )
+
+        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
 
         resp = fstore.get_offline_features(vec, engine="local")
-        local_engine_res = resp.to_dataframe()
+        local_engine_res = resp.to_dataframe().sort_index(axis=1)
 
+        self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
+        self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
+
+        vec_for_spark = fstore.FeatureVector(
+            "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
+        )
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         resp = fstore.get_offline_features(
-            vec,
+            vec_for_spark,
             engine="spark",
             run_config=fstore.RunConfig(local=False, kind="remote-spark"),
             spark_service=self.spark_service,
             target=target,
         )
-        spark_engine_res = resp.to_dataframe()
+        spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        assert local_engine_res.sort_index(axis=1).equals(
-            spark_engine_res.sort_index(axis=1)
-        )
+        self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
+        self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
+
+        assert spark_engine_res.shape == (2, 2)
+        assert local_engine_res.equals(spark_engine_res)

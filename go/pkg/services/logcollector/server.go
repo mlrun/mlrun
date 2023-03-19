@@ -483,11 +483,6 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		}, errors.New(message)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Stopping logs",
-		"project", request.Project,
-		"numRunIDs", len(request.RunUIDs))
-
 	// if no run uids were provided, remove the entire project from the state
 	if len(request.RunUIDs) == 0 {
 
@@ -513,6 +508,11 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 
 		return s.successfulBaseResponse(), nil
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Stopping logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// remove each run uid from the state
 	for _, runUID := range request.RunUIDs {
@@ -562,11 +562,6 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		}, errors.New(message)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Deleting logs",
-		"project", request.Project,
-		"numRunIDs", len(request.RunUIDs))
-
 	// if no run uids were provided, delete the entire project's logs
 	if len(request.RunUIDs) == 0 {
 
@@ -582,6 +577,11 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 
 		return s.successfulBaseResponse(), nil
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Deleting logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// remove each run uid from the state
 	errGroup, _ := errgroup.WithContext(ctx)
@@ -790,6 +790,14 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
 
+		// verify or wait until project dir exists
+		if _, err := os.Stat(filepath.Join(s.baseDir, projectName)); err != nil {
+			if os.IsNotExist(err) {
+				return true, errors.New("Project directory not found")
+			}
+			return false, errors.Wrap(err, "Failed to get project directory")
+		}
+
 		// list all files in project directory
 		if err := filepath.WalkDir(filepath.Join(s.baseDir, projectName),
 			func(path string, dirEntry fs.DirEntry, err error) error {
@@ -823,7 +831,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 		}
 
 		if logFilePath == "" {
-			return false, errors.Errorf("Log file not found for run %s", runUID)
+			return true, errors.Errorf("Log file not found for run %s", runUID)
 		}
 
 		// found log file

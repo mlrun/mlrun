@@ -56,6 +56,7 @@ from ..utils import (
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -165,6 +166,8 @@ def new_project(
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
@@ -262,6 +265,8 @@ def load_project(
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
+            # Validate that git source includes branch and refs
+            url = ensure_git_branch(url=url, repo=repo)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -279,11 +284,15 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+
     if not project.metadata.name:
         raise ValueError("project name must be specified")
-    if not from_db or (url and url.startswith("git://")):
+    if not from_db:
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
+        # Remove original owner name for avoiding possible conflicts when loading project from remote
+        project.spec.owner = None
+
     project.spec.repo = repo
     if repo:
         try:
@@ -868,6 +877,16 @@ class MlrunProject(ModelObj):
         """
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
+
+        if self.spec.source.startswith("git://"):
+
+            source, reference, branch = resolve_git_reference_from_source(source)
+            if not branch and not reference:
+                logger.warn(
+                    "Please add git branch or refs to the source e.g.: "
+                    "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+                )
+
         self.spec.workdir = workdir or self.spec.workdir
         # reset function objects (to recalculate build attributes)
         self.sync_functions()
@@ -953,6 +972,14 @@ class MlrunProject(ModelObj):
                 current_default_image, default_image
             )
         self.spec.default_image = default_image
+
+    @property
+    def workflows(self) -> list:
+        return self.spec.workflows
+
+    @workflows.setter
+    def workflows(self, workflows):
+        self.spec.workflows = workflows
 
     def set_workflow(
         self,
@@ -1473,6 +1500,14 @@ class MlrunProject(ModelObj):
             proj.set_function('./func.yaml')
             proj.set_function('hub://get_toy_data', 'getdata')
 
+            # set function requirements
+
+            # by providing a list of packages
+            proj.set_function('my.py', requirements=["requests", "pandas"])
+
+            # by providing a path to a pip requirements file
+            proj.set_function('my.py', requirements="requirements.txt")
+
         :param func:      function object or spec/code url, None refers to current Notebook
         :param name:      name of the function (under the project)
         :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
@@ -1653,7 +1688,8 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands and try again:\n"
+                        "Git is not configured, please run the following commands and run git push from the terminal "
+                        "once to store your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
@@ -1829,7 +1865,6 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
-        override: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
@@ -1861,8 +1896,8 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
-        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param overwrite: (deprecated) replacing the schedule of the same workflow (under the same name) if exists
+                          with the new one.
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
@@ -1874,6 +1909,14 @@ class MlrunProject(ModelObj):
         if ttl:
             warnings.warn(
                 "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
+
+        if overwrite:
+            warnings.warn(
+                "'overwrite' is deprecated, running a schedule is now an upsert operation. "
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,
@@ -1916,21 +1959,11 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
-        if schedule:
-            if override or overwrite:
-                if overwrite:
-                    logger.warn(
-                        "Please use override (SDK) or --override-workflow (CLI) "
-                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
-                        "This will be removed in 1.6.0",
-                        # TODO: Remove in 1.6.0
-                    )
-                workflow_spec.override = True
-            # Schedule = True -> use workflow_spec.schedule
-            if not isinstance(schedule, bool):
-                workflow_spec.schedule = schedule
-        else:
+        if not schedule:
             workflow_spec.schedule = None
+        elif not isinstance(schedule, bool):
+            # Schedule = True -> use workflow_spec.schedule
+            workflow_spec.schedule = schedule
 
         inner_engine = None
         if engine and engine.startswith("remote"):

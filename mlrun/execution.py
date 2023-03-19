@@ -889,7 +889,7 @@ class MLClientCtx(object):
 
         updates = {"status.last_update": now_date().isoformat()}
 
-        if error:
+        if error is not None:
             self._state = "error"
             self._error = str(error)
             updates["status.state"] = "error"

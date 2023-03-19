@@ -251,10 +251,8 @@ class TestCollectRunSLogs:
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
-        assert log_collector._call.call_count == 1
-        start_log_request = log_collector._call.call_args[0][1]
-        assert f"mlrun/function={function_name}" in start_log_request.selector
-        print(start_log_request)
+        # not expected to call start log, because dask is not log collectable runtime
+        assert log_collector._call.call_count == 0
 
     @pytest.mark.asyncio
     async def test_start_log_for_run_failure(

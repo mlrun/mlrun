@@ -31,9 +31,9 @@ from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
+import mlrun.utils
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
-from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
@@ -67,11 +67,14 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-        logger.warning(
-            "Unable to parse nuclio version, assuming compatibility",
-            nuclio_version=mlconf.nuclio_version,
-            min_versions=min_versions,
-        )
+
+        # only log when version is set but invalid
+        if mlconf.nuclio_version:
+            logger.warning(
+                "Unable to parse nuclio version, assuming compatibility",
+                nuclio_version=mlconf.nuclio_version,
+                min_versions=min_versions,
+            )
         return True
 
     parsed_min_versions.sort(reverse=True)
@@ -1226,9 +1229,31 @@ def deploy_nuclio_function(
         )
     except nuclio.utils.DeployError as exc:
         if exc.err:
+            err_message = (
+                f"Failed to deploy nuclio function {project_name}/{function_name}"
+            )
+
+            try:
+
+                # the error might not be jsonable, so we'll try to parse it
+                # and extract the error message
+                json_err = exc.err.response.json()
+                if "error" in json_err:
+                    err_message += f" {json_err['error']}"
+                if "errorStackTrace" in json_err:
+                    logger.warning(
+                        "Failed to deploy nuclio function",
+                        nuclio_stacktrace=json_err["errorStackTrace"],
+                    )
+            except Exception as parse_exc:
+                logger.warning(
+                    "Failed to parse nuclio deploy error",
+                    parse_exc=err_to_str(parse_exc),
+                )
+
             mlrun.errors.raise_for_status(
                 exc.err.response,
-                f"Failed to deploy function {project_name}/{function_name} to Nuclio",
+                err_message,
             )
         raise
 
@@ -1706,7 +1731,9 @@ def _compile_nuclio_archive_config(
         if source.startswith("git://"):
             source = source.replace("git://", "https://")
 
-        source, reference, branch = _resolve_git_reference_from_source(source)
+        source, reference, branch = mlrun.utils.resolve_git_reference_from_source(
+            source
+        )
         if not branch and not reference:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "git branch or refs must be specified in the source e.g.: "
@@ -1722,7 +1749,7 @@ def _compile_nuclio_archive_config(
 
         token = get_secret("GIT_TOKEN")
         if token:
-            username, password = get_git_username_password_from_token(token)
+            username, password = mlrun.utils.get_git_username_password_from_token(token)
 
         code_entry_attributes["username"] = username
         code_entry_attributes["password"] = password
@@ -1732,21 +1759,6 @@ def _compile_nuclio_archive_config(
     nuclio_spec.set_config("spec.build.path", source)
     nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
     nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
-
-
-def _resolve_git_reference_from_source(source):
-    # kaniko allow multiple "#" e.g. #refs/..#commit
-    split_source = source.split("#", 1)
-
-    # no reference was passed
-    if len(split_source) < 2:
-        return source, "", ""
-
-    reference = split_source[1]
-    if reference.startswith("refs/"):
-        return split_source[0], reference, ""
-
-    return split_source[0], "", reference
 
 
 def _resolve_work_dir_and_handler(handler):

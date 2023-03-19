@@ -61,7 +61,7 @@ You can also view some metadata about the feature vector, including all the feat
 
 After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply as input to a machine learning model.  
 
-### Creating an offline feature vector
+### Using an offline feature vector
 
 Use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` function to produce a `dataset` from the feature vector.
 It creates the dataset (asynchronously if possible), saves it to the requested target, and returns an {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
@@ -82,13 +82,13 @@ Defaults to return as a return value to the caller.
 - **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
 - **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
 - **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
--**with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
--**update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
--**engine** &mdash; processing engine kind ("local", "dask", or "spark")
--**engine_args** &mdash; kwargs for the processing engine
--**query** &mdash; The query string used to filter rows
--**spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
-- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey (local) engines. 
+- **with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
+- **update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
+- **engine** &mdash; processing engine kind ("local", "dask", or "spark")
+- **engine_args** &mdash; kwargs for the processing engine
+- **query** &mdash; The query string used to filter rows
+- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
+- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'inner'`. The Spark retrieval engine only supports entities-based `inner` join (ie. no support for `relations`, no support for `outer`, `left`, `right` joins) 
    - left: use only keys from left frame (SQL: left outer join)
    - right: use only keys from right frame (SQL: right outer join)
    - outer: use union of keys from both frames (SQL: full outer join)
@@ -220,7 +220,7 @@ resp = fs.get_offline_features(
 )
 ```
 
-### Creating an online feature vector
+### Using an online feature vector
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 

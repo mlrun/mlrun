@@ -51,8 +51,8 @@ project.run("main", schedule='0 * * * *')
 2. Example for a remote GitHub project - https://github.com/mlrun/project-demo
 ```
 
-To delete an existing scheduled workflow you can delete it from MLRun UI or run the example below:
+Deletion of an existing scheduled workflow is available through MLRun UI. Updating of an existing scheduled workfow can be done just by defining an updated schedule to the same workflow:
 
 ```
-project.run("main", schedule='0 * * * *',override=True)
+project.run("main", schedule='0 * * * *')
 ```

@@ -53,7 +53,7 @@ async def create_or_patch(
         "This PUT call is deprecated, please use POST for create or PATCH for update"
         "This will be removed in 1.5.0",
         # TODO: Remove this API in 1.5.0
-        PendingDeprecationWarning,
+        FutureWarning,
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

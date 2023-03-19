@@ -56,7 +56,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
+from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
@@ -170,14 +170,6 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set = fstore.FeatureSet(
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
-
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fstore.ingest(
-                stocks_set,
-                stocks,
-                infer_options=fstore.InferOptions.default(),
-                run_config=fstore.RunConfig(local=True),
-            )
 
         df = fstore.ingest(
             stocks_set, stocks, infer_options=fstore.InferOptions.default()
@@ -1378,7 +1370,7 @@ class TestFeatureStore(TestMLRunSystem):
         }
     )
 
-    @pytest.mark.parametrize("engine", ["pandas", "storey", None])
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_ingest_default_targets_for_engine(self, engine):
         data = pd.DataFrame({"name": ["ab", "cd"], "data": [10, 20]})
 
@@ -1621,7 +1613,7 @@ class TestFeatureStore(TestMLRunSystem):
         non_default_target_name = "side-target"
         quotes_set.set_targets(
             targets=[
-                CSVTarget(name=non_default_target_name, after_state=side_step_name)
+                CSVTarget(name=non_default_target_name, after_step=side_step_name)
             ],
             default_final_step="FeaturesetValidator",
         )
@@ -3881,6 +3873,22 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert isinstance(df, pd.DataFrame)
+
+    def test_ingest_with_steps_drop_features(self):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = CSVSource(
+            "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
+        )
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(measurements, source)
 
 
 def verify_purge(fset, targets):

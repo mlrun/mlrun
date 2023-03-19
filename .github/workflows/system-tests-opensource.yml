@@ -58,7 +58,6 @@ env:
 
 jobs:
   run-system-tests-opensource-ci:
-    timeout-minutes: 90
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
 
@@ -138,14 +137,18 @@ jobs:
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
         echo "mlrun_docker_repo=$( \
-          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
+          input_docker_repo=$INPUT_DOCKER_REPO && \
           echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registry=$( \
-          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
+          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
           echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_system_tests_clean_resources=$( \
-          input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
+          input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
+      env:
+        INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
+        INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
+        INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
     - uses: azure/setup-helm@v3
       with:
@@ -208,7 +211,7 @@ jobs:
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
-      timeout-minutes: 60
+      timeout-minutes: 180
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \

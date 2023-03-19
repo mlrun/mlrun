@@ -30,12 +30,12 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         mlrun.get_or_create_project("some-project", context="./")
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
         # sending a store artifact request with an invalid json body
-        # This is practically verifies that log_and_raise puts the kwargs under the details.reason
+        # This is practically verifies that log_and_raise puts the kwargs under the details
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
             rf"{mlrun.get_run_db().get_api_path_prefix()}\/artifact\/some-project\/some-uid\/some-key: details: "
-            "{'reason': {'reason': 'bad JSON body'}}",
+            "{'reason': 'bad JSON body'}",
         ):
             mlrun.get_run_db().api_call(
                 "POST",
@@ -54,8 +54,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
             r"\/projects: Failed creating project some_p"
-            r"roject details: {'reason': 'MLRunInvalidArgumentError\(\"Field \\'project\.metadata\.name\\' is malformed"
-            r"\. Does not match required pattern: (.*)\"\)'}",
+            r"roject details: MLRunInvalidArgumentError\(\"Field \'project\.metadata\.name\' is malformed"
+            r"\. Does not match required pattern: (.*)\"\)",
         ):
             mlrun.get_run_db().create_project(project)
 

@@ -13,11 +13,13 @@
 # limitations under the License.
 #
 import typing
+import unittest
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator
 
 import deepdiff
 import httpx
+import kfp
 import pytest
 from fastapi.testclient import TestClient
 
@@ -285,3 +287,14 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         )
 
     yield k8s_secrets_mock
+
+
+@pytest.fixture
+def kfp_client_mock(monkeypatch) -> kfp.Client:
+    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
+        unittest.mock.Mock(return_value=True)
+    )
+    kfp_client_mock = unittest.mock.Mock()
+    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+    mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
+    return kfp_client_mock

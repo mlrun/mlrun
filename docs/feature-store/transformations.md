@@ -44,18 +44,31 @@ to the [feature store example](./basic-demo.html).
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
-feature-set that is created by performing some aggregate function over the feature's values. You can use aggregation for both a time-based 
-sliding window and a fixed window. In general, moving time windows are used for real time data, while fixed windows are used for historical aggregations.
+feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
+sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
+aggregations. 
+
+A window can be measured in years, days, hours, seconds, minutes. 
+A window can be a single window, e.g. ‘1h’, ‘1d’, or a 
+list of same unit windows e.g. [‘1h’, ‘6h’]. If you define the time period (in addition to the window), then you have a sliding window. If 
+you don't define the time period, then the time period and the window are the same.
+All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
 - Sliding window
    
-   Sliding window are fixed-size overlapping windows that slide with time. The window size can be in seconds, minutes, hours, days.
-   The period determines the step size to slide. The period must be an integral divisor of the window size. 
+   Sliding windows are fixed-size, overlapping, windows (defined by `windows`) that are evaluated at a sliding
+   interval (defined by `period`).  
+   The period size must be an integral divisor of the window size. 
+      
+   The following figure illustrates sliding windows of size 20 seconds, and periods of 10 seconds. Since the period is less than the 
+   window size, the windows contain overlapping data. In this example, events E4-E6 are in Windows 1 and 2. When Window 2 is evaluated 
+   at time t = 30 seconds, events E4-E6 are dropped from the event queue.
    
-   For example, a feature-set contains stock trading data including the specific bid price for each bid at any
+   <img src="../_static/images/sliding-window.png" width="1200" height="200">   
+   
+   The following code illustrates a feature-set that contains stock trading data including the specific bid price for each bid at any
    given time. You can add aggregate features that show the minimal and maximal bidding price over all 
    the bids in the last 60 minutes, evaluated (sliding) at a 10 minute interval, per stock ticker (which is the entity in question). 
-   To perform that, add the following code:
 
    ```python
    import mlrun.feature_store as fstore
@@ -68,12 +81,15 @@ sliding window and a fixed window. In general, moving time windows are used for 
    
 - Fixed window
 
-   A fixed window has a fixed-size, is non-overlapping, and gapless. A fixed time window is used for aggregating over a time period 
-   (or day of the week). For example, how busy is this restaurant between 1 and 2 pm.<br>
+   A fixed window has a fixed-size, is non-overlapping, and gapless. 
+   A fixed time window is used for aggregating over a time period, (or day of the week). For example, how busy is a 
+   restaurant between 1 and 2 pm.<br>
    When using a fixed window, each record in an in-application stream belongs to a specific window. The record is processed only once 
-   (when the query processes the window to which the record belongs). To defined a fixed window, omit the period.
+   (when the query processes the window to which the record belongs).  
    
-   Using the above example, but for a fixed window:
+    <img src="../_static/images/fixed-window.png" width="1200" height="200">  
+   
+   To define a fixed window, omit the time period. Using the above example, but for a fixed window:
    
    ```python
    import mlrun.feature_store as fstore

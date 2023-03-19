@@ -32,23 +32,26 @@ const (
 )
 
 type LogItem struct {
-	RunUID        string `json:"runId"`
+	RunUID        string `json:"runUID"`
 	LabelSelector string `json:"labelSelector"`
+	Project       string `json:"project"`
 }
 
 // MarshalledState is a helper struct for marshalling the state
 type marshalledState struct {
-	InProgress map[string]LogItem `json:"inProgress"`
+	InProgress map[string]map[string]LogItem `json:"inProgress"`
 }
 
 type State struct {
+
+	// InProgress is a map of project to a map of runUID to LogItem
 	InProgress *sync.Map `json:"inProgress"`
 }
 
 // UnmarshalJSON is a custom unmarshaler for the state
 func (s *State) UnmarshalJSON(data []byte) error {
 	tempState := marshalledState{
-		InProgress: map[string]LogItem{},
+		InProgress: map[string]map[string]LogItem{},
 	}
 
 	s.InProgress = &sync.Map{}
@@ -56,8 +59,12 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tempState); err != nil {
 		return errors.Wrap(err, "Failed to unmarshal data")
 	}
-	for key, value := range tempState.InProgress {
-		s.InProgress.Store(key, value)
+	for project, runUIDtoLogItem := range tempState.InProgress {
+		projectMap := &sync.Map{}
+		for runUID, logItem := range runUIDtoLogItem {
+			projectMap.Store(runUID, logItem)
+		}
+		s.InProgress.Store(project, projectMap)
 	}
 	return nil
 }
@@ -66,21 +73,37 @@ func (s *State) UnmarshalJSON(data []byte) error {
 func (s *State) MarshalJSON() ([]byte, error) {
 
 	tempState := marshalledState{
-		InProgress: map[string]LogItem{},
+		InProgress: map[string]map[string]LogItem{},
 	}
 
-	s.InProgress.Range(func(key, value interface{}) bool {
-		keyString, ok := key.(string)
+	s.InProgress.Range(func(projectNameKey, runsToLogItemsMapValue interface{}) bool {
+		projectName, ok := projectNameKey.(string)
 		if !ok {
 			return false
 		}
-		valueLogItem, ok := value.(LogItem)
+		runsToLogItemsMap, ok := runsToLogItemsMapValue.(*sync.Map)
 		if !ok {
 			return false
 		}
-		tempState.InProgress[keyString] = valueLogItem
+		runsToLogItemsMap.Range(func(runUIDKey, logItemValue interface{}) bool {
+			runUID, ok := runUIDKey.(string)
+			if !ok {
+				return false
+			}
+			logItem, ok := logItemValue.(LogItem)
+			if !ok {
+				return false
+			}
+			if _, ok := tempState.InProgress[projectName]; !ok {
+				tempState.InProgress[projectName] = map[string]LogItem{}
+			}
+			tempState.InProgress[projectName][runUID] = logItem
+			return true
+		})
+
 		return true
 	})
+
 	return json.Marshal(tempState)
 }
 
@@ -96,10 +119,13 @@ type StateStore interface {
 	Initialize(ctx context.Context) error
 
 	// AddLogItem adds a log item to the state store
-	AddLogItem(ctx context.Context, runId, selector string) error
+	AddLogItem(ctx context.Context, runUID, selector, project string) error
 
 	// RemoveLogItem removes a log item from the state store
-	RemoveLogItem(runId string) error
+	RemoveLogItem(runUID, project string) error
+
+	// RemoveProject removes all log items for a project from the state store
+	RemoveProject(project string) error
 
 	// WriteState writes the state to persistent storage
 	WriteState(state *State) error

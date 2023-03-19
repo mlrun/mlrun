@@ -26,11 +26,12 @@ from os import environ, makedirs, path, remove
 from typing import Dict, List, Optional, Union
 
 import dotenv
+import git
+import git.exc
 import inflection
 import kfp
 import nuclio
 import yaml
-from git import Repo
 
 import mlrun.api.schemas
 import mlrun.db
@@ -55,6 +56,7 @@ from ..utils import (
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -87,11 +89,11 @@ def init_repo(context, url, init_git):
     elif not context_path.is_dir():
         raise ValueError(f"context {context} is not a dir path")
     try:
-        repo = Repo(context)
+        repo = git.Repo(context)
         url = get_repo_url(repo)
     except Exception:
         if init_git:
-            repo = Repo.init(context)
+            repo = git.Repo.init(context)
     return repo, url
 
 
@@ -164,6 +166,8 @@ def new_project(
         else:
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
+        # Remove original owner name for avoiding possible conflicts
+        project.spec.owner = None
     else:
         project = MlrunProject(name=name)
     project.spec.context = context
@@ -261,6 +265,8 @@ def load_project(
             project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
+            # Validate that git source includes branch and refs
+            url = ensure_git_branch(url=url, repo=repo)
         elif url.endswith(".tar.gz"):
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
@@ -278,11 +284,15 @@ def load_project(
 
     if not project:
         project = _load_project_dir(context, name, subpath)
+
     if not project.metadata.name:
         raise ValueError("project name must be specified")
-    if not from_db or (url and url.startswith("git://")):
+    if not from_db:
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
+        # Remove original owner name for avoiding possible conflicts when loading project from remote
+        project.spec.owner = None
+
     project.spec.repo = repo
     if repo:
         try:
@@ -538,7 +548,7 @@ class ProjectSpec(ModelObj):
         self.branch = None
         self.tag = ""
         self.params = params or {}
-        self.conda = conda or {}
+        self.conda = conda or ""
         self.artifact_path = artifact_path
         self._artifacts = {}
         self.artifacts = artifacts or []
@@ -867,6 +877,16 @@ class MlrunProject(ModelObj):
         """
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
+
+        if self.spec.source.startswith("git://"):
+
+            source, reference, branch = resolve_git_reference_from_source(source)
+            if not branch and not reference:
+                logger.warn(
+                    "Please add git branch or refs to the source e.g.: "
+                    "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
+                )
+
         self.spec.workdir = workdir or self.spec.workdir
         # reset function objects (to recalculate build attributes)
         self.sync_functions()
@@ -934,50 +954,6 @@ class MlrunProject(ModelObj):
         self.spec.description = description
 
     @property
-    def functions(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.functions instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.spec.functions
-
-    @functions.setter
-    def functions(self, functions):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.functions instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        self.spec.functions = functions
-
-    @property
-    def workflows(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead. "
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        return self.spec.workflows
-
-    @workflows.setter
-    def workflows(self, workflows):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead. "
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        self.spec.workflows = workflows
-
-    @property
     def default_image(self) -> str:
         return self.spec.default_image
 
@@ -996,6 +972,14 @@ class MlrunProject(ModelObj):
                 current_default_image, default_image
             )
         self.spec.default_image = default_image
+
+    @property
+    def workflows(self) -> list:
+        return self.spec.workflows
+
+    @workflows.setter
+    def workflows(self, workflows):
+        self.spec.workflows = workflows
 
     def set_workflow(
         self,
@@ -1050,28 +1034,6 @@ class MlrunProject(ModelObj):
             workflow["ttl"] = ttl
         self.spec.set_workflow(name, workflow)
 
-    @property
-    def artifacts(self) -> list:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifacts instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        return self.spec.artifacts
-
-    @artifacts.setter
-    def artifacts(self, artifacts):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifacts instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            FutureWarning,
-        )
-        self.spec.artifacts = artifacts
-
     def set_artifact(
         self,
         key,
@@ -1099,7 +1061,13 @@ class MlrunProject(ModelObj):
         :param tag:    artifact tag
         """
         if artifact and isinstance(artifact, str):
-            artifact = {"import_from": artifact, "key": key}
+            artifact_path, _ = self.get_item_absolute_path(
+                artifact, check_path_in_context=True
+            )
+            artifact = {
+                "import_from": artifact_path,
+                "key": key,
+            }
             if tag:
                 artifact["tag"] = tag
         else:
@@ -1164,17 +1132,30 @@ class MlrunProject(ModelObj):
             pass
         return None
 
-    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
-        in_context = False
+    def get_item_absolute_path(
+        self,
+        url: str,
+        check_path_in_context: bool = False,
+    ) -> typing.Tuple[str, bool]:
+        """
+        Get the absolute path of the artifact or function file
+        :param url:                   remote url, absolute path or relative path
+        :param check_path_in_context: if True, will check if the path exists when in the context
+                                      (temporary parameter to allow for backwards compatibility)
+        :returns:                     absolute path / url, whether the path is in the project context
+        """
         # If the URL is for a remote location, we do not want to change it
-        if url and "://" not in url:
-            # We don't want to change the url if the project has no cntext or if it is already absolute
-            if self.spec.context and not url.startswith("/"):
-                in_context = True
-                url = path.normpath(path.join(self.spec.get_code_path(), url))
-                return url, in_context
-            if not path.isfile(url):
-                raise OSError(f"{url} not found")
+        if not url or "://" in url:
+            return url, False
+
+        # We don't want to change the url if the project has no context or if it is already absolute
+        in_context = self.spec.context and not url.startswith("/")
+        if in_context:
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
+
+        if (not in_context or check_path_in_context) and not path.isfile(url):
+            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+
         return url, in_context
 
     def log_artifact(
@@ -1519,6 +1500,14 @@ class MlrunProject(ModelObj):
             proj.set_function('./func.yaml')
             proj.set_function('hub://get_toy_data', 'getdata')
 
+            # set function requirements
+
+            # by providing a list of packages
+            proj.set_function('my.py', requirements=["requests", "pandas"])
+
+            # by providing a path to a pip requirements file
+            proj.set_function('my.py', requirements="requirements.txt")
+
         :param func:      function object or spec/code url, None refers to current Notebook
         :param name:      name of the function (under the project)
         :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
@@ -1527,7 +1516,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
-        :tag:             function version tag (none for 'latest', can only be set with .py/.ipynb files)
+        :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
         :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
@@ -1590,21 +1579,6 @@ class MlrunProject(ModelObj):
         :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
-
-    def func(self, key, sync=False) -> mlrun.runtimes.BaseRuntime:
-        """get function object by name
-
-        :param sync:  will reload/reinit the function
-
-        :returns: function object
-        """
-        warnings.warn(
-            "This will be deprecated in future releases, use  get_function() instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
-        return self.get_function(key, sync)
 
     def get_function(
         self,
@@ -1709,7 +1683,21 @@ class MlrunProject(ModelObj):
         if repo.is_dirty():
             if not message:
                 raise ValueError("please specify the commit message")
-            repo.git.commit(m=message)
+            try:
+                repo.git.commit(m=message)
+            except git.exc.GitCommandError as exc:
+                if "Please tell me who you are" in str(exc):
+                    warning_message = (
+                        "Git is not configured, please run the following commands and run git push from the terminal "
+                        "once to store your credentials:\n"
+                        '\tgit config --global user.email "<my@email.com>"\n'
+                        '\tgit config --global user.name "<name>"\n'
+                        "\tgit config --global credential.helper store\n"
+                    )
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        warning_message
+                    ) from exc
+                raise exc
 
         if not branch:
             raise ValueError("please specify the remote branch")
@@ -1870,14 +1858,15 @@ class MlrunProject(ModelObj):
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
+        # TODO: deprecated, remove in 1.5.0
         ttl: int = None,
         engine: str = None,
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
-        override: bool = False,
         source: str = None,
+        cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1895,7 +1884,8 @@ class MlrunProject(ModelObj):
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
-        :param ttl:       pipeline ttl in secs (after that the pods will be removed)
+        :param ttl:       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param engine:    workflow engine running the workflow.
                           supported values are 'kfp' (default), 'local' or 'remote'.
                           for setting engine for remote running use 'remote:local' or 'remote:kfp'.
@@ -1906,12 +1896,31 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
-        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param overwrite: (deprecated) replacing the schedule of the same workflow (under the same name) if exists
+                          with the new one.
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
+        :param cleanup_ttl:
+                          pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted)
         :returns: run id
         """
+
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
+
+        if overwrite:
+            warnings.warn(
+                "'overwrite' is deprecated, running a schedule is now an upsert operation. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -1942,27 +1951,19 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-            workflow_spec.ttl = ttl or workflow_spec.ttl
+            workflow_spec.cleanup_ttl = (
+                cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+            )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
-        if schedule:
-            if override or overwrite:
-                if overwrite:
-                    logger.warn(
-                        "Please use override (SDK) or --override-workflow (CLI) "
-                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
-                        "This will be removed in 1.6.0",
-                        # TODO: Remove in 1.6.0
-                    )
-                workflow_spec.override = True
-            # Schedule = True -> use workflow_spec.schedule
-            if not isinstance(schedule, bool):
-                workflow_spec.schedule = schedule
-        else:
+        if not schedule:
             workflow_spec.schedule = None
+        elif not isinstance(schedule, bool):
+            # Schedule = True -> use workflow_spec.schedule
+            workflow_spec.schedule = schedule
 
         inner_engine = None
         if engine and engine.startswith("remote"):
@@ -2140,6 +2141,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2163,7 +2165,9 @@ class MlrunProject(ModelObj):
         :param selector:        selection criteria for hyper params e.g. "max.accuracy"
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                                 see: :py:class:`~mlrun.model.HyperParamOptions`
-        :param inputs:          input objects (dict of key: path)
+        :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
+                                parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param workdir:         default input artifacts path
         :param labels:          labels to tag the job/run with ({key:val, ..})
@@ -2178,6 +2182,17 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param returns:         List of log hints - configurations for how to log the returning values from the
+                                handler's run (as artifacts or results). The list's length must be equal to the amount
+                                of returning objects. A log hint may be given as:
+
+                                * A string of the key to use to log the returning value as result or as an artifact. To
+                                  specify The artifact type, it is possible to pass a string in the following structure:
+                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                                  artifact type is specified, the object's default artifact type will be used.
+                                * A dictionary of configurations to use when logging. Further info per object type and
+                                  artifact type can be given there. The artifact key must appear in the dictionary as
+                                  "key": "the_key".
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2201,6 +2216,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            returns=returns,
         )
 
     def build_function(
@@ -2211,7 +2227,7 @@ class MlrunProject(ModelObj):
         image=None,
         base_image=None,
         commands: list = None,
-        secret_name="",
+        secret_name=None,
         requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
@@ -2262,7 +2278,7 @@ class MlrunProject(ModelObj):
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object
-        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param dashboard:   DEPRECATED. Keep empty to allow auto-detection by MLRun API.
         :param models:      list of model items
         :param env:         dict of extra environment variables
         :param tag:         extra version tag

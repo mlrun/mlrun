@@ -136,16 +136,17 @@ class BaseMerger(abc.ABC):
                 if not index_columns_missing:
                     if self.engine == "local" or self.engine == "spark":
                         df.set_index(self._index_columns, inplace=True)
-                    elif self.engine == "dask" and len(self._index_columns) == 1:
-                        return df.set_index(self._index_columns[0])
-                    elif self.engine == "dask" and len(self._index_columns) != 1:
-                        return self._reset_index(self._result_df)
-                    else:
-                        logger.info(
-                            "The entities will stay as columns because "
-                            "Dask dataframe does not yet support multi-indexes"
-                        )
-                        return self._result_df
+                    elif self.engine == "dask":
+                        if len(self._index_columns) == 1:
+                            return df.set_index(self._index_columns[0])
+                        elif len(self._index_columns) != 1:
+                            return self._reset_index(self._result_df)
+                        else:
+                            logger.info(
+                                "The entities will stay as columns because "
+                                "Dask dataframe does not yet support multi-indexes"
+                            )
+                            return self._result_df
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "

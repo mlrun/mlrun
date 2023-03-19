@@ -21,10 +21,10 @@ from deepdiff import DeepDiff
 import mlrun
 from mlrun import code_to_function
 from mlrun.runtimes.function import (
-    _resolve_git_reference_from_source,
     _resolve_nuclio_runtime_python_image,
     _resolve_work_dir_and_handler,
 )
+from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
 
 
@@ -198,7 +198,7 @@ def test_resolve_git_reference_from_source():
         ("repo#refs/heads/main#commit", ("repo", "refs/heads/main#commit", "")),
     ]
     for source, expected in cases:
-        assert expected == _resolve_git_reference_from_source(source)
+        assert expected == resolve_git_reference_from_source(source)
 
 
 @pytest.mark.parametrize("function_kind", ["serving", "remote"])

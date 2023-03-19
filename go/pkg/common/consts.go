@@ -18,10 +18,12 @@ package common
 const (
 	ErrCodeNotFound int32 = iota
 	ErrCodeInternal
+	ErrCodeBadRequest
 )
 
-// Buffer sizes
+const DefaultErrorStackDepth = 3
 
+// Buffer sizes
 const (
 	// DefaultLogCollectionBufferSize is the default buffer size for collecting logs from pods
 	DefaultLogCollectionBufferSize int = 10 * 1024 * 1024 // 10MB

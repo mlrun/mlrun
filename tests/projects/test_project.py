@@ -193,7 +193,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -258,7 +258,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -383,18 +383,20 @@ def _assert_project_function_objects(project, expected_function_objects):
 
 
 def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.MlrunProject(
+        "newproj", default_requirements=["pandas>1, <3"]
+    )
     project.set_function("hub://describe", "desc1", requirements=["x"])
     assert project.get_function("desc1", enrich=True).spec.build.commands == [
         "python -m pip install x",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
     assert project.get_function("desc2", enrich=True).spec.build.commands == [
         "python -m pip install y",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
 
@@ -438,6 +440,36 @@ def test_set_function_with_relative_path(context):
     assert func is not None and func.spec.build.origin_filename.startswith(
         str(assets_path())
     )
+
+
+@pytest.mark.parametrize(
+    "artifact_path,file_exists,expectation",
+    [
+        ("handler.py", True, does_not_raise()),
+        ("handler.py", False, pytest.raises(OSError)),
+    ],
+)
+def test_set_artifact_validates_file_exists(
+    monkeypatch, artifact_path, file_exists, expectation
+):
+    artifact_key = "my-artifact"
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    monkeypatch.setattr(
+        os.path,
+        "isfile",
+        lambda path: path == str(assets_path() / artifact_path) and file_exists,
+    )
+
+    with expectation:
+        project.set_artifact(
+            artifact_key,
+            artifact_path,
+        )
+        assert project.spec.artifacts[0]["key"] == artifact_key
+        assert project.spec.artifacts[0]["import_from"] == str(
+            assets_path() / artifact_path
+        )
 
 
 def test_import_artifact_using_relative_path():
@@ -577,6 +609,13 @@ def test_function_receives_project_artifact_path(rundb_mock):
     # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
+
+    proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
+    run = proj1.run_function("func", local=True)
+    assert run.spec.output_path == proj1.spec.artifact_path
+
+    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    assert run.spec.output_path == "/not/tmp"
 
 
 def test_function_receives_project_default_image():
@@ -742,3 +781,29 @@ def test_validating_large_int_params(
         )
 
     assert run_saved == (rundb_mock._runs != {})
+
+
+def test_load_project_with_git_enrichment(
+    context,
+    rundb_mock,
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(context=str(context), url=url, save=True)
+
+    assert (
+        project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
+    )
+
+
+def test_remove_owner_name_in_load_project_from_yaml():
+    # Create project and generate owner name
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.owner = "some_owner"
+
+    # Load the project from yaml and validate that the owner name was removed
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert project.spec.owner == "some_owner"
+    assert imported_project.spec.owner is None

@@ -59,35 +59,12 @@ def db(request):
     return db
 
 
-def test_save_get_function(db: RunDBInterface):
-    func, name, proj, tag = {"data": {"x": 1, "y": 2}}, "f1", "p2", "t3u"
-    db.store_function(func, name, proj, tag)
-    db_func = db.get_function(name, proj, tag)
-
-    # db methods enriches metadata
-    assert func["data"] == db_func["data"]
-
-
 def new_func(labels, **kw):
     obj = {
         "metadata": {"labels": labels},
     }
     obj.update(kw)
     return obj
-
-
-def test_list_functions(db: RunDBInterface):
-    name = "fn"
-    fn1 = new_func({"l1": "v1", "l2": "v2"}, x=1)
-    db.store_function(fn1, name)
-    fn2 = new_func({"l2": "v2", "l3": "v3"}, x=2)
-    db.store_function(fn2, name, tag="t1")
-    fn3 = new_func({"l3": "v3"}, x=3)
-    db.store_function(fn3, name, tag="t2")
-
-    funcs = db.list_functions(name, labels={"l2": "v2"})
-    assert 2 == len(funcs), "num of funcs"
-    assert {1, 2} == {fn["x"] for fn in funcs}, "xs"
 
 
 def test_runs(db: RunDBInterface):

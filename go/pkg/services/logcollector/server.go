@@ -810,7 +810,11 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 	var logFilePath string
 	var latestModTime time.Time
 
+	var retryCount int
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
+		defer func() {
+			retryCount++
+		}()
 
 		// verify or wait until project dir exists
 		if _, err := os.Stat(filepath.Join(s.baseDir, projectName)); err != nil {
@@ -819,9 +823,16 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 
 				// give v3io-fuse some slack
 			} else if strings.Contains(err.Error(), "resource temporarily unavailable") {
-				return true, errors.New("Project directory is not ready yet")
+				s.Logger.WarnWithCtx(ctx,
+					"Project directory is not ready yet (resource temporarily unavailable)",
+					"retryCount", retryCount,
+					"err", err.Error())
+				return true, errors.Wrap(err, "Project directory is not ready yet")
 			}
-
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to get project directory",
+				"retryCount", retryCount,
+				"err", err.Error())
 			return false, errors.Wrap(err, "Failed to get project directory")
 		}
 
@@ -829,6 +840,11 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 		if err := filepath.WalkDir(filepath.Join(s.baseDir, projectName),
 			func(path string, dirEntry fs.DirEntry, err error) error {
 				if err != nil {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to walk path",
+						"retryCount", retryCount,
+						"path", path,
+						"err", errors.GetErrorStackString(err, 10))
 					return errors.Wrapf(err, "Failed to walk path %s", path)
 				}
 

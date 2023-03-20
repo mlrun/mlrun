@@ -28,7 +28,7 @@ Docs: [Set up your client environment](./install/remote.html), [Installation and
 
 ### MLRun server/client overview
 
-MLRun has two main components, the service and the client (SDK):
+MLRun has two main components, the service and the client (SDK+UI):
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes) - see [installation documentation](./install.html) for more information
 - MLRun client SDK is installed in your development environment via `pip` and interacts with the service using REST API calls
 
@@ -464,8 +464,6 @@ context.log_dataset(key="model", df=df, format="csv", index=False)
 
 ### Track returning values using `hints` and `returns`
 
-Use the mlrun.handler decorator on top of every run in the local runner to parse inputs using type hints, and log the returning 
-values using log hints.
 - Pass type hints into the inputs parameter of the run method. Inputs are automatically parsed to their hinted type. If type hints are 
 not in code, they can be passed in the inputs keys. Hints use the structure: `key : type_hint`
 - Pass log hints: how to log the returning values from a handler. The log hints are passed via the returns parameter in the run method. 

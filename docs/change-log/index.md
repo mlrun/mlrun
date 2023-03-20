@@ -516,6 +516,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
+| ML-3640 | When running a job, the context parameter can't be passed in a scheduled workflow. | Use `get_or_create_ctx` | 1.3.0 |
 
     
 ## Limitations

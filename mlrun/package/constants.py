@@ -1,8 +1,8 @@
 from typing import Dict, Union
-from enum import Enum
 
 
-class ArtifactType(Enum):
+class ArtifactType:
+    # TODO: Remove
     """
     Possible artifact types to log using the MLRun `context` decorator.
     """
@@ -19,28 +19,21 @@ class ArtifactType(Enum):
     DEFAULT = RESULT
 
 
-class PackageKeys:
-    KEY = "key"
-    ARTIFACT_TYPE = "artifact_type"
+class ArtifactTypes:
+    """
+    Possible artifact types to log using the MLRun `context` decorator.
+    """
 
+    # Types:
+    DATASET = "dataset"
+    DIRECTORY = "directory"
+    FILE = "file"
+    OBJECT = "object"
+    PLOT = "plot"
+    RESULT = "result"
 
-class ArtifactKeys(PackageKeys):
-    DB_KEY = "db_key"
-
-
-class ResultKeys(PackageKeys):
-    pass
-
-
-class DatasetKeys(ArtifactKeys):
-    FORMAT = "format"
-    EXTRA_DATA = "extra_data"
-
-
-class ModelKeys(ArtifactKeys):
-    EXTRA_DATA = "extra_data"
-    INPUTS = "inputs"
-    OUTPUTS = "outputs"
+    # Constants:
+    DEFAULT = RESULT
 
 
 TypeHint = Union[str, type]

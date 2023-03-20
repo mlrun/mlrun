@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import importlib
 import typing
 import itertools
 
-from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem, is_store_uri, store_manager
 
@@ -24,7 +24,13 @@ from .packager import Packager
 
 class PackagersManager:
     """
+    A packager manager is holding the project's packagers and sending them objects to pack and data items to unpack.
 
+    It prepares the instructions / log hint configurations and then looks for the first packager who fits the task.
+    That's why when the manager collects its packagers, it first collects builtin MLRun packagers and only then the
+    user's custom packagers, this way user's custom packagers will have higher priority.
+
+    The manager should be a singleton to properly function. To get it, use `mlrun.package.get_packagers_manager()`.
     """
 
     def __init__(self, default_packager: Packager = None):
@@ -68,7 +74,7 @@ class PackagersManager:
         # Prepare the manager's labels:
         package_instructions = {
             self._InstructionsNotesKeys.PACKAGER_NAME: packager.__name__,
-            self._InstructionsNotesKeys.OBJECT_TYPE: type(obj),
+            self._InstructionsNotesKeys.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
             self._InstructionsNotesKeys.ARTIFACT_TYPE: artifact_type,
             self._InstructionsNotesKeys.INSTRUCTIONS: instructions,
         }
@@ -80,10 +86,12 @@ class PackagersManager:
 
     def unpack(self, data_item: DataItem, type_hint: typing.Type) -> typing.Any:
         """
+        Unpack an object using one of the manager's packagers.
 
-        :param data_item:
-        :param type_hint:
-        :return:
+        :param data_item: The data item holding the package.
+        :param type_hint: The type hint to parse the data item as.
+
+        :return: The unpacked object parsed as type hinted.
         """
         # Set variables to hold the manager notes and packager instructions:
         packager_name = None
@@ -105,6 +113,8 @@ class PackagersManager:
                 object_type = package_instructions.pop(
                     self._InstructionsNotesKeys.OBJECT_TYPE, None
                 )
+                if object_type is not None:
+                    object_type = self._get_type_from_name(type_name=object_type)
                 artifact_type = package_instructions.pop(
                     self._InstructionsNotesKeys.ARTIFACT_TYPE, None
                 )
@@ -113,12 +123,16 @@ class PackagersManager:
                 )
 
         # If both original packaged object type and user's type hint available, validate they are equal:
-        if object_type is not None and type_hint is not None and object_type != type_hint:
-            pass  # TODO: Mismatch! raise warning, object type is favoured?
+        if (
+            object_type is not None
+            and type_hint is not None
+            and object_type is not type_hint
+        ):
+            pass  # TODO: Mismatch! raise warning, take type hint
 
         # Get the packager:
         packager = self._get_packager(
-            object_type=object_type or type_hint,
+            object_type=type_hint or object_type,
             artifact_type=artifact_type,
             packager_name=packager_name,
         )
@@ -126,7 +140,7 @@ class PackagersManager:
         # If the packager name is available (noted by manager), validate the original packager who packaged the object
         # was found:
         if packager_name is not None and packager.__name__ != packager_name:
-            pass  # TODO: Mismatch! raise warning, take object type
+            pass  # TODO: Mismatch! raise warning
 
         # Unpack:
         return packager.unpack(
@@ -238,6 +252,36 @@ class PackagersManager:
             )
 
         return found_packager
+
+    @staticmethod
+    def _get_type_name(typ: typing.Type) -> str:
+        """
+        Get a type full name - its module path. For example, the name of a pandas data frame will be "DataFrame" but its
+        full name (module path) is: "pandas.core.frame.DataFrame".
+
+        :param typ: The type to get its full name.
+
+        :return: The type's full name.
+        """
+        # Get the module name:
+        module_name = typ.__module__
+
+        # Get the type's (class) name
+        class_name = typ.__qualname__ if hasattr(typ, "__qualname__") else typ.__name__
+        return f"{module_name}.{class_name}"
+
+    @staticmethod
+    def _get_type_from_name(type_name: str) -> typing.Type:
+        """
+        Get the type object out of the given type representation string.
+
+        :param type_name: The type full name (module path) string.
+
+        :return: The represented type as imported from its module.
+        """
+        module_name, class_name = type_name.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, class_name)
 
     @staticmethod
     def _is_typing_type(type_hint: typing.Type) -> bool:

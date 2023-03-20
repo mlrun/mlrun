@@ -453,9 +453,9 @@ context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
 ```
 
-### Track returning values using `returns` (new in v1.3.0)
+### Track returning values using `returns`
 
-Passing objects from MLRun function to another has never been easier:
+Pass objects from one MLRun function to another:
 - Inputs are automatically parsed to their hinted type. If type hints are not in code, they can be passed in the inputs keys.
 - Use the `returns` argument to specify how to log a function's returning values.
 

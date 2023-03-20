@@ -666,7 +666,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	}
 
 	// add log file path to cache
-	s.logFilesCache.Set(s.getLogFilCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 
 	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
@@ -794,7 +794,7 @@ func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) stri
 func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string) (string, error) {
 
 	// first try load from cache
-	if filePath, found := s.logFilesCache.Get(s.getLogFilCacheKey(runUID, projectName)); found {
+	if filePath, found := s.logFilesCache.Get(s.getLogFileCacheKey(runUID, projectName)); found {
 		return filePath.(string), nil
 	}
 
@@ -871,7 +871,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 	}
 
 	// store in cache
-	s.logFilesCache.Set(s.getLogFilCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 	return logFilePath, nil
 }
 
@@ -1132,6 +1132,6 @@ func (s *Server) deleteProjectLogs(project string) error {
 	return nil
 }
 
-func (s *Server) getLogFilCacheKey(runUID, project string) string {
+func (s *Server) getLogFileCacheKey(runUID, project string) string {
 	return fmt.Sprintf("%s/%s", runUID, project)
 }

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import abc
+import copy
 import typing
 from datetime import datetime
 
@@ -428,6 +429,9 @@ class BaseMerger(abc.ABC):
         def __eq__(self, other):
             return self.name == other.name
 
+        def __copy__(self):
+            return BaseMerger._Node(self.name, self.order, self.data.copy())
+
     class _LinkedList:
         def __init__(self, head=None):
             self.head = head
@@ -447,6 +451,19 @@ class BaseMerger(abc.ABC):
             while node is not None:
                 yield node
                 node = node.next
+
+        def __copy__(self):
+            ll = BaseMerger._LinkedList()
+            prev_node = None
+            for node in self:
+                new_node = node.__copy__()
+                if ll.head is None:
+                    ll.head = new_node
+                else:
+                    prev_node.next = new_node
+                prev_node = new_node
+            ll.len = self.len
+            return ll
 
         def add_first(self, node):
             node.next = self.head
@@ -607,7 +624,7 @@ class BaseMerger(abc.ABC):
 
         # concat all the link lists to one, for the merging process
         for i in range(len(relation_linked_lists)):
-            return_relation = relation_linked_lists[i]
+            return_relation = relation_linked_lists[i].__copy__()
             for relation_list in relation_linked_lists:
                 return_relation.concat(relation_list)
             if return_relation.len == len(feature_set_objects):

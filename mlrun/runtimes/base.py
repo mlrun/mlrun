@@ -1804,7 +1804,7 @@ class BaseRuntimeHandler(ABC):
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ):
         """
-        Override this to add runtime resources other then pods or CRDs (which are handled by the base class) to the
+        Override this to add runtime resources other than pods or CRDs (which are handled by the base class) to the
         output
         """
         return response

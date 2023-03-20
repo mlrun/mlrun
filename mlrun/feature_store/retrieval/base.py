@@ -196,7 +196,7 @@ class BaseMerger(abc.ABC):
             for column in node.data["save_cols"]:
                 if column not in column_names:
                     self._append_drop_column(column)
-            column_names += node.data["save_cols"]
+                    column_names.append(column)
 
             df = self._get_engine_df(
                 feature_set,
@@ -483,7 +483,9 @@ class BaseMerger(abc.ABC):
             node = self.find_node(other_head.name)
             if node is None:
                 return
-            node.data["save_cols"] += other_head.data["save_cols"]
+            for col in other_head.data["save_cols"]:
+                if col not in node.data["save_cols"]:
+                    node.data["save_cols"].append(col)
             for other_node in other_iter:
                 if self.find_node(other_node.name) is None:
                     while node is not None and other_node.order > node.order:
@@ -604,14 +606,14 @@ class BaseMerger(abc.ABC):
             relation_linked_lists.append(linked_relation)
 
         # concat all the link lists to one, for the merging process
-        link_list_iter = iter(relation_linked_lists)
-        return_relation = next(link_list_iter)
-        for relation_list in link_list_iter:
-            return_relation.concat(relation_list)
-        if return_relation.len != len(feature_set_objects):
-            raise mlrun.errors.MLRunRuntimeError("Failed to merge")
+        for i in range(len(relation_linked_lists)):
+            return_relation = relation_linked_lists[i]
+            for relation_list in relation_linked_lists:
+                return_relation.concat(relation_list)
+            if return_relation.len == len(feature_set_objects):
+                return return_relation
 
-        return return_relation
+        raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
     @classmethod
     def get_default_image(cls, kind):

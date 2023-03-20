@@ -50,8 +50,10 @@ from tests.system.base import TestMLRunSystem
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test4"
+class TestModelEndpointsOperations(TestMLRunSystem):
+    """Testing model endpoints basic CRUD operations through MLRun API"""
+
+    project_name = "pr-endpoints-operations"
 
     def test_clear_endpoint(self):
         """Validates the process of create and delete a basic model endpoint"""
@@ -107,8 +109,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
             "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
         }
-
-        # {"drift_status": "POSSIBLE_DRIFT", "state": "new_state"}
 
         # Create attributes dictionary according to the required format
         attributes = {
@@ -197,8 +197,45 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         assert len(filter_labels.endpoints) == 4
 
+    @staticmethod
+    def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
+        return mlrun.api.schemas.AuthInfo(
+            data_session=os.environ.get("V3IO_ACCESS_KEY")
+        )
+
+    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
+        def random_labels():
+            return {
+                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
+            }
+
+        return ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=self.project_name, labels=random_labels()
+            ),
+            spec=ModelEndpointSpec(
+                function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
+                model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
+                model_class="classifier",
+                active=True,
+            ),
+            status=ModelEndpointStatus(state=state),
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestBasicModelMonitoring(TestMLRunSystem):
+    """Deploy and apply monitoring on a basic pre-trained model"""
+
+    project_name = "pr-basic-model-monitoring"
+
     @pytest.mark.timeout(270)
     def test_basic_model_monitoring(self):
+        # Main validations:
+        # 1 - a single model endpoint is created
+        # 2 - stream metrics are recorded as expected under the model endpoint
+
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
@@ -268,8 +305,22 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         total = sum((m[1] for m in predictions_per_second.values))
         assert total > 0
 
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestVotingModelMonitoring(TestMLRunSystem):
+    """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
+
+    project_name = "pr-voting-model-monitoring"
+
     @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
+        # Main validations:
+        # 1 - model monitoring feature set is created with the relevant features and target
+        # 2 - deployment status of monitoring stream nuclio function
+        # 3 - model endpoints types for both children and router
+        # 4 - metrics and drift status per model endpoint
+
         simulation_time = 120  # 120 seconds to allow tsdb batching
 
         iris = load_iris()
@@ -478,12 +529,26 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
 
+    def _check_monitoring_building_state(self, base_runtime):
+        # Check if model monitoring stream function is ready
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+        assert base_runtime.status.state == "ready", stat
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringRegression(TestMLRunSystem):
+    """Train, deploy and apply monitoring on a regression model"""
+
+    project_name = "pr-regression-model-monitoring"
+
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
-        # The following test:
-        # 1 - apply model monitoring for a regression algorithm
-        # 2 - use auto_trainer functionality
-        # 3 - creates the model monitoring feature set based on the feature vector and not on the model object
+        # Main validations:
+        # 1 - model monitoring feature is created according to the feature vector instead of a model object when
+        #     inputs are missing
+        # 2 - access key secret within the model monitoring batch job
+        # 3 - scheduling policy of the batch job
 
         # Load boston housing pricing dataset
         diabetes_data = load_diabetes()
@@ -630,33 +695,3 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             model_endpoint.status.monitoring_feature_set_uri
             == monitoring_feature_set.uri.replace(":latest", "")
         )
-
-    @staticmethod
-    def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
-        return mlrun.api.schemas.AuthInfo(
-            data_session=os.environ.get("V3IO_ACCESS_KEY")
-        )
-
-    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
-        def random_labels():
-            return {
-                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
-            }
-
-        return ModelEndpoint(
-            metadata=ModelEndpointMetadata(
-                project=self.project_name, labels=random_labels()
-            ),
-            spec=ModelEndpointSpec(
-                function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
-                model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
-                model_class="classifier",
-                active=True,
-            ),
-            status=ModelEndpointStatus(state=state),
-        )
-
-    def _check_monitoring_building_state(self, base_runtime):
-        # Check if model monitoring stream function is ready
-        stat = mlrun.get_run_db().get_builder_status(base_runtime)
-        assert base_runtime.status.state == "ready", stat

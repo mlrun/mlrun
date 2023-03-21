@@ -1451,6 +1451,35 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert not df["bad_mapped"].isnull().any()
         assert not (df["bad_mapped"] == 17).any()
 
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "hr_is_error": {True: "1"},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match=f"^Mapvalues that changing column type must change all values in the column!$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                targets,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"

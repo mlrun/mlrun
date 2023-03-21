@@ -285,7 +285,7 @@ class MapValues(StepToDict, MLRunStep):
                     if not all(
                         elem in mapping_to_null for elem in turned_to_none_values
                     ):
-                        raise Exception(
+                        raise mlrun.errors.InvalidArgummentError(
                             "Mapvalues that changing column type must change all values in the column!"
                         )
             else:

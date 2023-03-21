@@ -315,7 +315,7 @@ class MLClientCtx(object):
 
         start = get_in(attrs, "status.start_time")
         if start:
-            start = parser.parse(start) if type(start) is str else start
+            start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
         self._state = "running"
         if store_run:

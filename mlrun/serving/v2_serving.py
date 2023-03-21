@@ -409,7 +409,7 @@ class _ModelLogPusher:
             if start.tzinfo is not None:
                 start_str = start_str[:-6] + ".000000" + start_str[-6:]
             else:
-                start_str = start_str[:-6] + ".000000+00:00"
+                start_str = start_str + ".000000+00:00"
         if error:
             data = self.base_data()
             data["request"] = request

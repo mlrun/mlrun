@@ -56,7 +56,7 @@ class MLRunStep(MapClass):
         engine = get_engine(event)
         self.do = self._engine_to_do_method.get(engine, None)
         if self.do is None:
-            raise mlrun.errors.InvalidArgummentError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"
             )
 
@@ -285,7 +285,7 @@ class MapValues(StepToDict, MLRunStep):
                     if not all(
                         elem in mapping_to_null for elem in turned_to_none_values
                     ):
-                        raise mlrun.errors.InvalidArgummentError(
+                        raise mlrun.errors.MLRunInvalidArgumentError(
                             "Mapvalues: mapping that changing column type must change all values in the column!"
                         )
             else:

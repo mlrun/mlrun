@@ -753,6 +753,7 @@ def _assert_projects(expected_project, project):
 
 
 def test_watch_logs_continue():
+    mlrun.mlconf.httpdb.logs.decode.errors = "replace"
 
     # create logs with invalid utf-8 byte
     log_lines = [

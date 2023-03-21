@@ -1470,7 +1470,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
                 mlrun.errors.MLRunInvalidArgumentError,
-                match=f"^Mapvalues that changing column type must change all values in the column!$",
+                match=f"^Mapvalues: mapping that changing column type must change all values in the column!$",
         ):
             fstore.ingest(
                 measurements,

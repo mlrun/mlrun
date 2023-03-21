@@ -276,6 +276,8 @@ default_config = {
         },
         "logs": {
             "decode": {
+                # Replace with a replacement marker. On decoding, uses � (U+FFFD, the official REPLACEMENT CHARACTER).
+                # see https://docs.python.org/3/library/codecs.html#error-handlers for more info
                 "errors": "replace",
             },
             "pipelines": {

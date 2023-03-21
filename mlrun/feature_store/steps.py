@@ -14,6 +14,7 @@
 #
 import re
 import uuid
+import math
 import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Union
@@ -257,7 +258,7 @@ class MapValues(StepToDict, MLRunStep):
                         .rdd.map(lambda x: x[0])
                         .collect()
                     )
-                    mapping_to_null = [k for k, v in column_map.items() if v is None]
+                    mapping_to_null = [k for k, v in column_map.items() if v is None or math.isnan(v)]
                     if not all(
                         elem in mapping_to_null for elem in turned_to_none_values
                     ):

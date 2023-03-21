@@ -19,7 +19,7 @@ import kfp
 import mlrun
 from mlrun.utils import hub_prefix
 
-from .pipelines import enrich_function_object, pipeline_context
+from .pipelines import pipeline_context
 
 
 def _get_engine_and_function(function, project=None):
@@ -29,7 +29,7 @@ def _get_engine_and_function(function, project=None):
         if function.startswith(hub_prefix):
             function = mlrun.import_function(function)
             if project:
-                function = enrich_function_object(project, function)
+                function = project.enrich_function_object(function)
         else:
             if not project:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -44,7 +44,7 @@ def _get_engine_and_function(function, project=None):
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
-        function = enrich_function_object(project, function, copy_function=False)
+        function = project.enrich_function_object(function, copy_function=False)
 
     if not pipeline_context.workflow:
         return "local", function

@@ -384,7 +384,7 @@ def build_image(
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
         else:
-            # currently...
+            # TODO: support mount non-v3io paths
             source_to_copy = source
 
     user_unix_id = None

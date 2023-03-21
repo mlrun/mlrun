@@ -251,7 +251,9 @@ class BaseRuntime(ModelObj):
         self._fill_credentials()
 
     def _enrich_on_server_side(self):
-        pass
+        if self.metadata.project:
+            project = mlrun.get_run_db().get_project(self.metadata.project)
+            project.enrich_function_object(self)
 
     def _enrich_on_server_and_client_sides(self):
         """

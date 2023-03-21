@@ -763,7 +763,7 @@ def test_watch_logs_continue():
         b"\xf0",  # invalid utf-8 - should be replaced with U+FFFD (�)
         b"LastRow",
     ]
-    log_contents = b"".join(line for line in log_lines)
+    log_contents = b"".join(log_lines)
     db = mlrun.db.httpdb.HTTPRunDB("http+mock://wherever.com")
     run_uid = "some-uid"
     project = "some-project"
@@ -803,9 +803,13 @@ def test_watch_logs_continue():
         db.watch_log(run_uid, project=project)
         assert (
             newprint.getvalue()
-            == log_contents[0 : len(log_lines[0])].decode(errors="replace")
+            == log_contents[0 : len(log_lines[0])].decode(
+                errors=mlrun.mlconf.httpdb.logs.decode.errors
+            )
             + "\n"  # the first log line is printed with a newline
-            + log_contents[len(log_lines[0]) :].decode(errors="replace")
+            + log_contents[len(log_lines[0]) :].decode(
+                errors=mlrun.mlconf.httpdb.logs.decode.errors
+            )
             == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
         )
 

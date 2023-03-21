@@ -87,6 +87,9 @@ def train_and_predict(train_data: pd.DataFrame,
 ...
 ```
 
+**Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`, `typing.List` etc.) are 
+currently not supported but will be in the future.
+
 > **Note:** If the inputs does not have a type input, the decorator assumes the parameter type in {py:class}`mlrun.datastore.DataItem`. If you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`. You also have the option to specify a dictionary where each key is the name of the input and the value is the type.
 
 ## Logging return values as artifacts
@@ -122,5 +125,5 @@ If you use only the name without the type, the following mapping is used:
 | bokeh.plotting.Figure    | Plot          |
 
 
-Another option is to specify a tuple in the form of `(name, artifact_type)` or `(name, artifact_type, arguments)`. Refer to the {py:func}`mlrun.handler` for more details.
+Refer to the {py:func}`mlrun.handler` for more details.
 

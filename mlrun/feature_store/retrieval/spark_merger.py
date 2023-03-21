@@ -22,6 +22,8 @@ from .base import BaseMerger
 
 
 class SparkFeatureMerger(BaseMerger):
+    engine = "spark"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)
@@ -57,30 +59,41 @@ class SparkFeatureMerger(BaseMerger):
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            target = get_offline_target(feature_set)
-            if not target:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Feature set {name} does not have offline targets"
-                )
+
+            if feature_set.spec.passthrough:
+                if not feature_set.spec.source:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"passthrough feature set {name} with no source"
+                    )
+                source_kind = feature_set.spec.source.kind
+                source_path = feature_set.spec.source.path
+            else:
+                target = get_offline_target(feature_set)
+                if not target:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"feature set {name} does not have offline targets"
+                    )
+                source_kind = target.kind
+                source_path = target.get_target_path()
 
             # handling case where there are multiple feature sets and user creates vector where
             # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
-            source_driver = mlrun.datastore.sources.source_kind_to_driver[target.kind]
+            source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
             if (
                 entity_timestamp_column in column_names
                 or feature_set.spec.timestamp_key == entity_timestamp_column
             ):
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
                 )
             else:
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                 )
 
@@ -132,6 +145,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """Perform an as of join between entity and featureset.
@@ -183,17 +199,20 @@ class SparkFeatureMerger(BaseMerger):
         conditional_join = entity_with_id.join(
             aliased_featureset_df, join_cond, "leftOuter"
         )
-        for key in indexes + [entity_timestamp_column]:
-            conditional_join = conditional_join.drop(
-                aliased_featureset_df[f"ft__{key}"]
-            )
 
-        window = Window.partitionBy("_row_nr", *indexes).orderBy(
-            col(entity_timestamp_column).desc(),
+        window = Window.partitionBy("_row_nr").orderBy(
+            col(f"ft__{entity_timestamp_column}").desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
+
+        for key in indexes + [entity_timestamp_column]:
+            filter_most_recent_feature_timestamp = (
+                filter_most_recent_feature_timestamp.drop(
+                    aliased_featureset_df[f"ft__{key}"]
+                )
+            )
 
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
 
@@ -203,6 +222,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """

@@ -16,6 +16,8 @@ import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.feature_store as fstore
+import mlrun.utils.helpers
 from mlrun import errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
@@ -31,6 +33,17 @@ def _create_feature_set(name):
                 {"name": "bid", "value_type": "float"},
                 {"name": "ask", "value_type": "time"},
             ],
+            "source": {
+                "attributes": {},
+                "end_time": "2016-05-26T11:09:00.000Z",
+                "key_field": "",
+                "kind": "parquet",
+                "parse_dates": "",
+                "path": "v3io:///projects/a1.parquet",
+                "schedule": "",
+                "start_time": "2016-05-24T22:00:00.000Z",
+                "time_field": "time",
+            },
         },
         "status": {
             "state": "created",
@@ -62,6 +75,19 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
 
     features_res = db.list_features(db_session, project, "time")
     assert len(features_res.features) == 1
+
+
+def test_handle_feature_set_with_datetime_fields(db: DBInterface, db_session: Session):
+    # Simulate a situation where a feature-set client-side object is created with datetime fields, and then stored to
+    # DB. This may happen in API calls which utilize client-side objects (such as ingest). See ML-3552.
+    name = "dummy"
+    feature_set = _create_feature_set(name)
+
+    # This object will have datetime in the spec.source object fields
+    fs_object = fstore.FeatureSet.from_dict(feature_set)
+    # Convert it to DB schema object (will still have datetime fields)
+    fs_server_object = schemas.FeatureSet(**fs_object.to_dict())
+    mlrun.utils.helpers.fill_object_hash(fs_server_object.dict(), "uid")
 
 
 def test_update_feature_set_labels(db: DBInterface, db_session: Session):

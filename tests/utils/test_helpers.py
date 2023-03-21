@@ -33,7 +33,10 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    resolve_image_tag_suffix,
     str_to_timestamp,
+    update_in,
+    validate_artifact_key_name,
     validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
@@ -223,10 +226,6 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
     "tag_name,expected",
     [
         (
-            "tag_name",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
             "tag_with_char!@#",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
@@ -245,6 +244,7 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
         ("tagname2.0", does_not_raise()),
         ("tag-name", does_not_raise()),
         ("tag-NAME", does_not_raise()),
+        ("tag_name", does_not_raise()),
     ],
 )
 def test_validate_tag_name(tag_name, expected):
@@ -252,6 +252,42 @@ def test_validate_tag_name(tag_name, expected):
         validate_tag_name(
             tag_name,
             field_name="artifact.metadata,tag",
+        )
+
+
+@pytest.mark.parametrize(
+    "artifact_name,expected",
+    [
+        # Invalid names
+        (
+            "artifact/name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "/artifact-name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "artifact-name/",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "artifact-name\\test",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Valid names
+        ("artifact-name2.0", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifactNAME", does_not_raise()),
+    ],
+)
+def test_validate_artifact_name(artifact_name, expected):
+    with expected:
+        validate_artifact_key_name(
+            artifact_name,
+            field_name="artifact.key",
         )
 
 
@@ -426,6 +462,51 @@ def test_enrich_image():
             "expected_output": "some/image",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.0",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0-py37",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0",
+            "client_python_version": "3.9.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun:1.2.0",
+            "client_version": "1.3.0",
+            "client_python_version": None,
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.2.0",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
@@ -442,8 +523,48 @@ def test_enrich_image():
         image = case["image"]
         expected_output = case["expected_output"]
         client_version = case.get("client_version")
-        output = enrich_image_url(image, client_version)
+        client_python_version = case.get("client_python_version")
+        output = enrich_image_url(image, client_version, client_python_version)
         assert output == expected_output
+
+
+@pytest.mark.parametrize(
+    "mlrun_version,python_version,expected",
+    [
+        ("1.3.0", "3.7.13", "-py37"),
+        ("1.3.0", "3.9.13", ""),
+        ("1.3.0", None, ""),
+        ("1.3.0", "3.8.13", ""),
+        ("1.3.0", "3.9.0", ""),
+        ("1.2.0", "3.7.0", ""),
+        ("1.2.0", "3.8.0", ""),
+        ("1.3.0-rc12", "3.7.13", "-py37"),
+        ("1.3.0-rc12", "3.9.13", ""),
+        ("1.3.0-rc12", None, ""),
+        ("1.3.0-rc12", "3.8.13", ""),
+        ("1.3.1", "3.7.13", "-py37"),
+        ("1.3.1", "3.9.13", ""),
+        ("1.3.1", None, ""),
+        ("1.3.1", "3.8.13", ""),
+        ("1.3.1-rc12", "3.7.13", "-py37"),
+        ("1.3.1-rc12", "3.9.13", ""),
+        # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
+        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
+        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
+        # defining a version)
+        ("0.0.0-unstable", "3.7.13", "-py37"),
+        ("0.0.0-unstable", "3.9.13", ""),
+        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        # we can remove them
+        ("1.4.0", "3.9.13", ""),
+        ("1.4.0", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.9.13", ""),
+    ],
+)
+def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
+    assert resolve_image_tag_suffix(mlrun_version, python_version) == expected
 
 
 def test_get_parsed_docker_registry():
@@ -551,6 +672,46 @@ def test_fill_artifact_path_template():
                 case["artifact_path"], case.get("project")
             )
             assert case["expected_artifact_path"] == filled_artifact_path
+
+
+def test_update_in():
+    obj = {}
+    update_in(obj, "a.b.c", 2)
+    assert obj["a"]["b"]["c"] == 2
+    update_in(obj, "a.b.c", 3)
+    assert obj["a"]["b"]["c"] == 3
+
+    update_in(obj, "a.b.d", 3, append=True)
+    assert obj["a"]["b"]["d"] == [3]
+    update_in(obj, "a.b.d", 4, append=True)
+    assert obj["a"]["b"]["d"] == [3, 4]
+
+
+@pytest.mark.parametrize(
+    "keys,val",
+    [
+        (
+            ["meta", "label", "tags.data.com/env"],
+            "value",
+        ),
+        (
+            ["spec", "handler"],
+            [1, 2, 3],
+        ),
+        (["metadata", "test", "labels", "test.data"], 1),
+        (["metadata.test", "test.test", "labels", "test.data"], True),
+        (["metadata", "test.middle.com", "labels", "test.data"], "data"),
+    ],
+)
+def test_update_in_with_dotted_keys(keys, val):
+    obj = {}
+    # Join the keys list with dots to form a single key string.
+    # If a key in the list has dots, wrap it with escaping (\\).
+    key = ".".join([key if "." not in key else f"\\{key}\\" for key in keys])
+    update_in(obj, key, val)
+    for key in keys:
+        obj = obj.get(key)
+    assert obj == val
 
 
 @pytest.mark.parametrize("actual_list", [[1], [1, "asd"], [None], ["asd", 23]])

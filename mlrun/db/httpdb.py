@@ -16,6 +16,7 @@ import http
 import tempfile
 import time
 import traceback
+import typing
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -36,7 +37,14 @@ from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
+from ..utils import (
+    datetime_to_iso,
+    dict_to_json,
+    logger,
+    new_pipe_metadata,
+    normalize_name,
+    version,
+)
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -102,6 +110,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
+        self.python_version = str(version.Version().get_python_version())
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -187,7 +196,10 @@ class HTTPRunDB(RunDBInterface):
             "headers", {}
         ):
             kw["headers"].update(
-                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+                {
+                    mlrun.api.schemas.HeaderNames.client_version: self.client_version,
+                    mlrun.api.schemas.HeaderNames.python_version: self.python_version,
+                }
             )
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
@@ -321,12 +333,14 @@ class HTTPRunDB(RunDBInterface):
             # allow client to set the default partial WA for lack of support of per-target auxiliary options
             config.redis.type = config.redis.type or server_cfg.get("redis_type")
 
+            config.sql.url = config.sql.url or server_cfg.get("sql_url")
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
                 server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
+            config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
@@ -689,7 +703,7 @@ class HTTPRunDB(RunDBInterface):
         name=None,
         project=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -705,12 +719,15 @@ class HTTPRunDB(RunDBInterface):
             latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts('results', tag='*', project='iris')
+            # Show artifacts with label filters - both uploaded and of binary type
+            result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -724,10 +741,14 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
 
+        labels = labels or []
+        if isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "iter": iter,
             "best-iteration": best_iteration,
             "kind": kind,
@@ -778,8 +799,18 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()["tags"]
 
-    def store_function(self, function, name, project="", tag=None, versioned=False):
+    def store_function(
+        self,
+        function: typing.Union[mlrun.runtimes.BaseRuntime, dict],
+        name,
+        project="",
+        tag=None,
+        versioned=False,
+    ):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
+        name = mlrun.utils.normalize_name(name)
+        if hasattr(function, "to_dict"):
+            function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
@@ -895,33 +926,6 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided group by field is not supported. group_by={group_by}"
             )
 
-    def list_runtimes(self, label_selector: str = None) -> List:
-        """Deprecated use :py:func:`~list_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        error = "list runtimes"
-        resp = self.api_call("GET", "runtimes", error, params=params)
-        return resp.json()
-
-    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
-        """Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        path = f"runtimes/{kind}"
-        error = f"get runtime {kind}"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()
-
     def delete_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -943,13 +947,17 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state.
+            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+            logger.info(
+                "Using default grace period for runtime resources deletion",
+                grace_period=grace_period,
+            )
 
         params = {
             "label-selector": label_selector,
@@ -973,83 +981,6 @@ class HTTPRunDB(RunDBInterface):
                     kind
                 ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
         return structured_dict
-
-    def delete_runtimes(
-        self,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        error = "delete runtimes"
-        self.api_call("DELETE", "runtimes", error, params=params)
-
-    def delete_runtime(
-        self,
-        kind: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}"
-        error = f"delete runtime {kind}"
-        self.api_call("DELETE", path, error, params=params)
-
-    def delete_runtime_object(
-        self,
-        kind: str,
-        object_id: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}/{object_id}"
-        error = f"delete runtime object {kind} {object_id}"
-        self.api_call("DELETE", path, error, params=params)
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
@@ -1219,7 +1150,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             params = {
-                "name": func.metadata.name,
+                "name": normalize_name(func.metadata.name),
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
@@ -1250,6 +1181,9 @@ class HTTPRunDB(RunDBInterface):
                 func.status.external_invocation_urls = resp.headers.get(
                     "x-mlrun-external-invocation-urls", ""
                 ).split(",")
+                func.status.container_image = resp.headers.get(
+                    "x-mlrun-container-image", ""
+                )
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")
@@ -1374,7 +1308,9 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
+        # TODO: deprecated, remove in 1.5.0
         ttl=None,
+        cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
 
@@ -1386,14 +1322,29 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: Set the TTL for the pipeline after its completion.
+        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
+                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
+        :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                            workflow and all its resources are deleted)
         """
+
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_metadata(
+                artifact_path=artifact_path,
+                cleanup_ttl=cleanup_ttl or ttl,
+                op_transformers=ops,
+            )
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
             )
@@ -2545,9 +2496,24 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             return False
+        if parsed_server_version.minor > parsed_client_version.minor + 2:
+            logger.info(
+                "Backwards compatibility might not apply between the server and client version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
+        if parsed_client_version.minor > parsed_server_version.minor:
+            logger.warning(
+                "Client version with higher version than server version isn't supported,"
+                " align your client to the server version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
         if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
-                "Server and client versions are not the same",
+                "Server and client versions are not the same but compatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )

@@ -20,6 +20,7 @@ import mlrun.api.schemas
 from mlrun.utils import logger
 
 
+# TODO: From python 3.11 StrEnum is built-in and this will not be needed
 class StrEnum(str, enum.Enum):
     def __str__(self):
         return self.value

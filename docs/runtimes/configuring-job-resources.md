@@ -45,7 +45,7 @@ training_function = mlrun.code_to_function("training.py", name="training", handl
                                                                        kind="mpijob", image="mlrun/ml-models-gpu")
 training_function.spec.replicas = 2
 training_function.with_requests(cpu=2)
-training_function.gpus(1)
+training_function.with_limits(gpus=1)
 ```
 
 ```{admonition} Note

@@ -49,14 +49,39 @@ def generate_test_routes(model_class):
     }
 
 
+def generate_test_routes_classification(model_class):
+    return {
+        "m1": TaskStep(model_class, class_args={"model_path": "", "predict": 1}),
+        "m2": TaskStep(model_class, class_args={"model_path": "", "predict": 2}),
+        "m3:v1": TaskStep(model_class, class_args={"model_path": "", "predict": 3}),
+        "m3:v2": TaskStep(model_class, class_args={"model_path": "", "predict": 4}),
+    }
+
+
 router_object = RouterStep()
 router_object.routes = generate_test_routes("ModelTestingClass")
 
 ensemble_object = RouterStep(
     class_name="mlrun.serving.routers.VotingEnsemble",
-    class_args={"vote_type": "regression", "prediction_col_name": "predictions"},
+    class_args={
+        "vote_type": "regression",
+        "prediction_col_name": "predictions",
+        "format_response_with_col_name_flag": True,
+    },
 )
 ensemble_object.routes = generate_test_routes("EnsembleModelTestingClass")
+
+ensemble_object_classification = RouterStep(
+    class_name="mlrun.serving.routers.VotingEnsemble",
+    class_args={
+        "vote_type": "classification",
+        "prediction_col_name": "predictions",
+        "format_response_with_col_name_flag": True,
+    },
+)
+ensemble_object_classification.routes = generate_test_routes_classification(
+    "EnsembleModelTestingClassClassification"
+)
 
 
 def generate_spec(graph, mode="sync", params={}):
@@ -83,7 +108,6 @@ asyncspec = generate_spec(
     "async",
 )
 
-
 raiser_spec = generate_spec(
     {
         "kind": "router",
@@ -97,10 +121,11 @@ raiser_spec = generate_spec(
     params={"log_stream": "dummy://"},
 )
 
-
 spec = generate_spec(router_object.to_dict())
 ensemble_spec = generate_spec(ensemble_object.to_dict())
+ensemble_spec_classification = generate_spec(ensemble_object_classification.to_dict())
 testdata = '{"inputs": [5]}'
+testdata_2 = '{"inputs": [5, 5]}'
 
 
 def _log_model(project):
@@ -144,7 +169,19 @@ class ModelTestingClass(V2ModelServer):
 
 class EnsembleModelTestingClass(ModelTestingClass):
     def predict(self, request):
-        resp = {"predictions": [request["inputs"][0] * self.get_param("multiplier")]}
+        resp = {"predictions": []}
+        for i in range(len(request["inputs"])):
+            resp["predictions"].append(
+                request["inputs"][i] * self.get_param("multiplier")
+            )
+        return resp
+
+
+class EnsembleModelTestingClassClassification(ModelTestingClass):
+    def predict(self, request):
+        resp = {"predictions": []}
+        for i in range(len(request["inputs"])):
+            resp["predictions"].append(self.get_param("predict"))
         return resp
 
 
@@ -169,7 +206,12 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-def init_ctx(spec=spec, context=None):
+def init_ctx(
+    spec=spec, context=None, extra_class_args=None, extra_class_args_names=None
+):
+    if extra_class_args is not None:
+        for i in range(len(extra_class_args)):
+            spec["graph"]["class_args"][extra_class_args_names[i]] = extra_class_args[i]
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = context or GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
@@ -198,8 +240,9 @@ def test_ensemble_get_models():
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
     logger.info(f"flow: {graph.to_yaml()}")
-    resp = server.test("/v2/models/", testdata)
-    # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"]}
+    resp = server.test("/v2/models/")
+    # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
+    #           "weights": None}
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
 
@@ -233,6 +276,43 @@ def test_ensemble_get_metadata_of_models():
     assert resp == expected, f"wrong get models response {resp}"
 
 
+def test_ensemble_change_weights():
+    models = ["m1", "m2", "m3:v1", "m3:v2"]
+    weights = [1, 1, 1, 1]
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology(
+        "router",
+        mlrun.serving.routers.VotingEnsemble(
+            vote_type="regression",
+            prediction_col_name="predictions",
+            weights=dict(zip(models, weights)),
+        ),
+    )
+    graph.routes = generate_test_routes("EnsembleModelTestingClass")
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/")
+    # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
+    #           "weights": {'m1': 1, 'm2': 1, 'm3:v1': 1, 'm3:v2': 1}}
+    assert resp["weights"] == {
+        "m1": 1,
+        "m2": 1,
+        "m3:v1": 1,
+        "m3:v2": 1,
+    }, f"wrong weights in get models response {resp}"
+    # change weights
+    fn.spec.graph.class_args["weights"] = dict(zip(models, [0.1, 0.2, 0.3, 0.4]))
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/")
+    # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
+    #           "weights": {'m1': 0.1, 'm2': 0.2, 'm3:v1': 0.3, 'm3:v2': 0.4}}
+    assert resp["weights"] == {
+        "m1": 0.1,
+        "m2": 0.2,
+        "m3:v1": 0.3,
+        "m3:v2": 0.4,
+    }, f"wrong weights in get models response {resp}"
+
+
 def test_ensemble_infer():
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
@@ -243,7 +323,16 @@ def test_ensemble_infer():
             "predictions": [expected]
         }, f"wrong model response {data['outputs']}"
 
-    context = init_ctx(ensemble_spec)
+        event = MockEvent(testdata_2, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected] * 2
+        }, f"wrong model response {data['outputs']}"
+
+    context = init_ctx(
+        ensemble_spec,
+    )
 
     # Test normal routes
     run_model("m1", 500)
@@ -254,6 +343,78 @@ def test_ensemble_infer():
     # Test ensemble routes
     run_model("VotingEnsemble", 1250.0)
     run_model("", 1250.0)
+
+
+@pytest.mark.parametrize("executor", mlrun.serving.routers.ParallelRunnerModes.all())
+def test_ensemble_infer_classification(executor):
+    def run_model(url, expected):
+        url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
+        event = MockEvent(testdata, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected]
+        }, f"wrong model response {data['outputs']}"
+
+        event = MockEvent(testdata_2, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected] * 2
+        }, f"wrong model response {data['outputs']}"
+
+    context = init_ctx(
+        ensemble_spec_classification,
+        extra_class_args=[executor],
+        extra_class_args_names=["executor_type"],
+    )
+
+    # Test normal routes
+    run_model("m1", 1)
+    run_model("m2", 2)
+    run_model("m3/versions/v1", 3)
+    run_model("m3/versions/v2", 4)
+
+    # Test ensemble routes
+    run_model("VotingEnsemble", 1)
+    run_model("", 1)
+
+
+@pytest.mark.parametrize(
+    "ensemble_spec_parm",
+    [ensemble_spec, ensemble_spec_classification],
+)
+@pytest.mark.parametrize("executor", mlrun.serving.routers.ParallelRunnerModes.all())
+def test_ensemble_infer_with_weights(ensemble_spec_parm, executor):
+    def run_model(url, expected):
+        url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
+        event = MockEvent(testdata, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected]
+        }, f"wrong model response {data['outputs']}"
+
+        event = MockEvent(testdata_2, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected] * 2
+        }, f"wrong model response {data['outputs']}"
+
+    context = init_ctx(
+        ensemble_spec_parm,
+        extra_class_args=[{"m1": 0.1, "m2": 0.2, "m3:v1": 0.3, "m3:v2": 0.4}, executor],
+        extra_class_args_names=["weights", "executor_type"],
+    )
+
+    # Test ensemble routes
+    if ensemble_spec_parm["graph"]["class_args"]["vote_type"] == "classification":
+        res = 4
+    else:
+        res = 500 * 0.1 + 1000 * 0.2 + 1500 * 0.3 + 2000 * 0.4
+    run_model("VotingEnsemble", res)
+    run_model("", res)
 
 
 def test_v2_infer():

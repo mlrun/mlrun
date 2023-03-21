@@ -41,6 +41,7 @@ from .constants import (
     DeletionStrategy,
     FeatureStorePartitionByField,
     HeaderNames,
+    LogsCollectorMode,
     OrderType,
     PatchMode,
     RunPartitionByField,

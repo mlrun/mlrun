@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import uuid
 from http import HTTPStatus
 
 import httpx
@@ -35,6 +36,20 @@ def create_project(client: TestClient, project_name: str = PROJECT, artifact_pat
     resp = client.post("projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
+
+
+def compile_schedule(schedule_name: str = None, to_json: bool = True):
+    if not schedule_name:
+        schedule_name = f"schedule-name-{str(uuid.uuid4())}"
+    schedule = mlrun.api.schemas.ScheduleInput(
+        name=schedule_name,
+        kind=mlrun.api.schemas.ScheduleKinds.job,
+        scheduled_object={"metadata": {"name": "something"}},
+        cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
+    )
+    if not to_json:
+        return schedule
+    return mlrun.utils.dict_to_json(schedule.dict())
 
 
 async def create_project_async(

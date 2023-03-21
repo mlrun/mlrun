@@ -69,7 +69,7 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
     kwargs = {}
-    if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
+    if "://" not in str(url) or scheme in ["file", "s3", "v3io", "v3ios"]:
         logger.warning(
             "Could not detect path to API server, not connected to API server!"
         )

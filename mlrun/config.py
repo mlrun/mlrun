@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = "~/.mlrun.env"
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -52,7 +52,7 @@ default_config = {
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
     "nuclio_version": "",
-    "default_nuclio_runtime": "python:3.7",
+    "default_nuclio_runtime": "python:3.9",
     "nest_asyncio_enabled": "",  # enable import of nest_asyncio for corner cases with old jupyter, set "1"
     "ui_url": "",  # remote/external mlrun UI url (for hyperlinks) (This is deprecated in favor of the ui block)
     "remote_host": "",
@@ -66,8 +66,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
-    "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -94,7 +94,7 @@ default_config = {
     # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
-    # before deleting them
+    # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
     "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter
@@ -116,6 +116,9 @@ default_config = {
     "redis": {
         "url": "",
         "type": "standalone",  # deprecated.
+    },
+    "sql": {
+        "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
@@ -285,6 +288,12 @@ default_config = {
                     "pull_state_interval": 5,  # seconds
                 },
             },
+            "nuclio": {
+                # setting interval to a higher interval than regular jobs / build, because pulling the retrieved logs
+                # from nuclio for the deploy status doesn't include the actual live "builder" container logs, but
+                # rather a high level status
+                "pull_deploy_status_default_interval": 10  # seconds
+            },
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
@@ -301,7 +310,7 @@ default_config = {
         },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
+            # allowed to be scheduled to run more than 2 times in X. Can't be less than 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
             # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
@@ -354,6 +363,7 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -402,6 +412,7 @@ default_config = {
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
+            "global_function_env_secret_name": None,
         },
     },
     "feature_store": {
@@ -469,6 +480,34 @@ default_config = {
     },
     "debug": {
         "expose_internal_api_endpoints": False,
+    },
+    "default_workflow_runner_name": "workflow-runner-{}",
+    "log_collector": {
+        "address": "localhost:8282",
+        # log collection mode can be one of: "sidecar", "legacy", "best-effort"
+        # "sidecar" - use the sidecar to collect logs
+        # "legacy" - use the legacy log collection method (logs are collected straight from the pod)
+        # "best-effort" - use the sidecar, but if for some reason it's not available use the legacy method
+        # note that this mode also effects the log querying method as well, meaning if the mode is "best-effort"
+        # the log query will try to use the sidecar first and if it's not available it will use the legacy method
+        # TODO: once this is changed to "sidecar" by default, also change in common_fixtures.py
+        "mode": "legacy",
+        # interval for collecting and sending runs which require their logs to be collected
+        "periodic_start_log_interval": 10,
+        "verbose": True,
+        # the number of workers which will be used to trigger the start log collection
+        "concurrent_start_logs_workers": 15,
+        # the time in hours in which to start log collection from.
+        # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
+        # we want to collect their logs in the new log collection method (sidecar)
+        # default is 4 hours = 4*60*60 = 14400 seconds
+        "api_downtime_grace_period": 14400,
+        "get_logs": {
+            # the number of retries to get logs from the log collector
+            "max_retries": 3,
+        },
+        # interval for stopping log collection for runs which are in a terminal state
+        "stop_logs_interval": 3600,
     },
 }
 
@@ -818,40 +857,6 @@ class Config:
 
         return Version().get()["version"]
 
-    @property
-    def kfp_image(self):
-        """
-        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
-        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
-        module inside this function (and not on initialization), and then calculate this property value here.
-        """
-        if not self._kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
-        return self._kfp_image
-
-    @kfp_image.setter
-    def kfp_image(self, value):
-        self._kfp_image = value
-
-    @property
-    def dask_kfp_image(self):
-        """
-        See kfp_image property docstring for why we're defining this property
-        """
-        if not self._dask_kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/ml-base")
-        return self._dask_kfp_image
-
-    @dask_kfp_image.setter
-    def dask_kfp_image(self, value):
-        self._dask_kfp_image = value
-
     @staticmethod
     def resolve_ui_url():
         # ui_url is deprecated in favor of the ui.url (we created the ui block)
@@ -906,11 +911,11 @@ class Config:
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
-        return True if mlrun.mlconf.namespace else False
+        return bool(mlrun.mlconf.namespace)
 
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
-        return True if mlrun.mlconf.nuclio_version else False
+        return bool(mlrun.mlconf.nuclio_version)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service
@@ -973,10 +978,6 @@ def _do_populate(env=None, skip_errors=False):
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
     # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
     # underscore
-    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
-    del config._cfg["kfp_image"]
-    config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
-    del config._cfg["dask_kfp_image"]
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 

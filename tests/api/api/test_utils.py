@@ -38,6 +38,7 @@ from mlrun.api.api.utils import (
     _mask_v3io_volume_credentials,
     ensure_function_has_auth_set,
     ensure_function_security_context,
+    get_scheduler,
 )
 from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
@@ -46,6 +47,44 @@ from mlrun.utils import logger
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 PROJECT = "some-project"
+
+
+def test_submit_run_sync(db: Session, client: TestClient):
+    auth_info = mlrun.api.schemas.AuthInfo()
+    tests.api.api.utils.create_project(client, PROJECT)
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client
+    )
+    submit_job_body = {
+        "schedule": "0 * * * *",
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}:{function_tag}",
+            },
+            "metadata": {"name": "sometask", "project": project},
+        },
+        "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
+        },
+    }
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "created"
+
+    # submit again, make sure it was modified
+    submit_job_body["schedule"] = "0 1 * * *"  # change schedule
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "modified"
+
+    updated_schedule = get_scheduler().get_schedule(
+        db, project, submit_job_body["task"]["metadata"]["name"]
+    )
+    assert (
+        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
+    ), "schedule was not updated"
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(

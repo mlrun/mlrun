@@ -18,7 +18,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun import get_run_db, new_function, new_task
+from mlrun import MLClientCtx, get_run_db, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -142,6 +142,51 @@ def test_local_handler():
     verify_state(result)
 
 
+@pytest.mark.parametrize(
+    "kind,watch,expected_watch_count",
+    [
+        ("", True, 0),
+        ("", True, 0),
+        ("local", False, 0),
+        ("local", False, 0),
+        ("dask", True, 0),
+        ("dask", False, 0),
+        ("job", True, 1),
+        ("job", False, 0),
+    ],
+)
+def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
+    mlrun.RunObject.logs = Mock()
+    spec = tag_test(base_spec, "test_is_watchable")
+    func = new_function(
+        command=f"{examples_path}/handler.py",
+        kind=kind,
+    )
+
+    if kind == "dask":
+
+        # don't start dask cluster
+        func.spec.remote = False
+    elif kind == "job":
+
+        # mark as deployed
+        func.spec.image = "some-image"
+
+    result = func.run(
+        spec,
+        handler="my_func",
+        watch=watch,
+    )
+
+    # rundb_mock mocks the job submission when kind is job
+    # therefore, if we watch we get an empty result as the run was not created (it is mocked)
+    # else, the state will not be 'completed'
+    if kind != "job":
+        verify_state(result)
+
+    assert mlrun.RunObject.logs.call_count == expected_watch_count
+
+
 def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
@@ -158,13 +203,23 @@ def test_local_args():
     assert log.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
-def test_local_context():
+def test_local_context(rundb_mock):
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+
     with context:
         context.log_artifact("xx", body="123", local_path="a.txt")
         context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
+        context.get_param("p1", 1)
+        context.get_param("p2", "a string")
+        context.log_result("accuracy", 16)
+        context.set_label("label-key", "label-value")
+        context.set_annotation("annotation-key", "annotation-value")
+        context._set_input("input-key", "input-url")
 
         artifact = context.get_cached_artifact("xx")
         artifact.format = "z"
@@ -172,9 +227,11 @@ def test_local_context():
 
     assert context._state == "completed", "task did not complete"
 
-    db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["status"]["state"] == "completed", "run status not updated in db"
+    run = run["struct"]
+
+    # run state should not be updated by the context
+    assert run["status"]["state"] == "running", "run status was updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
     ), "artifact not updated in db"
@@ -187,6 +244,93 @@ def test_local_context():
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)
     assert db_artifact["spec"]["format"] == "z", "artifact attribute not updated in db"
+
+    assert run["spec"]["parameters"]["p1"] == 1, "param not updated in db"
+    assert run["spec"]["parameters"]["p2"] == "a string", "param not updated in db"
+    assert run["status"]["results"]["accuracy"] == 16, "result not updated in db"
+    assert run["metadata"]["labels"]["label-key"] == "label-value", "label not updated"
+    assert (
+        run["metadata"]["annotations"]["annotation-key"] == "annotation-value"
+    ), "annotation not updated"
+
+    assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
+
+
+def test_context_from_run_dict():
+    run_dict = {
+        "metadata": {
+            "name": "test-context-from-run-dict",
+            "project": "default",
+            "labels": {"label-key": "label-value"},
+            "annotations": {"annotation-key": "annotation-value"},
+        },
+        "spec": {
+            "parameters": {"p1": 1, "p2": "a string"},
+            "inputs": {"input-key": "input-url"},
+        },
+    }
+    runtime = mlrun.runtimes.base.BaseRuntime.from_dict(run_dict)
+    run = runtime._create_run_object(run_dict)
+    handler = "my_func"
+    out_path = "test_artifact_path"
+    run = runtime._enrich_run(
+        run,
+        handler,
+        run_dict["metadata"]["project"],
+        run_dict["metadata"]["name"],
+        run_dict["spec"]["parameters"],
+        run_dict["spec"]["inputs"],
+        returns="",
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=False,
+        scrape_metrics=None,
+        out_path=out_path,
+        artifact_path="",
+        workdir="",
+    )
+    context = MLClientCtx.from_dict(run.to_dict())
+    assert context.name == run_dict["metadata"]["name"]
+    assert context._project == run_dict["metadata"]["project"]
+    assert context._labels == run_dict["metadata"]["labels"]
+    assert context._annotations == run_dict["metadata"]["annotations"]
+    assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
+    assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
+    assert (
+        context.get_input("input-key").artifact_url
+        == run_dict["spec"]["inputs"]["input-key"]
+    )
+    assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
+    assert (
+        context.annotations["annotation-key"]
+        == run_dict["metadata"]["annotations"]["annotation-key"]
+    )
+    assert context.artifact_path == out_path
+
+
+@pytest.mark.parametrize(
+    "state, error, expected_state",
+    [
+        ("running", None, "completed"),
+        ("completed", None, "completed"),
+        (None, "error message", "error"),
+        (None, "", "error"),
+    ],
+)
+def test_context_set_state(rundb_mock, state, error, expected_state):
+    project_name = "test_context_error"
+    mlrun.mlconf.artifact_path = out_path
+    context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+
+    with context:
+        context.set_state(execution_state=state, error=error, commit=False)
+        context.commit(completed=True)
+
+    assert context._state == expected_state, "task state was not set correctly"
+    assert context._error == error, "task error was not set"
 
 
 def test_run_class_code():

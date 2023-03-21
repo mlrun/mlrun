@@ -26,15 +26,19 @@ import mlrun.api.utils.clients.iguazio
 
 
 def get_db_session() -> typing.Generator[Session, None, None]:
+    db_session = None
     try:
         db_session = mlrun.api.db.session.create_session()
         yield db_session
     finally:
-        mlrun.api.db.session.close_session(db_session)
+        if db_session:
+            mlrun.api.db.session.close_session(db_session)
 
 
-def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
-    return mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request(request)
+async def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
+    return await mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request(
+        request
+    )
 
 
 def verify_api_state(request: Request):

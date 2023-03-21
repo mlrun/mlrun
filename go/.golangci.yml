@@ -1,0 +1,72 @@
+# Copyright 2023 The MLRun Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+linters:
+  disable-all: true
+  enable:
+    - deadcode
+    - goconst
+    - gofmt
+    - revive
+    - gosimple
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unconvert
+    - varcheck
+    - vet
+    - vetshadow
+    - errcheck
+    - govet
+    - structcheck
+    - typecheck
+    - gocritic
+
+run:
+
+  # timeout for analysis
+  timeout: 5m
+  build-tags:
+    - test_unit
+    - test_integration
+
+  skip-dirs:
+    - docs
+    - vendor
+
+linters-settings:
+  revive:
+    rules:
+
+      # avoid  errorf: should replace errors.New(fmt.Sprintf(...)) with fmt.Errorf(...)  messages
+      - name: errorf
+        disabled: true
+
+  gocritic:
+    disabled-checks:
+      - commentFormatting # we dont want to enforce space before the comment text
+
+issues:
+
+  # List of regexps of issue texts to exclude
+  exclude:
+    - "comment on"
+    - "error should be the last"
+
+  exclude-rules:
+
+    # list of excluded linters applied on test files
+    - path: _test\.go
+      linters:
+        - goconst

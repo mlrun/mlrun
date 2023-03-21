@@ -56,7 +56,7 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
     }
     resp = client.post("submit_job", json=body)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
-    assert f"Function not found {function_reference}" in resp.json()["detail"]["reason"]
+    assert f"Function not found {function_reference}" in resp.json()["detail"]
 
 
 username = "voldemort"
@@ -94,7 +94,7 @@ def pod_create_mock():
         mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
-        unittest.mock.Mock(return_value=auth_info_mock)
+        unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
     yield get_k8s().create_pod
@@ -336,12 +336,14 @@ def test_submit_job_with_hyper_params_file(
         function, project_name, with_output_path=False
     )
 
+    async def auth_info_mock(*args, **kwargs):
+        return mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
+
     # Create test-specific mocks
-    auth_info = mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
     monkeypatch.setattr(
         mlrun.api.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",
-        lambda *args, **kwargs: auth_info,
+        auth_info_mock,
     )
     project_secrets = {"SECRET1": "VALUE1"}
     k8s_secrets_mock.store_project_secrets(project_name, project_secrets)
@@ -387,7 +389,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     )
 
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
@@ -445,7 +447,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         {
             "body": submit_job_body,
             "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
+            "expected_body": {"detail": "Unknown error"},
         },
     ]:
         expected_status = test_case.get("expected_status")
@@ -501,7 +503,7 @@ def test_submit_job_failure_params_exceed_int64(
     resp = client.post("submit_job", json=submit_job_body)
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
-    assert "exceeds int64" in resp.json()["detail"]["reason"]
+    assert "exceeds int64" in resp.json()["detail"]
 
     resp = client.get("runs", params={"project": project_name})
     # assert the run wasn't saved to the DB

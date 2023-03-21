@@ -218,7 +218,13 @@ def add_code_metadata(path=""):
 
     try:
         repo = Repo(path, search_parent_directories=True)
-        remotes = [remote.url for remote in repo.remotes]
+        remotes = [
+            remote.url
+            for remote in repo.remotes
+            # some stale remotes might be missing urls
+            # there is not a nicer way to check for this.
+            if repo.config_reader().has_option(f'remote "{remote}"', "url")
+        ]
         if len(remotes) > 0:
             return f"{remotes[0]}#{repo.head.commit.hexsha}"
     except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):

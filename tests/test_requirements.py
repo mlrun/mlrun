@@ -95,10 +95,11 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.3.3"},
+        "storey": {"~=1.3.15"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
+        "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
@@ -119,17 +120,25 @@ def test_requirement_specifiers_convention():
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
-        "cryptography": {"~=3.0, <3.4"},
         "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=3,<7"},
+        "pyarrow": {">=10,<11"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
+        "ipython": {">=7.0, <9.0"},
         "importlib_metadata": {">=3.6"},
+        "gitpython": {"~=3.1, >= 3.1.30"},
+        "pyopenssl": {">=23"},
+        "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
+        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+        "plotly": {"~=5.4, <5.12.0"},
+        # used in tests
+        "aioresponses": {"~=0.7"},
     }
 
     for (
@@ -259,7 +268,7 @@ def _import_extras_requirements():
     setuptools.setup = lambda *args, **kwargs: 0
     builtins.open = mock_file_open
 
-    import setup
+    import dependencies
 
     setuptools.setup = original_setup
     builtins.open = original_open
@@ -267,7 +276,7 @@ def _import_extras_requirements():
     ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
-    for extra_name, extra_requirements in setup.extras_require.items():
+    for extra_name, extra_requirements in dependencies.extra_requirements().items():
         if extra_name not in ignored_extras:
             extras_requirements.extend(extra_requirements)
 
@@ -289,6 +298,9 @@ def _load_requirements(path):
             if _is_ignored_requirement_line(line):
                 continue
             line = line.strip()
+
+            if len(line.split(" #")) > 1:
+                line = line.split(" #")[0]
 
             # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
             if "#egg=" in line:

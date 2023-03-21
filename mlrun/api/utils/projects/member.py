@@ -17,9 +17,12 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.schemas
+import mlrun.api.utils.clients.log_collector
 import mlrun.utils.singleton
+from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -147,3 +150,65 @@ class Member(abc.ABC):
         name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         pass
+
+    async def post_delete_project(
+        self,
+        project_name: str,
+    ):
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.api.schemas.LogsCollectorMode.legacy
+        ):
+            await self._stop_logs_for_project(project_name)
+            await self._delete_project_logs(project_name)
+
+    @staticmethod
+    async def _stop_logs_for_project(
+        project_name: str,
+    ) -> None:
+
+        logger.debug("Stopping logs for project", project=project_name)
+
+        try:
+            log_collector_client = (
+                mlrun.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.stop_logs(
+                project=project_name,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed stopping logs for project's runs. Ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project_name,
+            )
+
+        logger.debug(
+            "Successfully stopped logs for project's runs", project=project_name
+        )
+
+    @staticmethod
+    async def _delete_project_logs(
+        project_name: str,
+    ) -> None:
+
+        logger.debug("Deleting logs for project", project=project_name)
+
+        try:
+            log_collector_client = (
+                mlrun.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.delete_logs(
+                project=project_name,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed deleting project logs via the log collector. Falling back to deleting logs explicitly",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project_name,
+            )
+
+            # fallback to deleting logs explicitly if the project logs deletion failed
+            mlrun.api.crud.Logs().delete_logs(project_name)
+
+        logger.debug("Successfully deleted project logs", project=project_name)

@@ -272,12 +272,12 @@ class Imputer(StepToDict, MLRunStep):
         :param kwargs:        optional kwargs (for storey)
         """
         super().__init__(**kwargs)
-        self.mapping = mapping
+        self.mapping = mapping or {}
         self.method = method
         self.default_value = default_value
 
-    def _impute(self, feature: str, value):
-        if value is None:
+    def _impute(self, feature: str, value: Any):
+        if pd.isna(value):
             return self.mapping.get(feature, self.default_value)
         return value
 
@@ -457,18 +457,6 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
-        self.fstore_date_format_to_spark_date_format = {
-            "day_of_year": "DD",
-            "day_of_month": "dd",
-            "dayofyear": "DD",
-            "dayofmonth": "dd",
-            "month": "MM",
-            "year": "yyyy",
-            "quarter": "Q",
-            "hour": "hh",
-            "minute": "mm",
-            "second": "ss",
-        }
 
     def _get_key_name(self, part: str):
         return f"{self.timestamp_col}_{part}"
@@ -505,16 +493,18 @@ class DateExtractor(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import date_format
+        import pyspark.sql.functions
 
         for part in self.parts:
-            if part in self.fstore_date_format_to_spark_date_format:
+            func = part
+            # spark's naming for these functions is without underscores
+            if func in ("day_of_year", "day_of_month"):
+                func = func.replace("_", "")
+            func = getattr(pyspark.sql.functions, func, None)
+            if func:
                 event = event.withColumn(
                     self._get_key_name(part),
-                    date_format(
-                        self.timestamp_col,
-                        self.fstore_date_format_to_spark_date_format[part],
-                    ),
+                    func(self.timestamp_col).cast("long"),
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(
@@ -560,8 +550,9 @@ class SetEventMetadata(MapClass):
         """
         if time_path:
             warnings.warn(
-                "SetEventMetadata's time_path parameter is deprecated and has no effect",
-                PendingDeprecationWarning,
+                "SetEventMetadata's 'time_path' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "It has no effect.",
+                FutureWarning,
             )
 
         kwargs["full_event"] = True
@@ -610,7 +601,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         description="feature set",
                                         engine="pandas",
                                         )
-            # Pre-processing grpah steps
+            # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
             df_pandas = fstore.ingest(feature_set, data)
 
@@ -633,3 +624,13 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         return event.drop(*self.features)
+
+    @classmethod
+    def validate_args(cls, feature_set, **kwargs):
+        features = kwargs.get("features", [])
+        entity_names = list(feature_set.spec.entities.keys())
+        dropped_entities = set(features).intersection(entity_names)
+        if dropped_entities:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"DropFeatures can only drop features, not entities: {dropped_entities}"
+            )

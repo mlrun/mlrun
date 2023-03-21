@@ -21,10 +21,10 @@ import pytest
 
 import mlrun.utils
 from mlrun import (
+    _run_pipeline,
     code_to_function,
     mount_v3io,
     new_task,
-    run_pipeline,
     wait_for_pipeline_completion,
 )
 from mlrun.run import RunStatuses
@@ -90,9 +90,10 @@ class TestDask(TestMLRunSystem):
         kfp.compiler.Compiler().compile(dask_pipe, "daskpipe.yaml", type_check=False)
         arguments = {"x": 4, "y": -5}
         artifact_path = "/User/test"
-        workflow_run_id = run_pipeline(
+        workflow_run_id = _run_pipeline(
             dask_pipe,
             arguments,
+            project=self.project_name,
             artifact_path=artifact_path,
             run="DaskExamplePipeline",
             experiment="dask pipe",

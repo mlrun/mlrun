@@ -173,23 +173,6 @@ def test_list_functions_no_tags(db: DBInterface, db_session: Session):
             assert function["status"] is None
 
 
-def test_list_functions_multiple_tags(db: DBInterface, db_session: Session):
-    function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
-    function_name_1 = "function_name_1"
-
-    tags = ["some_tag", "some_tag2", "some_tag3"]
-    for tag in tags:
-        db.store_function(
-            db_session, function_1, function_name_1, tag=tag, versioned=True
-        )
-    functions = db.list_functions(db_session, function_name_1)
-    assert len(functions) == len(tags)
-    for function in functions:
-        function_tag = function["metadata"]["tag"]
-        tags.remove(function_tag)
-    assert len(tags) == 0
-
-
 def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     tag = "function_name_1"
 
@@ -297,10 +280,6 @@ def test_delete_function(db: DBInterface, db_session: Session):
     assert number_of_labels == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 @pytest.mark.parametrize("use_hash_key", [True, False])
 def test_list_functions_multiple_tags(
     db: DBInterface, db_session: Session, use_hash_key: bool
@@ -330,10 +309,6 @@ def test_list_functions_multiple_tags(
     assert len(tags) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     tag_name = "some_tag"
     function_1 = _generate_function(tag=tag_name)

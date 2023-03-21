@@ -227,9 +227,6 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
-        self._artifact = artifact
-
     def read_artifact(self, key, tag=None, iter=None, project=""):
         return self._artifact
 

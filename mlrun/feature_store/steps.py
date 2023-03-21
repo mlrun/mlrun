@@ -258,7 +258,8 @@ class MapValues(StepToDict, MLRunStep):
                         .rdd.map(lambda x: x[0])
                         .collect()
                     )
-                    mapping_to_null = [k for k, v in column_map.items() if v is None or math.isnan(v)]
+                    mapping_to_null = [k for k, v in column_map.items() if v is None
+                                       or (isinstance(v, (int, float, np.float64, np.float32, np.float16)) and math.isnan(v))]
                     if not all(
                         elem in mapping_to_null for elem in turned_to_none_values
                     ):

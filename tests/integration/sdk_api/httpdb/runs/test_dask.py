@@ -15,9 +15,10 @@
 
 import pytest
 
-import tests
-from mlrun import new_function, new_task
-from tests.conftest import tag_test, verify_state
+import mlrun
+import tests.conftest
+import tests.integration.sdk_api.base
+
 
 has_dask = False
 try:
@@ -47,8 +48,11 @@ def my_func(context, p1=1, p2="a-string"):
 @pytest.mark.skipif(not has_dask, reason="missing dask")
 class TestDask(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_dask_local(self):
-        spec = tag_test(new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local")
-        function = new_function(kind="dask")
+        mlrun.get_or_create_project("default")
+        spec = tests.conftest.tag_test(
+            mlrun.new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local"
+        )
+        function = mlrun.new_function(kind="dask")
         function.spec.remote = False
         run = function.run(spec, handler=my_func)
-        verify_state(run)
+        tests.conftest.verify_state(run)

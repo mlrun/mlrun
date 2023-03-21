@@ -153,7 +153,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | 
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
 | `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |
@@ -516,6 +516,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
+| ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
 
     
 ## Limitations

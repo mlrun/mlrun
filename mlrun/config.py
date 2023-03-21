@@ -275,6 +275,9 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
         },
         "logs": {
+            "decode": {
+                "errors": "replace",
+            },
             "pipelines": {
                 # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
                 # pipeline step instead of pulling the state by getting the run logs

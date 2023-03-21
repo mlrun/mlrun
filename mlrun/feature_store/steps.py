@@ -226,15 +226,44 @@ class MapValues(StepToDict, MLRunStep):
     def _do_spark(self, event):
         from itertools import chain
 
-        from pyspark.sql.functions import col, create_map, lit, when
+        from pyspark.sql.functions import col, create_map, isnan, isnull, lit, when
+        from pyspark.sql.utils import AnalysisException
 
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
             if "ranges" not in column_map:
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
-                event = event.withColumn(
-                    new_column_name, mapping_expr.getItem(col(column))
-                )
+                try:
+                    event = event.withColumn(
+                        new_column_name,
+                        when(
+                            col(column).isin(list(column_map.keys())),
+                            mapping_expr.getItem(col(column)),
+                        ).otherwise(col(column)),
+                    )
+                except AnalysisException:
+                    event = event.withColumn(
+                        new_column_name, mapping_expr.getItem(col(column))
+                    )
+                    turned_to_none_values = (
+                        event.filter(
+                            ((~isnull(col(column))) & (~isnan(col(column))))
+                            & (
+                                isnull(col(new_column_name))
+                                | isnan(col(new_column_name))
+                            )
+                        )
+                        .select(column)
+                        .rdd.map(lambda x: x[0])
+                        .collect()
+                    )
+                    mapping_to_null = [k for k, v in column_map.items() if v is None]
+                    if not all(
+                        elem in mapping_to_null for elem in turned_to_none_values
+                    ):
+                        raise Exception(
+                            "Mapvalues that changing column type must change all values in column!"
+                        )
             else:
                 for val, val_range in column_map["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
@@ -254,6 +283,20 @@ class MapValues(StepToDict, MLRunStep):
             event = event.select(*self.mapping.keys())
 
         return event
+
+    @classmethod
+    def validate_args(cls, feature_set, **kwargs):
+        mapping = kwargs.get("mapping", [])
+        for column, column_map in mapping.items():
+            types = set(
+                type(i)
+                for i in column_map.values()
+                if type(i) not in (None, float("nan"), np.nan)
+            )
+            if len(types) > 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"MapValues: mapping values of the same column must be in the same type! Column: {column}"
+                )
 
 
 class Imputer(StepToDict, MLRunStep):

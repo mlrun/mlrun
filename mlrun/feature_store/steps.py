@@ -226,7 +226,7 @@ class MapValues(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         from itertools import chain
-
+        from pyspark.sql.types import DecimalType, DoubleType, FloatType
         from pyspark.sql.functions import col, create_map, isnan, isnull, lit, when
         from pyspark.sql.utils import AnalysisException
 
@@ -246,22 +246,30 @@ class MapValues(StepToDict, MLRunStep):
                     event = event.withColumn(
                         new_column_name, mapping_expr.getItem(col(column))
                     )
+                    col_type = event.schema[column].dataType
+                    new_col_type = event.schema[new_column_name].dataType
+                    #  in order to avoid exception at isna on non-decimal/float columns -
+                    #  we need to check their types before filtering.
+                    if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
+                        column_filter = ((~isnull(col(column))) & (~isnan(col(column))))
+                    else:
+                        column_filter = (~isnull(col(column)))
+                    if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
+                        new_column_filter = (isnull(col(new_column_name)) | isnan(col(new_column_name)))
+                    else:
+                        new_column_filter = (isnull(col(new_column_name)))
                     turned_to_none_values = (
-                        event.filter(
-                            ((~isnull(col(column))) & (~isnan(col(column))))
-                            & (
-                                isnull(col(new_column_name))
-                                | isnan(col(new_column_name))
-                            )
-                        )
+                        event.filter((column_filter) & (new_column_filter))
                         .select(column)
                         .rdd.map(lambda x: x[0])
                         .collect()
                     )
                     mapping_to_null = [k for k, v in column_map.items() if v is None
-                                       or (isinstance(v, (int, float, np.float64, np.float32, np.float16)) and math.isnan(v))]
+                                       or (isinstance(v,
+                                                      (int, float, np.float64, np.float32, np.float16)) and math.isnan(
+                        v))]
                     if not all(
-                        elem in mapping_to_null for elem in turned_to_none_values
+                            elem in mapping_to_null for elem in turned_to_none_values
                     ):
                         raise Exception(
                             "Mapvalues that changing column type must change all values in column!"

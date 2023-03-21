@@ -801,17 +801,8 @@ def test_watch_logs_continue():
     mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
     with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
         db.watch_log(run_uid, project=project)
-        assert (
-            newprint.getvalue()
-            == log_contents[0 : len(log_lines[0])].decode(
-                errors=mlrun.mlconf.httpdb.logs.decode.errors
-            )
-            + "\n"  # the first log line is printed with a newline
-            + log_contents[len(log_lines[0]) :].decode(
-                errors=mlrun.mlconf.httpdb.logs.decode.errors
-            )
-            == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
-        )
+        # the first log line is printed with a newline
+        assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
     assert adapter.call_count == len(
         log_lines

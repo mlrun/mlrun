@@ -286,7 +286,7 @@ class MapValues(StepToDict, MLRunStep):
                         elem in mapping_to_null for elem in turned_to_none_values
                     ):
                         raise Exception(
-                            "Mapvalues that changing column type must change all values in column!"
+                            "Mapvalues that changing column type must change all values in the column!"
                         )
             else:
                 for val, val_range in column_map["ranges"].items():

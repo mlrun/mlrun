@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import math
 import re
 import uuid
-import math
 import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Union
@@ -226,8 +226,9 @@ class MapValues(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         from itertools import chain
-        from pyspark.sql.types import DecimalType, DoubleType, FloatType
+
         from pyspark.sql.functions import col, create_map, isnan, isnull, lit, when
+        from pyspark.sql.types import DecimalType, DoubleType, FloatType
         from pyspark.sql.utils import AnalysisException
 
         for column, column_map in self.mapping.items():
@@ -242,6 +243,9 @@ class MapValues(StepToDict, MLRunStep):
                             mapping_expr.getItem(col(column)),
                         ).otherwise(col(column)),
                     )
+                #  if failed to use otherwise it is probably because the new column has different type
+                #  then the original column.
+                #  we will try to replace the values without using 'otherwise'.
                 except AnalysisException:
                     event = event.withColumn(
                         new_column_name, mapping_expr.getItem(col(column))
@@ -251,25 +255,35 @@ class MapValues(StepToDict, MLRunStep):
                     #  in order to avoid exception at isna on non-decimal/float columns -
                     #  we need to check their types before filtering.
                     if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
-                        column_filter = ((~isnull(col(column))) & (~isnan(col(column))))
+                        column_filter = (~isnull(col(column))) & (~isnan(col(column)))
                     else:
-                        column_filter = (~isnull(col(column)))
+                        column_filter = ~isnull(col(column))
                     if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
-                        new_column_filter = (isnull(col(new_column_name)) | isnan(col(new_column_name)))
+                        new_column_filter = isnull(col(new_column_name)) | isnan(
+                            col(new_column_name)
+                        )
                     else:
-                        new_column_filter = (isnull(col(new_column_name)))
+                        #  we need to check that every value replaced if we changed column type - except None or Nan.
+                        new_column_filter = isnull(col(new_column_name))
                     turned_to_none_values = (
-                        event.filter((column_filter) & (new_column_filter))
+                        event.filter(column_filter & new_column_filter)
                         .select(column)
                         .rdd.map(lambda x: x[0])
                         .collect()
                     )
-                    mapping_to_null = [k for k, v in column_map.items() if v is None
-                                       or (isinstance(v,
-                                                      (int, float, np.float64, np.float32, np.float16)) and math.isnan(
-                        v))]
+                    mapping_to_null = [
+                        k
+                        for k, v in column_map.items()
+                        if v is None
+                        or (
+                            isinstance(
+                                v, (int, float, np.float64, np.float32, np.float16)
+                            )
+                            and math.isnan(v)
+                        )
+                    ]
                     if not all(
-                            elem in mapping_to_null for elem in turned_to_none_values
+                        elem in mapping_to_null for elem in turned_to_none_values
                     ):
                         raise Exception(
                             "Mapvalues that changing column type must change all values in column!"

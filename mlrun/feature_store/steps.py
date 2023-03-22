@@ -287,7 +287,7 @@ class MapValues(StepToDict, MLRunStep):
                     ):
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"Mapvalues - mapping that changing column type must change all values in"
-                            f" the column! column: {column}"
+                            f" the column! Column- {column}"
                         )
             else:
                 for val, val_range in column_map["ranges"].items():
@@ -320,7 +320,7 @@ class MapValues(StepToDict, MLRunStep):
             )
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"MapValues - mapping values of the same column must be in the same type! Column: {column}"
+                    f"MapValues - mapping values of the same column must be in the same type! Column- {column}"
                 )
 
 

@@ -36,8 +36,8 @@ class ScheduleCronTrigger(BaseModel):
     hour: Optional[Union[int, str]]
     minute: Optional[Union[int, str]]
     second: Optional[Union[int, str]]
-    start_date: Optional[Union[datetime, str]]
-    end_date: Optional[Union[datetime, str]]
+    start_date: Union[datetime, str] = None
+    end_date: Union[datetime, str] = None
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
     timezone: Optional[str]

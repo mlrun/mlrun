@@ -76,6 +76,7 @@ class RunDBInterface(ABC):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         pass
 

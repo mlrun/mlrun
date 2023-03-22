@@ -2136,6 +2136,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
@@ -2177,6 +2178,7 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
                                 of returning objects. A log hint may be given as:
@@ -2211,6 +2213,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            notifications=notifications,
             returns=returns,
         )
 

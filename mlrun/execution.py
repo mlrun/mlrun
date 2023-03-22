@@ -80,6 +80,7 @@ class MLClientCtx(object):
         self._log_level = "info"
         self._matrics_db = None
         self._autocommit = autocommit
+        self._notifications = []
 
         self._labels = {}
         self._annotations = {}
@@ -299,6 +300,7 @@ class MLClientCtx(object):
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
+            self._notifications = spec.get("notifications", self._notifications)
 
         self._init_dbs(rundb)
 
@@ -944,6 +946,7 @@ class MLClientCtx(object):
                 "outputs": self._outputs,
                 run_keys.output_path: self.artifact_path,
                 run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},
+                "notifications": self._notifications,
             },
             "status": {
                 "results": self._results,

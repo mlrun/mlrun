@@ -15,7 +15,7 @@
 
 import json
 import warnings
-from typing import Optional, Union
+from typing import Union
 
 import mlrun
 import mlrun.model
@@ -35,35 +35,18 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return endpoint, container, path
 
 
-def set_project_model_monitoring_credentials(
-    access_key: Optional[str] = None,
-    project: Optional[str] = None,
-    connection_string: Optional[str] = None,
-):
+def set_project_model_monitoring_credentials(access_key: str, project: str = None):
     """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.
     The supplied credentials must have data access
-
-    :param access_key:         Model Monitoring access key for managing user permissions.
-    :param project:            The name of the model monitoring project.
-    :param connection_string:  SQL connection string
+    :param access_key: Model Monitoring access key for managing user permissions.
+    :param project: The name of the model monitoring project.
     """
-    if access_key:
-        mlrun.get_run_db().create_project_secrets(
-            project=project or mlrun.mlconf.default_project,
-            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-            secrets={
-                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key
-            },
-        )
-    if connection_string:
-        mlrun.get_run_db().create_project_secrets(
-            project=project or mlrun.mlconf.default_project,
-            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-            secrets={
-                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING: connection_string
-            },
-        )
+    mlrun.get_run_db().create_project_secrets(
+        project=project or mlrun.mlconf.default_project,
+        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+        secrets={model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key},
+    )
 
 
 class TrackingPolicy(mlrun.model.ModelObj):
@@ -191,7 +174,11 @@ def validate_errors_and_metrics(endpoint: dict):
         endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`
-    if endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null":
+    # For backwards compatibility reasons, we also validate that the model endpoint includes the `metrics` key
+    if (
+        model_monitoring_constants.EventFieldType.METRICS in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null"
+    ):
         endpoint[model_monitoring_constants.EventFieldType.METRICS] = json.dumps(
             {
                 model_monitoring_constants.EventKeyMetrics.GENERIC: {

@@ -36,6 +36,7 @@ import yaml
 import mlrun.api.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
@@ -57,7 +58,6 @@ from ..utils import (
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
-from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -2110,15 +2110,25 @@ class MlrunProject(ModelObj):
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
-        The supplied credentials must have data access
 
-        :param access_key:        Model Monitoring access key for managing user permissions.
-        :param connection_string: SQL connection string.
+        :param access_key:        Model Monitoring access key for managing user permissions
+        :param connection_string: SQL connection string
         """
-        set_project_model_monitoring_credentials(
-            access_key=access_key,
-            project=self.metadata.name,
-            connection_string=connection_string,
+
+        secrets_dict = {}
+        if access_key:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
+
+        if connection_string:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING
+            ] = connection_string
+
+        self.set_secrets(
+            secrets=secrets_dict,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(

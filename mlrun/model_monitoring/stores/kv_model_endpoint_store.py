@@ -179,7 +179,6 @@ class KVModelEndpointStore(ModelEndpointStore):
                     labels,
                     top_level,
                 ),
-                attribute_names=[model_monitoring_constants.EventFieldType.UID],
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
             items = cursor.all()
@@ -190,9 +189,15 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Create a list of model endpoints unique ids
         if uids is None:
-            uids = [
-                item[model_monitoring_constants.EventFieldType.UID] for item in items
-            ]
+            uids = []
+            for item in items:
+                if model_monitoring_constants.EventFieldType.UID not in item:
+                    # This is kept for backwards compatibility - in old versions the key column named endpoint_id
+                    uids.append(
+                        item[model_monitoring_constants.EventFieldType.ENDPOINT_ID]
+                    )
+                else:
+                    uids.append(item[model_monitoring_constants.EventFieldType.UID])
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:

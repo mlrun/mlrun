@@ -19,7 +19,6 @@ import mlrun
 import tests.conftest
 import tests.integration.sdk_api.base
 
-
 has_dask = False
 try:
     import dask  # noqa

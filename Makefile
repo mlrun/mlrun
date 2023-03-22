@@ -498,7 +498,6 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
-		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
@@ -522,7 +521,6 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/test_notebooks.py \
 		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized

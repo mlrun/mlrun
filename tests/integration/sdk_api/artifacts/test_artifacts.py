@@ -77,7 +77,6 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         assert len(artifacts) == 1, "bad number of dataset artifacts"
 
-
     def test_export_import(self):
         project = mlrun.new_project("log-mod")
         target_project = mlrun.new_project("log-mod2")
@@ -98,7 +97,9 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
                 # import and log the artifact to the new project
                 artifact = target_project.import_artifact(
-                    f"{results_dir}/a.{suffix}", f"mod-{suffix}", artifact_path=results_dir
+                    f"{results_dir}/a.{suffix}",
+                    f"mod-{suffix}",
+                    artifact_path=results_dir,
                 )
                 assert artifact.kind == "model"
                 assert artifact.metadata.key == f"mod-{suffix}"

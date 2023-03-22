@@ -1,0 +1,50 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+kind: project
+metadata:
+  name: pipe2
+spec:
+  description: test
+  params:
+    label_column: label
+  functions:
+  - url: prep_data.py
+    name: prep-data
+    image: mlrun/mlrun
+    handler: prep_data
+  - url: hub://sklearn_classifier
+    name: train
+  - url: hub://test_classifier
+    name: test
+  - url: hub://v2_model_server
+    name: serve
+  workflows:
+  - name: main
+    path: ./kflow.py
+    args_schema:
+    - name: model_pkg_class
+      type: str
+      default: sklearn.linear_model.LogisticRegression
+      doc: model package/algorithm
+    engine: kfp
+  artifacts:
+  - kind: ''
+    target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
+    key: data
+  source: ./
+  subpath: ''
+  origin_url: ''
+  load_source_on_run: true
+  desired_state: online

@@ -1,0 +1,4 @@
+# comment
+faker
+python-dotenv
+chardet>=3.0.2, <4.0 # inline comment

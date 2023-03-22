@@ -1,0 +1,62 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: getting-started-tutorial-
+  annotations:
+    pipelines.kubeflow.org/kfp_sdk_version: 1.0.1
+    pipelines.kubeflow.org/pipeline_compilation_time: '2021-08-02T00:51:30.266708'
+  labels:
+    pipelines.kubeflow.org/kfp_sdk_version: 1.0.1
+spec:
+  entrypoint: getting-started-tutorial
+  templates:
+    - name: prep-data
+      container:
+        command: [python, -m, mlrun, run, --kfp, --from-env, --workflow, '{{workflow.uid}}',
+                  --name, prep-data, -f, 'db://getting-started-tutorial-iguazio/prep-data@96acae017100175c98d8d68ca3eeb50a2488c15e',
+                  -p, label_column=label, -i, 'source_url={{inputs.parameters.source_url}}',
+                  --label, v3io_user=username, --label, owner=username, -o, cleaned_data, -o,
+                  run_id, --handler, prep_data, '']
+        env:
+          - {name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY, value: 'some-domain.com:80'}
+          - name: MLRUN_NAMESPACE
+            valueFrom:
+              fieldRef: {fieldPath: metadata.namespace}
+          - {name: MLRUN_DBPATH, value: 'http://mlrun-api:8080'}
+          - {name: MLRUN_MPIJOB_CRD_VERSION, value: v1}
+          - {name: V3IO_ACCESS_KEY, value: some-session}
+          - {name: MLRUN_ARTIFACT_PATH, value: 'v3io:///projects/getting-started-tutorial-iguazio/artifacts/pipeline/{{workflow.uid}}'}
+        image: mlrun/mlrun:0.8.0-rc4
+      inputs:
+        parameters:
+          - {name: source_url}
+      outputs:
+        parameters:
+          - name: prep-data-cleaned_data
+            valueFrom: {path: /tmp/cleaned_data}
+        artifacts:
+          - {name: mlpipeline-ui-metadata, path: /mlpipeline-ui-metadata.json}
+          - {name: mlpipeline-metrics, path: /mlpipeline-metrics.json}
+          - {name: prep-data-cleaned_data, path: /tmp/cleaned_data}
+          - {name: prep-data-run_id, path: /tmp/run_id}
+      metadata:
+        annotations: {}
+  arguments:
+    parameters:
+      - {name: source_url, value: 'https://s3.wasabisys.com/bla/iris_dataset.csv'}
+  serviceAccountName: mlrun-runner
+  ttlSecondsAfterFinished: 14400

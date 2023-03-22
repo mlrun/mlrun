@@ -1,0 +1,180 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "BasicServices",
+            "Effect": "Allow",
+            "Action": [
+                "autoscaling:*",
+                "cloudwatch:*",
+                "elasticloadbalancing:*",
+                "sns:*",
+                "ec2:*",
+                "s3:*",
+                "s3-object-lambda:*",
+                "eks:*",
+                "elasticfilesystem:*",
+                "cloudformation:*",
+                "acm:*",
+                "route53:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ServiceLinkedRoles",
+            "Effect": "Allow",
+            "Action": "iam:CreateServiceLinkedRole",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:AWSServiceName": [
+                        "autoscaling.amazonaws.com",
+                        "ec2scheduled.amazonaws.com",
+                        "elasticloadbalancing.amazonaws.com",
+                        "spot.amazonaws.com",
+                        "spotfleet.amazonaws.com",
+                        "transitgateway.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "IAMPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "iam:AddRoleToInstanceProfile",
+                "iam:AttachRolePolicy",
+                "iam:TagOpenIDConnectProvider",
+                "iam:CreateInstanceProfile",
+                "iam:CreateOpenIDConnectProvider",
+                "iam:CreateRole",
+                "iam:CreateServiceLinkedRole",
+                "iam:DeleteInstanceProfile",
+                "iam:DeleteOpenIDConnectProvider",
+                "iam:DeleteRole",
+                "iam:DeleteRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:GenerateServiceLastAccessedDetails",
+                "iam:GetAccessKeyLastUsed",
+                "iam:GetAccountPasswordPolicy",
+                "iam:GetAccountSummary",
+                "iam:GetGroup",
+                "iam:GetInstanceProfile",
+                "iam:GetLoginProfile",
+                "iam:GetOpenIDConnectProvider",
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion",
+                "iam:GetRole",
+                "iam:GetRolePolicy",
+                "iam:GetServiceLastAccessedDetails",
+                "iam:GetUser",
+                "iam:ListAccessKeys",
+                "iam:ListAccountAliases",
+                "iam:ListAttachedGroupPolicies",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListAttachedUserPolicies",
+                "iam:ListGroupPolicies",
+                "iam:ListGroups",
+                "iam:ListGroupsForUser",
+                "iam:ListInstanceProfilesForRole",
+                "iam:ListMFADevices",
+                "iam:ListOpenIDConnectProviders",
+                "iam:ListPolicies",
+                "iam:ListPoliciesGrantingServiceAccess",
+                "iam:ListRolePolicies",
+                "iam:ListRoles",
+                "iam:ListRoleTags",
+                "iam:ListSAMLProviders",
+                "iam:ListSigningCertificates",
+                "iam:ListUserPolicies",
+                "iam:ListUsers",
+                "iam:ListUserTags",
+                "iam:PassRole",
+                "iam:PutRolePolicy",
+                "iam:RemoveRoleFromInstanceProfile",
+                "kms:CreateGrant",
+                "kms:CreateKey",
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:GenerateDataKeyWithoutPlaintext",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "kms:ListResourceTags",
+                "kms:PutKeyPolicy",
+                "kms:ScheduleKeyDeletion",
+                "kms:TagResource"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowLanbda",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateAlias",
+                "lambda:CreateCodeSigningConfig",
+                "lambda:CreateEventSourceMapping",
+                "lambda:CreateFunction",
+                "lambda:CreateFunctionUrlConfig",
+                "lambda:Delete*",
+                "lambda:Get*",
+                "lambda:InvokeAsync",
+                "lambda:InvokeFunction",
+                "lambda:InvokeFunctionUrl",
+                "lambda:List*",
+                "lambda:PublishLayerVersion",
+                "lambda:PublishVersion",
+                "lambda:PutFunctionCodeSigningConfig",
+                "lambda:PutFunctionConcurrency",
+                "lambda:PutFunctionEventInvokeConfig",
+                "lambda:PutProvisionedConcurrencyConfig",
+                "lambda:TagResource",
+                "lambda:UntagResource",
+                "lambda:UpdateAlias",
+                "lambda:UpdateCodeSigningConfig",
+                "lambda:UpdateEventSourceMapping",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionCodeSigningConfig",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:UpdateFunctionEventInvokeConfig",
+                "lambda:UpdateFunctionUrlConfig"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CertificateService",
+            "Effect": "Allow",
+            "Action": "iam:CreateServiceLinkedRole",
+            "Resource": "arn:aws:iam::*:role/aws-service-role/acm.amazonaws.com/AWSServiceRoleForCertificateManager*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:AWSServiceName": "acm.amazonaws.com"
+                }
+            }
+        },
+        {
+            "Sid": "DeleteRole",
+            "Effect": "Allow",
+            "Action": [
+                "iam:DeleteServiceLinkedRole",
+                "iam:GetServiceLinkedRoleDeletionStatus",
+                "iam:GetRole"
+            ],
+            "Resource": "arn:aws:iam::*:role/aws-service-role/acm.amazonaws.com/AWSServiceRoleForCertificateManager*"
+        },
+        {
+            "Sid": "SSM",
+            "Effect": "Allow",
+            "Action": [
+                "logs:*",
+                "ssm:AddTagsToResource",
+                "ssm:GetParameter",
+                "ssm:DeleteParameter",
+                "ssm:PutParameter",
+                "cloudtrail:GetTrail",
+                "cloudtrail:ListTrails"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

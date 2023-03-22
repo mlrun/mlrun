@@ -1,0 +1,110 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+name: Installation Issue
+description: Report issues installing MLRun CE on your system
+title: "[Installation]: "
+
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Installation check
+      options:
+        - label: >
+            I have read the [installation guide](https://docs.mlrun.org/en/latest/install.html).
+          required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Installation OS
+      description: >
+        Please provide the OS you are installing on.
+      options:
+        - Mac
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: Installation Method
+      description: >
+        Please provide how you tried to install MLRun.
+      options:
+        - Docker
+        - Kubernetes
+        - CloudFormation
+    validations:
+      required: true
+  - type: dropdown
+    id: k8s_cluster_type
+    attributes:
+      label: Kubernetes Cluster Type
+      description: >
+        Please select how you are running Kubernetes.
+      options:
+        - N/A - Docker
+        - Kubernetes for Docker Desktop
+        - EKS
+        - Minikube
+        - KinD
+        - MicroK8s
+        - K3s
+        - K3d
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: helm_chart_version
+    attributes:
+      label: MLRun CE Version
+      description: >
+        Docker install: Please provide the version of MLRun with the full output of ``docker ps | grep mlrun | awk '{print $2}'``.<br />
+        K8s install: Please provide the version of the MLRun CE Helm chart with the full output of ``helm search repo mlrun-ce | grep mlrun/mlrun-ce | awk '{print $2}'``.
+    validations:
+      required: true
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Issue Description
+      description: >
+        Please provide a description of the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Installation Logs
+      description: >
+        Please copy and paste the installation logs when attempting to install MLRun.
+      value: >
+        <details>
+
+
+        Replace this line with the installation logs.
+
+
+        </details>
+    validations:
+      required: true
+  - type: textarea
+    id: additional_information
+    attributes:
+      label: Additional Information
+      description: >
+        Please add any aditional information you think may be relevant.
+        

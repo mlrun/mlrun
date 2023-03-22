@@ -51,7 +51,7 @@ def get_git_username_password_from_token(token):
     # Github's access tokens have a known prefix according to their type. See
     # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
     # We distinguish new fine-grained access tokens (begin with "github_pat_" from classic tokens.
-    if token.startswith("github_pat_"):
+    if token.startswith("github_pat_") or token.startswith("glpat"):
         username = "oauth2"
         password = token
     else:

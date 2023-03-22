@@ -44,12 +44,12 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_sync_functions(self):
         project_name = "project-name"
-        project = mlrun.new_project(project_name, save=False)
+        project = mlrun.new_project(project_name)
         project.set_function("hub://describe", "describe")
         project_function_object = project.spec._function_objects
         project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
         project.export(str(project_file_path))
-        imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+        imported_project = mlrun.load_project("./", str(project_file_path))
         assert imported_project.spec._function_objects == {}
         imported_project.sync_functions()
         _assert_project_function_objects(imported_project, project_function_object)

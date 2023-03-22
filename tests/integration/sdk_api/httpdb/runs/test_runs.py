@@ -174,6 +174,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             uid_list.remove(run["metadata"]["uid"])
 
     def test_job_file(self):
+        mlrun.get_or_create_project("default")
         filename = f"{examples_path}/training.py"
         fn = mlrun.code_to_function(filename=filename, kind="job")
         assert fn.kind == "job", "kind not set, test failed"

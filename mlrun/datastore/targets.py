@@ -1189,7 +1189,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from pyspark.sql.functions import udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
+        udf1 = udf(lambda x: str(x) + "}:static", StringType())
         return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
@@ -1581,6 +1581,11 @@ class SQLTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         self._create_sql_table()
+        for step in graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,

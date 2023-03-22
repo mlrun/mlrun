@@ -57,7 +57,6 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     get_runtime_class,
 )
@@ -127,6 +126,7 @@ def run_local(
     artifact_path: str = "",
     mode: str = None,
     allow_empty_resources=None,
+    notifications: List[mlrun.model.Notification] = None,
     returns: list = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
@@ -159,9 +159,9 @@ def run_local(
     :param artifact_path: default artifact output path
     :param mode:    Runtime mode for more details head to `mlrun.new_function`
     :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                    (allows to have function that doesn't depend on having targets,
-                                    e.g a function that accepts a feature vector uri and generates
-                                    the offline vector for it, e.g. parquet, if it doesn't exist)
+                                    (allows to have function which don't depend on having targets,
+                                    e.g a function which accepts a feature vector uri and generate
+                                     the offline vector e.g. parquet_ for it if it doesn't exist)
     :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
                      results). The list's length must be equal to the amount of returning objects. A configuration may
                      be given as:
@@ -216,6 +216,7 @@ def run_local(
         inputs=inputs,
         returns=returns,
         artifact_path=artifact_path,
+        notifications=notifications,
     )
 
 
@@ -700,7 +701,6 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     RemoteSparkRuntime,
 ]:

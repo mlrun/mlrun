@@ -32,8 +32,8 @@ class ProjectsFormat(mlrun.api.utils.helpers.StrEnum):
 class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
-    labels: typing.Optional[dict]
-    annotations: typing.Optional[dict]
+    labels: typing.Optional[dict] = {}
+    annotations: typing.Optional[dict] = {}
 
     class Config:
         extra = pydantic.Extra.allow
@@ -70,10 +70,10 @@ class ProjectSpec(pydantic.BaseModel):
     description: typing.Optional[str] = None
     owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
-    params: typing.Optional[dict] = None
-    functions: typing.Optional[list] = None
-    workflows: typing.Optional[list] = None
-    artifacts: typing.Optional[list] = None
+    params: typing.Optional[dict] = {}
+    functions: typing.Optional[list] = []
+    workflows: typing.Optional[list] = []
+    artifacts: typing.Optional[list] = []
     artifact_path: typing.Optional[str] = None
     conda: typing.Optional[str] = None
     source: typing.Optional[str] = None

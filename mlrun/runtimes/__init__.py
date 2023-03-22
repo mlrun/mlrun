@@ -47,7 +47,7 @@ from .mpijob import (  # noqa
 from .nuclio import nuclio_init_hook
 from .remotesparkjob import RemoteSparkRuntime, RemoteSparkRuntimeHandler
 from .serving import ServingRuntime, new_v2_model_server
-from .sparkjob import Spark2Runtime, Spark3Runtime, SparkRuntimeHandler
+from .sparkjob import Spark3Runtime, SparkRuntimeHandler
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
@@ -153,6 +153,29 @@ class RuntimeKinds(object):
         ]
 
     @staticmethod
+    def is_log_collectable_runtime(kind: str):
+        """
+        whether log collector can collect logs for that runtime
+        :param kind: kind name
+        :return: whether log collector can collect logs for that runtime
+        """
+        # if local run, the log collector doesn't support it as it is only supports k8s resources
+        # when runtime is local the client is responsible for logging the stdout of the run by using `log_std`
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # dask implementation is different than other runtimes, because few runs can be run against the same runtime
+            # resource, so collecting logs on that runtime resource won't be correct, the way we collect logs for dask
+            # is by using `log_std` on client side after we execute the code against the cluster, as submitting the
+            # run with the dask client will return the run stdout. for more information head to `DaskCluster._run`
+            RuntimeKinds.dask
+        ]:
+            return True
+
+        return False
+
+    @staticmethod
     def is_local_runtime(kind):
         # "" or None counted as local
         if not kind or kind in RuntimeKinds.local_runtimes():
@@ -174,6 +197,23 @@ class RuntimeKinds(object):
             RuntimeKinds.handler,
             RuntimeKinds.dask,
         ]
+
+    @staticmethod
+    def requires_absolute_artifacts_path(kind):
+        """
+        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        """
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
+            # case the path can be relative) or remotely (in which case the path must be absolute and will be passed
+            # to another run)
+            RuntimeKinds.dask
+        ]:
+            return True
+        return False
 
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
@@ -220,11 +260,7 @@ def get_runtime_class(kind: str):
         return crd_version_to_runtime[mpijob_crd_version]
 
     if kind == RuntimeKinds.spark:
-        spark_operator_version = resolve_spark_operator_version()
-        if spark_operator_version == 2:
-            return Spark2Runtime
-        elif spark_operator_version == 3:
-            return Spark3Runtime
+        return Spark3Runtime
 
     kind_runtime_map = {
         RuntimeKinds.remote: RemoteRuntime,

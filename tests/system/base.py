@@ -19,6 +19,7 @@ import typing
 
 import pytest
 import yaml
+from deepdiff import DeepDiff
 
 import mlrun.api.schemas
 from mlrun import get_run_db, mlconf, set_environment
@@ -233,19 +234,19 @@ class TestMLRunSystem:
     ):
         logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
-            assert run_spec["parameters"] == parameters
+            self._assert_with_deepdiff(parameters, run_spec["parameters"])
         if inputs:
-            assert run_spec["inputs"] == inputs
+            self._assert_with_deepdiff(inputs, run_spec["inputs"])
         if outputs:
-            assert run_spec["outputs"] == outputs
+            self._assert_with_deepdiff(outputs, run_spec["outputs"])
         if output_path:
             assert run_spec["output_path"] == output_path
         if function:
-            assert run_spec["function"] == function
+            self._assert_with_deepdiff(function, run_spec["function"])
         if secret_sources:
-            assert run_spec["secret_sources"] == secret_sources
+            self._assert_with_deepdiff(secret_sources, run_spec["secret_sources"])
         if data_stores:
-            assert run_spec["data_stores"] == data_stores
+            self._assert_with_deepdiff(data_stores, run_spec["data_stores"])
         if scrape_metrics is not None:
             assert run_spec["scrape_metrics"] == scrape_metrics
 
@@ -306,3 +307,10 @@ class TestMLRunSystem:
             )
         except AttributeError:
             return False
+
+    @staticmethod
+    def _assert_with_deepdiff(expected, actual, ignore_order=True):
+        if ignore_order:
+            assert DeepDiff(expected, actual, ignore_order=True) == {}
+        else:
+            assert expected == actual

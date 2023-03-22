@@ -668,15 +668,9 @@ class ModelEndpoints:
 
         # Apply batching interval params
         interval_list = [
-            tracking_policy[
-                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ]["minute"],
-            tracking_policy[
-                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ]["hour"],
-            tracking_policy[
-                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ]["day"],
+            tracking_policy.default_batch_intervals.minute,
+            tracking_policy.default_batch_intervals.hour,
+            tracking_policy.default_batch_intervals.day,
         ]
         minutes, hours, days = self._get_batching_interval_param(interval_list)
         batch_dict = {"minutes": minutes, "hours": hours, "days": days}
@@ -688,9 +682,7 @@ class ModelEndpoints:
         data = {
             "task": task.to_dict(),
             "schedule": self._convert_to_cron_string(
-                tracking_policy[
-                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-                ]
+                tracking_policy.default_batch_intervals
             ),
         }
 
@@ -746,8 +738,10 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    def _convert_to_cron_string(cron_trigger):
-        """Converting the batch interval dictionary into a ScheduleCronTrigger expression"""
+    def _convert_to_cron_string(
+        cron_trigger: mlrun.api.schemas.schedule.ScheduleCronTrigger,
+    ):
+        """Converting the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
         return "{} {} {} * *".format(
-            cron_trigger["minute"], cron_trigger["hour"], cron_trigger["day"]
+            cron_trigger.minute, cron_trigger.hour, cron_trigger.day
         ).replace("None", "*")

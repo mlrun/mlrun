@@ -36,6 +36,13 @@ def test_error_single():
         assert err_to_str(ex) == "a"
 
 
+def test_error_with_no_description():
+    try:
+        raise AttributeError
+    except Exception as ex:
+        assert err_to_str(ex) == "AttributeError()"
+
+
 def test_error_chain_n2():
     try:
         raise Exception("b") from Exception("a")

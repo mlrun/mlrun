@@ -16,6 +16,7 @@ import time
 
 import requests
 import requests.adapters
+import urllib3.exceptions
 import urllib3.util.retry
 
 from ..config import config
@@ -31,12 +32,27 @@ class HTTPSessionWithRetry(requests.Session):
     # make sure to only add exceptions that are raised early in the request. For example, ConnectionError can be raised
     # during the handling of a request, and therefore should not be retried, as the request might not be idempotent.
 
+    # use strings because some requests exceptions are encapsulated in other exceptions, and we want to catch them all.
     HTTP_RETRYABLE_EXCEPTION_STRINGS = [
         # "Connection reset by peer" is raised when the server closes the connection prematurely during TCP handshake.
         "Connection reset by peer",
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
         "Connection aborted",
         "Connection refused",
+    ]
+
+    # most of the exceptions would not be encapsulated, we want to catch them all directly.
+    # this allows us more flexibility when deciding which *exactly* exception we want to retry on.
+    HTTP_RETRYABLE_EXCEPTIONS = [
+        # "Connection reset by peer" is raised when the server closes the connection prematurely during TCP handshake.
+        ConnectionResetError,
+        # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
+        ConnectionRefusedError,
+        ConnectionAbortedError,
+        # often happens when the server is overloaded and can't handle the load.
+        requests.exceptions.ConnectTimeout,
+        requests.exceptions.ReadTimeout,
+        urllib3.exceptions.ReadTimeoutError,
     ]
 
     def __init__(
@@ -108,9 +124,12 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                     raise exc
 
-                # only retry on exceptions with the right message
+                # only retryable exceptions
                 exception_is_retryable = any(
                     msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
+                ) or any(
+                    isinstance(exc, retryable_exc)
+                    for retryable_exc in self.HTTP_RETRYABLE_EXCEPTIONS
                 )
 
                 if not exception_is_retryable:

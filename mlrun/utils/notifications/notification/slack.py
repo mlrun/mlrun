@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import typing
 
-import requests
+import aiohttp
 
+import mlrun.api.schemas
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class SlackNotification(NotificationBase):
@@ -34,10 +34,12 @@ class SlackNotification(NotificationBase):
         "error": ":x:",
     }
 
-    def send(
+    async def push(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -53,17 +55,16 @@ class SlackNotification(NotificationBase):
 
         data = self._generate_slack_data(message, severity, runs)
 
-        response = requests.post(
-            webhook,
-            data=json.dumps(data),
-            headers={"Content-Type": "application/json"},
-        )
-        response.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(webhook, json=data) as response:
+                response.raise_for_status()
 
     def _generate_slack_data(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
     ) -> dict:
         data = {

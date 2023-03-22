@@ -103,6 +103,7 @@ def get_offline_features(
     engine_args: dict = None,
     query: str = None,
     join_type: str = "inner",
+    order_by: Union[str, List[str]] = None,
     spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
@@ -161,6 +162,8 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
+    :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
+                            or the alias of the feature you pass in the feature list.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -190,6 +193,7 @@ def get_offline_features(
             with_indexes=with_indexes,
             query=query,
             join_type=join_type,
+            order_by=order_by,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -213,6 +217,7 @@ def get_offline_features(
         update_stats=update_stats,
         query=query,
         join_type=join_type,
+        order_by=order_by,
     )
 
 
@@ -407,7 +412,7 @@ def ingest(
         )
 
     if featureset is not None:
-        featureset.validate_steps()
+        featureset.validate_steps(namespace=namespace)
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
@@ -446,7 +451,7 @@ def ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
-        featureset.validate_steps()
+        featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
             featureset, mlrun.api.schemas.AuthorizationAction.update
         )
@@ -665,7 +670,7 @@ def preview(
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
-    featureset.validate_steps()
+    featureset.validate_steps(namespace=namespace)
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

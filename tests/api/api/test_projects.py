@@ -990,6 +990,19 @@ def _create_resources_of_all_kinds(
         for run_iter in range(3):
             db.store_run(db_session, run, run_uid, project, run_iter)
 
+    # Create several notifications
+    for run_uid in run_uids:
+        notification = mlrun.model.Notification(
+            kind="slack",
+            when=["completed", "error"],
+            name=f"test-notification-{run_uid}",
+            message="test-message",
+            condition="",
+            severity="info",
+            params={"some-param": "some-value"},
+        )
+        db.store_run_notifications(db_session, [notification], run_uid, project)
+
     # Create several logs
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]

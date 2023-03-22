@@ -327,6 +327,7 @@ class TaskStep(BaseStep):
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
+            self._set_error_handler()
             return
 
         self._class_object, self.class_name = self.get_step_class_object(

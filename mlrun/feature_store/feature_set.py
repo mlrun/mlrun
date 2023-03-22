@@ -118,7 +118,7 @@ class FeatureSetSpec(ModelObj):
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
-        self.relations: Dict[str, Entity] = relations or {}
+        self.relations: Dict[str, Union[Entity, str]] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -232,6 +232,9 @@ class FeatureSetSpec(ModelObj):
 
     @relations.setter
     def relations(self, relations: Dict[str, Entity]):
+        for col, ent in relations.items():
+            if isinstance(ent, str):
+                relations[col] = Entity(ent)
         self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
@@ -324,7 +327,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Entity] = None,
+        relations: Dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline

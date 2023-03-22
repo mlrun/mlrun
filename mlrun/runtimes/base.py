@@ -33,8 +33,11 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.sqldb.session
+import mlrun.api.utils.singletons.db
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun.utils.notifications
 import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
@@ -340,6 +343,7 @@ class BaseRuntime(ModelObj):
         local_code_path=None,
         auto_build=None,
         param_file_secrets: Dict[str, str] = None,
+        notifications: List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         """
@@ -374,6 +378,7 @@ class BaseRuntime(ModelObj):
                            function run, use only if you dont plan on changing the build config between runs
         :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
                             These secrets are only used locally and will not be stored anywhere
+        :param notifications: list of notifications to push when the run is completed
         :param returns: List of log hints - configurations for how to log the returning values from the handler's run
                         (as artifacts or results). The list's length must be equal to the amount of returning objects. A
                         log hint may be given as:
@@ -403,7 +408,7 @@ class BaseRuntime(ModelObj):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "local and schedule cannot be used together"
                 )
-            return self._run_local(
+            result = self._run_local(
                 run,
                 local_code_path,
                 project,
@@ -414,7 +419,10 @@ class BaseRuntime(ModelObj):
                 inputs,
                 returns,
                 artifact_path,
+                notifications=notifications,
             )
+            self._save_or_push_notifications(result, local)
+            return result
 
         run = self._enrich_run(
             run,
@@ -431,6 +439,7 @@ class BaseRuntime(ModelObj):
             out_path,
             artifact_path,
             workdir,
+            notifications,
         )
         self._validate_output_path(run)
         db = self._get_db()
@@ -527,6 +536,8 @@ class BaseRuntime(ModelObj):
             except RunError as err:
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
+
+        self._save_or_push_notifications(run)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -625,6 +636,7 @@ class BaseRuntime(ModelObj):
         inputs,
         returns,
         artifact_path,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         # allow local run simulation with a flip of a flag
         command = self
@@ -645,6 +657,7 @@ class BaseRuntime(ModelObj):
             artifact_path=artifact_path,
             mode=self.spec.mode,
             allow_empty_resources=self.spec.allow_empty_resources,
+            notifications=notifications,
             returns=returns,
         )
 
@@ -683,6 +696,7 @@ class BaseRuntime(ModelObj):
         out_path,
         artifact_path,
         workdir,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         runspec.spec.handler = (
             handler or runspec.spec.handler or self.spec.default_handler or ""
@@ -784,6 +798,8 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
                 runspec.spec.output_path, runspec.metadata.project
             )
+
+        runspec.spec.notifications = notifications or runspec.spec.notifications or []
         return runspec
 
     def _submit_job(self, run: RunObject, schedule, db, watch):
@@ -1043,6 +1059,47 @@ class BaseRuntime(ModelObj):
             self._get_db().update_run(updates, uid, project, iter=iter)
 
         return resp
+
+    def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
+
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
+        if not runobj.spec.notifications:
+            logger.debug(
+                "No notifications to push for run", run_uid=runobj.metadata.uid
+            )
+            return
+
+        # TODO: add support for other notifications per run iteration
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            logger.debug(
+                "Notifications per iteration are not supported, skipping",
+                run_uid=runobj.metadata.uid,
+            )
+            return
+
+        # If the run is remote, and we are in the SDK, we let the api deal with the notifications
+        # so there's nothing to do here.
+        # Otherwise, we continue on.
+        if is_running_as_api():
+
+            # If in the api server, we can assume that watch=False, so we save notification
+            # configs to the DB, for the run monitor to later pick up and push.
+            session = mlrun.api.db.sqldb.session.create_session()
+            mlrun.api.crud.Notifications().store_run_notifications(
+                session,
+                runobj.spec.notifications,
+                runobj.metadata.uid,
+                runobj.metadata.project,
+            )
+
+        elif local:
+            # If the run is local, we can assume that watch=True, therefore this code runs
+            # once the run is completed, and we can just push the notifications.
+            # TODO: add store_notifications API endpoint so we can store notifications pushed from the
+            #       SDK for documentation purposes.
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
     def _force_handler(self, handler):
         if not handler:

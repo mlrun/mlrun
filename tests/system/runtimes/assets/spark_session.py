@@ -12,26 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+from pyspark.sql import SparkSession
 
-from .data_types import (
-    InferOptions,
-    ValueType,
-    pd_schema_to_value_type,
-    python_type_to_value_type,
-)
-from .infer import DFDataInfer
+from mlrun import get_or_create_ctx
 
+context = get_or_create_ctx("spark-function")
 
-class BaseDataInfer:
-    infer_schema = None
-    get_preview = None
-    get_stats = None
+# build spark session
+spark = SparkSession.builder.appName("Spark job").getOrCreate()
 
-
-def get_infer_interface(df) -> BaseDataInfer:
-    if hasattr(df, "rdd"):
-        from .spark import SparkDataInfer
-
-        return SparkDataInfer
-    return DFDataInfer
+# log final report
+context.log_result("spark_result", 1000)
+spark.stop()

@@ -38,6 +38,9 @@ def test_get_frontend_spec(
     }
     mlrun.mlconf.httpdb.builder.docker_registry = "quay.io/some-repo"
     mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
+    mlrun.mlconf.httpdb.allowed_file_paths = "s3://some/s3/path"
+    mlrun.mlconf.httpdb.real_path = "/some/real/path"
+
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
@@ -91,6 +94,10 @@ def test_get_frontend_spec(
     assert (
         frontend_spec.default_function_preemption_mode
         == mlrun.api.schemas.PreemptionModes.prevent.value
+    )
+    assert (
+        frontend_spec.allowed_artifact_path_prefixes_list
+        == mlrun.api.api.utils.get_allowed_path_prefixes_list()
     )
 
 

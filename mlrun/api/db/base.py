@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import mlrun.model
 from mlrun.api import schemas
 
 
@@ -103,6 +105,7 @@ class DBInterface(ABC):
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
+        with_notifications: bool = False,
     ):
         pass
 
@@ -574,4 +577,33 @@ class DBInterface(ABC):
     def get_background_task(
         self, session, name: str, project: str
     ) -> schemas.BackgroundTask:
+        pass
+
+    @abstractmethod
+    def store_run_notifications(
+        self,
+        session,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str,
+    ):
+        pass
+
+    @abstractmethod
+    def list_run_notifications(
+        self,
+        session,
+        run_uid: str,
+        project: str,
+    ) -> typing.List[mlrun.model.Notification]:
+        pass
+
+    def delete_run_notifications(
+        self,
+        session,
+        name: str = None,
+        run_uid: str = None,
+        project: str = None,
+        commit: bool = True,
+    ):
         pass

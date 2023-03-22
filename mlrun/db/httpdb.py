@@ -211,10 +211,7 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = mlrun.utils.HTTPSessionWithRetry(
-                retry_on_exception=config.httpdb.retry_api_call_on_exception
-                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
-            )
+            self.session = self._init_session()
 
         try:
             response = self.session.request(
@@ -241,6 +238,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _init_session(self):
+        return mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=config.httpdb.retry_api_call_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
+        )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -457,7 +460,7 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode())
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         if watch:
             nil_resp = 0
             while state in ["pending", "running"]:
@@ -475,7 +478,10 @@ class HTTPRunDB(RunDBInterface):
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
-                    print(text.decode(), end="")
+                    print(
+                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                        end="",
+                    )
                 else:
                     nil_resp += 1
         else:
@@ -559,6 +565,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ) -> RunList:
         """Retrieve a list of runs, filtered by various options.
         Example::
@@ -592,6 +599,7 @@ class HTTPRunDB(RunDBInterface):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
             limit.
+        :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
         """
 
         project = project or config.default_project
@@ -607,6 +615,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "with_notifications": with_notifications,
         }
 
         if partition_by:
@@ -1419,9 +1428,9 @@ class HTTPRunDB(RunDBInterface):
         :param page_size: Size of a single page when applying pagination.
         """
 
-        if project != "*" and (page_token or page_size or sort_by):
+        if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, or sorting"
+                "Filtering by project can not be used together with pagination"
             )
         params = {
             "namespace": namespace,

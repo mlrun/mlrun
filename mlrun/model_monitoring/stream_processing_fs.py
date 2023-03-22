@@ -137,7 +137,7 @@ class EventStreamProcessor:
            process. If the target is from type KV, then the model endpoints table can be found under
            v3io:///users/pipelines/project-name/model-endpoints/endpoints/. If the target is SQL, then the table
            is stored within the database that was defined in the provided connection string and can be found
-           under mlrun.mlconf.model_endpoint_monitoring.connection_string.
+           under mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection.
         2. TSDB (steps 12-18): Stores live data of different key metric dictionaries in tsdb target. Results can be
            found under v3io:///users/pipelines/project-name/model-endpoints/events/. At the moment, this part supports
            3 different key metric dictionaries: base_metrics (average latency and predictions over time),

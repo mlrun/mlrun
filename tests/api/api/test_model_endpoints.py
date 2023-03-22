@@ -31,7 +31,7 @@ from mlrun.model_monitoring.stores import (  # noqa: F401
 )
 
 TEST_PROJECT = "test_model_endpoints"
-CONNECTION_STRING = "sqlite:///test.db"
+ENDPOINT_STORE_CONNECTION = "sqlite:///test.db"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
@@ -335,7 +335,7 @@ def test_sql_target_list_model_endpoints():
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, connection_string=CONNECTION_STRING
+        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
     )
 
     # First, validate that there are no model endpoints records at the moment
@@ -384,7 +384,7 @@ def test_sql_target_patch_endpoint():
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, connection_string=CONNECTION_STRING
+        project=TEST_PROJECT, endpoint_store_connection=ENDPOINT_STORE_CONNECTION
     )
 
     # First, validate that there are no model endpoints records at the moment

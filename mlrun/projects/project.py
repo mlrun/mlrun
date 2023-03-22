@@ -2106,13 +2106,13 @@ class MlrunProject(ModelObj):
                 remove(tmp_path)
 
     def set_model_monitoring_credentials(
-        self, access_key: str = None, connection_string: str = None
+        self, access_key: str = None, endpoint_store_connection: str = None
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
-        :param access_key:        Model Monitoring access key for managing user permissions
-        :param connection_string: SQL connection string
+        :param access_key:                Model Monitoring access key for managing user permissions
+        :param endpoint_store_connection: Endpoint store connection string
         """
 
         secrets_dict = {}
@@ -2121,10 +2121,10 @@ class MlrunProject(ModelObj):
                 model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
             ] = access_key
 
-        if connection_string:
+        if endpoint_store_connection:
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING
-            ] = connection_string
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
 
         self.set_secrets(
             secrets=secrets_dict,

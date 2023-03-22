@@ -46,27 +46,27 @@ class SQLModelEndpointStore(ModelEndpointStore):
     def __init__(
         self,
         project: str,
-        connection_string: str = None,
+        sql_connection_string: str = None,
     ):
         """
         Initialize SQL store target object.
 
-        :param project: The name of the project.
-        :param connection_string: Valid connection string or a path to SQL database with model endpoints table.
+        :param project:               The name of the project.
+        :param sql_connection_string: Valid connection string or a path to SQL database with model endpoints table.
         """
 
         super().__init__(project=project)
 
-        self.connection_string = (
-            connection_string
+        self.sql_connection_string = (
+            sql_connection_string
             or mlrun.utils.model_monitoring.get_connection_string(project=self.project)
         )
 
         self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
 
-        self._engine = get_engine(dsn=self.connection_string)
+        self._engine = get_engine(dsn=self.sql_connection_string)
         self.ModelEndpointsTable = get_ModelEndpointsTable(
-            connection_string=self.connection_string
+            connection_string=self.sql_connection_string
         )
         # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
         if not self._engine.has_table(self.table_name):
@@ -111,7 +111,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         # Update the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.connection_string) as session:
+        with create_session(dsn=self.sql_connection_string) as session:
 
             # Remove endpoint id (foreign key) from the update query
             attributes.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID, None)
@@ -130,7 +130,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         # Delete the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.connection_string) as session:
+        with create_session(dsn=self.sql_connection_string) as session:
 
             # Generate and commit the delete query
             session.query(self.ModelEndpointsTable).filter_by(uid=endpoint_id).delete()
@@ -151,7 +151,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         # Get the model endpoint record using sqlalchemy ORM
-        with create_session(dsn=self.connection_string) as session:
+        with create_session(dsn=self.sql_connection_string) as session:
 
             # Generate the get query
             endpoint_record = (
@@ -194,7 +194,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         endpoint_list = []
 
         # Get the model endpoints records using sqlalchemy ORM
-        with create_session(dsn=self.connection_string) as session:
+        with create_session(dsn=self.sql_connection_string) as session:
 
             # Generate the list query
             query = session.query(self.ModelEndpointsTable).filter_by(

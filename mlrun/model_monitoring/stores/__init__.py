@@ -32,19 +32,20 @@ class ModelEndpointStoreType(enum.Enum):
         self,
         project: str,
         access_key: str = None,
-        connection_string: str = None,
+        endpoint_store_connection: str = None,
     ) -> ModelEndpointStore:
         """
         Return a ModelEndpointStore object based on the provided enum value.
 
-        :param project:           The name of the project.
-        :param access_key:        Access key with permission to the DB table. Note that if access key is None and the
-                                  endpoint target is from type KV then the access key will be retrieved from the
-                                  environment variable.
-        :param connection_string: A valid connection string for SQL target. Contains several key-value pairs that
-                                  required for the database connection.
-                                  e.g. A root user with password 1234, tries to connect a schema called mlrun within a
-                                  local MySQL DB instance: 'mysql+pymysql://root:1234@localhost:3306/mlrun'.
+        :param project:                    The name of the project.
+        :param access_key:                 Access key with permission to the DB table. Note that if access key is None
+                                           and the endpoint target is from type KV then the access key will be
+                                           retrieved from the environment variable.
+        :param endpoint_store_connection: A valid connection string for model endpoint target. Contains several
+                                          key-value pairs that required for the database connection.
+                                          e.g. A root user with password 1234, tries to connect a schema called
+                                          mlrun within a local MySQL DB instance:
+                                          'mysql+pymysql://root:1234@localhost:3306/mlrun'.
 
         :return: `ModelEndpointStore` object.
 
@@ -63,13 +64,13 @@ class ModelEndpointStoreType(enum.Enum):
         # Update these lines once there are more than two store target types.
         from mlrun.utils.model_monitoring import get_connection_string
 
-        sql_connection_string = connection_string or get_connection_string(
+        sql_connection_string = endpoint_store_connection or get_connection_string(
             project=project
         )
         from .sql_model_endpoint_store import SQLModelEndpointStore
 
         return SQLModelEndpointStore(
-            project=project, connection_string=sql_connection_string
+            project=project, sql_connection_string=sql_connection_string
         )
 
     @classmethod

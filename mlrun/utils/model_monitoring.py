@@ -128,7 +128,8 @@ class TrackingPolicy(mlrun.model.ModelObj):
 
 
 def get_connection_string(project: str = None):
-    """Get SQL connections string from the project secret. If wasn't set, take it from the system configurations"""
+    """Get endpoint store connection string from the project secret.
+    If wasn't set, take it from the system configurations"""
     if is_running_as_api():
         # Running on API server side
         import mlrun.api.crud.secrets
@@ -139,9 +140,9 @@ def get_connection_string(project: str = None):
                 project=project,
                 provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
                 allow_secrets_from_k8s=True,
-                secret_key=model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING,
+                secret_key=model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
             )
-            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
         )
     else:
         # Running on stream server side
@@ -149,9 +150,9 @@ def get_connection_string(project: str = None):
 
         return (
             mlrun.get_secret_or_env(
-                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             )
-            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
         )
 
 
@@ -174,7 +175,7 @@ def validate_errors_and_metrics(endpoint: dict):
         endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`
-    # For backwards compatibility reasons, we also validate that the model endpoint includes the `metrics` key
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
     if (
         model_monitoring_constants.EventFieldType.METRICS in endpoint
         and endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null"

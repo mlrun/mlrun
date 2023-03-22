@@ -71,9 +71,10 @@ def test_with_kwargs(make_stream_logger):
     assert "special_kwarg_value" in stream.getvalue()
 
 
-def test_levels(make_stream_logger, logger_level):
+@pytest.mark.parametrize("level_with", [True, False])
+def test_levels(make_stream_logger, logger_level, level_with):
     stream, test_logger = make_stream_logger
-    getattr(test_logger, logger_level)(
+    getattr(test_logger, f"{logger_level}_with" if level_with else logger_level)(
         "Message %s", "somearg", somekwarg="somekwarg-value"
     )
     assert "Message somearg" in stream.getvalue()

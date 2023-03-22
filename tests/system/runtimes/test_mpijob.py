@@ -26,17 +26,16 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
 
         # Create the open mpi function:
         mpijob_function = mlrun.code_to_function(
-            name="mpijob_test",
+            name="mpijob-test",
             kind="mpijob",
             handler="handler",
             project=self.project_name,
             filename=code_path,
             image="mlrun/ml-models",
-            requirements=["mpi4py"],
         )
         mpijob_function.spec.replicas = 4
 
-        mpijob_run = mpijob_function.run(auto_build=True)
+        mpijob_run = mpijob_function.run()
         assert mpijob_run.status.state == RunStates.completed
 
         mpijob_time = mpijob_run.status.results["time"]

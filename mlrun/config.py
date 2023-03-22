@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = "~/.mlrun.env"
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -275,6 +275,11 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
         },
         "logs": {
+            "decode": {
+                # Replace with a replacement marker. Uses � (U+FFFD, the official REPLACEMENT CHARACTER).
+                # see https://docs.python.org/3/library/codecs.html#error-handlers for more info and options
+                "errors": "replace",
+            },
             "pipelines": {
                 # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
                 # pipeline step instead of pulling the state by getting the run logs
@@ -363,6 +368,7 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -490,7 +496,7 @@ default_config = {
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
         # the time in hours in which to start log collection from.
-        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
         # default is 4 hours = 4*60*60 = 14400 seconds
         "api_downtime_grace_period": 14400,

@@ -109,6 +109,7 @@ from .model_endpoints import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
 )
+from .notification import NotificationSeverity, NotificationStatus
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (

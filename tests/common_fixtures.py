@@ -219,6 +219,9 @@ class RunDBMock:
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         self._artifact = artifact
 
+    def read_artifact(self, key, tag=None, iter=None, project=""):
+        return self._artifact
+
     def get_function(self, function, project, tag):
         return {
             "name": function,
@@ -287,15 +290,8 @@ class RunDBMock:
         return "ready", last_log_timestamp
 
     def update_run(self, updates: dict, uid, project="", iter=0):
-        state = self._function.get("state", {})
-        update_in(state, "status.state", updates)
-        update_in(state, "status.results", updates)
-        update_in(state, "status.start_time", updates)
-        update_in(state, "status.last_update", updates)
-        update_in(state, "status.error", updates)
-        update_in(state, "status.commit", updates)
-        update_in(state, "status.iterations", updates)
-        self._function["state"] = state
+        for key, value in updates.items():
+            update_in(self._runs[uid]["struct"], key, value)
 
     def assert_no_mount_or_creds_configured(self):
         env_list = self._function["spec"]["env"]

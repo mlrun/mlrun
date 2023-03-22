@@ -12,40 +12,61 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import builtins
 import unittest.mock
 
+import aiohttp
 import pytest
-import requests
 import tabulate
 
 import mlrun.utils.notifications
 
 
 @pytest.mark.parametrize(
-    "when,condition,run_state,expected",
+    "when,condition,run_state,notification_previously_sent,expected",
     [
-        (["success"], "", "success", True),
-        (["success"], "", "error", False),
-        (["success"], "True", "success", True),
-        (["success"], "False", "success", False),
-        (["failure"], "", "success", False),
-        (["failure"], "", "error", True),
-        (["success", "failure"], "", "success", True),
-        (["success", "failure"], "", "error", True),
-        (["success", "failure"], "True", "success", True),
-        (["success", "failure"], "True", "error", True),
-        (["success", "failure"], "False", "success", False),
-        (["success", "failure"], "False", "error", True),
+        (["completed"], "", "completed", False, True),
+        (["completed"], "", "completed", True, False),
+        (["completed"], "", "error", False, False),
+        (["completed"], "", "error", True, False),
+        (["completed"], "True", "completed", False, True),
+        (["completed"], "True", "completed", True, False),
+        (["completed"], "False", "completed", False, False),
+        (["completed"], "False", "completed", True, False),
+        (["error"], "", "completed", False, False),
+        (["error"], "", "completed", True, False),
+        (["error"], "", "error", False, True),
+        (["error"], "", "error", True, False),
+        (["completed", "error"], "", "completed", False, True),
+        (["completed", "error"], "", "completed", True, False),
+        (["completed", "error"], "", "error", False, True),
+        (["completed", "error"], "", "error", True, False),
+        (["completed", "error"], "True", "completed", False, True),
+        (["completed", "error"], "True", "completed", True, False),
+        (["completed", "error"], "True", "error", False, True),
+        (["completed", "error"], "True", "error", True, False),
+        (["completed", "error"], "False", "completed", False, False),
+        (["completed", "error"], "False", "completed", True, False),
+        (["completed", "error"], "False", "error", False, True),
+        (["completed", "error"], "False", "error", True, False),
     ],
 )
-def test_notification_should_notify(when, condition, run_state, expected):
-    run = {"status": {"state": run_state}}
-    notification_config = {"when": when, "condition": condition}
+def test_notification_should_notify(
+    when, condition, run_state, notification_previously_sent, expected
+):
+    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    notification = mlrun.model.Notification.from_dict(
+        {
+            "when": when,
+            "condition": condition,
+            "status": "pending" if not notification_previously_sent else "sent",
+        }
+    )
 
     assert (
         mlrun.utils.notifications.notification_pusher.NotificationPusher._should_notify(
-            run, notification_config
+            run, notification
         )
         == expected
     )
@@ -86,7 +107,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
         print_result = result
 
     monkeypatch.setattr(builtins, "print", set_result)
-    console_notification.send("test-message", "info", runs)
+    console_notification.push("test-message", "info", runs)
 
     if is_table:
         expected = tabulate.tabulate(
@@ -168,6 +189,7 @@ def test_slack_notification(runs, expected):
     assert slack_data == expected
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "params,expected_url,expected_headers",
     [
@@ -209,16 +231,26 @@ def test_slack_notification(runs, expected):
         ),
     ],
 )
-def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification(params)
-    expected_body = "[info] test-message"
+async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
+    git_notification = mlrun.utils.notifications.GitNotification("git", params)
+    expected_body = "[info] git: test-message"
 
-    requests_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(requests, "post", requests_mock)
-    git_notification.send("test-message", "info", [])
+    response_json_future = asyncio.Future()
+    response_json_future.set_result({"id": "response-id"})
+    response_mock = unittest.mock.MagicMock()
+    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
+
+    request_future = asyncio.Future()
+    request_future.set_result(response_mock)
+
+    requests_mock = unittest.mock.MagicMock(return_value=request_future)
+    monkeypatch.setattr(aiohttp.ClientSession, "post", requests_mock)
+    await git_notification.push("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
-        url=expected_url, json={"body": expected_body}, headers=expected_headers
+        expected_url,
+        headers=expected_headers,
+        json={"body": expected_body},
     )
 
 
@@ -242,18 +274,18 @@ def test_inverse_dependencies(
         ]
     )
 
-    mock_console_send = unittest.mock.MagicMock()
-    mock_ipython_send = unittest.mock.MagicMock()
+    mock_console_push = unittest.mock.MagicMock()
+    mock_ipython_push = unittest.mock.MagicMock()
     monkeypatch.setattr(
-        mlrun.utils.notifications.ConsoleNotification, "send", mock_console_send
+        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "send", mock_ipython_send
+        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
     )
     monkeypatch.setattr(
         mlrun.utils.notifications.IPythonNotification, "active", ipython_active
     )
 
     custom_notification_pusher.push("test-message", "info", [])
-    assert mock_console_send.call_count == expected_console_call_amount
-    assert mock_ipython_send.call_count == expected_ipython_call_amount
+    assert mock_console_push.call_count == expected_console_call_amount
+    assert mock_ipython_push.call_count == expected_ipython_call_amount

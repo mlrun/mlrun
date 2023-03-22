@@ -36,8 +36,8 @@ class ScheduleCronTrigger(BaseModel):
     hour: Optional[Union[int, str]]
     minute: Optional[Union[int, str]]
     second: Optional[Union[int, str]]
-    start_date: Optional[Union[datetime, str]]
-    end_date: Optional[Union[datetime, str]]
+    start_date: Union[datetime, str] = None
+    end_date: Union[datetime, str] = None
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
     timezone: Optional[str]
@@ -70,6 +70,12 @@ class ScheduleCronTrigger(BaseModel):
             day_of_week=values[4],
             timezone=timezone,
         )
+
+    def to_crontab(self) -> str:
+        """
+        Convert the trigger to a crontab expression.
+        """
+        return f"{self.minute} {self.hour} {self.day} {self.month} {self.day_of_week}"
 
 
 class ScheduleKinds(mlrun.api.utils.helpers.StrEnum):

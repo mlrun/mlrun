@@ -141,6 +141,8 @@ class ServingSpec(NuclioSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        service_type=None,
+        add_templated_ingress_host_mode=None,
     ):
 
         super().__init__(
@@ -178,6 +180,8 @@ class ServingSpec(NuclioSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            service_type=service_type,
+            add_templated_ingress_host_mode=add_templated_ingress_host_mode,
         )
 
         self.models = models or {}
@@ -584,7 +588,7 @@ class ServingRuntime(RemoteRuntime):
     ):
         """deploy model serving function to a local/remote cluster
 
-        :param dashboard: remote nuclio dashboard url (blank for local or auto detection)
+        :param dashboard: DEPRECATED. Keep empty to allow auto-detection by MLRun API
         :param project:   optional, override function specified project name
         :param tag:       specify unique function tag (a different function service is created for every tag)
         :param verbose:   verbose logging

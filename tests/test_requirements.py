@@ -93,7 +93,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "storey": {"~=1.3.11"},
+        "storey": {"~=1.3.15"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
@@ -131,7 +131,7 @@ def test_requirement_specifiers_convention():
         "importlib_metadata": {">=3.6"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "pyopenssl": {">=23"},
-        "google-cloud-bigquery": {">=3.2,<3.5"},
+        "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},
@@ -296,6 +296,9 @@ def _load_requirements(path):
             if _is_ignored_requirement_line(line):
                 continue
             line = line.strip()
+
+            if len(line.split(" #")) > 1:
+                line = line.split(" #")[0]
 
             # e.g.: git+https://github.com/nuclio/nuclio-jupyter.git@some-branch#egg=nuclio-jupyter
             if "#egg=" in line:

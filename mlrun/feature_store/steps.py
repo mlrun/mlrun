@@ -319,7 +319,7 @@ class MapValues(StepToDict, MLRunStep):
             )
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"MapValues: mapping values of the same column must be in the same type! Column: {column}"
+                    f"MapValues - mapping values of the same column must be in the same type! Column: {column}"
                 )
 
 

@@ -211,10 +211,7 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = mlrun.utils.HTTPSessionWithRetry(
-                retry_on_exception=config.httpdb.retry_api_call_on_exception
-                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
-            )
+            self.session = self._init_session()
 
         try:
             response = self.session.request(
@@ -241,6 +238,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _init_session(self):
+        return mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=config.httpdb.retry_api_call_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
+        )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -457,7 +460,7 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode())
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         if watch:
             nil_resp = 0
             while state in ["pending", "running"]:
@@ -475,7 +478,10 @@ class HTTPRunDB(RunDBInterface):
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
-                    print(text.decode(), end="")
+                    print(
+                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                        end="",
+                    )
                 else:
                     nil_resp += 1
         else:

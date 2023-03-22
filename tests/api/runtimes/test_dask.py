@@ -121,6 +121,14 @@ class TestDaskRuntime(TestRuntimeBase):
         self._assert_container_resources(
             worker_container_spec, expected_worker_limits, expected_worker_requests
         )
+        expected_worker_memory_limit = expected_worker_limits.get("memory")
+        if expected_worker_memory_limit:
+            assert {"--memory-limit", expected_worker_memory_limit}.issubset(
+                set(worker_container_spec.args)
+            )
+        else:
+            assert "--memory-limit" not in worker_container_spec.args
+
         scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
         self._assert_container_resources(
@@ -222,12 +230,15 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime.with_scheduler_limits(
             mem=expected_scheduler_limits["memory"],
             cpu=expected_scheduler_limits["cpu"],
+            gpus=expected_gpus,
+            gpu_type=gpu_type,
         )
         runtime.with_worker_limits(
             mem=expected_worker_limits["memory"],
             cpu=expected_worker_limits["cpu"],
+            gpus=expected_gpus,
+            gpu_type=gpu_type,
         )
-        runtime.gpus(expected_gpus, gpu_type)
         _ = runtime.client
 
         self.kube_cluster_mock.assert_called_once()

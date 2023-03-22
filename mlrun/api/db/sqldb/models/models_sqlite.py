@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 from sqlalchemy import (
     BLOB,
+    BOOLEAN,
     JSON,
     TIMESTAMP,
     Column,
@@ -183,6 +184,40 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
+    class Notification(Base, BaseModel):
+        __tablename__ = "notifications"
+        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        condition = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        run = Column(Integer, ForeignKey("runs.id"))
+        sent_time = Column(
+            TIMESTAMP(),
+            nullable=True,
+        )
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
     class Run(Base, HasStruct):
         __tablename__ = "runs"
         __table_args__ = (
@@ -203,8 +238,14 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
+        # requested logs column indicates whether logs were requested for this run
+        # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
+        # False - logs were not requested for this run
+        # True - logs were requested for this run
+        requested_logs = Column(BOOLEAN)
         updated = Column(TIMESTAMP, default=datetime.utcnow)
         labels = relationship(Label)
+        notifications = relationship(Notification, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
@@ -382,7 +423,7 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            self._full_object = json.dumps(value, default=str)
 
     class FeatureVector(Base, BaseModel):
         __tablename__ = "feature_vectors"
@@ -415,7 +456,7 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            self._full_object = json.dumps(value, default=str)
 
     class MarketplaceSource(Base, BaseModel):
         __tablename__ = "marketplace_sources"
@@ -439,7 +480,7 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            self._full_object = json.dumps(value, default=str)
 
     class DataVersion(Base, BaseModel):
         __tablename__ = "data_versions"

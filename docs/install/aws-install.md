@@ -73,7 +73,7 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 6. **Additional EKS admin ARN (IAM user)** (o) &mdash; add an additional admin user to the instance. Users can be added after the stack has been created. For more information see [Create a kubeconfig for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html).
 7. **Instance type** (m) &mdash; select from the dropdown list. The default is m5.4xlarge. For size considerations see [Amazon EC2 Instance Types](https://aws.amazon.com/ec2/instance-types/).
-8. **Maximum Number of Nodes** (m) &mdash; maximum number of nodes in the cluster. The minimum value of this parameter must match the number of **Availability Zones**. The number of nodes combined with the **Instance type** determines the AWS infrastructure cost.
+8. **Maximum Number of Nodes** (m) &mdash; maximum number of nodes in the cluster. The number of nodes combined with the **Instance type** determines the AWS infrastructure cost.
 
 **Amazon EC2 configuration**
 

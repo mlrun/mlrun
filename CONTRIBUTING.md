@@ -69,8 +69,12 @@ make fmt
 
 ## Pull requests
 
-* **Title** - our convention for the pull request title (used as the squashed commit message) is to have it starting with 
-[\<scope\>] e.g. "[API] Adding endpoint to list runs"
+* **Title**
+  - Begin the title of the PR with `[<scope>]` , with the first letter of the component name in uppercase, e.g `[API] Add endpoint to list runs`.
+  - If the PR is addressing a bug, include the keywords `fix` or `bug` in the title of the PR, so that it will be added to the `Bugs & Fixes` section in the release notes.
+  - Use imperative verbs when describing the changes made in the PR. For example, instead of writing `Adding endpoint to list runs`, write `Add endpoint to list runs`.
+  - Start with a verb after the `[<scope>]` prefix, e.g. `[API] Add endpoint to list runs`.
+
 * **Description** - It's much easier to review when there is a detailed description of the changes, and especially the why-s,
 please put effort in writing good description
 * **Tests** - we care a lot about tests! if your PR will include good test coverage higher chances it will be merged fast

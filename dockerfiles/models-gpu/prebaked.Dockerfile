@@ -43,7 +43,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
     conda init bash
 
 ARG MLRUN_PIP_VERSION=22.3.0
-ARG MLRUN_PYTHON_VERSION=3.9.13
+ARG MLRUN_PYTHON_VERSION=3.9
 ARG OMPI_VERSION=4.1.4
 
 ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
@@ -63,7 +63,6 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cython \
         make \
         nccl \
-        python=${MLRUN_PYTHON_VERSION} \
         pytorch=1.13 \
         rapids=22.10 \
         tensorflow=2.9 \
@@ -79,3 +78,6 @@ ARG HOROVOD_VERSION=0.25.0
 RUN HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install horovod~=${HOROVOD_VERSION} && \
     horovodrun --check-build
+
+# install opencv dependencies - putting it here to reuse cache
+RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y

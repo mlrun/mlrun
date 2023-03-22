@@ -12,95 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import pandas as pd
 
-from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
 
 class LocalFeatureMerger(BaseMerger):
+    engine = "local"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
-
-    def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-        query=None,
-    ):
-
-        feature_sets = []
-        dfs = []
-        for name, columns in feature_set_fields.items():
-            feature_set = feature_set_objects[name]
-            feature_sets.append(feature_set)
-            column_names = [name for name, alias in columns]
-            # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
-            # column is from a specific feature set (can't be entity timestamp)
-            if (
-                entity_timestamp_column in column_names
-                or feature_set.spec.timestamp_key == entity_timestamp_column
-            ):
-                df = feature_set.to_dataframe(
-                    columns=column_names,
-                    start_time=start_time,
-                    end_time=end_time,
-                    time_column=entity_timestamp_column,
-                )
-            else:
-                df = feature_set.to_dataframe(
-                    columns=column_names,
-                    time_column=entity_timestamp_column,
-                )
-            # rename columns with aliases
-            df.rename(
-                columns={name: alias for name, alias in columns if alias}, inplace=True
-            )
-            dfs.append(df)
-            del df
-
-        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
-
-        self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
-
-        if self.vector.status.label_column:
-            self._result_df.dropna(
-                subset=[self.vector.status.label_column],
-                inplace=True,
-            )
-        # filter joined data frame by the query param
-        if query:
-            self._result_df.query(query, inplace=True)
-
-        if self._drop_indexes:
-            self._result_df.reset_index(drop=True, inplace=True)
-
-        # check if need to set indices
-        self._set_indexes(self._result_df)
-
-        self._write_to_target()
-
-        return OfflineVectorResponse(self)
 
     def _asof_join(
         self,
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
     ):
-        indexes = list(featureset.spec.entities.keys())
+
+        indexes = None
+        if not right_keys:
+            indexes = list(featureset.spec.entities.keys())
         index_col_not_in_entity = "index" not in entity_df.columns
         index_col_not_in_featureset = "index" not in featureset_df.columns
-        # Sort left and right keys
-        if type(entity_df.index) != pd.RangeIndex:
-            entity_df.reset_index(inplace=True)
-        if type(featureset_df.index) != pd.RangeIndex:
-            featureset_df.reset_index(inplace=True)
         entity_df[entity_timestamp_column] = pd.to_datetime(
             entity_df[entity_timestamp_column]
         )
@@ -116,13 +55,20 @@ class LocalFeatureMerger(BaseMerger):
             left_on=entity_timestamp_column,
             right_on=featureset.spec.timestamp_key,
             by=indexes,
+            left_by=left_keys or None,
+            right_by=right_keys or None,
+            suffixes=("", f"_{featureset.metadata.name}_"),
         )
+        for col in merged_df.columns:
+            if re.findall(f"_{featureset.metadata.name}_$", col):
+                self._append_drop_column(col)
 
         # Undo indexing tricks for asof merge
         # to return the correct indexes and not
         # overload `index` columns
         if (
-            "index" not in indexes
+            indexes
+            and "index" not in indexes
             and index_col_not_in_entity
             and index_col_not_in_featureset
             and "index" in merged_df.columns
@@ -135,8 +81,68 @@ class LocalFeatureMerger(BaseMerger):
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
     ):
-        indexes = list(featureset.spec.entities.keys())
-        merged_df = pd.merge(entity_df, featureset_df, on=indexes)
+        fs_name = featureset.metadata.name
+        merged_df = pd.merge(
+            entity_df,
+            featureset_df,
+            how=self._join_type,
+            left_on=left_keys,
+            right_on=right_keys,
+            suffixes=("", f"_{fs_name}_"),
+        )
+        for col in merged_df.columns:
+            if re.findall(f"_{fs_name}_$", col):
+                self._append_drop_column(col)
         return merged_df
+
+    def _create_engine_env(self):
+        pass
+
+    def _get_engine_df(
+        self,
+        feature_set,
+        feature_set_name,
+        column_names=None,
+        start_time=None,
+        end_time=None,
+        entity_timestamp_column=None,
+    ):
+        # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
+        # column is from a specific feature set (can't be entity timestamp)
+        if (
+            entity_timestamp_column in column_names
+            or feature_set.spec.timestamp_key == entity_timestamp_column
+        ):
+            df = feature_set.to_dataframe(
+                columns=column_names,
+                start_time=start_time,
+                end_time=end_time,
+                time_column=entity_timestamp_column,
+            )
+        else:
+            df = feature_set.to_dataframe(
+                columns=column_names,
+                time_column=entity_timestamp_column,
+            )
+        if df.index.names[0]:
+            df.reset_index(inplace=True)
+        return df
+
+    def _rename_columns_and_select(self, df, rename_col_dict, columns=None):
+        df.rename(
+            columns=rename_col_dict,
+            inplace=True,
+        )
+
+    def _drop_columns_from_result(self):
+        self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
+
+    def _filter(self, query):
+        self._result_df.query(query, inplace=True)
+
+    def _order_by(self, order_by_active):
+        self._result_df.sort_values(by=order_by_active, ignore_index=True, inplace=True)

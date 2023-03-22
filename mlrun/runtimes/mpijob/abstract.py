@@ -24,7 +24,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
-from mlrun.runtimes.utils import AsyncLogWriter, RunError
+from mlrun.runtimes.utils import RunError
 from mlrun.utils import get_in, logger
 
 
@@ -174,30 +174,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state("running" if state == "active" else state)
-                if self.kfp:
-                    writer = AsyncLogWriter(self._db_conn, runobj)
-                    status = self._get_k8s().watch(
-                        launcher, meta.namespace, writer=writer
-                    )
-                    logger.info(f"MpiJob {meta.name} finished with state {status}")
-                    if status == "succeeded":
-                        execution.set_state("completed")
-                    else:
-                        execution.set_state(
-                            "error",
-                            f"MpiJob {meta.name} finished with state {status}",
-                        )
-                else:
-                    txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
-                    logger.info(txt)
-                    runobj.status.status_text = txt
+                txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
+                logger.info(txt)
+                runobj.status.status_text = txt
+
             else:
                 pods_phases = self.get_pods(meta.name, meta.namespace)
                 txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
                 logger.warning(txt)
                 runobj.status.status_text = txt
-                if self.kfp:
-                    execution.set_state("error", txt)
 
         return None
 
@@ -288,8 +273,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if not pods:
             logger.error("no pod matches that job name")
             return
-        # TODO: Why was this here?
-        # k8s = self._get_k8s()
         return list(pods.items())[0]
 
     def with_tracing(

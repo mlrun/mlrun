@@ -26,12 +26,13 @@ __all__ = [
 ]
 
 
+from mlrun.runtimes.package.context_handler import ArtifactType, ContextHandler
 from mlrun.runtimes.utils import (
     resolve_mpijob_crd_version,
     resolve_spark_operator_version,
 )
 
-from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
+from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime
@@ -152,9 +153,65 @@ class RuntimeKinds(object):
         ]
 
     @staticmethod
+    def is_log_collectable_runtime(kind: str):
+        """
+        whether log collector can collect logs for that runtime
+        :param kind: kind name
+        :return: whether log collector can collect logs for that runtime
+        """
+        # if local run, the log collector doesn't support it as it is only supports k8s resources
+        # when runtime is local the client is responsible for logging the stdout of the run by using `log_std`
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # dask implementation is different than other runtimes, because few runs can be run against the same runtime
+            # resource, so collecting logs on that runtime resource won't be correct, the way we collect logs for dask
+            # is by using `log_std` on client side after we execute the code against the cluster, as submitting the
+            # run with the dask client will return the run stdout. for more information head to `DaskCluster._run`
+            RuntimeKinds.dask
+        ]:
+            return True
+
+        return False
+
+    @staticmethod
     def is_local_runtime(kind):
         # "" or None counted as local
         if not kind or kind in RuntimeKinds.local_runtimes():
+            return True
+        return False
+
+    @staticmethod
+    def is_watchable(kind):
+        """
+        Returns True if the runtime kind is watchable, False otherwise.
+        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
+        is completed.
+        """
+        # "" or None counted as local
+        if not kind:
+            return False
+        return kind not in [
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
+            RuntimeKinds.dask,
+        ]
+
+    @staticmethod
+    def requires_absolute_artifacts_path(kind):
+        """
+        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        """
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
+            # case the path can be relative) or remotely (in which case the path must be absolute and will be passed
+            # to another run)
+            RuntimeKinds.dask
+        ]:
             return True
         return False
 

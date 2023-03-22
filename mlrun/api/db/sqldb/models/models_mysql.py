@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 import sqlalchemy.dialects.mysql
 from sqlalchemy import (
+    BOOLEAN,
     JSON,
     Column,
     ForeignKey,
@@ -183,6 +184,46 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
+    class Notification(Base, BaseModel):
+        __tablename__ = "notifications"
+        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        condition = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        run = Column(Integer, ForeignKey("runs.id"))
+
+        # TODO: Separate table for notification state.
+        #   Currently, we are only supporting one notification being sent per DB row (either on completion or on error).
+        #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
+        #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
+        #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
+        sent_time = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            nullable=True,
+        )
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
     class Run(Base, HasStruct):
         __tablename__ = "runs"
         __table_args__ = (
@@ -206,9 +247,15 @@ with warnings.catch_warnings():
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        # requested logs column indicates whether logs were requested for this run
+        # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
+        # False - logs were not requested for this run
+        # True - logs were requested for this run
+        requested_logs = Column(BOOLEAN, default=False, index=True)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
+        notifications = relationship(Notification, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
@@ -401,7 +448,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class FeatureVector(Base, BaseModel):
         __tablename__ = "feature_vectors"
@@ -441,7 +489,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class MarketplaceSource(Base, BaseModel):
         __tablename__ = "marketplace_sources"
@@ -471,7 +520,8 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = json.dumps(value)
+            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
+            self._full_object = json.dumps(value, default=str)
 
     class DataVersion(Base, BaseModel):
         __tablename__ = "data_versions"

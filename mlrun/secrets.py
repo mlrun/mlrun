@@ -153,6 +153,7 @@ def get_secret_or_env(
     key: str,
     secret_provider: Union[Dict, SecretsStore, Callable, None] = None,
     default: Optional[str] = None,
+    prefix: Optional[str] = None,
 ) -> str:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
@@ -179,8 +180,11 @@ def get_secret_or_env(
     :param secret_provider: Dictionary, callable or `SecretsStore` to extract the secret value from. If using a
         callable, it must use the signature `callable(key:str)`
     :param default: Default value to return if secret was not available through any other means
+    :param prefix: When passed, the prefix is added to the secret key.
     :return: The secret value if found in any of the sources, or `default` if provided.
     """
+    if prefix:
+        key = f"{prefix}_{key}"
 
     value = None
     if secret_provider:

@@ -22,13 +22,19 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
+from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
 
 import mlrun
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
+from mlrun.datastore.targets import (
+    CSVTarget,
+    NoSqlTarget,
+    ParquetTarget,
+    RedisNoSqlTarget,
+)
 from mlrun.feature_store import FeatureSet
 from mlrun.feature_store.steps import (
     DateExtractor,
@@ -43,31 +49,6 @@ from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
 
 
-def read_and_assert(csv_path_spark, csv_path_storey):
-    read_back_df_spark = None
-    file_system = fsspec.filesystem("v3io")
-    for file_entry in file_system.ls(csv_path_spark):
-        filepath = file_entry["name"]
-        if not filepath.endswith("/_SUCCESS"):
-            read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
-            break
-    assert read_back_df_spark is not None
-
-    read_back_df_storey = None
-    for file_entry in file_system.ls(csv_path_storey):
-        filepath = file_entry["name"]
-        read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-        break
-    assert read_back_df_storey is not None
-
-    read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
-    read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
-
-    assert read_back_df_spark.sort_index(axis=1).equals(
-        read_back_df_storey.sort_index(axis=1)
-    )
-
-
 @TestMLRunSystem.skip_test_if_env_not_configured
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
@@ -75,7 +56,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
-    pq_target = "testdata_target.parquet"
+    pq_target = "testdata_target"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -99,11 +80,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + cls.pq_source
         return path
 
-    def get_remote_pq_target_path(self, without_prefix=False):
+    def _print_full_df(self, df: pd.DataFrame, df_name: str, passthrough: str) -> None:
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):
+            self._logger.info(f"{df_name}-passthrough_{passthrough}:")
+            self._logger.info(df)
+
+    def get_remote_pq_target_path(self, without_prefix=False, clean_up=True):
         path = "v3io://"
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_target
+        if clean_up:
+            fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+            for f in fsys.listdir(path):
+                fsys._rm(f["name"])
         return path
 
     @classmethod
@@ -151,6 +141,59 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 sj.deploy(with_mlrun=False)
                 get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
+
+    @staticmethod
+    def read_parquet_and_assert(out_path_spark, out_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(out_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_parquet(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(out_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_parquet(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        # spark does not support indexes, so we need to reset the storey result to match it
+        read_back_df_storey.reset_index(inplace=True)
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
+
+    @staticmethod
+    def read_csv_and_assert(csv_path_spark, csv_path_storey):
+        read_back_df_spark = None
+        file_system = fsspec.filesystem("v3io")
+        for file_entry in file_system.ls(csv_path_spark):
+            filepath = file_entry["name"]
+            if not filepath.endswith("/_SUCCESS"):
+                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+                break
+        assert read_back_df_spark is not None
+
+        read_back_df_storey = None
+        for file_entry in file_system.ls(csv_path_storey):
+            filepath = file_entry["name"]
+            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+            break
+        assert read_back_df_storey is not None
+
+        read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+        read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+        assert read_back_df_spark.sort_index(axis=1).equals(
+            read_back_df_storey.sort_index(axis=1)
+        )
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
@@ -292,6 +335,102 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert read_back_df_spark.sort_index(axis=1).equals(
             read_back_df_storey.sort_index(axis=1)
         )
+
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
+    def test_ingest_to_redis(self):
+        key = "patient_id"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [RedisNoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"patient_id": "305-90-1613"}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
+    def test_ingest_to_redis_numeric_index(self):
+        key = "movements"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [RedisNoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"movements": 4.614601941071927}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "patient_id": "305-90-1613",
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
 
     # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
@@ -437,23 +576,70 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
 
         df = fstore.ingest(data_set, source, targets=[])
 
-        assert df.to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 21:43:00Z"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 21:44:00Z"),
+        assert df.fillna("NaN-was-here").to_dict("records") == [
+            {
+                "bid": 2000,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000000,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 2000,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:40:00+0000", tz="UTC"),
             },
-        }
+            {
+                "bid": 10,
+                "bid_max_1h": 10,
+                "bid_sqr_1h": 100,
+                "bid_stdvar_1h": "NaN-was-here",
+                "bid_sum_1h": 10,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:41:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 11,
+                "bid_max_1h": 11,
+                "bid_sqr_1h": 221,
+                "bid_stdvar_1h": 0.5,
+                "bid_sum_1h": 21,
+                "mood": "bad",
+                "time": pd.Timestamp("2020-07-21 21:42:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:43:00+0000", tz="UTC"),
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:44:00+0000", tz="UTC"),
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
         name_spark = f"{name}_spark"
 
@@ -465,7 +651,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max"],
+            operations=["sum", "max", "sqr", "stdvar"],
             windows="1h",
             period="10m",
         )
@@ -485,17 +671,146 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
-        assert resp.to_dataframe().to_dict() == {
-            "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
-            "bid": {("moshe", "cohen"): 12, ("yosi", "levi"): 16},
-            "bid_sum_1h": {("moshe", "cohen"): 2012, ("yosi", "levi"): 37},
-            "bid_max_1h": {("moshe", "cohen"): 2000, ("yosi", "levi"): 16},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-07-21 22:00:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-07-21 22:30:00"),
+
+        # We can't count on the order when reading the results back
+        result_records = (
+            resp.to_dataframe()
+            .sort_values(["first_name", "last_name", "time"])
+            .to_dict("records")
+        )
+
+        assert result_records == [
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
             },
-            "time_window": {("moshe", "cohen"): "1h", ("yosi", "levi"): "1h"},
-        }
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 12,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000144,
+                "bid_stdvar_1h": 1976072,
+                "bid_sum_1h": 2012,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 21:50:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:00:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:10:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "time_window": "1h",
+            },
+            {
+                "bid": 16,
+                "bid_max_1h": 16,
+                "bid_sqr_1h": 477,
+                "bid_stdvar_1h": 10.333333333333334,
+                "bid_sum_1h": 37,
+                "mood": "good",
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "time_window": "1h",
+            },
+        ]
+
+        assert df.index.equals(
+            pd.MultiIndex.from_arrays(
+                [
+                    ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                    ["cohen", "levi", "levi", "cohen", "levi"],
+                ],
+                names=("first_name", "last_name"),
+            )
+        )
 
     def test_aggregations_emit_every_event(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -532,7 +847,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
             emit_policy=EmitEveryEvent(),
@@ -546,7 +861,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
-        result_dict = data_set.to_dataframe().sort_values("time").to_dict(orient="list")
+        result_dict = (
+            data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .sort_values("time")
+            .to_dict(orient="list")
+        )
 
         expected_results = df.to_dict(orient="list")
         expected_results.update(
@@ -554,6 +874,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "bid_sum_2h": [2000, 10, 2012, 26, 34],
                 "bid_max_2h": [2000, 10, 2000, 16, 16],
                 "bid_count_2h": [1, 1, 2, 2, 3],
+                "bid_sqr_2h": [4000000, 100, 4000144, 356, 420],
+                "bid_stdvar_2h": [
+                    "NaN-was-here",
+                    "NaN-was-here",
+                    1976072,
+                    18,
+                    17.333333333333332,
+                ],
             }
         )
         assert result_dict == expected_results
@@ -569,13 +897,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set.add_aggregation(
             column="bid",
-            operations=["sum", "max", "count"],
+            operations=["sum", "max", "count", "sqr", "stdvar"],
             windows=["2h"],
             period="10m",
         )
         fstore.ingest(storey_data_set, source)
 
-        storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
+        storey_df = (
+            storey_data_set.to_dataframe()
+            .fillna("NaN-was-here")
+            .reset_index()
+            .sort_values("time")
+        )
         print(f"Storey results:\n{storey_df.to_string()}\n")
         storey_result_dict = storey_df.to_dict(orient="list")
 
@@ -816,12 +1149,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
     # ML-3092
-    def test_get_offline_features_with_filter_and_indexes(self):
+    @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
+    def test_get_offline_features_with_filter_and_indexes(self, timestamp_key):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
+            timestamp_key=timestamp_key,
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
@@ -848,19 +1182,34 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=False),
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
+        target_df.set_index(["patient_id"], drop=True, inplace=True)
+        assert resp_df.equals(target_df)
+
         source_df = source.to_dataframe()
         source_df.set_index(key, drop=True, inplace=True)
+        target_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
-        assert resp_df.equals(target_df)
+        expected_df.reset_index(drop=True, inplace=True)
+        resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    # ML-2802
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_get_offline_features_with_spark_engine(self, passthrough):
+    # ML-2802, ML-3397
+    @pytest.mark.parametrize(
+        ["target_type", "passthrough"],
+        [
+            (ParquetTarget, False),
+            (ParquetTarget, True),
+            (CSVTarget, False),
+            (CSVTarget, True),
+        ],
+    )
+    def test_get_offline_features_with_spark_engine(self, passthrough, target_type):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -893,7 +1242,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             features,
         )
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = target_type(
+            "mytarget",
+            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -907,6 +1259,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
+        self._print_full_df(df=resp_df, df_name="resp_df", passthrough=passthrough)
+        self._print_full_df(df=target_df, df_name="target_df", passthrough=passthrough)
+        self._print_full_df(
+            df=expected_df, df_name="expected_df", passthrough=passthrough
+        )
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
@@ -947,7 +1304,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=[key]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        key_as_set = {key}
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
@@ -986,7 +1363,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapval(self, with_original_features):
@@ -1042,13 +1419,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets,
         )
         csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        out_path_spark = "v3io:///bigdata/test_ingest_with_steps_extractor_spark"
+        out_path_storey = "v3io:///bigdata/test_ingest_with_steps_extractor_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1063,7 +1440,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        targets = [ParquetTarget(path=out_path_spark)]
         fstore.ingest(
             measurements,
             source,
@@ -1071,7 +1448,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=False),
         )
-        csv_path_spark = measurements.get_target_path(name="csv")
+        out_path_spark = measurements.get_target_path()
 
         measurements = fstore.FeatureSet(
             "measurements_storey",
@@ -1085,11 +1462,475 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        targets = [ParquetTarget(path=out_path_storey)]
         fstore.ingest(
             measurements,
             source,
             targets,
         )
-        csv_path_storey = measurements.get_target_path(name="csv")
-        read_and_assert(csv_path_spark, csv_path_storey)
+
+        out_path_storey = measurements.get_target_path()
+        self.read_parquet_and_assert(out_path_spark, out_path_storey)
+
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    @pytest.mark.parametrize("join_type", ["inner", "outer"])
+    def test_relation_join(self, join_type, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+            }
+        )
+
+        employees_with_class = pd.DataFrame(
+            {
+                "id": [100, 200, 300],
+                "name": [f"employee{num}" for num in range(100, 400, 100)],
+                "department_id": [1, 1, 2],
+                "class_id": [i for i in range(20, 23)],
+            }
+        )
+
+        classes = pd.DataFrame(
+            {
+                "c_id": [i for i in range(20, 30, 2)],
+                "name": [f"class{num}" for num in range(20, 30, 2)],
+            }
+        )
+
+        managers = pd.DataFrame(
+            {
+                "m_id": [i for i in range(10, 20, 2)],
+                "name": [f"manager{num}" for num in range(10, 20, 2)],
+            }
+        )
+
+        join_employee_department = pd.merge(
+            employees_with_department,
+            departments,
+            how=join_type,
+            left_on=["department_id"],
+            right_on=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        join_employee_managers = pd.merge(
+            join_employee_department,
+            managers,
+            how=join_type,
+            left_on=["manager_id"],
+            right_on=["m_id"],
+            suffixes=("_manage", "_"),
+        )
+
+        join_employee_sets = pd.merge(
+            employees_with_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_employees", "_e_mini"),
+        )
+
+        _merge_step = pd.merge(
+            join_employee_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_", "_e_mini"),
+        )
+
+        join_all = pd.merge(
+            _merge_step,
+            classes,
+            how=join_type,
+            left_on=["class_id"],
+            right_on=["c_id"],
+            suffixes=("_e_mini", "_cls"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        col_2 = ["name_employees", "name_departments", "name"]
+        col_3 = ["name_employees", "name_e_mini"]
+        col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
+        if with_indexes:
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+            join_employee_managers.set_index(
+                ["id", "d_id", "m_id"], drop=True, inplace=True
+            )
+            join_employee_sets.set_index(["id"], drop=True, inplace=True)
+            join_all.set_index(["id", "d_id", "c_id"], drop=True, inplace=True)
+
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_managers = (
+            join_employee_managers[col_2]
+            .rename(
+                columns={
+                    "name_departments": "n2",
+                    "name_employees": "n",
+                    "name": "man_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
+        join_employee_sets = (
+            join_employee_sets[col_3]
+            .rename(
+                columns={"name_employees": "n", "name_e_mini": "mini_name"},
+            )
+            .sort_values(by="n")
+        )
+
+        join_all = (
+            join_all[col_4]
+            .rename(
+                columns={
+                    "name_employees": "n",
+                    "name_departments": "n2",
+                    "name_e_mini": "mini_name",
+                },
+            )
+            .sort_values(by="n")
+        )
+
+        # relations according to departments_set relations
+        managers_set_entity = fstore.Entity("m_id")
+        managers_set = fstore.FeatureSet(
+            "managers",
+            entities=[managers_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(managers_set, managers)
+
+        classes_set_entity = fstore.Entity("c_id")
+        classes_set = fstore.FeatureSet(
+            "classes",
+            entities=[classes_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(classes_set, classes)
+
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments",
+            entities=[departments_set_entity],
+            relations={"manager_id": managers_set_entity},
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        mini_employees_set = fstore.FeatureSet(
+            "mini-employees",
+            entities=[employees_set_entity],
+            relations={
+                "department_id": departments_set_entity,
+                "class_id": classes_set_entity,
+            },
+        )
+        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(mini_employees_set, employees_with_class)
+
+        features = ["employees.name"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="name",
+        )
+        if with_indexes:
+            expected = pd.DataFrame(
+                employees_with_department, columns=["id", "name"]
+            ).set_index("id", drop=True)
+            assert_frame_equal(expected, resp.to_dataframe())
+        else:
+            assert_frame_equal(
+                pd.DataFrame(employees_with_department, columns=["name"]),
+                resp.to_dataframe(),
+            )
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_1 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="n",
+        )
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "managers.name as man_name",
+        ]
+
+        vector = fstore.FeatureVector(
+            "man-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_2 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by=["n"],
+        )
+        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+
+        features = ["employees.name as n", "mini-employees.name as mini_name"]
+
+        vector = fstore.FeatureVector(
+            "mini-emp-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_3 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="name",
+        )
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "mini-employees.name as mini_name",
+            "classes.name as name_cls",
+        ]
+
+        vector = fstore.FeatureVector(
+            "four-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_4 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            join_type=join_type,
+            order_by="n",
+        )
+        assert_frame_equal(join_all, resp_4.to_dataframe())
+
+    @pytest.mark.parametrize("with_indexes", [False, True])
+    def test_relation_asof_join(self, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        join_employee_department = pd.merge_asof(
+            employees_with_department,
+            departments,
+            left_on=["time"],
+            right_on=["time"],
+            left_by=["department_id"],
+            right_by=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        if with_indexes:
+            col_1 = ["time", "name_employees", "name_departments"]
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values("n")
+        )
+
+        # relations according to departments_set relations
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments", entities=[departments_set_entity], timestamp_key="time"
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+            timestamp_key="time",
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp_1 = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=with_indexes,
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+            order_by=["n"],
+        )
+
+        assert_frame_equal(
+            join_employee_department.sort_index(axis=1),
+            resp_1.to_dataframe().sort_index(axis=1),
+        )
+
+    def test_as_of_join_result(self):
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        left_path = "v3io:///bigdata/asof_join/df_left.parquet"
+        right_path = "v3io:///bigdata/asof_join/df_right.parquet"
+
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df_left.to_parquet(path=left_path, filesystem=fsys)
+        df_right.to_parquet(path=right_path, filesystem=fsys)
+
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
+        fset1.set_targets(["parquet"], with_defaults=False)
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
+        fset2.set_targets(["parquet"], with_defaults=False)
+
+        source_left = ParquetSource("pq1", path=left_path)
+        source_right = ParquetSource("pq2", path=right_path)
+
+        fstore.ingest(fset1, source_left)
+        fstore.ingest(fset2, source_right)
+
+        self._logger.info(
+            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+        )
+        self._logger.info(
+            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+        )
+
+        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
+
+        resp = fstore.get_offline_features(vec, engine="local")
+        local_engine_res = resp.to_dataframe().sort_index(axis=1)
+
+        self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
+        self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
+
+        vec_for_spark = fstore.FeatureVector(
+            "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
+        )
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            vec_for_spark,
+            engine="spark",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            spark_service=self.spark_service,
+            target=target,
+        )
+        spark_engine_res = resp.to_dataframe().sort_index(axis=1)
+
+        self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
+        self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
+
+        assert spark_engine_res.shape == (2, 2)
+        assert local_engine_res.equals(spark_engine_res)

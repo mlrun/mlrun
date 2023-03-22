@@ -14,10 +14,10 @@
 #
 import math
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from .data_types import ValueType
-from .errors import err_to_str
+from .data_types import ValueType, python_type_to_value_type
+from .errors import MLRunRuntimeError, err_to_str
 from .model import ModelObj
 
 
@@ -37,26 +37,31 @@ def _limited_string(value: str, max_size: int = 40):
 class Entity(ModelObj):
     """data entity (index)"""
 
+    kind = "entity"
+
     def __init__(
         self,
         name: str = None,
-        value_type: ValueType = None,
+        value_type: Union[ValueType, str] = None,
         description: str = None,
         labels: Optional[Dict[str, str]] = None,
     ):
         """data entity (index key)
 
         :param name:        entity name
-        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT
+        :param value_type:  type of the entity, e.g. ValueType.STRING, ValueType.INT (default ValueType.STRING)
         :param description: test description of the entity
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name
         self.description = description
-        self.value_type = value_type
+        self.value_type = ValueType(value_type) if value_type else None
         if name and not value_type:
             self.value_type = ValueType.STRING
         self.labels = labels or {}
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 
 class Feature(ModelObj):
@@ -76,7 +81,7 @@ class Feature(ModelObj):
 
     def __init__(
         self,
-        value_type: str = None,
+        value_type: Union[ValueType, str] = None,
         dims: List[int] = None,
         description: str = None,
         aggregate: bool = None,
@@ -90,7 +95,7 @@ class Feature(ModelObj):
         Features can be specified manually or inferred automatically (during ingest/preview)
 
         :param value_type:  type of the feature. Use the ValueType constants library e.g. ValueType.STRING,
-                            ValueType.INT
+                            ValueType.INT (default ValueType.STRING)
         :param dims:        list of dimensions for vectors/tensors, e.g. [2, 2]
         :param description: text description of the feature
         :param aggregate:   is it an aggregated value
@@ -100,7 +105,11 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type = value_type
+        self.value_type = (
+            python_type_to_value_type(value_type)
+            if value_type is not None
+            else ValueType.STRING
+        )
         self.dims = dims
         self.description = description
         self.default = default
@@ -410,7 +419,7 @@ class RegexValidator(Validator):
         """
         super().__init__(check_type, severity)
         self.regex = regex
-        self.regex_compile = re.compile(self.regex)
+        self.regex_compile = re.compile(self.regex) if self.regex else None
 
     def check(self, value):
         ok, args = super().check(value)
@@ -432,6 +441,20 @@ class RegexValidator(Validator):
                     {"message": err_to_str(err), "type": self.kind},
                 )
         return ok, args
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super(RegexValidator, cls).from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        if hasattr(new_obj, "regex"):
+            new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
+        else:
+            raise MLRunRuntimeError(
+                f"Object with type {type(new_obj)} "
+                f"have to contain `regex` attribute"
+            )
+        return new_obj
 
 
 validator_kinds = {

@@ -514,7 +514,7 @@ async def test_list_project(
         assert project.spec.owner == mock_projects[index].get("owner")
         assert (
             deepdiff.DeepDiff(
-                mock_projects[index].get("labels"),
+                mock_projects[index].get("labels", {}),
                 project.metadata.labels,
                 ignore_order=True,
             )
@@ -522,7 +522,7 @@ async def test_list_project(
         )
         assert (
             deepdiff.DeepDiff(
-                mock_projects[index].get("annotations"),
+                mock_projects[index].get("annotations", {}),
                 project.metadata.annotations,
                 ignore_order=True,
             )

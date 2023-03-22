@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import os
 import typing
 import unittest
@@ -29,6 +30,7 @@ import mlrun.runtimes.pod
 import tests.api.runtimes.base
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
+from mlrun.feature_store.retrieval.job import _default_merger_handler
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
@@ -84,6 +86,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_driver_resources: dict = None,
         expected_executor_resources: dict = None,
         expected_cores: dict = None,
+        expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
             mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -112,6 +115,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
+
+        if expected_code:
+            body = self._get_custom_object_creation_body()
+            code = None
+            for envvar in body["spec"]["driver"]["env"]:
+                if envvar["name"] == "MLRUN_EXEC_CODE":
+                    code = envvar["value"]
+                    break
+            if code:
+                code = base64.b64decode(code).decode("UTF-8")
+            assert code == expected_code
 
     def _assert_volume_and_mounts(
         self,
@@ -576,13 +590,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_get_offline_features(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
+        # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
+        #   once moved, the `watch=False` can be removed
         import mlrun.feature_store as fstore
 
         fv = fstore.FeatureVector("my-vector", features=[])
         fv.save = unittest.mock.Mock()
 
-        self._reset_mocks()
         runtime = self._generate_runtime()
+        runtime.with_igz_spark = unittest.mock.Mock()
+
+        self._reset_mocks()
 
         mlrun.config.config.artifact_path = "v3io:///mypath"
 
@@ -591,12 +609,24 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_limits(cpu="1")
         runtime.with_executor_requests(cpu="1", mem="1G")
 
+        # remote-spark is not a merge engine but a runtime
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fstore.get_offline_features(
+                fv,
+                with_indexes=True,
+                entity_timestamp_column="timestamp",
+                engine="remote-spark",
+                run_config=RunConfig(local=False, function=runtime, watch=False),
+                target=ParquetTarget(),
+            )
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
             entity_timestamp_column="timestamp",
             engine="spark",
-            run_config=RunConfig(local=False, function=runtime),
+            # setting watch=False, because we don't want to wait for the job to complete when running in API
+            run_config=RunConfig(local=False, function=runtime, watch=False),
             target=ParquetTarget(),
         )
         runspec = resp.run.spec.to_dict()
@@ -614,12 +644,66 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
+                "join_type": "inner",
+                "order_by": None,
                 "engine_args": None,
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@0f4fef1da6f72c229b33fefbff0e5b58d87263c7",
+            "function": "None/my-vector-merger@e67bf7add40a6bafa25e19a1b80f3d4cc3789eff",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",
         }
+
+        self.name = "my-vector-merger"
+        self.project = "default"
+
+        expected_code = _default_merger_handler.replace(
+            "{{{engine}}}", "SparkFeatureMerger"
+        )
+
+        self._assert_custom_object_creation_config(
+            expected_driver_resources={
+                "requests": {"cpu": "1", "mem": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_executor_resources={
+                "requests": {"cpu": "1", "mem": "1G"},
+                "limits": {"cpu": "1"},
+            },
+            expected_code=expected_code,
+        )
+
+    def test_run_with_source_archive_pull_at_runtime(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False",
+        ):
+            runtime.with_source_archive(source="git://github.com/mock/repo")
+
+        runtime.with_source_archive(
+            source="git://github.com/mock/repo", pull_at_runtime=False
+        )
+
+    def test_run_with_load_source_on_run(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        # set default output path
+        mlrun.mlconf.artifact_path = "v3io:///tmp"
+        # generate runtime and set source code to load on run
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.metadata.name = "test-spark-runtime"
+        runtime.spec.build.source = "git://github.com/mock/repo"
+        runtime.spec.build.load_source_on_run = True
+        # expect pre-condition error, not supported
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
+            runtime.run()
+
+        assert (
+            str(exc.value) == "Sparkjob does not support loading source code on run, "
+            "use func.with_source_archive(pull_at_runtime=False)"
+        )

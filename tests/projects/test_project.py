@@ -27,6 +27,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.utils.helpers
 import tests.conftest
 
 
@@ -81,117 +82,6 @@ def test_sync_functions_with_names_different_than_default():
 
     assert project.spec._function_objects == project_function_object
     assert project.spec._function_definitions == project_function_definition
-
-
-def test_create_project_from_file_with_legacy_structure():
-    project_name = "project-name"
-    description = "project description"
-    params = {"param_key": "param value"}
-    artifact_path = "/tmp"
-    legacy_project = mlrun.projects.project.MlrunProjectLegacy(
-        project_name, description, params, artifact_path=artifact_path
-    )
-    function_name = "trainer-function"
-    function = mlrun.new_function(function_name, project_name)
-    legacy_project.set_function(function, function_name)
-    legacy_project.set_function("hub://describe", "describe")
-    workflow_name = "workflow-name"
-    workflow_file_path = (
-        pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "workflow.py"
-    )
-    legacy_project.set_workflow(workflow_name, str(workflow_file_path))
-    artifact_dict = {
-        "key": "raw-data",
-        "kind": "",
-        "iter": 0,
-        "tree": "latest",
-        "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
-        "o-Customer-Churn.csv",
-        "db_key": "raw-data",
-        "src_path": "./relative_path",
-    }
-    model_dict = {
-        "db_key": "model_best_estimator",
-        "framework": "xgboost",
-        "hash": "934cb89155cfd9225cb6f7271f1f1bb775eeb340",
-        "iter": "0",
-        "key": "model_best_estimator",
-        "kind": "model",
-        "labels": {"framework": "xgboost"},
-        "model_file": "model_best_estimator.pkl",
-        "producer": {
-            "kind": "run",
-            "name": "some_run",
-            "owner": "admin",
-            "uri": "some_run/311a3bb1c85145e7a3daa0aa4189a4f9",
-            "workflow": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        },
-        "size": 100,
-        "tag": "0.0.24",
-        "tree": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        "src_path": "./relative_path",
-        "target_path": "/some/target/path",
-        "updated": "2022-09-29T19:32:57.718312+00:00",
-    }
-
-    legacy_project.artifacts = [artifact_dict, model_dict]
-    legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
-    legacy_project.save(str(legacy_project_file_path))
-    project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
-
-    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
-    # called. So, calling manually to verify it works.
-    project.register_artifacts()
-
-    assert project.kind == "project"
-    assert project.metadata.name == project_name
-    assert project.spec.description == description
-    # assert accessible from the project as well
-    assert project.description == description
-    assert project.spec.artifact_path == artifact_path
-    # assert accessible from the project as well
-    assert project.artifact_path == artifact_path
-    assert (
-        deepdiff.DeepDiff(
-            params,
-            project.spec.params,
-            ignore_order=True,
-        )
-        == {}
-    )
-    # assert accessible from the project as well
-    assert (
-        deepdiff.DeepDiff(
-            params,
-            project.params,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.functions,
-            project.functions,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.workflows,
-            project.workflows,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.artifacts,
-            project.artifacts,
-            ignore_order=True,
-        )
-        == {}
-    )
 
 
 def test_export_project_dir_doesnt_exist():
@@ -303,7 +193,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -368,7 +258,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -444,12 +334,12 @@ def test_load_project(
         ),
         (
             True,
-            4,
+            5,
             False,
         ),
         (
             True,
-            4,
+            5,
             True,
         ),
     ],
@@ -468,7 +358,9 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == func, "func did not return"
+            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
+                func
+            ), "func did not return"
 
     if save:
         assert rundb_mock._function is not None
@@ -491,18 +383,20 @@ def _assert_project_function_objects(project, expected_function_objects):
 
 
 def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.MlrunProject(
+        "newproj", default_requirements=["pandas>1, <3"]
+    )
     project.set_function("hub://describe", "desc1", requirements=["x"])
     assert project.get_function("desc1", enrich=True).spec.build.commands == [
         "python -m pip install x",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
     assert project.get_function("desc2", enrich=True).spec.build.commands == [
         "python -m pip install y",
-        "python -m pip install pandas",
+        "python -m pip install 'pandas>1, <3'",
     ]
 
 
@@ -546,6 +440,36 @@ def test_set_function_with_relative_path(context):
     assert func is not None and func.spec.build.origin_filename.startswith(
         str(assets_path())
     )
+
+
+@pytest.mark.parametrize(
+    "artifact_path,file_exists,expectation",
+    [
+        ("handler.py", True, does_not_raise()),
+        ("handler.py", False, pytest.raises(OSError)),
+    ],
+)
+def test_set_artifact_validates_file_exists(
+    monkeypatch, artifact_path, file_exists, expectation
+):
+    artifact_key = "my-artifact"
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    monkeypatch.setattr(
+        os.path,
+        "isfile",
+        lambda path: path == str(assets_path() / artifact_path) and file_exists,
+    )
+
+    with expectation:
+        project.set_artifact(
+            artifact_key,
+            artifact_path,
+        )
+        assert project.spec.artifacts[0]["key"] == artifact_key
+        assert project.spec.artifacts[0]["import_from"] == str(
+            assets_path() / artifact_path
+        )
 
 
 def test_import_artifact_using_relative_path():
@@ -686,6 +610,71 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
+    proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
+    run = proj1.run_function("func", local=True)
+    assert run.spec.output_path == proj1.spec.artifact_path
+
+    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    assert run.spec.output_path == "/not/tmp"
+
+
+def test_function_receives_project_default_image():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_image = "myrepo/myimage1"
+
+    # Without a project default image, set_function with file-path for remote kind must get an image
+    with pytest.raises(ValueError, match="image must be provided"):
+        proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+
+    proj1.set_default_image(default_image)
+    proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+
+    # Functions should remain without the default image in the project cache (i.e. without enrichment). Only with
+    # enrichment, the default image should apply
+    non_enriched_function = proj1.get_function("func", enrich=False)
+    assert non_enriched_function.spec.image == ""
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.image == default_image
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2", kind="job", handler="myhandler", filename=func_path
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.image == ""
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.image == default_image
+
+    # If function already had an image, the default image must not override
+    func1.spec.image = "some/other_image"
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.image == "some/other_image"
+
+    # Enrich the function in-place. Validate that changing the default image affects this function
+    proj1.get_function("func", enrich=True, copy_function=False)
+    new_default_image = "mynewrepo/mynewimage1"
+    proj1.set_default_image(new_default_image)
+
+    enriched_function = proj1.get_function("func")
+    assert enriched_function.spec.image == new_default_image
+
+
+def test_project_exports_default_image():
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    default_image = "myrepo/myimage1"
+    project = mlrun.new_project("proj1", save=False)
+    project.set_default_image(default_image)
+
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert imported_project.default_image == default_image
+
 
 def test_run_function_passes_project_artifact_path(rundb_mock):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -791,4 +780,30 @@ def test_validating_large_int_params(
             local=True,
         )
 
-    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)
+    assert run_saved == (rundb_mock._runs != {})
+
+
+def test_load_project_with_git_enrichment(
+    context,
+    rundb_mock,
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(context=str(context), url=url, save=True)
+
+    assert (
+        project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
+    )
+
+
+def test_remove_owner_name_in_load_project_from_yaml():
+    # Create project and generate owner name
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.owner = "some_owner"
+
+    # Load the project from yaml and validate that the owner name was removed
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert project.spec.owner == "some_owner"
+    assert imported_project.spec.owner is None

@@ -5,7 +5,7 @@ This section lists the data stores, development tools, services, platforms, etc.
 
 ## Data stores 
 
-- Object (S3, gs, az) 
+- Object (S3, GS, az) 
 - Files, NFS 
 - Pandas/Spark DF 
 - BigQuery 

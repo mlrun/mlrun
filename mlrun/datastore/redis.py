@@ -147,7 +147,10 @@ class RedisStore(DataStore):
 
         if recursive:
             key += "*" if key.endswith("/") else "/*"
-            for key in self.redis.scan_iter(key):
-                self.redis.delete(key)
+            for k in self.redis.scan_iter(key):
+                self.redis.delete(k)
+            key = f"_spark:{key}"
+            for k in self.redis.scan_iter(key):
+                self.redis.delete(k)
         else:
             self.redis.delete(key)

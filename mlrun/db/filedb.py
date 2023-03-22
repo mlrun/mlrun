@@ -111,7 +111,6 @@ class FileRunDB(RunDBInterface):
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         run = self.read_run(uid, project, iter=iter)
-        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
@@ -149,6 +148,7 @@ class FileRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         if partition_by is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(

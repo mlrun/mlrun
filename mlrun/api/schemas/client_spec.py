@@ -56,6 +56,7 @@ class ClientSpec(pydantic.BaseModel):
     function: typing.Optional[Function]
     redis_url: typing.Optional[str]
     redis_type: typing.Optional[str]
+    sql_url: typing.Optional[str]
 
     # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
     ce_mode: typing.Optional[str]

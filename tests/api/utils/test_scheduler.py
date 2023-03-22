@@ -698,10 +698,20 @@ async def test_delete_schedules(db: Session, scheduler: Scheduler):
 
 @pytest.mark.asyncio
 async def test_rescheduling(db: Session, scheduler: Scheduler):
+    """
+    Test flow:
+        1. Create a schedule triggered every second
+        2. Wait for one run to complete
+        3. Stop the scheduler
+        4. Start the scheduler - schedule should be reloaded
+        5. Wait for another run to complete
+    """
     global call_counter
     call_counter = 0
 
-    expected_call_counter = 2
+    # we expect 3 calls but assert 2 to avoid edge cases where the schedule was reloaded in the same second
+    # as the end date and therefore doesn't trigger another run
+    expected_call_counter = 3
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
         number_of_jobs=expected_call_counter, seconds_interval=1
     )
@@ -728,10 +738,10 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     await scheduler.stop()
     assert call_counter == 1
 
-    # start the scheduler and and assert another run
+    # start the scheduler and assert another run
     await scheduler.start(db)
     await asyncio.sleep(1 + schedule_end_time_margin)
-    assert call_counter == 2
+    assert call_counter >= 2
 
 
 @pytest.mark.asyncio
@@ -1257,7 +1267,8 @@ async def test_schedule_job_concurrency_limit(
     )
     if schedule.next_run_time is None:
         # next run time may be none if the job was completed (i.e. end date was reached)
-        assert after_sleep_timestamp >= now_plus_5_seconds
+        # scrub the microseconds to reduce noise
+        assert after_sleep_timestamp >= now_plus_5_seconds.replace(microsecond=0)
 
     else:
         # scrub the microseconds to reduce noise
@@ -1285,9 +1296,11 @@ async def test_schedule_job_next_run_time(
     While the 1st run is still running, manually invoke the schedule (should fail due to concurrency limit)
     and check that the next run time is updated.
     """
-    now_plus_4_seconds = datetime.now() + timedelta(seconds=4)
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
-        second="*/1", end_date=now_plus_4_seconds
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
@@ -1311,7 +1324,7 @@ async def test_schedule_job_next_run_time(
         concurrency_limit=1,
     )
 
-    while datetime.now() < now_plus_4_seconds:
+    while datetime.now(timezone.utc) < now_plus_5_seconds:
         runs = get_db().list_runs(db, project=project_name)
         if len(runs) == 1:
             break

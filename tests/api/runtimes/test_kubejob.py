@@ -35,6 +35,7 @@ from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
+@pytest.mark.timeout(60)
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()

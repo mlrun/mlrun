@@ -404,7 +404,7 @@ class _ModelLogPusher:
         return base_data
 
     def push(self, start, request, resp=None, op=None, error=None):
-        start_str = start.strftime("%Y-%m-%d %H:%M:%S.%f %z")
+        start_str = start.isoformat(sep=" ", timespec="microseconds")
         if error:
             data = self.base_data()
             data["request"] = request

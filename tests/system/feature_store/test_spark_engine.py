@@ -1469,8 +1469,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
-                mlrun.runtimes.utils.RunError,
-                match=f"^Mapvalues: mapping that changing column type must change all values in the column!$",
+            mlrun.runtimes.utils.RunError,
+            match="^Mapvalues: mapping that changing column type must change all values in the column!$",
         ):
             fstore.ingest(
                 measurements,

@@ -30,7 +30,7 @@ from .object import (
 class Feature(BaseModel):
     name: str
     value_type: str
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
 
     class Config:
         extra = Extra.allow
@@ -39,7 +39,7 @@ class Feature(BaseModel):
 class Entity(BaseModel):
     name: str
     value_type: str
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
 
     class Config:
         extra = Extra.allow

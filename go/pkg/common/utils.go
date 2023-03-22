@@ -28,6 +28,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+var TimedOutErrorMessage = "Timed out waiting until successful"
+var ErrRetryUntilSuccessfulTimeout = errors.New(TimedOutErrorMessage)
+
 // GetEnvOrDefaultString returns the string value of the environment variable with the given key, or the given default
 // value if the environment variable is not set
 func GetEnvOrDefaultString(key string, defaultValue string) string {
@@ -197,7 +200,6 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 		shouldRetry  bool
 	)
 
-	timedOutErrorMessage := "Timed out waiting until successful"
 	deadline := time.Now().Add(duration)
 
 	// while we haven't passed the deadline
@@ -214,12 +216,12 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 	if lastErr != nil {
 
 		// wrap last error
-		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
+		return result, errors.Wrapf(lastErr, TimedOutErrorMessage)
 	}
 
 	// duration expired, but last callback failed
 	if shouldRetry {
-		return result, errors.New(timedOutErrorMessage)
+		return result, ErrRetryUntilSuccessfulTimeout
 	}
 
 	// duration expired, but last callback succeeded

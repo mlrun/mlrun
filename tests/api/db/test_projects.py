@@ -269,7 +269,7 @@ def test_store_project_update(
     project_output = db.get_project(db_session, project.metadata.name)
     assert project_output.metadata.name == project.metadata.name
     assert project_output.spec.description is None
-    assert project_output.metadata.labels is None
+    assert project_output.metadata.labels == {}
     # Created in request body should be ignored and set by the DB layer
     assert project_output.metadata.created != project.metadata.created
 

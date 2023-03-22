@@ -18,7 +18,12 @@ import kfp.compiler
 import kfp.dsl
 import pytest
 
-from mlrun import code_to_function, new_task, run_pipeline, wait_for_pipeline_completion
+from mlrun import (
+    _run_pipeline,
+    code_to_function,
+    new_task,
+    wait_for_pipeline_completion,
+)
 from mlrun.platforms.other import mount_v3io
 from tests.system.base import TestMLRunSystem
 
@@ -81,8 +86,12 @@ class TestJobs(TestMLRunSystem):
         kfp.compiler.Compiler().compile(job_pipeline, "jobpipe.yaml")
         artifact_path = "v3io:///users/admin/kfp/{{workflow.uid}}/"
         arguments = {"p1": 8}
-        workflow_run_id = run_pipeline(
-            job_pipeline, arguments, experiment="my-job", artifact_path=artifact_path
+        workflow_run_id = _run_pipeline(
+            job_pipeline,
+            arguments,
+            project=self.project_name,
+            experiment="my-job",
+            artifact_path=artifact_path,
         )
 
         wait_for_pipeline_completion(workflow_run_id)

@@ -18,6 +18,7 @@ package common
 const (
 	ErrCodeNotFound int32 = iota
 	ErrCodeInternal
+	ErrCodeBadRequest
 )
 
 const DefaultErrorStackDepth = 3

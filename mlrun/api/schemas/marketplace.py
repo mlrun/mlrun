@@ -28,7 +28,7 @@ from mlrun.config import config
 class MarketplaceObjectMetadata(BaseModel):
     name: str
     description: str = ""
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     updated: Optional[datetime]
     created: Optional[datetime]
 
@@ -45,7 +45,7 @@ class MarketplaceSourceType(mlrun.api.utils.helpers.StrEnum):
 class MarketplaceSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
-    credentials: Optional[dict] = None
+    credentials: Optional[dict] = {}
 
 
 class MarketplaceSource(BaseModel):

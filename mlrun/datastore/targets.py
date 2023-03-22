@@ -427,7 +427,9 @@ class BaseStoreTarget(DataTargetBase):
         )
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, _ = mlrun.store_manager.get_or_create_store(
+            self.get_target_path_with_credentials()
+        )
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -589,6 +591,9 @@ class BaseStoreTarget(DataTargetBase):
     def get_target_path(self):
         path_object = self._target_path_object
         return path_object.get_absolute_path() if path_object else None
+
+    def get_target_path_with_credentials(self):
+        return self.get_target_path()
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -1176,11 +1181,15 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
 
+    def get_target_path_with_credentials(self):
+        endpoint, uri = self._get_server_endpoint()
+        return endpoint
+
     def prepare_spark_df(self, df, key_columns):
         from pyspark.sql.functions import udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
+        udf1 = udf(lambda x: str(x) + "}:static", StringType())
         return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
@@ -1572,6 +1581,11 @@ class SQLTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         self._create_sql_table()
+        for step in graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,

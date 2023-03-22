@@ -21,7 +21,9 @@ import unittest.mock
 import deepdiff
 import kubernetes
 import nuclio
+import nuclio.utils
 import pytest
+import requests
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -567,6 +569,26 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_build_base_image=expected_build_base_image,
         )
 
+    def test_deploy_populate_nuclio_errors(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+
+        # simulate a nuclio deploy error
+        response = requests.Response()
+        response._content = (
+            b'{"error": "Something bad happened - custom message from nuclio"}'
+        )
+        response.reason = "Bad Request"
+        response.status_code = 400
+
+        nuclio.deploy.deploy_config.side_effect = [
+            nuclio.utils.DeployError("Deployment failed", response)
+        ]
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
+            self.execute_function(function)
+        assert "custom message from nuclio" in str(exc.value)
+
     def test_deploy_image_name_and_build_base_image(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
@@ -1094,12 +1116,129 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         }
 
-    def test_deploy_function_with_build_secret(self):
+    @pytest.mark.parametrize(
+        "image_pull_secret_name,build_secret_name,default_image_pull_secret_name,"
+        "default_build_secret_name,expected_secret_name",
+        [
+            ("", "", "", "", None),
+            ("my-secret", "", "", "", "my-secret"),
+            ("my-secret", None, "", "", "my-secret"),
+            ("my-secret", None, None, None, "my-secret"),
+            ("my-secret", "my-secret", "", "", "my-secret"),
+            (None, "my-secret", "", "", "my-secret"),
+            (None, "my-secret", None, None, "my-secret"),
+            ("my-image-pull-secret", "my-build-secret", "", "", "my-image-pull-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-default-image-pull-secret",
+            ),
+            (None, None, "", "my-default-builder-secret", "my-default-builder-secret"),
+            (
+                None,
+                None,
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                None,
+                "my-default-image-pull-secret",
+                "",
+                "my-other-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-other-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-image-pull-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-default-image-pull-secret",
+            ),
+            (
+                None,
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                "my-other-builder-secret",
+            ),
+            (
+                "",
+                "my-other-builder-secret",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+            (
+                "",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+            (
+                "my-default-image-pull-secret",
+                "",
+                "my-default-image-pull-secret",
+                "my-default-builder-secret",
+                None,
+            ),
+        ],
+    )
+    def test_deploy_function_with_image_pull_secret(
+        self,
+        image_pull_secret_name,
+        build_secret_name,
+        default_image_pull_secret_name,
+        default_build_secret_name,
+        expected_secret_name,
+    ):
+        mlrun.mlconf.function.spec.image_pull_secret.default = (
+            default_image_pull_secret_name
+        )
+        mlrun.mlconf.httpdb.builder.docker_registry_secret = default_build_secret_name
         fn = self._generate_runtime()
-        fn.spec.build.secret = "applied"
+
+        if image_pull_secret_name is not None:
+            fn.set_image_pull_configuration(
+                image_pull_secret_name=image_pull_secret_name
+            )
+
+        if build_secret_name is not None:
+            fn.spec.build.secret = build_secret_name
+
         _, _, deployed_config = compile_function_config(fn)
-        # expects spec.build.secret to overwrite Nuclio spec["spec"]["imagePullSecrets"]
-        assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
+        assert deployed_config["spec"].get("imagePullSecrets") == expected_secret_name
 
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)
@@ -1189,6 +1328,101 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=3, expected_class=self.class_name
         )
         self.assert_security_context(other_security_context)
+
+    @pytest.mark.parametrize(
+        "service_type, default_service_type, expected_service_type, "
+        "add_templated_ingress_host_mode, default_add_templated_ingress_host_mode, expected_ingress_host_template",
+        [
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.always,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "",
+                "ClusterIP",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+        ],
+    )
+    def test_deploy_with_service_type(
+        self,
+        db: Session,
+        client: TestClient,
+        service_type,
+        default_service_type,
+        expected_service_type,
+        add_templated_ingress_host_mode,
+        default_add_templated_ingress_host_mode,
+        expected_ingress_host_template,
+    ):
+        mlconf.httpdb.nuclio.default_service_type = default_service_type
+        mlconf.httpdb.nuclio.add_templated_ingress_host_mode = (
+            default_add_templated_ingress_host_mode
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_service_type(service_type, add_templated_ingress_host_mode)
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["serviceType"] == expected_service_type
+
+        if expected_ingress_host_template is None:
+            # never
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses == []
+
+        else:
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

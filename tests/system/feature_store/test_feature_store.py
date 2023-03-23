@@ -854,7 +854,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        path = measurements.get_target_path("parquet")[7:]
+        path = measurements.get_target_path("parquet")[7:]  # removing v3io prefix
         dataset = pq.ParquetDataset(
             path,
             filesystem=file_system,

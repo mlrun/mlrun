@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import json
+import typing
 from typing import Dict, List, Tuple
 
 import pytest
@@ -55,25 +56,36 @@ ALGORITHM_FUNCTIONALITIES = [
     for algorithm_functionality in AlgorithmFunctionality
     if "Unknown" not in algorithm_functionality.value
 ]  # type: List[str]
+FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
+    (framework, algorithm_functionality)
+    for framework in FRAMEWORKS_KEYS
+    for algorithm_functionality in ALGORITHM_FUNCTIONALITIES
+    if (
+        framework is not FrameworkKeys.XGBOOST
+        or algorithm_functionality
+        != AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
+    )
+]  # type: List[Tuple[str, str]]
 
 
-@pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
-@pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_training(framework: str, algorithm_functionality: str):
+def framework_algorithm_functionality_pair_ids(
+    framework_algorithm_functionality_pair: typing.Tuple[str, str]
+) -> str:
+    framework, algorithm_functionality = framework_algorithm_functionality_pair
+    return f"{framework}-{algorithm_functionality}"
+
+
+@pytest.mark.parametrize(
+    "framework_algorithm_functionality_pair",
+    FRAMEWORKS_ALGORITHM_FUNCTIONALITIES,
+    ids=framework_algorithm_functionality_pair_ids,
+)
+def test_training(framework_algorithm_functionality_pair: typing.Tuple[str, str]):
+    framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[
         framework
     ]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
-
-    # Skips:
-    if (
-        functions is XGBoostFunctions
-        and algorithm_functionality
-        == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
-    ):
-        pytest.skip(
-            "multiclass multi output classification are not supported in 'xgboost'."
-        )
 
     # Run training:
     train_run = mlrun.new_function().run(
@@ -101,28 +113,21 @@ def test_training(framework: str, algorithm_functionality: str):
     assert len(train_run.status.results) == len(expected_results)
 
 
-@pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
-@pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
+@pytest.mark.parametrize(
+    "framework_algorithm_functionality_pair",
+    FRAMEWORKS_ALGORITHM_FUNCTIONALITIES,
+    ids=framework_algorithm_functionality_pair_ids,
+)
 def test_evaluation(
     db: sqlalchemy.orm.Session,
     ensure_default_project,
-    framework: str,
-    algorithm_functionality: str,
+    framework_algorithm_functionality_pair: typing.Tuple[str, str],
 ):
+    framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[
         framework
     ]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
-
-    # Skips:
-    if (
-        functions is XGBoostFunctions
-        and algorithm_functionality
-        == AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
-    ):
-        pytest.skip(
-            "multiclass multi output classification are not supported in 'xgboost'."
-        )
 
     # Run training:
     train_run = mlrun.new_function().run(

@@ -21,8 +21,6 @@ from .base import RunDBError, RunDBInterface  # noqa
 from .nopdb import NopDB
 from .sqldb import SQLDB
 
-# import mlrun.errors
-
 
 def get_or_set_dburl(default=""):
     if not config.dbpath and default:

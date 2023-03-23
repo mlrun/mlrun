@@ -263,7 +263,7 @@ class MapValues(StepToDict, MLRunStep):
                             col(new_column_name)
                         )
                     else:
-                        #  we need to check that every value replaced if we changed column type - except None or Nan.
+                        #  we need to check that every value replaced if we changed column type - except None or NaN.
                         new_column_filter = isnull(col(new_column_name))
                     mapping_to_null = [
                         k

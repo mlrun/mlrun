@@ -1451,6 +1451,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert not df["bad_mapped"].isnull().any()
         assert not (df["bad_mapped"] == 17).any()
 
+    def test_mapval_with_mixed_types(self):
+        key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         measurements = fstore.FeatureSet(
             "measurements_spark",

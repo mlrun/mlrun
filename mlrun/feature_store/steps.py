@@ -270,9 +270,7 @@ class MapValues(StepToDict, MLRunStep):
                         for k, v in column_map.items()
                         if v is None
                         or (
-                            isinstance(
-                                v, (float, np.float64, np.float32, np.float16)
-                            )
+                            isinstance(v, (float, np.float64, np.float32, np.float16))
                             and math.isnan(v)
                         )
                     ]

@@ -2136,6 +2136,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
@@ -2177,6 +2178,7 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
                                 of returning objects. A log hint may be given as:
@@ -2211,6 +2213,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            notifications=notifications,
             returns=returns,
         )
 
@@ -2577,72 +2580,6 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.project = project.metadata.name
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
-    return name or func.metadata.name, func
-
-
-def _init_function_from_dict_legacy(f, project):
-    name = f.get("name", "")
-    url = f.get("url", "")
-    kind = f.get("kind", "")
-    image = f.get("image", None)
-    with_repo = f.get("with_repo", False)
-
-    if with_repo and not project.source:
-        raise ValueError("project source must be specified when cloning context")
-
-    in_context = False
-    if not url and "spec" not in f:
-        raise ValueError("function missing a url or a spec")
-    # We are not using the project method to obtain an absolute path here,
-    # because legacy projects are built differently, and we cannot rely on them to have a spec
-    if url and "://" not in url:
-        if project.context and not url.startswith("/"):
-            url = path.join(project.context, url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
-
-    if "spec" in f:
-        func = new_function(name, runtime=f["spec"])
-    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
-        func = import_function(url)
-        if image:
-            func.spec.image = image
-    elif url.endswith(".ipynb"):
-        func = code_to_function(name, filename=url, image=image, kind=kind)
-    elif url.endswith(".py"):
-        if not image:
-            raise ValueError(
-                "image must be provided with py code files, "
-                "use function object for more control/settings"
-            )
-        if in_context and with_repo:
-            func = new_function(name, command=url, image=image, kind=kind or "job")
-        else:
-            func = code_to_function(name, filename=url, image=image, kind=kind or "job")
-    else:
-        raise ValueError(f"unsupported function url {url} or no spec")
-
-    if with_repo:
-        func.spec.build.source = "./"
-
-    return _init_function_from_obj_legacy(func, project, name)
-
-
-def _init_function_from_obj_legacy(func, project, name=None):
-    build = func.spec.build
-    if project.origin_url:
-        origin = project.origin_url
-        try:
-            if project.repo:
-                origin += "#" + project.repo.head.commit.hexsha
-        except Exception:
-            pass
-        build.code_origin = origin
-    if project.name:
-        func.metadata.project = project.name
-    if project.tag:
-        func.metadata.tag = project.tag
     return name or func.metadata.name, func
 
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -363,6 +363,15 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _get_igz_deps(self):
         raise NotImplementedError()
 
+    def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Sparkjob does not support loading source code on run, "
+                "use func.with_source_archive(pull_at_runtime=False)"
+            )
+
+        super()._pre_run(runobj, execution)
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
 
@@ -559,7 +568,9 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
-                self.spec.command = "local://" + self.spec.command
+                self.spec.command = "local://" + os.path.join(
+                    self.spec.workdir or "", self.spec.command
+                )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
@@ -789,6 +800,25 @@ with ctx:
             submission_retry_interval,
         )
 
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True
+    ):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:     valid path to git, zip, or tar file, e.g.
+                           git://github.com/mlrun/something.git
+                           http://some/url/file.zip
+        :param handler: default function handler
+        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param pull_at_runtime: not supported for spark runtime, must be False
+        """
+        if pull_at_runtime:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
+            )
+
+        super().with_source_archive(source, workdir, handler, pull_at_runtime)
+
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
@@ -926,8 +956,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         """
         Handling config maps deletion
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         uids = []
         for crd_dict in deleted_resources:
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)

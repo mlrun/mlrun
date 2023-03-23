@@ -34,7 +34,7 @@ class FrameworkKeys:
     SKLEARN = "sklearn"
 
 
-FRAMEWORKS = {  # type: Dict[str, Tuple[MLFunctions, ArtifactsLibrary, MetricsLibrary]]
+FRAMEWORKS = {
     FrameworkKeys.XGBOOST: (
         XGBoostFunctions,
         XGBoostArtifactsLibrary,
@@ -45,16 +45,16 @@ FRAMEWORKS = {  # type: Dict[str, Tuple[MLFunctions, ArtifactsLibrary, MetricsLi
         SKLearnArtifactsLibrary,
         MetricsLibrary,
     ),
-}
-FRAMEWORKS_KEYS = [  # type: List[str]
-    # FrameworkKeys.XGBOOST,
+}  # type: Dict[str, Tuple[MLFunctions, ArtifactsLibrary, MetricsLibrary]]
+FRAMEWORKS_KEYS = [
+    FrameworkKeys.XGBOOST,
     FrameworkKeys.SKLEARN,
-]
-ALGORITHM_FUNCTIONALITIES = [  # type: List[str]
+]  # type: List[str]
+ALGORITHM_FUNCTIONALITIES = [
     algorithm_functionality.value
     for algorithm_functionality in AlgorithmFunctionality
     if "Unknown" not in algorithm_functionality.value
-]
+]  # type: List[str]
 
 
 @pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
@@ -103,7 +103,12 @@ def test_training(framework: str, algorithm_functionality: str):
 
 @pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_evaluation(db: sqlalchemy.orm.Session, ensure_default_project, framework: str, algorithm_functionality: str):
+def test_evaluation(
+    db: sqlalchemy.orm.Session,
+    ensure_default_project,
+    framework: str,
+    algorithm_functionality: str,
+):
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[
         framework
@@ -148,7 +153,8 @@ def test_evaluation(db: sqlalchemy.orm.Session, ensure_default_project, framewor
     expected_artifacts = [
         plan
         for plan in artifacts_library.get_plans(model=dummy_model, y=dummy_y)
-        if not (  # Count only pre and post prediction artifacts (evaluation artifacts).
+        if not (
+            # Count only pre and post prediction artifacts (evaluation artifacts).
             plan.is_ready(stage=MLPlanStages.POST_FIT, is_probabilities=False)
             or plan.is_ready(stage=MLPlanStages.PRE_FIT, is_probabilities=False)
         )

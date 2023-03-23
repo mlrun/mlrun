@@ -100,6 +100,7 @@ def test_training(framework: str, algorithm_functionality: str):
     assert len(train_run.status.results) == len(expected_results)
 
 
+@pytest.mark.timeout(300)
 @pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
 def test_evaluation(framework: str, algorithm_functionality: str):

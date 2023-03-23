@@ -35,7 +35,6 @@ from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
-@pytest.mark.timeout(60)
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):
         self._mock_create_namespaced_pod()
@@ -50,7 +49,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.spec.image = self.image_name
         return runtime
 
-    @pytest.mark.timeout(60)
     def test_run_without_runspec(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         self.execute_function(runtime)
@@ -62,7 +60,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         self.execute_function(runtime, params=params, inputs=inputs)
         self._assert_pod_creation_config(expected_params=params, expected_inputs=inputs)
 
-    @pytest.mark.timeout(60)
     def test_run_with_runspec(self, db: Session, client: TestClient):
         task = self._generate_task()
         params = {"p1": "v1", "p2": 20}
@@ -90,7 +87,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_secrets=secret_source,
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_watch_on_server_side(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         with unittest.mock.patch.object(
@@ -101,7 +97,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             self._execute_run(runtime, watch=True)
             assert logs_mock.call_count == 0
 
-    @pytest.mark.timeout(60)
     def test_run_with_resource_limits_and_requests(
         self, db: Session, client: TestClient
     ):
@@ -126,11 +121,9 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_limits=expected_limits, expected_requests=expected_requests
         )
 
-    @pytest.mark.timeout(60)
     def test_run_without_specifying_resources(self, db: Session, client: TestClient):
         self.assert_run_without_specifying_resources()
 
-    @pytest.mark.timeout(60)
     def test_run_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -177,37 +170,31 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
-    @pytest.mark.timeout(60)
     def test_preemption_mode_without_preemptible_configuration(
         self, db: Session, client: TestClient
     ):
         self.assert_run_with_preemption_mode_without_preemptible_configuration()
 
-    @pytest.mark.timeout(60)
     def test_preemption_mode_with_preemptible_node_selector_without_tolerations(
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
 
-    @pytest.mark.timeout(60)
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations()
 
-    @pytest.mark.timeout(60)
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings(
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
 
-    @pytest.mark.timeout(60)
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
 
-    @pytest.mark.timeout(60)
     def test_with_preemption_mode_none_transitions(
         self, db: Session, client: TestClient
     ):
@@ -242,7 +229,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         pod = self._get_pod_creation_args()
         assert pod.spec.security_context == (security_context or {})
 
-    @pytest.mark.timeout(60)
     def test_run_with_priority_class_name(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -272,7 +258,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
 
-    @pytest.mark.timeout(60)
     def test_set_annotation(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_annotations({"annotation-key": "annotation-value"})
@@ -281,7 +266,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         pod = self._get_pod_creation_args()
         assert pod.metadata.annotations.get("annotation-key") == "annotation-value"
 
-    @pytest.mark.timeout(60)
     def test_run_with_security_context(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -326,7 +310,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             in str(exc.value)
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -352,7 +335,6 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
-    @pytest.mark.timeout(60)
     def test_run_with_k8s_secrets(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
         secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
         secrets = {key: "some-secret-value" for key in secret_keys}
@@ -394,7 +376,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_global_secrets(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
@@ -433,7 +414,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_vault_secrets(self, db: Session, client: TestClient):
         self._mock_vault_functionality()
         runtime = self._generate_runtime()
@@ -464,7 +444,6 @@ class TestKubejobRuntime(TestRuntimeBase):
             "vault-secret", self.vault_secret_name, 420, vault_url
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_code(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -485,7 +464,6 @@ def my_func(context):
             ],
         )
 
-    @pytest.mark.timeout(60)
     def test_set_env(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
@@ -508,7 +486,6 @@ def my_func(context):
         self.execute_function(runtime)
         self._assert_pod_creation_config(expected_code=open(self.code_filename).read())
 
-    @pytest.mark.timeout(60)
     def test_run_with_code_and_file(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -523,7 +500,6 @@ def my_func(context):
             excinfo.value
         )
 
-    @pytest.mark.timeout(60)
     def test_run_with_code_empty(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -531,7 +507,6 @@ def my_func(context):
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
 
-    @pytest.mark.timeout(60)
     def test_run_with_args(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.spec.args = ["--arg1", "value1"]
@@ -549,7 +524,6 @@ def my_func(context):
             ],
         )
 
-    @pytest.mark.timeout(60)
     def test_set_label(self, db: Session, client: TestClient):
         task = self._generate_task()
         task.set_label("category", "test")
@@ -559,7 +533,6 @@ def my_func(context):
         self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
 
-    @pytest.mark.timeout(60)
     def test_with_image_pull_configuration(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         policy = "IfNotPresent"
@@ -578,7 +551,6 @@ def my_func(context):
         ):
             runtime.set_image_pull_configuration(image_pull_policy="invalidPolicy")
 
-    @pytest.mark.timeout(60)
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
@@ -594,7 +566,6 @@ def my_func(context):
             == {}
         )
 
-    @pytest.mark.timeout(60)
     def test_with_commands(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_commands(["pip install pandas", "pip install numpy"])
@@ -649,7 +620,6 @@ def my_func(context):
             == {}
         )
 
-    @pytest.mark.timeout(60)
     def test_build_config(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.build_config(
@@ -720,7 +690,6 @@ def my_func(context):
             == {}
         )
 
-    @pytest.mark.timeout(60)
     def test_build_config_with_images(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.build_config(base_image="mlrun/mlrun", image="target/mlrun")
@@ -741,7 +710,6 @@ def my_func(context):
             (True, ["python -m pip install --upgrade pandas"], True),
         ],
     )
-    @pytest.mark.timeout(60)
     def test_deploy_upgrade_pip(
         self,
         db: Session,

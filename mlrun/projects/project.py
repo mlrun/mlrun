@@ -1473,6 +1473,8 @@ class MlrunProject(ModelObj):
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
 
+            if dataitem.kind != "file":
+                remove(item_file)
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 

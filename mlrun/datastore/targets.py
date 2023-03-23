@@ -525,8 +525,8 @@ class BaseStoreTarget(DataTargetBase):
                     ("minute", "%M"),
                 ]:
                     partition_cols.append(unit)
-                    target_df[unit] = getattr(
-                        pd.DatetimeIndex(target_df[timestamp_key]), unit
+                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
+                        date_format=fmt
                     )
                     if unit == time_partitioning_granularity:
                         break

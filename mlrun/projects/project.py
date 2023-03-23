@@ -781,7 +781,7 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        # TODO: remove all arguments except metadata and spec in 1.5.0
+        # TODO: remove all arguments except metadata and spec in 1.6.0
         name=None,
         description=None,
         params=None,
@@ -815,9 +815,9 @@ class MlrunProject(ModelObj):
                 default_requirements,
             ]
         ):
-            # TODO: remove in 1.5.0 along with all arguments except metadata and spec
+            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
             warnings.warn(
-                "Project constructor arguments are deprecated in 1.3.1 and will be removed in 1.5.0,"
+                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
                 " use metadata and spec instead",
                 FutureWarning,
             )

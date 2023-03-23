@@ -128,6 +128,7 @@ class SQLDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         import mlrun.api.crud
 
@@ -151,6 +152,7 @@ class SQLDB(RunDBInterface):
             partition_sort_by,
             partition_order,
             max_partitions,
+            with_notifications,
         )
 
     def del_run(self, uid, project=None, iter=None):
@@ -837,7 +839,6 @@ class SQLDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -848,7 +849,6 @@ class SQLDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,

@@ -16,12 +16,13 @@ import json
 import os
 import typing
 
-import requests
+import aiohttp
 
+import mlrun.api.schemas
 import mlrun.errors
 import mlrun.lists
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class GitNotification(NotificationBase):
@@ -29,10 +30,12 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
-    def send(
+    async def push(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -45,7 +48,7 @@ class GitNotification(NotificationBase):
         )
         server = self.params.get("server", None)
         gitlab = self.params.get("gitlab", False)
-        self._pr_comment(
+        await self._pr_comment(
             self._get_html(message, severity, runs, custom_html),
             git_repo,
             git_issue,
@@ -55,7 +58,7 @@ class GitNotification(NotificationBase):
         )
 
     @staticmethod
-    def _pr_comment(
+    async def _pr_comment(
         message: str,
         repo: str = None,
         issue: int = None,
@@ -111,9 +114,13 @@ class GitNotification(NotificationBase):
                 "Authorization": f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-        resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
-        if not resp.ok:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Failed commenting on PR", response=resp.text, status=resp.status_code
-            )
-        return resp.json()["id"]
+
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post(url, headers=headers, json={"body": message})
+            if not resp.ok:
+                resp_text = await resp.text()
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Failed commenting on PR: {resp_text}", status=resp.status
+                )
+            data = await resp.json()
+            return data.get("id")

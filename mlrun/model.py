@@ -376,6 +376,32 @@ class ImageBuilder(ModelObj):
         self._source = source
 
 
+class Notification(ModelObj):
+    """Notification specification"""
+
+    def __init__(
+        self,
+        kind=None,
+        name=None,
+        message=None,
+        severity=None,
+        when=None,
+        condition=None,
+        params=None,
+        status=None,
+        sent_time=None,
+    ):
+        self.kind = kind
+        self.name = name
+        self.message = message
+        self.severity = severity
+        self.when = when
+        self.condition = condition
+        self.params = params or {}
+        self.status = status
+        self.sent_time = sent_time
+
+
 class RunMetadata(ModelObj):
     """Run metadata"""
 
@@ -492,6 +518,7 @@ class RunSpec(ModelObj):
         allow_empty_resources=None,
         inputs_type_hints=None,
         returns=None,
+        notifications=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -526,6 +553,7 @@ class RunSpec(ModelObj):
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
+        self._notifications = notifications or []
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -677,6 +705,19 @@ class RunSpec(ModelObj):
             else:
                 return str(self.handler)
         return ""
+
+    @property
+    def notifications(self):
+        return self._notifications
+
+    @notifications.setter
+    def notifications(self, notifications):
+        if isinstance(notifications, list):
+            self._notifications = ObjectList.from_list(Notification, notifications)
+        elif isinstance(notifications, ObjectList):
+            self._notifications = notifications
+        else:
+            raise ValueError("Notifications must be a list")
 
     def extract_type_hints_from_inputs(self):
         """

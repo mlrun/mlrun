@@ -383,8 +383,15 @@ def _assert_project_function_objects(project, expected_function_objects):
 
 
 def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject(
-        "newproj", default_requirements=["pandas>1, <3"]
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+            },
+        }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
     assert project.get_function("desc1", enrich=True).spec.build.commands == [
@@ -400,8 +407,44 @@ def test_set_func_requirements():
     ]
 
 
+def test_set_function_underscore_name():
+    project = mlrun.projects.MlrunProject(
+        "project", default_requirements=["pandas>1, <3"]
+    )
+    func_name = "name_with_underscores"
+
+    # Create a function with a name that includes underscores
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    project.set_function(name=func_name, func=func)
+
+    # Attempt to get the function using the original name (with underscores) and ensure that it fails
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        project.get_function(key=func_name)
+
+    # Get the function using a normalized name and make sure it works
+    normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=normalized_name)
+    assert enriched_function.metadata.name == normalized_name
+
+
 def test_set_func_with_tag():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas"],
+            },
+        }
+    )
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",

@@ -20,6 +20,7 @@ from .functions import Functions  # noqa: F401
 from .logs import Logs  # noqa: F401
 from .marketplace import Marketplace  # noqa: F401
 from .model_monitoring import ModelEndpoints, ModelEndpointStoreType  # noqa: F401
+from .notifications import Notifications  # noqa: F401
 from .pipelines import Pipelines  # noqa: F401
 from .projects import Projects  # noqa: F401
 from .runs import Runs  # noqa: F401

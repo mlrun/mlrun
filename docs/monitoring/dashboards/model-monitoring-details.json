@@ -49,10 +49,7 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -214,10 +211,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -253,10 +247,7 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -422,10 +413,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -463,10 +451,7 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "Feature analysis of the latest batch",
       "fieldConfig": {
         "defaults": {
@@ -592,30 +577,21 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields= current_stats;",
           "type": "table"
         },
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "hide": false,
           "refId": "B",
           "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= feature_stats;",
           "type": "table"
         },
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "hide": false,
           "refId": "C",
           "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= drift_measures;",
@@ -909,10 +885,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fill": 1,
       "fillGradient": 1,
       "gridPos": {
@@ -952,10 +925,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODELENDPOINT'  AND record_type=='endpoint_features';",
@@ -1003,10 +973,7 @@
     "list": [
       {
         "current": {},
-        "datasource": {
-          "type": "grafana-simple-json-datasource",
-          "uid": "PEC14ECF472278438"
-        },
+        "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,
@@ -1026,10 +993,7 @@
       },
       {
         "current": {},
-        "datasource": {
-          "type": "grafana-simple-json-datasource",
-          "uid": "PiBy-ta4z"
-        },
+        "datasource": "iguazio",
         "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
         "hide": 0,
         "includeAll": false,

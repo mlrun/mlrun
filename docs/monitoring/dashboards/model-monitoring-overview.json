@@ -49,10 +49,7 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -96,10 +93,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
@@ -121,10 +115,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -168,10 +159,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -184,10 +172,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+    "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -228,10 +213,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
@@ -253,10 +235,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -301,10 +280,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
@@ -316,10 +292,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -576,10 +549,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -638,10 +608,7 @@
         "mode": "spectrum"
       },
       "dataFormat": "timeseries",
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -711,10 +678,7 @@
       "reverseYBuckets": false,
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
@@ -748,10 +712,7 @@
         "mode": "spectrum"
       },
       "dataFormat": "timeseries",
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -821,10 +782,7 @@
       "reverseYBuckets": false,
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
@@ -853,10 +811,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -893,10 +848,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+        "datasource": "iguazio",
           "refId": "A",
           "target": "select metric",
           "type": "timeserie"
@@ -942,10 +894,7 @@
     "list": [
       {
         "current": {},
-        "datasource": {
-          "type": "grafana-simple-json-datasource",
-          "uid": "PEC14ECF472278438"
-        },
+        "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
         "includeAll": false,

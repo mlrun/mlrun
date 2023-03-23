@@ -1417,7 +1417,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
-    def test_mapval_with_partially_mapping(self):
+    def test_mapval_with_partial_mapping(self):
         # we need this test in order to check partially_mapping -> only part of the values in field are replaced.
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"

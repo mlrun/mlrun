@@ -1453,7 +1453,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_mapval_with_mixed_types(self):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_spark = "v3io:///bigdata/test_mapvalues_with_mixed_types"
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],

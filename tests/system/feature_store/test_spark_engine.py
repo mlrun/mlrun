@@ -386,7 +386,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     @pytest.mark.parametrize(
         "target_kind",
-        ["Redis", "Storey"] if mlrun.mlconf.redis.url is not None else ["Storey"],
+        ["Redis", "v3io"] if mlrun.mlconf.redis.url is not None else ["v3io"],
     )
     def test_ingest_multiple_entities(self, target_kind):
         key1 = "patient_id"
@@ -403,7 +403,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         if target_kind == "Redis":
             targets = [RedisNoSqlTarget()]
-            measurements.set_targets(targets, with_defaults=False)
+        else:
+            targets = [NoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+
         fstore.ingest(
             measurements,
             source,
@@ -411,7 +414,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(False),
             overwrite=True,
         )
-        # read the dataframe from the redis back
+        # read the dataframe
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
         with fstore.get_online_feature_service(vector) as svc:
             resp = svc.get(

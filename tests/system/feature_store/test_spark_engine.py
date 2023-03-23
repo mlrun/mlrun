@@ -384,6 +384,63 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
+    @pytest.mark.parametrize(
+        "target_kind",
+        ["Redis", "Storey"] if mlrun.mlconf.redis.url is not None else ["Storey"],
+    )
+    def test_ingest_multiple_entities(self, target_kind):
+        key1 = "patient_id"
+        key2 = "bad"
+        key3 = "department"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key1), fstore.Entity(key2), fstore.Entity(key3)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        if target_kind == "Redis":
+            targets = [RedisNoSqlTarget()]
+            measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get(
+                [
+                    {
+                        "patient_id": "305-90-1613",
+                        "bad": 95,
+                        "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    }
+                ]
+            )
+            assert resp == [
+                {
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",

@@ -1,0 +1,10 @@
+kind: project
+metadata:
+  name: default
+spec:
+  functions: []
+  workflows: []
+  artifacts: []
+  conda: ''
+  source: ''
+  desired_state: online

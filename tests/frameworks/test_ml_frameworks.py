@@ -16,6 +16,7 @@ import json
 from typing import Dict, List, Tuple
 
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 from mlrun.frameworks._common import ArtifactsLibrary
@@ -102,7 +103,7 @@ def test_training(framework: str, algorithm_functionality: str):
 
 @pytest.mark.parametrize("framework", FRAMEWORKS_KEYS)
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_evaluation(framework: str, algorithm_functionality: str):
+def test_evaluation(db: sqlalchemy.orm.Session, ensure_default_project, framework: str, algorithm_functionality: str):
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[
         framework

@@ -46,8 +46,7 @@ def my_func(context, p1=1, p2="a-string"):
 
 @pytest.mark.skipif(not has_dask, reason="missing dask")
 class TestDask(tests.integration.sdk_api.base.TestMLRunIntegration):
-    def test_dask_local(self):
-        mlrun.get_or_create_project("default")
+    def test_dask_local(self, ensure_default_project):
         spec = tests.conftest.tag_test(
             mlrun.new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local"
         )

@@ -35,6 +35,7 @@ import mlrun.config
 import mlrun.datastore
 import mlrun.db
 import mlrun.k8s_utils
+import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
@@ -130,8 +131,14 @@ def db():
         if db_session is not None:
             db_session.close()
     mlrun.api.utils.singletons.db.initialize_db(db)
+    mlrun.api.utils.singletons.logs_dir.initialize_logs_dir()
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     return db
+
+
+@pytest.fixture
+def ensure_default_project() -> mlrun.projects.project.MlrunProject:
+    return mlrun.get_or_create_project("default")
 
 
 @pytest.fixture()

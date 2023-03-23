@@ -396,7 +396,17 @@ class SQLDB(RunDBInterface):
         name: str,
         project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        if isinstance(project, dict):
+            project = mlrun.api.schemas.Project(**project)
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().store_project,
+            self.session,
+            name=name,
+            project=project,
+        )
 
     def patch_project(
         self,
@@ -404,20 +414,41 @@ class SQLDB(RunDBInterface):
         project: dict,
         patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().patch_project,
+            self.session,
+            name=name,
+            project=project,
+            patch_mode=patch_mode,
+        )
 
     def create_project(
         self,
         project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().create_project,
+            self.session,
+            project=project,
+        )
 
     def delete_project(
         self,
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
     ):
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().delete_project,
+            self.session,
+            name=name,
+            deletion_strategy=deletion_strategy,
+        )
 
     def get_project(
         self, name: str = None, project_id: int = None
@@ -437,7 +468,16 @@ class SQLDB(RunDBInterface):
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().list_projects,
+            self.session,
+            owner=owner,
+            format_=format_,
+            labels=labels,
+            state=state,
+        )
 
     @staticmethod
     def _transform_db_error(func, *args, **kwargs):

@@ -138,7 +138,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         for object_name, object_dict in catalog_dict.items():
             for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
-                spec_dict = object_details_dict.pop("spec", None)
+                spec_dict = object_details_dict.pop("spec", {})
                 metadata = MarketplaceItemMetadata(
                     tag=version_tag, **object_details_dict
                 )
@@ -184,6 +184,8 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
         result_catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
         for item in catalog.catalog:
+            # Because tag and version are optionals,
+            # we filter the catalog by one of them with priority to tag
             if (tag is None or item.metadata.tag == tag) and (
                 version is None or item.metadata.version == version
             ):

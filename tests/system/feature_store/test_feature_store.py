@@ -854,7 +854,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        # using ParquetDatasetV2
         path = measurements.get_target_path("parquet")[7:]
         dataset = pq.ParquetDataset(
             path,

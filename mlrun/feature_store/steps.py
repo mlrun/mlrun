@@ -265,26 +265,22 @@ class MapValues(StepToDict, MLRunStep):
                     else:
                         #  we need to check that every value replaced if we changed column type - except None or Nan.
                         new_column_filter = isnull(col(new_column_name))
-                    turned_to_none_values = (
-                        event.filter(column_filter & new_column_filter)
-                        .select(column)
-                        .rdd.map(lambda x: x[0])
-                        .collect()
-                    )
                     mapping_to_null = [
                         k
                         for k, v in column_map.items()
                         if v is None
                         or (
                             isinstance(
-                                v, (int, float, np.float64, np.float32, np.float16)
+                                v, (float, np.float64, np.float32, np.float16)
                             )
                             and math.isnan(v)
                         )
                     ]
-                    if not all(
-                        elem in mapping_to_null for elem in turned_to_none_values
-                    ):
+                    turned_to_none_values = event.filter(
+                        (column_filter) & (new_column_filter)
+                    ).filter(~col(column).isin(mapping_to_null))
+
+                    if not turned_to_none_values.isEmpty():
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"Mapvalues - mapping that changing column type must change all values in"
                             f" the column! Column- {column}"

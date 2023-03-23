@@ -231,12 +231,13 @@ class MapValues(StepToDict, MLRunStep):
         from pyspark.sql.types import DecimalType, DoubleType, FloatType
         from pyspark.sql.utils import AnalysisException
 
+        df = event
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
             if "ranges" not in column_map:
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
                 try:
-                    event = event.withColumn(
+                    df = df.withColumn(
                         new_column_name,
                         when(
                             col(column).isin(list(column_map.keys())),
@@ -247,11 +248,11 @@ class MapValues(StepToDict, MLRunStep):
                 #  then the original column.
                 #  we will try to replace the values without using 'otherwise'.
                 except AnalysisException:
-                    event = event.withColumn(
+                    df = df.withColumn(
                         new_column_name, mapping_expr.getItem(col(column))
                     )
-                    col_type = event.schema[column].dataType
-                    new_col_type = event.schema[new_column_name].dataType
+                    col_type = df.schema[column].dataType
+                    new_col_type = df.schema[new_column_name].dataType
                     #  in order to avoid exception at isna on non-decimal/float columns -
                     #  we need to check their types before filtering.
                     if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
@@ -274,7 +275,7 @@ class MapValues(StepToDict, MLRunStep):
                             and math.isnan(v)
                         )
                     ]
-                    turned_to_none_values = event.filter(
+                    turned_to_none_values = df.filter(
                         (column_filter) & (new_column_filter)
                     ).filter(~col(column).isin(mapping_to_null))
 
@@ -288,20 +289,20 @@ class MapValues(StepToDict, MLRunStep):
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""
-                    if new_column_name in event.columns:
-                        otherwise = event[new_column_name]
-                    event = event.withColumn(
+                    if new_column_name in df.columns:
+                        otherwise = df[new_column_name]
+                    df = df.withColumn(
                         new_column_name,
                         when(
-                            (event[column] < max_val) & (event[column] >= min_val),
+                            (df[column] < max_val) & (df[column] >= min_val),
                             lit(val),
                         ).otherwise(otherwise),
                     )
 
         if not self.with_original_features:
-            event = event.select(*self.mapping.keys())
+            df = df.select(*self.mapping.keys())
 
-        return event
+        return df
 
     @classmethod
     def validate_args(cls, feature_set, **kwargs):

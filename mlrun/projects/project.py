@@ -169,7 +169,13 @@ def new_project(
         # Remove original owner name for avoiding possible conflicts
         project.spec.owner = None
     else:
-        project = MlrunProject(name=name)
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": name,
+                }
+            }
+        )
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
 
@@ -419,9 +425,15 @@ def _load_project_dir(context, name="", subpath=""):
 
     elif path.isfile(path.join(context, subpath_str, "function.yaml")):
         func = import_function(path.join(context, subpath_str, "function.yaml"))
-        project = MlrunProject(
-            name=func.metadata.project,
-            functions=[{"url": "function.yaml", "name": func.metadata.name}],
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": func.metadata.project,
+                },
+                "spec": {
+                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                },
+            }
         )
     else:
         raise mlrun.errors.MLRunNotFoundError(
@@ -769,8 +781,19 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
+        # TODO: remove all arguments except metadata and spec in 1.5.0
+        # name=None,
+        # description=None,
+        # params=None,
+        # functions=None,
+        # workflows=None,
+        # artifacts=None,
+        # artifact_path=None,
+        # conda=None,
+        # # all except these 2 are for backwards compatibility with MlrunProjectLegacy
         metadata=None,
         spec=None,
+        # default_requirements: typing.Union[str, typing.List[str]] = None,
     ):
         self._metadata = None
         self.metadata = metadata
@@ -778,6 +801,36 @@ class MlrunProject(ModelObj):
         self.spec = spec
         self._status = None
         self.status = None
+
+        # if any(
+        #     name,
+        #     description,
+        #     params,
+        #     functions,
+        #     workflows,
+        #     artifacts,
+        #     artifact_path,
+        #     conda,
+        #     default_requirements,
+        # ):
+        #     warnings.warn(
+        #         "Project constructor arguments are deprecated in 1.3.1 and will be removed in 1.5.0,"
+        #         " use metadata and spec instead",
+        #         FutureWarning,
+        #     )
+
+        # Handling the fields given in the legacy way
+        # self.metadata.name = name or self.metadata.name
+        # self.spec.description = description or self.spec.description
+        # self.spec.params = params or self.spec.params
+        # self.spec.functions = functions or self.spec.functions
+        # self.spec.workflows = workflows or self.spec.workflows
+        # self.spec.artifacts = artifacts or self.spec.artifacts
+        # self.spec.artifact_path = artifact_path or self.spec.artifact_path
+        # self.spec.conda = conda or self.spec.conda
+        # self.spec.default_requirements = (
+        #     default_requirements or self.spec.default_requirements
+        # )
 
         self._initialized = False
         self._secrets = SecretsStore()

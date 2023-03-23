@@ -204,7 +204,6 @@ class RunDBMock:
         self._function = None
         self._artifacts = {}
         self._project_name = None
-        self._artifact = None
         self._runs = {}
 
     def reset(self):
@@ -213,7 +212,6 @@ class RunDBMock:
         self._project_name = None
         self._project = None
         self._artifacts = None
-        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -224,6 +222,9 @@ class RunDBMock:
         self._artifacts[key] = artifact
         return artifact
 
+    def read_artifact(self, key, tag=None, iter=None, project=""):
+        return self._artifacts.get(key, None)
+
     def store_run(self, struct, uid, project="", iter=0):
         self._runs[uid] = {
             "struct": struct,
@@ -233,9 +234,6 @@ class RunDBMock:
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
-
-    def read_artifact(self, key, tag=None, iter=None, project=""):
-        return self._artifact
 
     def get_function(self, function, project, tag):
         return {

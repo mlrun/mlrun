@@ -543,6 +543,12 @@ class SQLDB(DBInterface):
             )
         if not db_key:
             artifact["spec"]["db_key"] = key
+
+        data_key = artifact.get("metadata", {}).get("key")
+        if (key and data_key) and data_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting key name - {data_key} while request key : {key}."
+            )
         if iter:
             key = f"{iter}-{key}"
         labels = artifact["metadata"].get("labels", {})
@@ -564,6 +570,13 @@ class SQLDB(DBInterface):
             )
         if not db_key:
             artifact["db_key"] = key
+
+        data_key = artifact.get("key")
+        if (key and data_key) and data_key != key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting key name - {data_key} while request key : {key}."
+            )
+
         if iter:
             key = f"{iter}-{key}"
         labels = artifact.get("labels", {})

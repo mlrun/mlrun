@@ -383,8 +383,15 @@ def _assert_project_function_objects(project, expected_function_objects):
 
 
 def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject(
-        "newproj", default_requirements=["pandas>1, <3"]
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+            },
+        }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
     assert project.get_function("desc1", enrich=True).spec.build.commands == [
@@ -428,7 +435,16 @@ def test_set_function_underscore_name():
 
 
 def test_set_func_with_tag():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas"],
+            },
+        }
+    )
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",

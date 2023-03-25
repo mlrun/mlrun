@@ -568,7 +568,7 @@
         "multi": false,
         "name": "MODEL",
         "options": [],
-        "query": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=uid;",
+        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
         "refresh": 0,
         "regex": "",
         "skipUrlSync": false,

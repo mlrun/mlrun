@@ -62,7 +62,7 @@ To install on a **Python 3.7** client, run:
 | ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark. |
 | ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
 | ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
-| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
+| ML-3373 |  Supports creating a feature vector over several feature sets with different entities. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). This API will change in a future release, moving the relationship from the feature set to the feature vector. |
 
 #### Logging data
 | ID   | Description                                                    |

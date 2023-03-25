@@ -24,12 +24,14 @@ import sqlalchemy.orm
 import uvicorn
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.api.db.base
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.log_collector
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
+import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
@@ -55,6 +57,14 @@ from mlrun.utils import logger
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+
+# When pushing notifications, push notifications only for runs that entered a terminal state
+# since the last time we pushed notifications.
+# On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+# and their notifications haven't been sent yet.
+# TODO: find better solution than a global variable for chunking the list of runs
+#      for which to push notifications
+_last_notification_push_time: datetime.datetime = None
 
 
 app = fastapi.FastAPI(
@@ -512,18 +522,20 @@ async def _align_worker_state_with_chief_state(
 
 
 def _monitor_runs():
+    db = get_db()
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(get_db(), db_session)
+                runtime_handler.monitor_runs(db, db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring",
                     exc=err_to_str(exc),
                     kind=kind,
                 )
+        _push_terminal_run_notifications(db, db_session)
     finally:
         close_session(db_session)
 
@@ -543,6 +555,44 @@ def _cleanup_runtimes():
                 )
     finally:
         close_session(db_session)
+
+
+def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+    """
+    Get all runs with notification configs which became terminal since the last call to the function
+    and push their notifications if they haven't been pushed yet.
+    """
+
+    # Import here to avoid circular import
+    import mlrun.api.api.utils
+
+    # When pushing notifications, push notifications only for runs that entered a terminal state
+    # since the last time we pushed notifications.
+    # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+    # and their notifications haven't been sent yet.
+    global _last_notification_push_time
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        last_update_time_from=_last_notification_push_time,
+        with_notifications=True,
+    )
+
+    # Unmasking the run parameters from secrets before handing them over to the notification handler
+    # as importing the `Secrets` crud in the notification handler will cause a circular import
+    unmasked_runs = [
+        mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)
+        for run in runs
+    ]
+
+    logger.debug(
+        "Got terminal runs with configured notifications", runs_amount=len(runs)
+    )
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
+
+    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 async def _stop_logs():

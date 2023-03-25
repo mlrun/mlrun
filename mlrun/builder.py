@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import pathlib
 import re
 import tarfile
@@ -59,16 +59,17 @@ def make_dockerfile(
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
+            source_dir = os.path.join(workdir, "source")
             stage1 = f"""
             FROM {base_image} AS extractor
             RUN apt-get update -qqy && apt install --assume-yes unzip
-            RUN mkdir -p /source
-            COPY {source} /source
-            RUN cd /source && unzip {source} && rm {source}
+            RUN mkdir -p {source_dir}
+            COPY {source} {source_dir}
+            RUN cd {source_dir} && unzip {source} && rm {source}
             """
             dock = stage1 + "\n" + dock
 
-            dock += f"COPY --from=extractor /source/ {workdir}\n"
+            dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
         else:
             dock += f"ADD {source} {workdir}\n"
 
@@ -396,6 +397,16 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
+    if source_to_copy and (
+        not runtime.spec.workdir or not path.isabs(runtime.spec.workdir)
+    ):
+        # the user may give a relative workdir to the source where the code is located
+        # add the relative workdir to the target source copy path
+        tmpdir = tempfile.mkdtemp()
+        relative_workdir = runtime.spec.workdir or ""
+        _, _, relative_workdir = relative_workdir.partition("./")
+        runtime.spec.workdir = path.join(tmpdir, "mlrun", relative_workdir)
+
     dock = make_dockerfile(
         base_image,
         commands,
@@ -404,6 +415,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
+        workdir=runtime.spec.workdir,
     )
 
     kpod = make_kaniko_pod(

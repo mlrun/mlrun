@@ -28,7 +28,7 @@ from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
-from .utils import _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -206,7 +206,7 @@ class BaseStep(ModelObj):
 
     def to(
         self,
-        class_name: Union[str, type] = None,
+        class_name: Union[str, StepToDict] = None,
         name: str = None,
         handler: str = None,
         graph_shape: str = None,

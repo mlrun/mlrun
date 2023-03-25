@@ -148,6 +148,7 @@ class FileRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         if partition_by is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -846,7 +847,6 @@ class FileRunDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -857,7 +857,6 @@ class FileRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,

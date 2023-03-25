@@ -124,21 +124,11 @@ async def grafana_list_endpoints(
         GrafanaColumn(text="accuracy", type="number"),
         GrafanaColumn(text="error_count", type="number"),
         GrafanaColumn(text="drift_status", type="number"),
+        GrafanaColumn(text="predictions_per_second", type="number"),
+        GrafanaColumn(text="latency_avg_1h", type="number"),
     ]
 
-    metric_columns = []
-
-    found_metrics = set()
-    for endpoint in endpoint_list.endpoints:
-        if endpoint.status.metrics is not None:
-            for key in endpoint.status.metrics.keys():
-                if key not in found_metrics:
-                    found_metrics.add(key)
-                    metric_columns.append(GrafanaColumn(text=key, type="number"))
-
-    columns = columns + metric_columns
     table = GrafanaTable(columns=columns)
-
     for endpoint in endpoint_list.endpoints:
         row = [
             endpoint.metadata.uid,
@@ -147,14 +137,26 @@ async def grafana_list_endpoints(
             endpoint.spec.model_class,
             endpoint.status.first_request,
             endpoint.status.last_request,
-            endpoint.status.accuracy,
+            "N/A",  # Leaving here for backwards compatibility
             endpoint.status.error_count,
             endpoint.status.drift_status,
         ]
 
-        if endpoint.status.metrics is not None and metric_columns:
-            for metric_column in metric_columns:
-                row.append(endpoint.status.metrics[metric_column.text])
+        if (
+            endpoint.status.metrics
+            and mlrun.model_monitoring.EventKeyMetrics.GENERIC
+            in endpoint.status.metrics
+        ):
+            row.extend(
+                [
+                    endpoint.status.metrics[
+                        mlrun.model_monitoring.EventKeyMetrics.GENERIC
+                    ][mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND],
+                    endpoint.status.metrics[
+                        mlrun.model_monitoring.EventKeyMetrics.GENERIC
+                    ][mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H],
+                ]
+            )
 
         table.add_row(*row)
 

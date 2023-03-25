@@ -50,6 +50,10 @@ push-log-collector:
 	@echo Pushing log-collector image
 	docker push $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
 
+.PHONY: pull-log-collector
+pull-log-collector:
+	docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
+
 .PHONY: schemas-compiler
 schemas-compiler: schemas-compiler
 	@echo Building schemas-compiler image

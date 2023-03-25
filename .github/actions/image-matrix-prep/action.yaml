@@ -1,0 +1,23 @@
+name: Image Matrix Prep
+description: Prepares the matrix of images to build
+inputs:
+  skip_images:
+    description: 'Comma separated list of images to skip'
+    required: false
+    default: ''
+outputs:
+  matrix:
+    description: 'The matrix of images to build'
+    value: ${{ steps.set-matrix.outputs.matrix }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+    - id: set-matrix
+      run: |
+        skipImages=",$INPUT_SKIP_IMAGES,"
+        matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
+        echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
+      shell: bash
+      env:
+        INPUT_SKIP_IMAGES: ${{ inputs.skip_images }}

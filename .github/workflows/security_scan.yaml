@@ -68,20 +68,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-      - name: Determine if disk cleanup is needed
-        id: disk_cleanup_required
-        run: |
-          # check if "gpu" is in the image name
-          if [[ "${{ matrix.image-name }}" =~ "-gpu" ]]; then \
-              echo "disk_cleanup_required=true" >> $GITHUB_OUTPUT; \
-          else \
-              echo "disk_cleanup_required=false" >> $GITHUB_OUTPUT; \
-          fi
-
       - uses: actions/checkout@v3
 
       - name: Cleanup disk
-        if: steps.disk_cleanup_required.outputs.disk_cleanup_required == 'true'
         run: |
           "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 

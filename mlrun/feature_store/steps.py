@@ -309,9 +309,9 @@ class MapValues(StepToDict, MLRunStep):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
             types = set(
-                type(i)
-                for i in column_map.values()
-                if type(i) not in (None, float("nan"), np.nan)
+                type(val)
+                for val in column_map.values()
+                if type(val) is not None and not math.isnan(val)
             )
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(

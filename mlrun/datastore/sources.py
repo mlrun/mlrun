@@ -208,7 +208,7 @@ class CSVSource(BaseSourceDriver):
         )
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
 
 class ParquetSource(BaseSourceDriver):
@@ -468,7 +468,7 @@ class BigQuerySource(BaseSourceDriver):
             )
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
     def to_spark_df(self, session, named_view=False, time_field=None):
         options = copy(self.attributes.get("spark_options", {}))
@@ -968,7 +968,7 @@ class SQLSource(BaseSourceDriver):
         pass
 
     def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
+        return bool(self.attributes.get("chunksize"))
 
 
 # map of sources (exclude DF source which is not serializable)

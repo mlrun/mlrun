@@ -281,7 +281,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key=None,
+        access_key: str = None,
     ):
         self.access_key = access_key
 
@@ -375,6 +375,32 @@ class ImageBuilder(ModelObj):
             )
 
         self._source = source
+
+
+class Notification(ModelObj):
+    """Notification specification"""
+
+    def __init__(
+        self,
+        kind=None,
+        name=None,
+        message=None,
+        severity=None,
+        when=None,
+        condition=None,
+        params=None,
+        status=None,
+        sent_time=None,
+    ):
+        self.kind = kind
+        self.name = name
+        self.message = message
+        self.severity = severity
+        self.when = when
+        self.condition = condition
+        self.params = params or {}
+        self.status = status
+        self.sent_time = sent_time
 
 
 class RunMetadata(ModelObj):
@@ -493,6 +519,7 @@ class RunSpec(ModelObj):
         allow_empty_resources=None,
         inputs_type_hints=None,
         returns=None,
+        notifications=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -527,6 +554,7 @@ class RunSpec(ModelObj):
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
+        self._notifications = notifications or []
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -679,6 +707,19 @@ class RunSpec(ModelObj):
                 return str(self.handler)
         return ""
 
+    @property
+    def notifications(self):
+        return self._notifications
+
+    @notifications.setter
+    def notifications(self, notifications):
+        if isinstance(notifications, list):
+            self._notifications = ObjectList.from_list(Notification, notifications)
+        elif isinstance(notifications, ObjectList):
+            self._notifications = notifications
+        else:
+            raise ValueError("Notifications must be a list")
+
     def extract_type_hints_from_inputs(self):
         """
         This method extracts the type hints from the inputs keys in the input dictionary.
@@ -790,6 +831,7 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
         ui_url=None,
+        reason: str = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -802,6 +844,7 @@ class RunStatus(ModelObj):
         self.last_update = last_update
         self.iterations = iterations
         self.ui_url = ui_url
+        self.reason = reason
 
 
 class RunTemplate(ModelObj):
@@ -1078,6 +1121,7 @@ class RunObject(RunTemplate):
             state, new_offset = db.watch_log(
                 self.metadata.uid, self.metadata.project, watch=watch, offset=offset
             )
+        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
         else:
             state, text = db.get_log(
                 self.metadata.uid, self.metadata.project, offset=offset
@@ -1359,6 +1403,7 @@ class DataSource(ModelObj):
         "max_age",
         "start_time",
         "end_time",
+        "credentials_prefix",
     ]
     kind = None
 
@@ -1373,7 +1418,6 @@ class DataSource(ModelObj):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
-
         self.name = name
         self.path = str(path) if path is not None else None
         self.attributes = attributes or {}
@@ -1410,6 +1454,7 @@ class DataTargetBase(ModelObj):
         "storage_options",
         "run_id",
         "schema",
+        "credentials_prefix",
     ]
 
     @classmethod
@@ -1438,6 +1483,7 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
         schema: Dict[str, Any] = None,
+        credentials_prefix=None,
     ):
         self.name = name
         self.kind: str = kind
@@ -1454,6 +1500,7 @@ class DataTargetBase(ModelObj):
         self.storage_options = storage_options
         self.run_id = None
         self.schema = schema
+        self.credentials_prefix = credentials_prefix
 
 
 class FeatureSetProducer(ModelObj):
@@ -1485,6 +1532,7 @@ class DataTarget(DataTargetBase):
         "key_bucketing_number",
         "partition_cols",
         "time_partitioning_granularity",
+        "credentials_prefix",
     ]
 
     def __init__(

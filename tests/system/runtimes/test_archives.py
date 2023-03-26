@@ -19,6 +19,7 @@ import pytest
 
 import mlrun
 import tests.system.base
+from mlrun.runtimes.constants import RunStates
 
 git_uri = "git://github.com/mlrun/test-git-load.git"
 base_image = "mlrun/mlrun"
@@ -69,7 +70,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     def _upload_code_to_cluster(self):
         if not self.uploaded_code:
-            for file in ["source_archive.tar.gz", "source_archive.zip", "handler.py"]:
+            for file in [
+                "source_archive.tar.gz",
+                "source_archive.zip",
+                "handler.py",
+                "spark_session.tar.gz",
+            ]:
                 source_path = str(self.assets_path / file)
                 mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
         self.uploaded_code = True
@@ -236,6 +242,66 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
+    def test_run_function_with_auto_build_and_source_is_idempotent(self):
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
+    def test_run_function_with_auto_build_and_source_is_idempotent_after_failure(self):
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            # not existing package, expected to fail when runnning
+            requirements=["pandaasdasds"],
+        )
+        project.save()
+        with pytest.raises(mlrun.errors.MLRunRuntimeError):
+            project.run_function("myjob", auto_build=True)
+
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build")
+        project.set_source(f"{git_uri}#main", False)
+        project.set_function(
+            name="myjob",
+            handler="rootfn.job_handler",
+            image=base_image,
+            kind="job",
+            with_repo=True,
+            requirements=["pandas"],
+        )
+        project.save()
+        project.run_function("myjob", auto_build=True)
+
     def test_nuclio_project(self):
         project = mlrun.new_project("git-proj-nuc", user_project=True)
         # using project.name because this is a user project meaning the project name get concatenated with the user name
@@ -283,3 +349,28 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         deployment = project.deploy_function("mynuclio")
         resp = deployment.function.invoke("")
         assert "tag=" in resp.decode()
+
+    @pytest.mark.enterprise
+    @pytest.mark.parametrize("pull_at_runtime", [False])
+    def test_with_igz_spark_from_source(self, pull_at_runtime):
+        self._upload_code_to_cluster()
+        fn = mlrun.new_function(
+            name="spark-test", kind="spark", command="spark_session.py"
+        )
+        fn.with_igz_spark()
+
+        # spark requires requests
+        fn.with_driver_limits(cpu="1300m")
+        fn.with_driver_requests(cpu=1, mem="512m")
+
+        fn.with_executor_limits(cpu="1400m")
+        fn.with_executor_requests(cpu=1, mem="512m")
+
+        fn.with_source_archive(
+            source=self.remote_code_dir + "spark_session.tar.gz",
+            pull_at_runtime=pull_at_runtime,
+        )
+        fn.set_image_pull_configuration(image_pull_policy="Always")
+
+        spark_run = fn.run(auto_build=True)
+        assert spark_run.status.state == RunStates.completed

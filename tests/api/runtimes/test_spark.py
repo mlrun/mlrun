@@ -609,6 +609,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_limits(cpu="1")
         runtime.with_executor_requests(cpu="1", mem="1G")
 
+        # remote-spark is not a merge engine but a runtime
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fstore.get_offline_features(
+                fv,
+                with_indexes=True,
+                entity_timestamp_column="timestamp",
+                engine="remote-spark",
+                run_config=RunConfig(local=False, function=runtime, watch=False),
+                target=ParquetTarget(),
+            )
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
@@ -634,17 +645,18 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "with_indexes": True,
                 "query": None,
                 "join_type": "inner",
+                "order_by": None,
                 "engine_args": None,
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector_merger@b1bb6dd86fd4eb95cff8f6231b260dcc71fbeaa0",
+            "function": "None/my-vector-merger@e67bf7add40a6bafa25e19a1b80f3d4cc3789eff",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",
         }
 
-        self.name = "my-vector_merger"
+        self.name = "my-vector-merger"
         self.project = "default"
 
         expected_code = _default_merger_handler.replace(
@@ -661,4 +673,37 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "limits": {"cpu": "1"},
             },
             expected_code=expected_code,
+        )
+
+    def test_run_with_source_archive_pull_at_runtime(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False",
+        ):
+            runtime.with_source_archive(source="git://github.com/mock/repo")
+
+        runtime.with_source_archive(
+            source="git://github.com/mock/repo", pull_at_runtime=False
+        )
+
+    def test_run_with_load_source_on_run(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        # set default output path
+        mlrun.mlconf.artifact_path = "v3io:///tmp"
+        # generate runtime and set source code to load on run
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.metadata.name = "test-spark-runtime"
+        runtime.spec.build.source = "git://github.com/mock/repo"
+        runtime.spec.build.load_source_on_run = True
+        # expect pre-condition error, not supported
+        with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
+            runtime.run()
+
+        assert (
+            str(exc.value) == "Sparkjob does not support loading source code on run, "
+            "use func.with_source_archive(pull_at_runtime=False)"
         )

@@ -364,6 +364,15 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
+    def _get_main_runtime_resource_label_selector() -> str:
+        """
+        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
+        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
+        :return: the label selector
+        """
+        return "mpi-job-role=launcher"
+
+    @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:
 
         # TODO: add a 'workers' section in run objects state, each worker will update its state while

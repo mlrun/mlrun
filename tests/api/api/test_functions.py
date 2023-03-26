@@ -16,10 +16,13 @@ import asyncio
 import http
 import unittest.mock
 from http import HTTPStatus
+from types import ModuleType
 
+import deepdiff
 import fastapi.testclient
 import httpx
 import kubernetes.client.rest
+import nuclio
 import pytest
 import sqlalchemy.orm
 
@@ -33,6 +36,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.errors
+import mlrun.utils.model_monitoring
 import tests.api.api.utils
 import tests.conftest
 
@@ -76,6 +80,62 @@ def test_build_status_pod_not_found(
         },
     )
     assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+@pytest.mark.asyncio
+async def test_list_functions_with_hash_key_versioned(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    await tests.api.api.utils.create_project_async(async_client, PROJECT)
+
+    function_tag = "function-tag"
+    function_project = "project-name"
+    function_name = "function-name"
+
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": function_project,
+            "tag": function_tag,
+        },
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    another_tag = "another-tag"
+    function2 = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": function_project,
+            "tag": "another-tag",
+        },
+    }
+
+    post_function1_response = await async_client.post(
+        f"func/{function_project}/"
+        f"{function_name}?tag={function_tag}&versioned={True}",
+        json=function,
+    )
+
+    assert post_function1_response.status_code == HTTPStatus.OK.value
+    hash_key = post_function1_response.json()["hash_key"]
+
+    # Store another function with the same project and name but different tag and hash key
+    post_function2_response = await async_client.post(
+        f"func/{function_project}/"
+        f"{function_name}?tag={another_tag}&versioned={True}",
+        json=function2,
+    )
+    assert post_function2_response.status_code == HTTPStatus.OK.value
+
+    list_functions_by_hash_key_response = await async_client.get(
+        f"funcs?project={function_project}&name={function_name}&hash_key={hash_key}"
+    )
+
+    list_functions_results = list_functions_by_hash_key_response.json()["funcs"]
+    assert len(list_functions_results) == 1
+    assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
 @pytest.mark.asyncio
@@ -203,6 +263,81 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
         response = client.post(endpoint, data=body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
+
+
+def test_tracking_on_serving(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    monkeypatch,
+):
+    """Validating that the `mlrun.utils.model_monitoring.TrackingPolicy` configurations are generated as expected when
+    the user applies model monitoring on a serving function"""
+
+    # Generate a test project
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    # Generate a basic serving function and apply model monitoring
+    function_name = "test-function"
+    function = _generate_function(function_name)
+    function.set_tracking()
+
+    # Mock the client and unnecessary functions for this test
+    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
+        return_value=fastapi.Response()
+    )
+
+    functions_to_monkeypatch = {
+        mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],
+        mlrun.api.api.endpoints.functions: [
+            "_process_model_monitoring_secret",
+            "_create_model_monitoring_stream",
+        ],
+        mlrun.api.crud: ["ModelEndpoints"],
+        nuclio.deploy: ["deploy_config"],
+    }
+
+    for package in functions_to_monkeypatch:
+        _function_to_monkeypatch(
+            monkeypatch=monkeypatch,
+            package=package,
+            list_of_functions=functions_to_monkeypatch[package],
+        )
+
+    # Adjust the required request endpoint and body
+    endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/build/function"
+    json_body = _generate_build_function_request(function)
+    response = client.post(endpoint, data=json_body)
+
+    assert response.status_code == 200
+
+    # Validate that the default configurations were set as expected
+    function_from_db = mlrun.api.crud.Functions().get_function(
+        db_session=db, project=PROJECT, name=function_name, tag="latest"
+    )
+
+    assert function_from_db["spec"]["track_models"]
+
+    tracking_policy_default = mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
+    assert (
+        deepdiff.DeepDiff(
+            tracking_policy_default,
+            function_from_db["spec"]["tracking_policy"],
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions: list):
+    """Monkey patching a provided list of functions. Each function will be converted into `unittest.mock.Mock()`"""
+    for function in list_of_functions:
+        monkeypatch.setattr(
+            package,
+            function,
+            lambda *args, **kwargs: unittest.mock.Mock(),
+        )
 
 
 def test_build_function_with_mlrun_bool(

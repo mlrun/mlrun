@@ -18,12 +18,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
@@ -34,28 +36,48 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
 	protologcollector "github.com/mlrun/mlrun/proto/build/log_collector"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/client-go/kubernetes"
 )
 
 type Server struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace                    string
-	baseDir                      string
-	kubeClientSet                kubernetes.Interface
-	stateStore                   statestore.StateStore
-	inMemoryState                statestore.StateStore
+	namespace     string
+	baseDir       string
+	kubeClientSet kubernetes.Interface
+	isChief       bool
+
+	// the state manifest determines which runs' logs should be collected, and is persisted to a file
+	stateManifest statestore.StateStore
+	// the current state has the actual runs that are currently being collected, and is not persisted
+	currentState statestore.StateStore
+
+	// buffer pools
 	logCollectionBufferPool      bufferpool.Pool
-	getLogsBufferPool            bufferpool.Pool
 	logCollectionBufferSizeBytes int
+	getLogsBufferPool            bufferpool.Pool
 	getLogsBufferSizeBytes       int
-	readLogWaitTime              time.Duration
-	monitoringInterval           time.Duration
-	isChief                      bool
+
+	// start logs finding pods timeout
+	startLogsFindingPodsTimeout  time.Duration
+	startLogsFindingPodsInterval time.Duration
+
+	// interval durations
+	readLogWaitTime    time.Duration
+	monitoringInterval time.Duration
+
+	// log file cache to reduce sys calls finding the log file paths.
+	logFilesCache    *cache.Expiring
+	logFilesCacheTTL time.Duration
+
+	// map of project name to its mutex lock
+	// using project mutex to prevent listing project dir concurrently
+	readDirentProjectNameSyncMap *sync.Map
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -90,7 +112,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval duration")
 	}
 
-	stateStore, err := factory.CreateStateStore(
+	fileStateStore, err := factory.CreateStateStore(
 		statestore.KindFile,
 		&statestore.Config{
 			Logger:                  logger,
@@ -102,14 +124,20 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to create state store")
 	}
 
-	inMemoryState, err := factory.CreateStateStore(statestore.KindInMemory, &statestore.Config{})
+	inMemoryStateStore, err := factory.CreateStateStore(statestore.KindInMemory, &statestore.Config{
+		Logger: logger,
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create in-memory state")
 	}
 
+	isChief := clusterizationRole == "chief"
+
 	// ensure base dir exists
-	if err := common.EnsureDirExists(baseDir, os.ModePerm); err != nil {
-		return nil, errors.Wrap(err, "Failed to ensure base dir exists")
+	if isChief {
+		if err := common.EnsureDirExists(baseDir, os.ModePerm); err != nil {
+			return nil, errors.Wrap(err, "Failed to ensure base dir exists")
+		}
 	}
 
 	// ensure log collection buffer size is not bigger than the default, because of the gRPC message size limit
@@ -121,12 +149,14 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, logCollectionBufferSizeBytes)
 	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, getLogsBufferSizeBytes)
 
+	logFilesCache := cache.NewExpiring()
+
 	return &Server{
 		AbstractMlrunGRPCServer:      abstractServer,
 		namespace:                    namespace,
 		baseDir:                      baseDir,
-		stateStore:                   stateStore,
-		inMemoryState:                inMemoryState,
+		stateManifest:                fileStateStore,
+		currentState:                 inMemoryStateStore,
 		kubeClientSet:                kubeClientSet,
 		readLogWaitTime:              readLogTimeoutDuration,
 		monitoringInterval:           monitoringIntervalDuration,
@@ -134,7 +164,19 @@ func NewLogCollectorServer(logger logger.Logger,
 		getLogsBufferPool:            getLogsBufferPool,
 		logCollectionBufferSizeBytes: logCollectionBufferSizeBytes,
 		getLogsBufferSizeBytes:       getLogsBufferSizeBytes,
-		isChief:                      clusterizationRole == "chief",
+		isChief:                      isChief,
+		logFilesCache:                logFilesCache,
+		startLogsFindingPodsInterval: 3 * time.Second,
+		startLogsFindingPodsTimeout:  15 * time.Second,
+		readDirentProjectNameSyncMap: &sync.Map{},
+
+		// we delete log files only when deleting the project
+		// that means, if project is gone, log files are gone too
+		// hasLogFiles is called during get_logs on project runs
+		// so if no project, no runs, no get_logs, and this one is pretty much safe to cache
+		// that being said, limit to few minutes (hard coded for now)
+		// this cache is done to reduce IOs
+		logFilesCacheTTL: 5 * time.Minute,
 	}, nil
 }
 
@@ -142,10 +184,11 @@ func NewLogCollectorServer(logger logger.Logger,
 func (s *Server) OnBeforeStart(ctx context.Context) error {
 	s.Logger.DebugCtx(ctx, "Initializing Server")
 
-	// initialize the state store (load state from file, start state file update loop)
 	// if the server is not the chief, do not monitor anything
 	if s.isChief {
-		if err := s.stateStore.Initialize(ctx); err != nil {
+
+		// initialize the state manifest (load state from file, start state file update loop)
+		if err := s.stateManifest.Initialize(ctx); err != nil {
 			return errors.Wrap(err, "Failed to initialize state store")
 		}
 
@@ -164,10 +207,19 @@ func (s *Server) RegisterRoutes(ctx context.Context) {
 
 // StartLog writes the log item info to the state file, gets the pod using the label selector,
 // triggers `monitorPod` and `streamLogs` goroutines.
-func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.StartLogResponse, error) {
+func (s *Server) StartLog(ctx context.Context,
+	request *protologcollector.StartLogRequest) (*protologcollector.BaseResponse, error) {
+
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring start log request",
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
+		return nil, nil
+	}
 
 	s.Logger.DebugWithCtx(ctx,
-		"Received Start Log request",
+		"Received start log request",
 		"RunUID", request.RunUID,
 		"Selector", request.Selector)
 
@@ -176,9 +228,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 		s.Logger.DebugWithCtx(ctx,
 			"Logs are already being collected for this run uid",
 			"runUID", request.RunUID)
-		return &protologcollector.StartLogResponse{
-			Success: true,
-		}, nil
+		return s.successfulBaseResponse(), nil
 	}
 
 	var pods *v1.PodList
@@ -187,26 +237,51 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
 
 	// list pods using label selector until a pod is found
-	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
-		pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: request.Selector,
-		})
+	if err := common.RetryUntilSuccessful(
+		s.startLogsFindingPodsTimeout,
+		s.startLogsFindingPodsInterval,
+		func() (bool, error) {
+			pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+				LabelSelector: request.Selector,
+			})
 
-		// if no pods were found, retry
-		if err != nil || pods == nil || len(pods.Items) == 0 {
-			return true, errors.Wrap(err, "Failed to list pods")
+			// if no pods were found, retry
+			if err != nil {
+				return true, errors.Wrap(err, "Failed to list pods")
+			} else if pods == nil || len(pods.Items) == 0 {
+				return true, errors.Errorf("No pods found for run uid '%s'", request.RunUID)
+			}
+
+			// if pods were found, stop retrying
+			return false, nil
+		}); err != nil {
+
+		// if request is best-effort, return success so run will be marked as "requested logs" in the DB
+		if request.BestEffort {
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to get pod using label selector, but request is best effort, returning success",
+				"err", errors.RootCause(err).Error(),
+				"runUID", request.RunUID,
+				"projectName", request.ProjectName,
+				"selector", request.Selector)
+			return s.successfulBaseResponse(), nil
 		}
 
-		// if pods were found, stop retrying
-		return false, nil
-	}); err != nil {
+		var lastErr = err
+
+		// this is simply a timeout err, we want the root cause
+		if errors.Is(err, common.ErrRetryUntilSuccessfulTimeout) {
+			lastErr = errors.RootCause(lastErr)
+		}
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to get pod using label selector",
-			"err", err.Error(),
+			"err", common.GetErrorStack(lastErr, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID,
+			"projectName", request.ProjectName,
 			"selector", request.Selector)
-		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
-		return &protologcollector.StartLogResponse{
+
+		err := errors.Wrapf(lastErr, "Failed to find run '%s' pods", request.RunUID)
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeNotFound,
 			ErrorMessage: err.Error(),
@@ -217,9 +292,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	pod := pods.Items[0]
 
 	// write log item in progress to state store
-	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
+	if err := s.stateManifest.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
-		return &protologcollector.StartLogResponse{
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
@@ -232,15 +307,20 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, request.ProjectName, startedStreamingGoroutine, cancelCtxFunc)
+	go s.startLogStreaming(logStreamCtx,
+		request.RunUID,
+		pod.Name,
+		request.ProjectName,
+		startedStreamingGoroutine,
+		cancelCtxFunc)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
 
-	// add log item to in-memory state, so we can monitor it
-	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
+	// add log item to current state, so we can monitor it
+	if err := s.currentState.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
-		return &protologcollector.StartLogResponse{
+		return &protologcollector.BaseResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
@@ -249,9 +329,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 
 	s.Logger.DebugWithCtx(ctx, "Successfully started collecting log", "runUID", request.RunUID)
 
-	return &protologcollector.StartLogResponse{
-		Success: true,
-	}, nil
+	return s.successfulBaseResponse(), nil
 }
 
 // GetLogs returns the log file contents of length size from an offset, for a given run id
@@ -261,21 +339,12 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	ctx := responseStream.Context()
 
 	s.Logger.DebugWithCtx(ctx,
-		"Received Get Log request",
+		"Received get log request",
 		"runUID", request.RunUID,
 		"size", request.Size,
 		"offset", request.Offset)
 
-	// get log file path
-	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
-	if err != nil {
-		s.Logger.ErrorWithCtx(ctx,
-			"Failed to get log file path",
-			"err", err.Error(),
-			"runUID", request.RunUID)
-		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
-	}
-
+	// if size is 0, return empty logs
 	if request.Size == 0 {
 		if err := responseStream.Send(&protologcollector.GetLogsResponse{
 			Success: true,
@@ -284,6 +353,16 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 			return errors.Wrapf(err, "Failed to send empty logs to stream for run id %s", request.RunUID)
 		}
 		return nil
+	}
+
+	// get log file path
+	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
+	if err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get log file path",
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+			"runUID", request.RunUID)
+		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
 	}
 
 	// open log file and calc its size
@@ -358,16 +437,32 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 	// get log file path
 	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
 		if strings.Contains(errors.RootCause(err).Error(), "not found") {
+
+			// if the log file is not found, return false but no error
+			s.Logger.DebugWithCtx(ctx,
+				"Log file not found",
+				"runUID", request.RunUID,
+				"projectName", request.ProjectName)
 			return &protologcollector.HasLogsResponse{
 				Success: true,
 				HasLogs: false,
 			}, nil
 		}
+
+		// if there was an error, return it
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to check if has log file",
+			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
+			"runUID", request.RunUID,
+			"projectName", request.ProjectName)
+
+		// do not return the 'err' itself, so that mlrun api would catch the response
+		// and will resolve the response on its own.
 		return &protologcollector.HasLogsResponse{
 			Success:      false,
 			ErrorCode:    common.ErrCodeInternal,
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
-		}, err
+		}, nil
 	}
 
 	return &protologcollector.HasLogsResponse{
@@ -376,28 +471,154 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 	}, nil
 }
 
-// StopLog stops streaming logs for a given run id by removing it from the persistent state.
+// StopLogs stops streaming logs for a given run id by removing it from the persistent state.
 // This will prevent the monitoring loop from starting logging again for this run id
-func (s *Server) StopLog(ctx context.Context, request *protologcollector.StopLogRequest) (*empty.Empty, error) {
+func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring stop log request",
+			"project", request.Project,
+			"numRunIDs", len(request.RunUIDs))
+		return s.successfulBaseResponse(), nil
+	}
 
-	s.Logger.DebugWithCtx(ctx, "Received Stop Log request", "ProjectToRunUIDsMap", request.ProjectToRunUIDs)
+	// validate project name
+	if request.Project == "" {
+		message := "Project name must be provided"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeBadRequest,
+			ErrorMessage: message,
+		}, errors.New(message)
+	}
 
-	for project, runUIDs := range request.ProjectToRunUIDs {
-		for _, runUID := range runUIDs.Values {
+	// if no run uids were provided, remove the entire project from the state
+	if len(request.RunUIDs) == 0 {
 
-			// remove item from persistent state
-			if err := s.stateStore.RemoveLogItem(runUID, project); err != nil {
-				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from persistent state for run id %s", runUID)
-			}
+		// remove entire project from state manifest
+		if err := s.stateManifest.RemoveProject(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove project %s from state manifest", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    common.ErrCodeInternal,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
 
-			// remove item from in-memory state
-			if err := s.inMemoryState.RemoveLogItem(runUID, project); err != nil {
-				return &empty.Empty{}, errors.Wrapf(err, "Failed to remove item from in memory state for run id %s", runUID)
-			}
+		// remove entire project from current state
+		if err := s.currentState.RemoveProject(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove project %s from in memory state", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    common.ErrCodeInternal,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		return s.successfulBaseResponse(), nil
+	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Stopping logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
+
+	// remove each run uid from the state
+	for _, runUID := range request.RunUIDs {
+
+		// remove item from state manifest
+		if err := s.stateManifest.RemoveLogItem(runUID, request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove item from state manifest for run id %s", runUID)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    common.ErrCodeInternal,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		// remove item from current state
+		if err := s.currentState.RemoveLogItem(runUID, request.Project); err != nil {
+			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    common.ErrCodeInternal,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
 		}
 	}
 
-	return &empty.Empty{}, nil
+	return s.successfulBaseResponse(), nil
+}
+
+// DeleteLogs deletes the log file for a given run id or project
+func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
+	if !s.isChief {
+		s.Logger.DebugWithCtx(ctx,
+			"Server is not the chief, ignoring delete logs request",
+			"project", request.Project,
+			"numRunIDs", len(request.RunUIDs))
+		return s.successfulBaseResponse(), nil
+	}
+
+	// validate project name
+	if request.Project == "" {
+		message := "Project name must be provided"
+		s.Logger.ErrorWithCtx(ctx, message)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeBadRequest,
+			ErrorMessage: message,
+		}, errors.New(message)
+	}
+
+	// if no run uids were provided, delete the entire project's logs
+	if len(request.RunUIDs) == 0 {
+
+		// remove entire project from persistent state
+		if err := s.deleteProjectLogs(request.Project); err != nil {
+			message := fmt.Sprintf("Failed to delete project logs for project %s", request.Project)
+			return &protologcollector.BaseResponse{
+				Success:      false,
+				ErrorCode:    common.ErrCodeInternal,
+				ErrorMessage: message,
+			}, errors.Wrap(err, message)
+		}
+
+		return s.successfulBaseResponse(), nil
+	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Deleting logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
+
+	// remove each run uid from the state
+	errGroup, _ := errgroup.WithContext(ctx)
+	var failedToDeleteRunUIDs []string
+	for _, runUID := range request.RunUIDs {
+		runUID := runUID
+		errGroup.Go(func() error {
+
+			// delete the run's log file
+			if err := s.deleteRunLogFiles(ctx, runUID, request.Project); err != nil {
+				failedToDeleteRunUIDs = append(failedToDeleteRunUIDs, runUID)
+				return errors.Wrapf(err, "Failed to delete log files for run %s", runUID)
+			}
+			return nil
+		})
+	}
+
+	if err := errGroup.Wait(); err != nil {
+		message := fmt.Sprintf("Failed to remove logs for runs: %v", failedToDeleteRunUIDs)
+		return &protologcollector.BaseResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: message,
+		}, errors.Wrap(err, message)
+	}
+
+	return s.successfulBaseResponse(), nil
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file
@@ -408,15 +629,15 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	startedStreamingGoroutine chan bool,
 	cancelCtxFunc context.CancelFunc) {
 
-	// in case of a panic, remove this goroutine from the in-memory state, so the
+	// in case of a panic, remove this goroutine from the current state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
 
 		// cancel all other goroutines spawned from this one
 		defer cancelCtxFunc()
 
-		// remove this goroutine from in-memory state
-		if err := s.inMemoryState.RemoveLogItem(runUID, projectName); err != nil {
+		// remove this goroutine from in-current state
+		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
 		}
 
@@ -443,6 +664,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 			"logFilePath", logFilePath)
 		return
 	}
+
+	// add log file path to cache
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 
 	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
@@ -507,7 +731,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		"podName", podName)
 
 	// remove run from state file
-	if err := s.stateStore.RemoveLogItem(runUID, projectName); err != nil {
+	if err := s.stateManifest.RemoveLogItem(runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 
@@ -569,46 +793,101 @@ func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) stri
 // getLogFilePath returns the path to the run's latest log file
 func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string) (string, error) {
 
-	s.Logger.DebugWithCtx(ctx, "Getting log file path", "runUID", runUID)
+	// first try load from cache
+	if filePath, found := s.logFilesCache.Get(s.getLogFileCacheKey(runUID, projectName)); found {
+		return filePath.(string), nil
+	}
 
-	logFilePath := ""
+	// get project mutex or create one
+	projectMutex, _ := s.readDirentProjectNameSyncMap.LoadOrStore(projectName, &sync.Mutex{})
+
+	// lock project mutex, we want only one project dir to be read at a time
+	projectMutex.(*sync.Mutex).Lock()
+
+	// unlock project mutex when done
+	defer projectMutex.(*sync.Mutex).Unlock()
+
+	var logFilePath string
 	var latestModTime time.Time
 
+	var retryCount int
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
+		defer func() {
+			retryCount++
+		}()
 
-		// list all files in base directory
-		if err := filepath.Walk(s.baseDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return errors.Wrapf(err, "Failed to walk path %s", path)
+		// verify or wait until project dir exists
+		if _, err := os.Stat(filepath.Join(s.baseDir, projectName)); err != nil {
+			if os.IsNotExist(err) {
+				return true, errors.New("Project directory not found")
+
+				// give v3io-fuse some slack
+			} else if strings.Contains(err.Error(), "resource temporarily unavailable") {
+				s.Logger.WarnWithCtx(ctx,
+					"Project directory is not ready yet (resource temporarily unavailable)",
+					"retryCount", retryCount,
+					"err", err.Error())
+				return true, errors.Wrap(err, "Project directory is not ready yet")
 			}
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to get project directory",
+				"retryCount", retryCount,
+				"err", err.Error())
+			return false, errors.Wrap(err, "Failed to get project directory")
+		}
 
-			// if file name starts with run id, it's a log file
-			if strings.HasPrefix(info.Name(), runUID) && strings.Contains(path, projectName) {
-
-				// if it's the first file, set it as the log file path
-				// otherwise, check if it's the latest modified file
-				if logFilePath == "" || info.ModTime().After(latestModTime) {
-					logFilePath = path
-					latestModTime = info.ModTime()
+		// list all files in project directory
+		if err := filepath.WalkDir(filepath.Join(s.baseDir, projectName),
+			func(path string, dirEntry fs.DirEntry, err error) error {
+				if err != nil {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to walk path",
+						"retryCount", retryCount,
+						"path", path,
+						"err", errors.GetErrorStackString(err, 10))
+					return errors.Wrapf(err, "Failed to walk path %s", path)
 				}
-			}
 
-			return nil
-		}); err != nil {
-			return false, errors.Wrap(err, "Failed to list files in base directory")
+				// skip directories
+				if dirEntry.IsDir() {
+					return nil
+				}
+
+				// if file name starts with run id, it's a log file
+				if strings.HasPrefix(dirEntry.Name(), runUID) {
+					info, err := dirEntry.Info()
+					if err != nil {
+						return errors.Wrapf(err, "Failed to get file info for %s", path)
+					}
+
+					// if it's the first file, set it as the log file path
+					// otherwise, check if it's the latest modified file
+					if logFilePath == "" || info.ModTime().After(latestModTime) {
+						logFilePath = path
+						latestModTime = info.ModTime()
+					}
+				}
+
+				return nil
+			}); err != nil {
+
+			// retry
+			return true, errors.Wrap(err, "Failed to list files in base directory")
 		}
 
 		if logFilePath == "" {
-			return false, errors.Errorf("Log file not found for run %s", runUID)
+			return true, errors.Errorf("Log file not found for run %s", runUID)
 		}
 
 		// found log file
 		return false, nil
 
 	}); err != nil {
-		return "", errors.Wrap(err, "Failed to get log file path")
+		return "", errors.Wrap(err, "Exhausted getting log file path")
 	}
 
+	// store in cache
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 	return logFilePath, nil
 }
 
@@ -626,7 +905,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 
 	offset, size = s.validateOffsetAndSize(offset, size, fileSize)
 	if size == 0 {
-		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", runUID)
+		s.Logger.DebugWithCtx(ctx, "No logs to return", "runUID", runUID)
 		return nil, nil
 	}
 
@@ -686,24 +965,22 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 	// count the errors so we won't spam the logs
 	errCount := 0
 
-	// Check the items in the inMemoryState against the items in the state store.
+	// Check the items in the currentState against the items in the state store.
 	// If an item is written in the state store but not in the in memory state - call StartLog for it,
 	// as the state store is the source of truth
 	for range monitoringTicker.C {
 
 		// if there are already log items in progress, call StartLog for each of them
-		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
+		projectRunUIDsInProgress, err := s.stateManifest.GetItemsInProgress()
 		if err == nil {
-			logItemsInProgress.Range(func(key, value interface{}) bool {
-				logItem, ok := value.(statestore.LogItem)
-				if !ok {
-					s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
-					return true
-				}
 
-				// check if the log streaming is already running for this runUID
-				if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
+			logItemsToStart := s.getLogItemsToStart(ctx, projectRunUIDsInProgress)
 
+			errGroup, _ := errgroup.WithContext(ctx)
+
+			for _, logItem := range logItemsToStart {
+				logItem := logItem
+				errGroup.Go(func() error {
 					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", logItem.RunUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
 						RunUID:      logItem.RunUID,
@@ -711,18 +988,25 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						ProjectName: logItem.Project,
 					}); err != nil {
 
-						// we don't fail here, as there might be other items to start log for, just log it
 						s.Logger.WarnWithCtx(ctx,
 							"Failed to start log collection for log item",
 							"runUID", logItem.RunUID,
 							"project", logItem.Project,
 							"err", common.GetErrorStack(err, 10),
 						)
+						return errors.Wrapf(err, "Failed to start log collection for log item %s", logItem.RunUID)
 					}
-				}
+					return nil
+				})
+			}
 
-				return true
-			})
+			if err := errGroup.Wait(); err != nil {
+
+				// we don't fail here, there will be a retry in the next iteration
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to start log collection for some log items",
+					"err", common.GetErrorStack(err, 10))
+			}
 		} else {
 
 			// don't fail because we still need the server to run
@@ -739,19 +1023,23 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 
 // isLogCollectionRunning checks if log collection is running for a given runUID
 func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project string) bool {
-	inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()
+	inMemoryInProgress, err := s.currentState.GetItemsInProgress()
 	if err != nil {
 
-		// this is just for sanity, as inMemoryState won't return an error
+		// this is just for sanity, as currentState won't return an error
 		s.Logger.WarnWithCtx(ctx,
 			"Failed to get in progress items from in memory state",
 			"err", err.Error())
 		return false
 	}
 
-	key := statestore.GenerateKey(runUID, project)
-	_, running := inMemoryInProgress.Load(key)
-	return running
+	if projectMap, exists := inMemoryInProgress.Load(project); !exists {
+		return false
+	} else {
+		projectRunUIDsInProgress := projectMap.(*sync.Map)
+		_, running := projectRunUIDsInProgress.Load(runUID)
+		return running
+	}
 }
 
 // getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
@@ -781,4 +1069,85 @@ func (s *Server) isPodPendingError(err error) bool {
 	}
 
 	return false
+}
+
+func (s *Server) getLogItemsToStart(ctx context.Context, projectRunUIDsInProgress *sync.Map) []statestore.LogItem {
+	var logItemsToStart []statestore.LogItem
+
+	projectRunUIDsInProgress.Range(func(projectKey, runUIDsToLogItemsValue interface{}) bool {
+		runUIDsToLogItems := runUIDsToLogItemsValue.(*sync.Map)
+
+		runUIDsToLogItems.Range(func(key, value interface{}) bool {
+			logItem, ok := value.(statestore.LogItem)
+			if !ok {
+				s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+				return true
+			}
+
+			// check if the log streaming is already running for this runUID
+			if logCollectionStarted := s.isLogCollectionRunning(ctx, logItem.RunUID, logItem.Project); !logCollectionStarted {
+
+				// if not, add it to the list of log items to start
+				logItemsToStart = append(logItemsToStart, logItem)
+			}
+
+			return true
+		})
+		return true
+	})
+
+	return logItemsToStart
+}
+
+func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
+	return &protologcollector.BaseResponse{
+		Success: true,
+	}
+}
+
+func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) error {
+
+	// get all files that have the runUID as a prefix
+	pattern := path.Join(s.baseDir, project, fmt.Sprintf("%s_*", runUID))
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return errors.Wrap(err, "Failed to get log files")
+	}
+
+	// delete all matched files
+	var failedToDelete []string
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+
+			// don't fail now so the rest of the files will be deleted, just log it
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to delete log file",
+				"file", file,
+				"err", common.GetErrorStack(err, 10))
+			failedToDelete = append(failedToDelete, file)
+		}
+	}
+
+	if len(failedToDelete) > 0 {
+		return errors.Errorf("Failed to delete log files: %v", failedToDelete)
+	}
+
+	return nil
+}
+
+func (s *Server) deleteProjectLogs(project string) error {
+
+	// resolve the project logs directory
+	projectLogsDir := path.Join(s.baseDir, project)
+
+	// delete the project logs directory (idempotent)
+	if err := os.RemoveAll(projectLogsDir); err != nil {
+		return errors.Wrapf(err, "Failed to delete project logs directory for project %s", project)
+	}
+
+	return nil
+}
+
+func (s *Server) getLogFileCacheKey(runUID, project string) string {
+	return fmt.Sprintf("%s/%s", runUID, project)
 }

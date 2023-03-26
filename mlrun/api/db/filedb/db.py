@@ -101,6 +101,7 @@ class FileDB(DBInterface):
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
+        with_notifications: bool = False,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -123,6 +124,7 @@ class FileDB(DBInterface):
             max_partitions,
             requested_logs,
             return_as_run_structs,
+            with_notifications,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -228,7 +230,9 @@ class FileDB(DBInterface):
     def delete_function(self, session, project: str, name: str):
         raise NotImplementedError()
 
-    def list_functions(self, session, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, session, name=None, project="", tag="", labels=None, hash_key=None
+    ):
         return self._transform_run_db_error(
             self.db.list_functions, name, project, tag, labels
         )
@@ -514,3 +518,26 @@ class FileDB(DBInterface):
             return func(*args, **kwargs)
         except RunDBError as exc:
             raise DBError(exc.args)
+
+    def store_run_notifications(
+        self, session, notification_objects, run_uid: str, project: str
+    ):
+        raise NotImplementedError()
+
+    def list_run_notifications(
+        self,
+        session,
+        run_uid: str,
+        project: str = "",
+    ):
+        raise NotImplementedError()
+
+    def delete_run_notifications(
+        self,
+        session,
+        name: str = None,
+        run_uid: str = None,
+        project: str = None,
+        commit: bool = True,
+    ):
+        raise NotImplementedError()

@@ -28,30 +28,39 @@ Docs: [Set up your client environment](./install/remote.html), [Installation and
 
 ### MLRun server/client overview
 
-MLRun has two main components, the service and the client (SDK):
+MLRun has two main components, the service and the client (SDK+UI):
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes) - see [installation documentation](./install.html) for more information
 - MLRun client SDK is installed in your development environment via `pip` and interacts with the service using REST API calls
 
 ### Remote connection (laptop, CI/CD, etc.)
+Docs: [Configure remote environment](../install/remote.html#configure-remote-environment)
 
-Create a `mlrun.env` file for environment variables:
+**Localhost**: Create a `mlrun.env` file for environment variables. MLRUN_DBPATH saves the URL endpoint of the MLRun APIs 
+service endpoint. Since it is localhost, username and access_key are not required:
 ```
+mlrun config set -a http://localhost:8080
 # MLRun DB
 MLRUN_DBPATH=<URL endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-
-# Iguazio filesystem
-V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-V3IO_ACCESS_KEY=<platform access key>
 ```
 
-Connect via MLRun Python SDK:
-```python
-# Import MLRun
-import mlrun
-
-# Set environment variables - secrets, remote API endpoint, etc.
-mlrun.set_env_from_file("mlrun.env")
+**Iguazio MLOps Platform** (not MLRun CE).
 ```
+mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
+# this is another env file
+V3IO_USERNAME=joe
+V3IO_ACCESS_KEY=mykey
+MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+```
+
+**Connect via MLRun Python SDK**:
+
+```
+# Use local service
+mlrun.set_environment("http://localhost:8080", artifact_path="./")
+# Use remote service
+mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
+```
+
 
 ## MLRun projects
 Docs: [Projects and automation](./projects/project.html)
@@ -215,7 +224,8 @@ dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-models")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = 'NodePort'
-dask.with_limits(mem="6G")
+dask.with_worker_limits(mem="6G")
+dask.with_scheduler_limits(mem="1G")
 dask.spec.nthreads = 5
 dask.apply(mlrun.mount_v3io())
 dask.client
@@ -430,6 +440,7 @@ run_id = project.run(
 )
 ```
 
+
 ## Logging
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html)
 
@@ -449,6 +460,27 @@ Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Autom
 context.log_result(key="accuracy", value=0.934)
 context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
+```
+
+### Track returning values using `hints` and `returns`
+
+- Pass type hints into the inputs parameter of the run method. Inputs are automatically parsed to their hinted type. If type hints are 
+not in code, they can be passed in the inputs keys. Hints use the structure: `key : type_hint`
+- Pass log hints: how to log the returning values from a handler. The log hints are passed via the returns parameter in the run method. 
+A log hint can be passed as a string or a dictionary.
+- Use the `returns` argument to specify how to log a function's returned values.
+
+```
+def my_handler(df):
+    ...
+    return processed_df, result
+    
+log_with_returns_run = my_func.run(
+    handler="my_handler",
+    inputs={"df: pandas.DataFrame": DATA_PATH},
+    returns=["processed_data", "sum"],
+    local=True,
+)
 ```
 
 ### Automatic logging

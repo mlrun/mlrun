@@ -16,6 +16,7 @@ import http
 import tempfile
 import time
 import traceback
+import typing
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -162,9 +163,6 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
-        :param stream: If True, the response will be streamed, otherwise it will be read into memory
-        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
-           and returned as a string
 
         :return: Python HTTP response object
         """
@@ -213,10 +211,7 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = mlrun.utils.HTTPSessionWithRetry(
-                retry_on_exception=config.httpdb.retry_api_call_on_exception
-                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
-            )
+            self.session = self._init_session()
 
         try:
             response = self.session.request(
@@ -243,6 +238,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _init_session(self):
+        return mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=config.httpdb.retry_api_call_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
+        )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -459,7 +460,7 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode())
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         if watch:
             nil_resp = 0
             while state in ["pending", "running"]:
@@ -477,7 +478,10 @@ class HTTPRunDB(RunDBInterface):
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
-                    print(text.decode(), end="")
+                    print(
+                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                        end="",
+                    )
                 else:
                     nil_resp += 1
         else:
@@ -561,6 +565,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ) -> RunList:
         """Retrieve a list of runs, filtered by various options.
         Example::
@@ -594,6 +599,7 @@ class HTTPRunDB(RunDBInterface):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
             limit.
+        :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
         """
 
         project = project or config.default_project
@@ -609,6 +615,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "with_notifications": with_notifications,
         }
 
         if partition_by:
@@ -801,8 +808,18 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()["tags"]
 
-    def store_function(self, function, name, project="", tag=None, versioned=False):
+    def store_function(
+        self,
+        function: typing.Union[mlrun.runtimes.BaseRuntime, dict],
+        name,
+        project="",
+        tag=None,
+        versioned=False,
+    ):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
+        name = mlrun.utils.normalize_name(name)
+        if hasattr(function, "to_dict"):
+            function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
@@ -939,13 +956,17 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state.
+            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+            logger.info(
+                "Using default grace period for runtime resources deletion",
+                grace_period=grace_period,
+            )
 
         params = {
             "label-selector": label_selector,
@@ -1407,9 +1428,9 @@ class HTTPRunDB(RunDBInterface):
         :param page_size: Size of a single page when applying pagination.
         """
 
-        if project != "*" and (page_token or page_size or sort_by):
+        if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, or sorting"
+                "Filtering by project can not be used together with pagination"
             )
         params = {
             "namespace": namespace,
@@ -2484,9 +2505,24 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             return False
+        if parsed_server_version.minor > parsed_client_version.minor + 2:
+            logger.info(
+                "Backwards compatibility might not apply between the server and client version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
+        if parsed_client_version.minor > parsed_server_version.minor:
+            logger.warning(
+                "Client version with higher version than server version isn't supported,"
+                " align your client to the server version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
         if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
-                "Server and client versions are not the same",
+                "Server and client versions are not the same but compatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )
@@ -2784,7 +2820,6 @@ class HTTPRunDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -2794,7 +2829,6 @@ class HTTPRunDB(RunDBInterface):
         The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
-        :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
         :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
@@ -2806,7 +2840,6 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
@@ -2818,7 +2851,6 @@ class HTTPRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,
@@ -2828,7 +2860,6 @@ class HTTPRunDB(RunDBInterface):
 
         :param source_name: Name of source.
         :param item_name: Name of the item to retrieve, as it appears in the catalog.
-        :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
         :param force_refresh: Make the server fetch the information from the actual marketplace
@@ -2838,7 +2869,6 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items/{item_name}",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,

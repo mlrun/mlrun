@@ -61,6 +61,16 @@ class Logger(object):
         self._bound_variables = {}
         self._handlers = {}
 
+        for log_level_func in [
+            self.exception,
+            self.error,
+            self.warn,
+            self.warning,
+            self.info,
+            self.debug,
+        ]:
+            setattr(self, f"{log_level_func.__name__}_with", log_level_func)
+
     def set_handler(
         self, handler_name: str, file: IO[str], formatter: logging.Formatter
     ):

@@ -29,7 +29,7 @@ class ModelMonitoringStoreKinds:
 
 class ModelEndpointMetadata(BaseModel):
     project: Optional[str]
-    labels: Optional[dict]
+    labels: Optional[dict] = {}
     uid: Optional[str]
 
     class Config:
@@ -50,7 +50,7 @@ class ModelEndpointSpec(ObjectSpec):
     label_names: Optional[List[str]]
     stream_path: Optional[str]
     algorithm: Optional[str]
-    monitor_configuration: Optional[dict]
+    monitor_configuration: Optional[dict] = {}
     active: Optional[bool]
     monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
 
@@ -106,14 +106,14 @@ class Features(BaseModel):
 
 
 class ModelEndpointStatus(ObjectStatus):
-    feature_stats: Optional[dict]
-    current_stats: Optional[dict]
+    feature_stats: Optional[dict] = {}
+    current_stats: Optional[dict] = {}
     first_request: Optional[str]
     last_request: Optional[str]
     accuracy: Optional[float]
     error_count: Optional[int]
     drift_status: Optional[str]
-    drift_measures: Optional[dict]
+    drift_measures: Optional[dict] = {}
     metrics: Optional[Dict[str, Metric]]
     features: Optional[List[Features]]
     children: Optional[List[str]]

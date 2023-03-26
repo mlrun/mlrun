@@ -277,7 +277,6 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     table = None
 
     for target in targets:
-
         # if fset is in passthrough mode, ingest skips writing the data to offline targets
         if resource.spec.passthrough and kind_to_driver[target.kind].is_offline:
             continue
@@ -397,6 +396,7 @@ class BaseStoreTarget(DataTargetBase):
             max_events,
             flush_after_seconds,
             schema=schema,
+            credentials_prefix=credentials_prefix,
         )
 
         self.name = name or self.kind
@@ -412,22 +412,24 @@ class BaseStoreTarget(DataTargetBase):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.schema = schema or {}
+        self.credentials_prefix = credentials_prefix
 
         self._target = None
         self._resource = None
         self._secrets = {}
-        self._credentials_prefix = credentials_prefix
 
     def _get_credential(self, key, default_value=None):
         return mlrun.get_secret_or_env(
             key,
             secret_provider=self._secrets,
             default=default_value,
-            prefix=self._credentials_prefix,
+            prefix=self.credentials_prefix,
         )
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, _ = mlrun.store_manager.get_or_create_store(
+            self.get_target_path_with_credentials()
+        )
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -559,12 +561,11 @@ class BaseStoreTarget(DataTargetBase):
         driver.path = spec.path
         driver.attributes = spec.attributes
         driver.schema = spec.schema
+        driver.credentials_prefix = spec.credentials_prefix
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
 
-        if hasattr(spec, "_credentials_prefix"):
-            driver._credentials_prefix = spec._credentials_prefix
         if hasattr(spec, "_secrets"):
             driver._secrets = spec._secrets
 
@@ -577,6 +578,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
         driver.storage_options = spec.storage_options
+        driver.credentials_prefix = spec.credentials_prefix
 
         driver._resource = resource
         driver.run_id = spec.run_id
@@ -589,6 +591,9 @@ class BaseStoreTarget(DataTargetBase):
     def get_target_path(self):
         path_object = self._target_path_object
         return path_object.get_absolute_path() if path_object else None
+
+    def get_target_path_with_credentials(self):
+        return self.get_target_path()
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -628,6 +633,7 @@ class BaseStoreTarget(DataTargetBase):
         target.key_bucketing_number = self.key_bucketing_number
         target.partition_cols = self.partition_cols
         target.time_partitioning_granularity = self.time_partitioning_granularity
+        target.credentials_prefix = self.credentials_prefix
 
         self._resource.status.update_target(target)
         return target
@@ -724,7 +730,6 @@ class ParquetTarget(BaseStoreTarget):
         flush_after_seconds: Optional[int] = 900,
         storage_options: Dict[str, str] = None,
     ):
-
         self.path = path
         if partitioned is None:
             partitioned = not self.is_single_file()
@@ -977,9 +982,14 @@ class CSVTarget(BaseStoreTarget):
         **kwargs,
     ):
         df = super().as_df(
-            columns=columns, df_module=df_module, entities=entities, **kwargs
+            columns=columns,
+            df_module=df_module,
+            entities=entities,
+            format="csv",
+            **kwargs,
         )
-        df.set_index(keys=entities, inplace=True)
+        if entities:
+            df.set_index(keys=entities, inplace=True)
         return df
 
     def is_single_file(self):
@@ -1158,7 +1168,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
 
@@ -1172,11 +1181,15 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
 
+    def get_target_path_with_credentials(self):
+        endpoint, uri = self._get_server_endpoint()
+        return endpoint
+
     def prepare_spark_df(self, df, key_columns):
         from pyspark.sql.functions import udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
+        udf1 = udf(lambda x: str(x) + "}:static", StringType())
         return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
@@ -1568,6 +1581,11 @@ class SQLTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         self._create_sql_table()
+        for step in graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,

@@ -14,6 +14,7 @@
 #
 import base64
 import json
+import re
 import unittest.mock
 
 import deepdiff
@@ -807,6 +808,41 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
+
+
+@pytest.mark.parametrize(
+    "workdir,expected_workdir",
+    [
+        (None, r"WORKDIR .*\/tmp.*\/mlrun"),
+        ("", r"WORKDIR .*\/tmp.*\/mlrun"),
+        ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
+        ("/some/workdir", r"WORKDIR \/some\/workdir"),
+    ],
+)
+def test_builder_workdir(monkeypatch, workdir, expected_workdir):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+    )
+    if workdir is not None:
+        function.spec.workdir = workdir
+    function.spec.build.source = "some-source.tgz"
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
+    dockerfile_lines = dockerfile.splitlines()
+    expected_workdir_re = re.compile(expected_workdir)
+    assert expected_workdir_re.match(dockerfile_lines[2])
 
 
 def _get_target_image_from_create_pod_mock():

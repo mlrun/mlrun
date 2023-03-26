@@ -45,7 +45,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
@@ -118,7 +118,7 @@ class FeatureSetSpec(ModelObj):
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
-        self.relations: Dict[str, Entity] = relations or {}
+        self.relations: Dict[str, Union[Entity, str]] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -144,6 +144,19 @@ class FeatureSetSpec(ModelObj):
             for i, entity in enumerate(entities):
                 if isinstance(entity, str):
                     entities[i] = Entity(entity)
+                elif isinstance(entity, Entity) and entity.name is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
+                elif isinstance(entity, dict) and (
+                    "name" not in entity
+                    or ("name" in entity and entity["name"] is None)
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -219,6 +232,9 @@ class FeatureSetSpec(ModelObj):
 
     @relations.setter
     def relations(self, relations: Dict[str, Entity]):
+        for col, ent in relations.items():
+            if isinstance(ent, str):
+                relations[col] = Entity(ent)
         self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
@@ -311,7 +327,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Entity] = None,
+        relations: Dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
@@ -391,7 +407,7 @@ class FeatureSet(ModelObj):
 
     @property
     def fullname(self) -> str:
-        """full name in the form {project}/{name}[:{tag}]"""
+        """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -474,6 +490,34 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
+
+    def validate_steps(self, namespace):
+        if not self.spec:
+            return
+        if not self.spec.graph:
+            return
+        for step in self.spec.graph.steps.values():
+            if (
+                step.class_name in queue_class_names
+                or step.class_name is None
+                or "." not in step.class_name
+            ):
+                #  we are not checking none class names or queue class names.
+                continue
+            class_object, class_name = step.get_step_class_object(namespace=namespace)
+            if not hasattr(class_object, "validate_args"):
+                continue
+            class_args = step.get_full_class_args(
+                namespace=namespace, class_object=class_object
+            )
+            if class_name.startswith("storey"):
+                class_object.validate_args(
+                    **(class_args if class_args is not None else {})
+                )
+            else:
+                class_object.validate_args(
+                    self, **(class_args if class_args is not None else {})
+                )
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets
@@ -616,7 +660,7 @@ class FeatureSet(ModelObj):
         self._spec.analysis[name] = uri
 
     @property
-    def graph(self):
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
@@ -1009,6 +1053,18 @@ class SparkAggregateByKey(StepToDict):
         )
         return name, column, operations, windows, spark_period
 
+    @staticmethod
+    def _get_aggr(operation, column):
+        import pyspark.sql.functions as funcs
+
+        if operation == "sqr":
+            return funcs.sum(funcs.expr(f"{column} * {column}"))
+        elif operation == "stdvar":
+            return funcs.variance(column)
+        else:
+            func = getattr(funcs, operation)
+            return func(column)
+
     def do(self, event):
         import pyspark.sql.functions as funcs
         from pyspark.sql import Window
@@ -1037,13 +1093,7 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
                     for operation in operations:
-                        if operation == "sqr":
-                            agg = funcs.sum(funcs.expr(f"{column} * {column}"))
-                        elif operation == "stdvar":
-                            agg = funcs.variance(column)
-                        else:
-                            func = getattr(funcs, operation)
-                            agg = func(column)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
                         agg = agg.alias(agg_name)
                         aggs.append(agg)
@@ -1102,11 +1152,9 @@ class SparkAggregateByKey(StepToDict):
                     window_counter += 1
 
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        win_df = win_df.withColumn(
-                            agg_name, func(column).over(function_window)
-                        )
+                        win_df = win_df.withColumn(agg_name, agg.over(function_window))
 
                     union_df = (
                         union_df.unionByName(win_df, allowMissingColumns=True)

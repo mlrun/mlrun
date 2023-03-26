@@ -33,7 +33,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
-            mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.pod.KubeResourceSpec: [
@@ -44,7 +43,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
             mlrun.runtimes.sparkjob.abstract.AbstractSparkJobSpec,
-            mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.function.NuclioSpec: [
@@ -64,7 +62,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
-            mlrun.runtimes.sparkjob.spark2job.Spark2Runtime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
         ],
     }

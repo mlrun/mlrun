@@ -44,7 +44,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-default_env_file = "~/.mlrun.env"
+default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -66,8 +66,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "",  # image to use for KFP runner (defaults to mlrun/mlrun)
-    "dask_kfp_image": "",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -94,7 +94,7 @@ default_config = {
     # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
-    # before deleting them
+    # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
     "scrape_metrics": True,
     # sets the background color that is used in printed tables in jupyter
@@ -275,6 +275,11 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
         },
         "logs": {
+            "decode": {
+                # Replace with a replacement marker. Uses � (U+FFFD, the official REPLACEMENT CHARACTER).
+                # see https://docs.python.org/3/library/codecs.html#error-handlers for more info and options
+                "errors": "replace",
+            },
             "pipelines": {
                 # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
                 # pipeline step instead of pulling the state by getting the run logs
@@ -287,6 +292,12 @@ default_config = {
                     "pull_logs_interval": 30,  # seconds
                     "pull_state_interval": 5,  # seconds
                 },
+            },
+            "nuclio": {
+                # setting interval to a higher interval than regular jobs / build, because pulling the retrieved logs
+                # from nuclio for the deploy status doesn't include the actual live "builder" container logs, but
+                # rather a high level status
+                "pull_deploy_status_default_interval": 10  # seconds
             },
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
@@ -357,6 +368,7 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
@@ -419,11 +431,12 @@ default_config = {
         "k8s_secrets_project_name": "-marketplace-secrets",
         "catalog_filename": "catalog.json",
         "default_source": {
-            # Set to false to avoid creating a global source (for example in a dark site)
+            # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "mlrun_global_hub",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "object_type": "functions",
             "channel": "master",
         },
     },
@@ -484,13 +497,16 @@ default_config = {
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
         # the time in hours in which to start log collection from.
-        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
-        "api_downtime_grace_period": 6,
+        # default is 4 hours = 4*60*60 = 14400 seconds
+        "api_downtime_grace_period": 14400,
         "get_logs": {
             # the number of retries to get logs from the log collector
             "max_retries": 3,
         },
+        # interval for stopping log collection for runs which are in a terminal state
+        "stop_logs_interval": 3600,
     },
 }
 
@@ -840,40 +856,6 @@ class Config:
 
         return Version().get()["version"]
 
-    @property
-    def kfp_image(self):
-        """
-        When this configuration is not set we want to set it to mlrun/mlrun, but we need to use the enrich_image method.
-        The problem is that the mlrun.utils.helpers module is importing the config (this) module, so we must import the
-        module inside this function (and not on initialization), and then calculate this property value here.
-        """
-        if not self._kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/mlrun")
-        return self._kfp_image
-
-    @kfp_image.setter
-    def kfp_image(self, value):
-        self._kfp_image = value
-
-    @property
-    def dask_kfp_image(self):
-        """
-        See kfp_image property docstring for why we're defining this property
-        """
-        if not self._dask_kfp_image:
-            # importing here to avoid circular dependency
-            import mlrun.utils.helpers
-
-            return mlrun.utils.helpers.enrich_image_url("mlrun/ml-base")
-        return self._dask_kfp_image
-
-    @dask_kfp_image.setter
-    def dask_kfp_image(self, value):
-        self._dask_kfp_image = value
-
     @staticmethod
     def resolve_ui_url():
         # ui_url is deprecated in favor of the ui.url (we created the ui block)
@@ -928,11 +910,11 @@ class Config:
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
-        return True if mlrun.mlconf.namespace else False
+        return bool(mlrun.mlconf.namespace)
 
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
-        return True if mlrun.mlconf.nuclio_version else False
+        return bool(mlrun.mlconf.nuclio_version)
 
     def use_nuclio_mock(self, force_mock=None):
         # determine if to use Nuclio mock service
@@ -995,10 +977,6 @@ def _do_populate(env=None, skip_errors=False):
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
     # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
     # underscore
-    config._cfg["_kfp_image"] = config._cfg["kfp_image"]
-    del config._cfg["kfp_image"]
-    config._cfg["_dask_kfp_image"] = config._cfg["dask_kfp_image"]
-    del config._cfg["dask_kfp_image"]
     config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
     del config._cfg["iguazio_api_url"]
 

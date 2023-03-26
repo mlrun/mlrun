@@ -1087,7 +1087,6 @@ def project(
     ensure_project,
     schedule,
     notifications,
-    override_workflow,
     overwrite_schedule,
     save_secrets,
     save,

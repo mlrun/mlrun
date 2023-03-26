@@ -45,6 +45,10 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
     )
 
+    def custom_setup(self):
+        # ensure default project exists
+        mlrun.get_or_create_project("default")
+
     def test_main_run_basic(self):
         out = self._exec_run(
             f"{examples_path}/training.py",

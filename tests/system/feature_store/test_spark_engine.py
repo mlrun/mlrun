@@ -1452,6 +1452,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_spark = measurements.get_target_path(name="csv")
         df = self.read_csv(csv_path=csv_path_spark)
+        assert not df.empty
         assert not df["bad_mapped"].isna().any()
         assert not df["bad_mapped"].isnull().any()
         assert not (df["bad_mapped"] == 17).any()

@@ -40,25 +40,18 @@ def test_offline_state(
 
 
 @pytest.mark.parametrize(
-    "state,expected_message",
+    "state",
     [
-        (
-            mlrun.api.schemas.APIStates.waiting_for_migrations,
-            "API is waiting for migrations to be triggered",
-        ),
-        (
-            mlrun.api.schemas.APIStates.migrations_in_progress,
-            "Migrations are in progress",
-        ),
-        (mlrun.api.schemas.APIStates.migrations_failed, "Migrations failed"),
-        (mlrun.api.schemas.APIStates.waiting_for_chief, "API is waiting for chief"),
+        mlrun.api.schemas.APIStates.waiting_for_migrations,
+        mlrun.api.schemas.APIStates.migrations_in_progress,
+        mlrun.api.schemas.APIStates.migrations_failed,
+        mlrun.api.schemas.APIStates.waiting_for_chief,
     ],
 )
 def test_api_states(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     state,
-    expected_message,
 ) -> None:
     mlrun.mlconf.httpdb.state = state
     response = client.get("healthz")
@@ -71,6 +64,7 @@ def test_api_states(
     assert response.status_code == http.HTTPStatus.OK.value
 
     response = client.get("projects")
+    expected_message = mlrun.api.schemas.APIStates.description(state)
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert (
         expected_message in response.text

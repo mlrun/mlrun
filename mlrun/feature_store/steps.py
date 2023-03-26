@@ -232,9 +232,12 @@ class MapValues(StepToDict, MLRunStep):
         from pyspark.sql.utils import AnalysisException
 
         df = event
+        source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
             if "ranges" not in column_map:
+                if column not in source_column_names:
+                    continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
                 try:
                     df = df.withColumn(

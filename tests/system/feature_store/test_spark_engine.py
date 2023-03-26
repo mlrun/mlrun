@@ -1459,7 +1459,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # There are no occurrences of -1 in the "bad" field of the original DataFrame.
         assert (df["bad_mapped"] == -1).sum() == (original_df["bad"] == 17).sum()
 
-    def test_mapval_with_mixed_types(self):
+    def test_mapvalues_with_mixed_types(self):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_mapvalues_with_mixed_types"
         measurements = fstore.FeatureSet(

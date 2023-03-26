@@ -62,7 +62,6 @@ from .utils import (
     run_keys,
     update_in,
 )
-from .utils.notifications.notification import NotificationSeverity
 from .utils.version import Version
 
 pd.set_option("mode.chained_assignment", None)
@@ -1494,7 +1493,9 @@ def send_workflow_error_notification(run_id, project, trace):
         f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
         f"error: ```{trace}```"
     )
-    project.notifiers.push(message=message, severity=NotificationSeverity.ERROR)
+    project.notifiers.push(
+        message=message, severity=mlrun.api.schemas.NotificationSeverity.ERROR
+    )
 
 
 if __name__ == "__main__":

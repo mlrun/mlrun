@@ -177,7 +177,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             filepath = file_entry["name"]
             if not filepath.endswith("/_SUCCESS"):
                 return pd.read_csv(f"v3io://{filepath}")
-        #  if not exists - assert false.
         raise AssertionError(f"No files found in {csv_path}")
 
     @staticmethod

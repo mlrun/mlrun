@@ -276,7 +276,7 @@ class MapValues(StepToDict, MLRunStep):
                         )
                     ]
                     turned_to_none_values = df.filter(
-                        (column_filter) & (new_column_filter)
+                        column_filter & new_column_filter
                     ).filter(~col(column).isin(mapping_to_null))
 
                     if not turned_to_none_values.isEmpty():

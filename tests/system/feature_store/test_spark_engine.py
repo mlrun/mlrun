@@ -1426,7 +1426,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # checks partial mapping -> only part of the values in field are replaced.
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_mapvalues_with_partial_mapping"
-
+        original_df = self.read_csv(self.get_remote_pq_source_path())
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1436,7 +1436,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(
             MapValues(
                 mapping={
-                    "bad": {17: 0},
+                    "bad": {17: -1},
                 },
                 with_original_features=True,
             )
@@ -1456,6 +1456,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert not df["bad_mapped"].isna().any()
         assert not df["bad_mapped"].isnull().any()
         assert not (df["bad_mapped"] == 17).any()
+        # There is not any -1 in the original df in "bad" field.
+        assert (df["bad_mapped"] == -1).sum() == (original_df["bad"] == 17).sum()
 
     def test_mapval_with_mixed_types(self):
         key = "patient_id"

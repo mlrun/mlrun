@@ -322,12 +322,25 @@ class MapValues(StepToDict, MLRunStep):
                     )
                 )
             else:
-                pass
-
+                ranges_dict = column_map[cls.get_ranges_key()]
+                types = set()
+                for ranges_mapping_values in ranges_dict.values():
+                    range_types = set(
+                        type(val)
+                        for val in ranges_mapping_values
+                        if type(val) is not None
+                        and not (
+                                isinstance(val, (float, np.float64, np.float32, np.float16))
+                                and math.isnan(val)
+                        )
+                    )
+                    types.union(range_types)
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"MapValues - mapping values of the same column must be in the same type! Column- {column}"
                 )
+
+
 
     @staticmethod
     def get_ranges_key():

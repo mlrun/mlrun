@@ -1426,7 +1426,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # checks partial mapping -> only part of the values in field are replaced.
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_mapvalues_with_partial_mapping"
-        original_df = self.read_csv(self.get_remote_pq_source_path())
+        original_df = pd.read_parquet(self.get_remote_pq_source_path())
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],

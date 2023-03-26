@@ -311,11 +311,15 @@ class MapValues(StepToDict, MLRunStep):
     def validate_args(cls, feature_set, **kwargs):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
-            types = set(
-                type(val)
-                for val in column_map.values()
-                if type(val) is not None and not math.isnan(val)
-            )
+            if not cls.is_ranges(column_map=column_map):
+                types = set(
+                    type(val)
+                    for val in column_map.values()
+                    if type(val) is not None and not math.isnan(val)
+                )
+            else:
+                pass
+
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"MapValues - mapping values of the same column must be in the same type! Column- {column}"

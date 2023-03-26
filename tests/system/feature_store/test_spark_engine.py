@@ -1367,7 +1367,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("with_original_features", [True, False])
-    def test_ingest_with_steps_mapval(self, with_original_features):
+    def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"

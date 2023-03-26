@@ -20,7 +20,7 @@ __all__ = [
     "code_to_function",
     "import_function",
     "handler",
-    "ArtifactType",
+    "ArtifactTypes",
     "get_secret_or_env",
 ]
 
@@ -35,6 +35,7 @@ from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
+from .package import ArtifactTypes, Packager, handler
 from .platforms import (
     VolumeMount,
     auto_mount,
@@ -61,7 +62,6 @@ from .run import (
     get_object,
     get_or_create_ctx,
     get_pipeline,
-    handler,
     import_function,
     new_function,
     run_local,
@@ -69,7 +69,6 @@ from .run import (
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
-from .package import ArtifactType, Packager
 from .secrets import get_secret_or_env
 from .utils.version import Version
 

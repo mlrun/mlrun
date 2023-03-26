@@ -447,8 +447,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             if cwd:
                 os.chdir(cwd)
             # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
-            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user.
-            # outputs are logged only if log hints are provided by the user):
+            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
+            # are logged only if log hints are provided by the user):
             val = mlrun.handler(
                 inputs=(
                     runobj.spec.inputs_type_hints

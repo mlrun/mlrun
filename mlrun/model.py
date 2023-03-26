@@ -23,6 +23,7 @@ from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun
+from mlrun.package import ContextHandler
 
 from .utils import (
     dict_to_json,
@@ -615,7 +616,7 @@ class RunSpec(ModelObj):
 
         # Validate:
         for log_hint in returns:
-            mlrun.run._parse_log_hint(log_hint=log_hint)
+            ContextHandler.parse_log_hint(log_hint=log_hint)
 
         # Store the results:
         self._returns = returns

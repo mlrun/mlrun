@@ -13,19 +13,20 @@
 # limitations under the License.
 #
 import importlib
-import sys
 import inspect
-from enum import Enum
-from types import MethodType, ModuleType
-from typing import Any, Dict, List, Union, Type, Tuple
 import os
+import sys
 import tempfile
 import warnings
+from types import MethodType, ModuleType
+from typing import Any, Dict, List, Tuple, Type, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
-from mlrun.execution import MLClientCtx
+from mlrun.utils import logger
+
+from .constants import ArtifactTypes
 
 
 class _Pickler:
@@ -112,7 +113,7 @@ class _Pickler:
         if python_version is not None:
             current_python_version = _Pickler._get_python_version()
             if python_version != current_python_version:
-                warnings.warn(
+                logger.warn(
                     f"MLRun is trying to load an object that was pickled on python version "
                     f"'{python_version}' but the current python version is '{current_python_version}'. "
                     f"When using pickle, it is recommended to save and load an object on the same python version to "
@@ -128,7 +129,7 @@ class _Pickler:
                 module_name=pickle_module_name
             )
             if pickle_module_version != current_pickle_module_version:
-                warnings.warn(
+                logger.warn(
                     f"MLRun is trying to load an object that was pickled using "
                     f"{pickle_module_name} version {pickle_module_version} but the current module version is "
                     f"'{current_pickle_module_version}'. "
@@ -142,7 +143,7 @@ class _Pickler:
                 module_name=object_module_name
             )
             if object_module_version != current_object_module_version:
-                warnings.warn(
+                logger.warn(
                     f"MLRun is trying to load an object from module {object_module_name} version "
                     f"{object_module_version} but the current module version is '{current_object_module_version}'. "
                     f"When using pickle, it is recommended to save and load an object using "
@@ -242,12 +243,34 @@ class _Pickler:
 _DEFAULT_PICKLE_MODULE = "cloudpickle"
 
 
-class Packager:
+class _PackagerMeta(type):
+    """
+    Metaclass for `Packager` to override some type class methods.
+    """
+
+    # TODO: When 3.7 is no longer supported, add "Packager" as reference type hint to cls
+    def __repr__(cls) -> str:
+        """
+        Get the string representation of a packager in the following format:
+        <packager name> (type=<handled type>, artifact_types=[<all supported artifact types>])
+
+        :return: The string representation of e packager.
+        """
+        # Get the packager info into variables:
+        packager_name = cls.__name__
+        handled_type = cls.TYPE.__name__ if cls.TYPE is not ... else "Any"
+        supported_artifact_types = cls._get_supported_artifact_types()
+
+        # Return the string representation in the format noted above:
+        return f"{packager_name} (type={handled_type}, artifact_types={supported_artifact_types}"
+
+
+class Packager(metaclass=_PackagerMeta):
     """
     An abstract base class for a packager - a static class that have two main duties:
 
     1. Packing - get an object that was returned from a function and log it to MLRun. The user can specify packing
-       configurations to the packager using log hints.
+       configurations to the packager using log hints. The packed object can be an artifact or a result.
     2. Unpacking - get a ``mlrun.DataItem`` (an input to a MLRun function) and parse it to the desired hinted type. The
        packager is using the instructions it notetd itself when orignaly packing the object.
 
@@ -258,8 +281,8 @@ class Packager:
        * ``DEFAULT_ARTIFACT_TYPE`` - The default artifact type to be used when the user didn't specify one. Defaulted to
          "object".
     * Class methods:
-       * ``pack`` - Pack a returned object, logging it to MLRun using the pprovieded log hint configurations while
-         noting itself instructions for how to unpack it once needed.
+       * ``pack`` - Pack a returned object using the provieded log hint configurations while noting itself instructions
+         for how to unpack it once needed (only relevant of packed artifacts as results do not need unpacking).
        * ``unpack`` - Unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the instructions noted
          while originally packing it.
        * ``is_packable`` - Whether to use this packager to pack / unpack an object by the required artifact type.
@@ -273,12 +296,13 @@ class Packager:
       the class method ``pack_object`` must be implemented. The signature of each pack class method must be:
 
       >>> @classmethod
-      ... def pack_x(cls, obj: Any, ...) -> Tuple[Artifact, dict]:
+      ... def pack_x(cls, obj: Any, ...) -> Union[Tuple[Artifact, dict], dict]:
       ...     pass
 
       Wehre 'x' is the artifact type, 'obj' is the object to pack, ... are aditional custom log hint configurations and
-      the returning values are the packed artifact and the instructions for unpacking it. The log hint configurations
-      are sent by the user and shouldn't be mandatory, meaning they should have a default value.
+      the returning values are the packed artifact and the instructions for unpacking it, or in case of result, the
+      dictionary of the result with its key and value. The log hint configurations are sent by the user and shouldn't be
+      mandatory, meaning they should have a default value.
     * ``unpack`` is getting a ``DataItem`` and sending it to the relevant unpacking method by the artifact type (if
       artifact type was not provided, the default one will be used). For example: if the artifact type stored within
       the ``DataItem`` is "object" then the class method ``unpack_object`` must be implemented. The signature of each
@@ -295,17 +319,24 @@ class Packager:
     * ``is_packable`` is getting the object and the artifact type desired to pack and log it as. So, it is automatically
       looking for all pack class methods implemented to collect the supported artifact types. So, if ``PackagerX`` has
       ``pack_y`` and ``pack_z`` that means the artifact typpes supported are 'y' and 'z'.
+
+    In order to link between packages (using the extra data or metrics spec attributes of an artifact), you should use
+    the key as if it exists and as value ellipses (...). The manager will link all packages once it is done packing. For
+    exmaple, given extra data keys in the log hint as `extra_data`, setting them to an artifact should be:
+
+    >>> artifact = Artifact(key="my_artifact")
+    >>> artifact.spec.extra_data = {key: ... for key in extra_data}
     """
 
     # The type of object this packager can pack and unpack:
     TYPE: Type = ...
     # The default artifact type to pack as or unpack from:
-    DEFAULT_ARTIFACT_TYPE = "object"
+    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.OBJECT
 
     @classmethod
     def pack(
         cls, obj: Any, artifact_type: Union[str, None], configurations: dict
-    ) -> Tuple[Artifact, dict]:
+    ) -> Union[Tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -313,7 +344,8 @@ class Packager:
         :param artifact_type:  Artifact type to log to MLRun.
         :param configurations: Log hints configurations to pass to the packing method.
 
-        :return: A tuple of the packed artifact and unpacking instructions.
+        :return: If the packed object is an artifact, a tuple of the packed artifact and unpacking instructions
+                 dictionary. If the packed object is a result, a dictionary containing the result key and value.
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
@@ -407,6 +439,18 @@ class Packager:
         return artifact, instructions
 
     @classmethod
+    def pack_result(cls, obj: str, key: str) -> dict:
+        """
+        Pack an object as a result.
+
+        :param obj: The object to pack and log.
+        :param key: The result's key.
+
+        :return: The result dictionary.
+        """
+        return {key: obj}
+
+    @classmethod
     def unpack_object(
         cls,
         data_item: DataItem,
@@ -478,8 +522,6 @@ class Packager:
         :param arguments:      Keyword arguments to validate.
         :param arguments_type: A string to use for the error message. Should be on of the `_ArgumentType` class
                                variables.
-
-        :raise MLRunInvalidArgumentError: In case the arguments do not match the provided method.
         """
         # Get the possible arguments from the functions:
         possible_arguments = inspect.signature(method).parameters
@@ -489,22 +531,7 @@ class Packager:
             argument for argument in arguments if argument not in possible_arguments
         ]
         if incorrect_arguments:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unexpected {arguments_type} given: {', '.join(incorrect_arguments)}. "
+            logger.warn(
+                f"Unexpected {arguments_type} given for {cls.__name__}: {', '.join(incorrect_arguments)}. "
                 f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}"
             )
-
-
-# builtins_packagers.py
-# pandas_packagers.py
-# numpy_packagers.py
-
-
-class StringPackager(Packager):
-    TYPE = str
-
-
-class PathPackager(StringPackager):
-    from pathlib import Path
-
-    TYPE = Path

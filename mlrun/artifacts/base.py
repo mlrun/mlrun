@@ -116,7 +116,7 @@ class ArtifactSpec(ModelObj):
         self.sources = []
         self.producer = None
         self.license = ""
-        self._package_instructions = package_instructions
+        self.package_instructions = package_instructions
 
     def base_dict(self):
         return super().to_dict()
@@ -145,14 +145,6 @@ class ArtifactSpec(ModelObj):
         self._body = body
         if body:
             self._is_inline = True
-
-    @property
-    def package_instructions(self) -> dict:
-        return self._package_instructions
-
-    @package_instructions.setter
-    def package_instructions(self, package_instructions: dict):
-        self._package_instructions = package_instructions
 
     def get_body(self):
         """get the artifact body when inline"""

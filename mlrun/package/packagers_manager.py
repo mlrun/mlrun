@@ -13,13 +13,15 @@
 # limitations under the License.
 #
 import importlib
-import typing
+import inspect
 import itertools
+import typing
 
 from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem, is_store_uri, store_manager
-
-from .packager import Packager
+from mlrun.datastore import DataItem, is_store_uri, parse_store_uri, store_manager
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.package.packager import Packager
+from mlrun.utils import StorePrefix, logger
 
 
 class PackagersManager:
@@ -29,9 +31,17 @@ class PackagersManager:
     It prepares the instructions / log hint configurations and then looks for the first packager who fits the task.
     That's why when the manager collects its packagers, it first collects builtin MLRun packagers and only then the
     user's custom packagers, this way user's custom packagers will have higher priority.
-
-    The manager should be a singleton to properly function. To get it, use `mlrun.package.get_packagers_manager()`.
     """
+
+    # Mandatory packagers to be collected at initialization time:
+    _MLRUN_REQUIREMENTS_PACKAGERS = [
+        "python_standard_library",
+        "pandas",
+        "numpy",
+        "mlrun",
+    ]
+    # Optional packagers to be collected at initialization time:
+    _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
 
     def __init__(self, default_packager: Packager = None):
         """
@@ -43,38 +53,122 @@ class PackagersManager:
         # Set the default packager:
         self._default_packager = default_packager or Packager
 
+        # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
+        # data if noted by the user using the log hint key "extra_data")
+        self._artifacts: typing.List[Artifact] = []
+        self._results = {}
+
         # Initialize the packagers list:
         self._packagers: typing.List[Packager] = []
 
-        # Collect the packagers:
+        # Collect the builtin standard packagers:
         self._collect_packagers()
 
-    def pack(self, obj: typing.Any, log_hint: typing.Dict[str, str]) -> Artifact:
+    @property
+    def artifacts(self) -> typing.List[Artifact]:
+        return self._artifacts
+
+    @property
+    def results(self) -> dict:
+        return self._results
+
+    def collect_packagers(self, packagers: typing.List[typing.Union[typing.Type, str]]):
+        """
+        Collect the provided packagers. Packagers passed as module paths will be imported and validated to be of type
+        `Packager`. If needed to import all packagers from a module, use the module path with a "*" at the end.
+
+        Notice: Only packagers that are declared in the module will be collected (packagers imported in the module scope
+        won't be collected). For example:
+
+        >>> from mlrun import Packager
+        >>> from x import XPackager
+
+        >>> class YPackager(Packager):
+        ...     pass
+
+        Only "YPackager" will be collected as it is declared in the module, but not "XPackager" which is only imported.
+
+        :param packagers: List of packagers to add.
+
+        :raise MLRunInvalidArgumentError: In case one of the classes provided was not of type `Packager`.
+        """
+        for packager in packagers:
+            # If it's a string, it's the module path of the class, so we import it:
+            if isinstance(packager, str):
+                # Import the module:
+                module_name, class_name = PackagersManager._split_module_path(
+                    module_path=packager
+                )
+                module = importlib.import_module(module_name)
+                # Check if needed to import all packagers from the given module:
+                if class_name == "*":
+                    # Get all the packagers from the module and collect them (this time they will be sent as `Packager`
+                    # types to the method):
+                    self.collect_packagers(
+                        packagers=[
+                            member[1]
+                            for member in inspect.getmembers(
+                                module,
+                                lambda member: (
+                                    hasattr(member, "__module__")
+                                    and member.__module__ == module.__name__
+                                    and isinstance(member, Packager)
+                                ),
+                            )
+                        ]
+                    )
+                    # Collected from the previous call, continue to the next packager in the list:
+                    continue
+                # Import the packager and continue like as if it was given as a type:
+                packager = getattr(module, class_name)
+            # Validate the class given is a `Packager` type:
+            if not isinstance(packager, Packager):
+                raise MLRunInvalidArgumentError(
+                    f"The object given to collect '{packager.__name__}' is not a `mlrun.Packager`."
+                )
+            # Collect the packager:
+            self._packagers.append(packager)
+
+    def pack(
+        self, obj: typing.Any, log_hint: typing.Dict[str, str]
+    ) -> typing.Union[Artifact, dict]:
         """
         Pack an object using one of the manager's packagers.
 
         :param obj:      The object to pack as an artifact.
         :param log_hint: The log hint to use.
 
-        :return: The packaged artifact.
+        :return: The packaged artifact or result.
         """
         # Get the artifact type (if user didn't pass any, the packager will use its configured default):
         artifact_type = log_hint.pop("artifact_type", None)
 
         # Get a packager:
+        object_type = type(obj)
         packager = self._get_packager(
-            object_type=type(obj), artifact_type=artifact_type
+            object_type=object_type, artifact_type=artifact_type
         )
 
         # Use the packager to pack the object:
-        artifact, instructions = packager.pack(
+        packed_object = packager.pack(
             obj=obj, artifact_type=artifact_type, configurations=log_hint
         )
+
+        # If the packed object is a result, return it as is:
+        if isinstance(packed_object, dict):
+            # Collect the result and return:
+            self._results.update(packed_object)
+            return packed_object
+
+        # It is an artifact, continue with the packaging:
+        artifact, instructions = packed_object
 
         # Prepare the manager's labels:
         package_instructions = {
             self._InstructionsNotesKeys.PACKAGER_NAME: packager.__name__,
-            self._InstructionsNotesKeys.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
+            self._InstructionsNotesKeys.OBJECT_TYPE: self._get_type_name(
+                typ=object_type
+            ),
             self._InstructionsNotesKeys.ARTIFACT_TYPE: artifact_type,
             self._InstructionsNotesKeys.INSTRUCTIONS: instructions,
         }
@@ -82,6 +176,8 @@ class PackagersManager:
         # Set the instructions in the artifact's spec:
         artifact.spec.package_instructions = package_instructions
 
+        # Collect the artifact and return:
+        self._artifacts.append(artifact)
         return artifact
 
     def unpack(self, data_item: DataItem, type_hint: typing.Type) -> typing.Any:
@@ -94,16 +190,23 @@ class PackagersManager:
         :return: The unpacked object parsed as type hinted.
         """
         # Set variables to hold the manager notes and packager instructions:
+        artifact_key = None
         packager_name = None
         object_type = None
         artifact_type = None
         instructions = {}
 
         # Try to get the notes and instructions (can be found only in artifacts but data item may be a simple path/url):
-        if data_item.artifact_url and is_store_uri(url=data_item.artifact_url):
+        if (
+            data_item.artifact_url
+            and is_store_uri(url=data_item.artifact_url)
+            and parse_store_uri(data_item.artifact_url)[0]
+            in [StorePrefix.Artifact, StorePrefix.Dataset, StorePrefix.Model]
+        ):
             # Get the artifact object in the data item:
             artifact, _ = store_manager.get_store_artifact(url=data_item.artifact_url)
-            # Get the instructions from the artifact's spec:
+            # Get the key from the artifact's metadata and instructions from the artifact's spec:
+            artifact_key = artifact.metadata.key
             package_instructions = artifact.spec.package_instructions
             # Extract the manager notes and packager instructions found:
             if package_instructions:
@@ -114,6 +217,7 @@ class PackagersManager:
                     self._InstructionsNotesKeys.OBJECT_TYPE, None
                 )
                 if object_type is not None:
+                    # Get the actual type from the stored string:
                     object_type = self._get_type_from_name(type_name=object_type)
                 artifact_type = package_instructions.pop(
                     self._InstructionsNotesKeys.ARTIFACT_TYPE, None
@@ -123,12 +227,20 @@ class PackagersManager:
                 )
 
         # If both original packaged object type and user's type hint available, validate they are equal:
-        if (
-            object_type is not None
-            and type_hint is not None
-            and object_type is not type_hint
-        ):
-            pass  # TODO: Mismatch! raise warning, take type hint
+        if object_type is not None and type_hint is not None:
+            matching_object_and_type_hint = False
+            hinted_types = [type_hint]
+            while len(hinted_types) > 0:
+                if object_type in hinted_types:
+                    matching_object_and_type_hint = True
+                    break
+                hinted_types = self._reduce_type_hints(type_hints=hinted_types)
+            if not matching_object_and_type_hint:
+                logger.warn(
+                    f"{artifact_key} was originally packaged as type '{object_type}' but the type hint given to unpack "
+                    f"it as is '{type_hint}'. It is recommended to not parse an object from type to type using the "
+                    f"packagers as unknown behavior might happen."
+                )
 
         # Get the packager:
         packager = self._get_packager(
@@ -140,7 +252,12 @@ class PackagersManager:
         # If the packager name is available (noted by manager), validate the original packager who packaged the object
         # was found:
         if packager_name is not None and packager.__name__ != packager_name:
-            pass  # TODO: Mismatch! raise warning
+            logger.warn(
+                f"{artifact_key} was originally packaged by a packager of type '{packager_name}' but it was not "
+                f"found. Custom packagers should be added to the project running the function. MLRun will try using "
+                f"the packager '{packager.__name__}' instead. It is recommended to use the same packager for packing "
+                f"and unpacking to reduce unexpected behaviours."
+            )
 
         # Unpack:
         return packager.unpack(
@@ -148,6 +265,47 @@ class PackagersManager:
             artifact_type=artifact_type,
             instructions=instructions,
         )
+
+    def link_packages(
+        self,
+        additional_artifacts: typing.List[Artifact],
+        additional_results: dict,
+    ):
+        """
+        Link packages between each other according to the provided extra data and metrics spec keys. A future link is
+        marked with ellipses (...). If no link was found, None will be used and a warning will get printed.
+
+        :param additional_artifacts: Additional artifacts to link (should come from a `mlrun.MLClientCtx`).
+        :param additional_results:   Additional results to link (should come from a `mlrun.MLClientCtx`).
+        """
+        # Join the manager's artifacts and results with the additional ones to look for a link in all of them:
+        joined_artifacts = [*additional_artifacts, *self.artifacts]
+        joined_results = {**additional_results, **self.results}
+
+        # Go over the artifacts and link:
+        for artifact in self.artifacts:
+            # Go over the extra data keys:
+            for key in artifact.spec.extra_data:
+                # Future link is marked with ellipses:
+                if artifact.spec.extra_data[key] is ...:
+                    # Look for an artifact or result with this key to link it:
+                    extra_data = self._look_for_extra_data(
+                        key=key, artifacts=joined_artifacts, results=joined_results
+                    )
+                    # Print a warning if a link is missing:
+                    if extra_data is None:
+                        logger.warn(
+                            f"Could not find {key} to link as extra data for {artifact.key}."
+                        )
+                    # Link it (None will be used in case it was not found):
+                    artifact.spec.extra_data[key] = extra_data
+            # Go over the metrics keys (if available):
+            if hasattr(artifact.spec, "metrics"):
+                for key in artifact.spec.metrics:
+                    # Future link is marked with ellipses:
+                    if artifact.spec.metrics[key] is ...:
+                        # Link it (None will be used in case it was not found):
+                        artifact.spec.metrics[key] = joined_results.get(key, None)
 
     class _InstructionsNotesKeys:
         """
@@ -159,14 +317,45 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
+    def _try_to_collect_packagers_from_module(
+        self, module_name: str, packagers: typing.List[str]
+    ):
+        """
+        Collect a packagers of a given module only if it was successfully imported.
+
+        :param module_name: The module name to try to import.
+        :param packagers:   The packagers to collect.
+        """
+        try:
+            importlib.import_module(module_name)
+
+            self.collect_packagers(packagers=packagers)
+        except ModuleNotFoundError:
+            pass
+
     def _collect_packagers(self):
         """
-        1. Collect basic MLRun requirements packagers like builtins, pathlib, numpy and pandas.
-        2. Collect additional mlrun.frameworks packagers.
-        3. Collect project specific packagers (custom packagers added to project).
-        :return:
+        Collect MLRun's builtin packagers. In addition, more `mlrun.frameworks` packagers are added if the interpreter
+        has the frameworks. The priority will be as follows (from higher to lower priority):
+
+        1. `mlrun.frameworks` packagers
+        2. MLRun's optional packagers
+        3. MLRun's mandatory packagers (MLRun's requirements)
         """
-        pass
+        # Collect MLRun's requirements packagers (mandatory):
+        self.collect_packagers(
+            packagers=[
+                f"mlrun.package.packagers.{module_name}_packagers.*"
+                for module_name in self._MLRUN_REQUIREMENTS_PACKAGERS
+            ]
+        )
+
+        # Add extra packagers for optional libraries:
+        for module_name in self._EXTENDED_PACKAGERS:
+            self._try_to_collect_packagers_from_module(
+                module_name=module_name,
+                packagers=[f"mlrun.package.packagers.{module_name}_packagers.*"],
+            )
 
     def _get_packager(
         self, object_type: typing.Type, artifact_type: str, packager_name: str = None
@@ -190,6 +379,9 @@ class PackagersManager:
             found_packager = self._get_packager_by_name(name=packager_name)
             if found_packager:
                 return found_packager
+            logger.warn(
+                f"Packager '{packager_name}' was not found. Looking for an alternative."
+            )
 
         # Try to get a packager to match the given types:
         found_packager = self._get_packager_by_type(
@@ -199,6 +391,10 @@ class PackagersManager:
             return found_packager
 
         # Return the default as no packager was found:
+        logger.warn(
+            f"No packager was found for the combination of 'object_type={self._get_type_name(typ=object_type)}' and "
+            f"'artifact_type={artifact_type}'. Using the default packager."
+        )
         return self._default_packager
 
     def _get_packager_by_name(self, name: str) -> typing.Union[Packager, None]:
@@ -211,9 +407,12 @@ class PackagersManager:
 
         :return: The found packager or None if it wasn't found.
         """
+        # Look for a packager by exact name:
         for packager in self._packagers:
             if packager.__name__ == name:
                 return packager
+
+        # No packager was found:
         return None
 
     def _get_packager_by_type(
@@ -229,29 +428,59 @@ class PackagersManager:
 
         :return: The found packager or None if it wasn't found.
         """
-        found_packager: Packager = None
-
+        # Look for a packager for the combination of object type nad artifact type:
         possible_type_hints = [object_type]
-        while found_packager is None and len(possible_type_hints) > 0:
+        while len(possible_type_hints) > 0:
             for type_hint in possible_type_hints:
                 for packager in self._packagers:
                     if packager.is_packable(
                         object_type=type_hint, artifact_type=artifact_type
                     ):
-                        found_packager = packager
-                        break
-                if found_packager:
-                    break
-            possible_type_hints = list(
-                itertools.chain(
-                    *[
-                        self._reduce_typing_type(type_hint=type_hint)
-                        for type_hint in possible_type_hints
-                    ]
-                )
+                        return packager
+            # Reduce the type hint list and continue:
+            possible_type_hints = self._reduce_type_hints(
+                type_hints=possible_type_hints
             )
 
-        return found_packager
+        # No packager was found:
+        return None
+
+    @staticmethod
+    def _look_for_extra_data(
+        key: str,
+        artifacts: typing.List[Artifact],
+        results: dict,
+    ) -> typing.Union[Artifact, str, int, float, None]:
+        """
+        Look for an extra data item (artifact of result) by given key. If not found, None is returned.
+
+        :param key:       Key to look for.
+        :param artifacts: Artifacts to look in.
+        :param results:   Results to look in.
+
+        :return: The artifact or result with the same key or None if not found.
+        """
+        for artifact in artifacts:
+            if key == artifact.key:
+                return artifact
+        return results.get(key, None)
+
+    @staticmethod
+    def _split_module_path(module_path: str) -> typing.Tuple[str, str]:
+        """
+        Split a module path to the module name and the class name. Notice inner classes won't be supported.
+
+        :param module_path: The module path to split.
+
+        :return: A tuple of strings of the module name and the class name.
+        """
+        # Set the main script module in case there is no module to be found:
+        if "." not in module_path:
+            module_path = f"__main__.{module_path}"
+
+        # Split and return:
+        module_name, class_name = module_path.rsplit(".", 1)
+        return module_name, class_name
 
     @staticmethod
     def _get_type_name(typ: typing.Type) -> str:
@@ -271,15 +500,22 @@ class PackagersManager:
         return f"{module_name}.{class_name}"
 
     @staticmethod
-    def _get_type_from_name(type_name: str) -> typing.Type:
+    def _get_type_from_name(
+        type_name: str, predicate: typing.Callable[[typing.Any], bool] = None
+    ) -> typing.Union[typing.Type, typing.List[typing.Type]]:
         """
-        Get the type object out of the given type representation string.
+        Get the type object out of the given module path. The module must be a full module path (for example:
+        "pandas.DataFrame" and not "DataFrame") otherwise it assumes to be from the local run module - __main__.
+        If the type name ends with a "*", all types from the module will be returned in a list.
 
         :param type_name: The type full name (module path) string.
+        :param predicate: A filter to use on the collected members of module (only used for type name of "*").
 
         :return: The represented type as imported from its module.
         """
-        module_name, class_name = type_name.rsplit(".", 1)
+        module_name, class_name = PackagersManager._split_module_path(
+            module_path=type_name
+        )
         module = importlib.import_module(module_name)
         return getattr(module, class_name)
 
@@ -295,21 +531,27 @@ class PackagersManager:
         return hasattr(type_hint, "___module__") and type_hint.__module__ == "typing"
 
     @staticmethod
-    def _reduce_typing_type(type_hint: typing.Type) -> typing.List[typing.Type]:
+    def _reduce_type_hint(type_hint: typing.Type) -> typing.List[typing.Type]:
         """
-        Reduce a `typing` module to its original hinted types. For example: `typing.Union[int, float, typing.List[int]]`
-        will return `[int, float, List[int]]` and `typing.List[int]` will return `[list]`.
+        Reduce a type hint. If the type hint is a `typing` module, it will be reduced to its original hinted types. For
+        example: `typing.Union[int, float, typing.List[int]]` will return `[int, float, List[int]]` and
+        `typing.List[int]` will return `[list]`. Regular type hints - Python object types cannot be reduced as they are
+        already a core type.
 
         If a type hint cannot be reduced, an empty list will be returned.
 
         :param type_hint: The type hint to reduce.
 
-        :return: The reduced type hint as list of hinted types or an empty list of the type hint could not be reduced.
+        :return: The reduced type hint as list of hinted types or an empty list if the type hint could not be reduced.
         """
         # TODO: Remove when we'll no longer support Python 3.7:
         import sys
 
         if sys.version_info[1] < 8:
+            return []
+
+        # If it's not a typing type (meaning it's an actual object type) then we can't reduce it further:
+        if not PackagersManager._is_typing_type(type_hint=type_hint):
             return []
 
         # If it's a type var, take its constraints (e.g. A = TypeVar("A", int, str) meaning an object of type A should
@@ -361,3 +603,30 @@ class PackagersManager:
 
         # For Generic types we return an empty list:
         return []
+
+    @staticmethod
+    def _reduce_type_hints(
+        type_hints: typing.Union[typing.Type, typing.List[typing.Type]],
+    ) -> typing.Set[typing.Type]:
+        """
+        Reduce a type hint (or a list of type hints) using the `_reduce_type_hint` function.
+
+        :param type_hints: The type hint to reduce.
+
+        :return: The reduced type hints set or an empty set if the type hint could not be reduced.
+        """
+        # Wrap in a list if provided a single type hint:
+        if not isinstance(type_hints, list):
+            type_hints = [type_hints]
+
+        # Iterate over the type hints and reduce each one:
+        return set(
+            list(
+                itertools.chain(
+                    *[
+                        PackagersManager._reduce_type_hint(type_hint=type_hint)
+                        for type_hint in type_hints
+                    ]
+                )
+            )
+        )

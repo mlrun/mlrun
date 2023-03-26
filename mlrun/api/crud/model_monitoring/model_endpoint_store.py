@@ -591,6 +591,7 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         label_names = endpoint.spec.label_names or []
         feature_stats = endpoint.status.feature_stats or {}
         current_stats = endpoint.status.current_stats or {}
+        drift_measures = endpoint.status.drift_measures or {}
         children = endpoint.status.children or []
         endpoint_type = endpoint.status.endpoint_type or None
         children_uids = endpoint.status.children_uids or []
@@ -609,6 +610,8 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             "active": endpoint.spec.active or "",
             "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri
             or "",
+            "drift_status": endpoint.status.drift_status or "",
+            "drift_measures": json.dumps(drift_measures),
             "monitoring_mode": endpoint.spec.monitoring_mode or "",
             "state": endpoint.status.state or "",
             "feature_stats": json.dumps(feature_stats),

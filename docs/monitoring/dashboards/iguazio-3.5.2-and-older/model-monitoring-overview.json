@@ -3,28 +3,20 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": {
-          "type": "datasource",
-          "uid": "grafana"
-        },
+        "datasource": "-- Grafana --",
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "target": {
-          "limit": 100,
-          "matchAny": false,
-          "tags": [],
-          "type": "dashboard"
-        },
         "type": "dashboard"
       }
     ]
   },
   "editable": true,
-  "fiscalYearStartMonth": 0,
+  "gnetId": null,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 7,
+  "iteration": 1627466285618,
   "links": [
     {
       "icon": "external link",
@@ -35,7 +27,7 @@
       "type": "link",
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
-    {
+        {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
@@ -46,12 +38,12 @@
       "url": "d/AohIXhAMk/model-monitoring-details"
     }
   ],
-  "liveNow": false,
   "panels": [
     {
       "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -90,16 +82,17 @@
         },
         "textMode": "value"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "targets": [
         {
-"datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
           "type": "table"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Endpoints",
       "transformations": [
         {
@@ -118,6 +111,7 @@
       "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -156,10 +150,9 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "targets": [
         {
-"datasource":  "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -167,14 +160,17 @@
           "type": "table"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Predictions/s (5 Minute Average)",
       "transparent": true,
       "type": "stat"
     },
     {
-    "datasource": "iguazio",
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -210,16 +206,17 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "targets": [
         {
-"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
           "type": "table"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Average Latency (Last Hour)",
       "transformations": [
         {
@@ -238,6 +235,7 @@
       "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "noValue": "0",
           "thresholds": {
@@ -270,39 +268,47 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "sum"
+            "mean"
           ],
           "fields": "",
           "values": false
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "targets": [
         {
-"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
           "type": "table"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Errors",
       "transparent": true,
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "description": "",
       "fieldConfig": {
         "defaults": {
           "custom": {
             "align": "center",
             "displayMode": "auto",
-            "filterable": true,
-            "inspect": false
+            "filterable": true
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "from": "",
+              "id": 0,
+              "text": "",
+              "to": "",
+              "type": 1
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -321,7 +327,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "function_uri"
+              "options": "Function"
             },
             "properties": [
               {
@@ -448,28 +454,36 @@
                 "id": "mappings",
                 "value": [
                   {
-                    "options": {
-                      "DRIFT_DETECTED": {
-                        "color": "red",
-                        "index": 3,
-                        "text": "2"
-                      },
-                      "NO_DRIFT": {
-                        "color": "green",
-                        "index": 2,
-                        "text": "0"
-                      },
-                      "N\\A": {
-                        "index": 1,
-                        "text": "-1"
-                      },
-                      "POSSIBLE_DRIFT": {
-                        "color": "yellow",
-                        "index": 0,
-                        "text": "1"
-                      }
-                    },
-                    "type": "value"
+                    "from": "",
+                    "id": 0,
+                    "text": "0",
+                    "to": "",
+                    "type": 1,
+                    "value": "NO_DRIFT"
+                  },
+                  {
+                    "from": "",
+                    "id": 1,
+                    "text": "1",
+                    "to": "",
+                    "type": 1,
+                    "value": "POSSIBLE_DRIFT"
+                  },
+                  {
+                    "from": "",
+                    "id": 2,
+                    "text": "2",
+                    "to": "",
+                    "type": 1,
+                    "value": "DRIFT_DETECTED"
+                  },
+                  {
+                    "from": "",
+                    "id": 3,
+                    "text": "-1",
+                    "to": "",
+                    "type": 1,
+                    "value": "N\\A"
                   }
                 ]
               },
@@ -531,13 +545,6 @@
       },
       "id": 22,
       "options": {
-        "footer": {
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
         "showHeader": true,
         "sortBy": [
           {
@@ -546,17 +553,18 @@
           }
         ]
       },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "targets": [
         {
-"datasource":  "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id,model,function_uri,model_class,first_request,last_request,error_count,drift_status;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Models",
       "transformations": [
         {
@@ -566,13 +574,16 @@
               "model_hash": false
             },
             "indexByName": {
+              "accuracy": 8,
+              "drift_status": 9,
+              "endpoint_function": 1,
               "endpoint_id": 0,
-              "error_count": 6,
-              "first_request": 4,
-              "function_uri": 1,
-              "last_request": 5,
-              "model": 2,
-              "model_class": 3
+              "endpoint_model": 2,
+              "endpoint_model_class": 3,
+              "endpoint_tag": 4,
+              "error_count": 7,
+              "first_request": 5,
+              "last_request": 6
             },
             "renameByName": {
               "accuracy": "Accuracy",
@@ -585,7 +596,6 @@
               "error_count": "Error Count",
               "first_request": "First Request",
               "function": "Function",
-              "function_uri": "Function",
               "last_request": "Last Request",
               "latency_avg_1s": "Average Latency",
               "model": "Model",
@@ -599,7 +609,10 @@
       "type": "table"
     },
     {
-      "cards": {},
+      "cards": {
+        "cardPadding": null,
+        "cardRound": null
+      },
       "color": {
         "cardColor": "#b4ff00",
         "colorScale": "sqrt",
@@ -611,15 +624,20 @@
       "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "scaleDistribution": {
-              "type": "linear"
-            }
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           }
         },
         "overrides": []
@@ -637,54 +655,18 @@
       "legend": {
         "show": false
       },
-      "options": {
-        "calculate": true,
-        "calculation": {},
-        "cellGap": 2,
-        "cellValues": {},
-        "color": {
-          "exponent": 0.5,
-          "fill": "#b4ff00",
-          "mode": "scheme",
-          "reverse": false,
-          "scale": "exponential",
-          "scheme": "Plasma",
-          "steps": 128
-        },
-        "exemplars": {
-          "color": "rgba(255,0,255,0.7)"
-        },
-        "filterValues": {
-          "le": 1e-9
-        },
-        "legend": {
-          "show": false
-        },
-        "rowsFrame": {
-          "layout": "auto"
-        },
-        "showValue": "never",
-        "tooltip": {
-          "show": true,
-          "yHistogram": false
-        },
-        "yAxis": {
-          "axisPlacement": "left",
-          "reverse": false,
-          "unit": "short"
-        }
-      },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "reverseYBuckets": false,
       "targets": [
         {
-"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
           "type": "timeserie"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Predictions/s (5 Minute Average)",
       "tooltip": {
         "show": true,
@@ -695,15 +677,26 @@
       "xAxis": {
         "show": true
       },
+      "xBucketNumber": null,
+      "xBucketSize": null,
       "yAxis": {
+        "decimals": null,
         "format": "short",
         "logBase": 1,
-        "show": true
+        "max": null,
+        "min": null,
+        "show": true,
+        "splitFactor": null
       },
-      "yBucketBound": "auto"
+      "yBucketBound": "auto",
+      "yBucketNumber": null,
+      "yBucketSize": null
     },
     {
-      "cards": {},
+      "cards": {
+        "cardPadding": null,
+        "cardRound": null
+      },
       "color": {
         "cardColor": "#b4ff00",
         "colorScale": "sqrt",
@@ -715,18 +708,36 @@
       "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "scaleDistribution": {
-              "type": "linear"
-            }
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "µs"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 6,
@@ -741,54 +752,18 @@
       "legend": {
         "show": false
       },
-      "options": {
-        "calculate": true,
-        "calculation": {},
-        "cellGap": 2,
-        "cellValues": {},
-        "color": {
-          "exponent": 0.5,
-          "fill": "#b4ff00",
-          "mode": "scheme",
-          "reverse": false,
-          "scale": "exponential",
-          "scheme": "Plasma",
-          "steps": 128
-        },
-        "exemplars": {
-          "color": "rgba(255,0,255,0.7)"
-        },
-        "filterValues": {
-          "le": 1e-9
-        },
-        "legend": {
-          "show": false
-        },
-        "rowsFrame": {
-          "layout": "auto"
-        },
-        "showValue": "never",
-        "tooltip": {
-          "show": true,
-          "yHistogram": false
-        },
-        "yAxis": {
-          "axisPlacement": "left",
-          "reverse": false,
-          "unit": "short"
-        }
-      },
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "reverseYBuckets": false,
       "targets": [
         {
-"datasource":  "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
           "type": "timeserie"
         }
       ],
+      "timeFrom": null,
+      "timeShift": null,
       "title": "Average Latency (1 Hour)",
       "tooltip": {
         "show": true,
@@ -799,12 +774,20 @@
       "xAxis": {
         "show": true
       },
+      "xBucketNumber": null,
+      "xBucketSize": null,
       "yAxis": {
+        "decimals": null,
         "format": "short",
         "logBase": 1,
-        "show": true
+        "max": null,
+        "min": null,
+        "show": true,
+        "splitFactor": null
       },
-      "yBucketBound": "auto"
+      "yBucketBound": "auto",
+      "yBucketNumber": null,
+      "yBucketSize": null
     },
     {
       "aliasColors": {},
@@ -812,6 +795,12 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "iguazio",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -838,7 +827,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "9.2.2",
+      "pluginVersion": "7.2.0",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -848,14 +837,15 @@
       "steppedLine": false,
       "targets": [
         {
-        "datasource": "iguazio",
           "refId": "A",
           "target": "select metric",
           "type": "timeserie"
         }
       ],
       "thresholds": [],
+      "timeFrom": null,
       "timeRegions": [],
+      "timeShift": null,
       "title": "Errors",
       "tooltip": {
         "shared": true,
@@ -865,34 +855,44 @@
       "transparent": true,
       "type": "graph",
       "xaxis": {
+        "buckets": null,
         "mode": "time",
+        "name": null,
         "show": true,
         "values": []
       },
       "yaxes": [
         {
           "format": "short",
+          "label": null,
           "logBase": 1,
+          "max": null,
+          "min": null,
           "show": true
         },
         {
           "format": "short",
+          "label": null,
           "logBase": 1,
+          "max": null,
+          "min": null,
           "show": true
         }
       ],
       "yaxis": {
-        "align": false
+        "align": false,
+        "alignLevel": null
       }
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 37,
+  "schemaVersion": 26,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
+        "allValue": null,
         "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
@@ -908,6 +908,7 @@
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
+        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -922,6 +923,5 @@
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 9,
-  "weekStart": ""
+  "version": 2
 }

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
@@ -23,7 +23,7 @@ from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
 
 
-# Defining a different base class (not ObjectMetadata), as there's no project and it differs enough to
+# Defining a different base class (not ObjectMetadata), as there's no project, and it differs enough to
 # justify a new class
 class HubObjectMetadata(BaseModel):
     name: str
@@ -46,6 +46,9 @@ class HubSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
     credentials: Optional[dict] = {}
+    object_type: HubSourceType = Field(
+        HubSourceType.functions, const=True
+    )
 
 
 class HubSource(BaseModel):
@@ -55,8 +58,11 @@ class HubSource(BaseModel):
     status: Optional[ObjectStatus] = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path):
-        return "{base}/{channel}/{relative_path}".format(
-            base=self.spec.path, channel=self.spec.channel, relative_path=relative_path
+        return "{base}/{object_type}/{channel}/{relative_path}".format(
+            base=self.spec.path,
+            object_type=self.spec.object_type,
+            channel=self.spec.channel,
+            relative_path=relative_path,
         )
 
     def get_catalog_uri(self):
@@ -77,8 +83,11 @@ class HubSource(BaseModel):
         return cls(
             metadata=hub_metadata,
             spec=HubSourceSpec(
-                path=config.hub.default_source.url,
-                channel=config.hub.default_source.channel,
+                path=config.marketplace.default_source.url,
+                channel=config.marketplace.default_source.channel,
+                object_type=HubSourceType(
+                    config.marketplace.default_source.object_type
+                ),
             ),
             status=ObjectStatus(state="created"),
         )
@@ -88,14 +97,13 @@ last_source_index = -1
 
 
 class IndexedHubSource(BaseModel):
-    index: int = last_source_index  # Default last. Otherwise must be > 0
+    index: int = last_source_index  # Default last. Otherwise, must be > 0
     source: HubSource
 
 
 # Item-related objects
 class HubItemMetadata(HubObjectMetadata):
     source: HubSourceType = Field(HubSourceType.functions, const=True)
-    channel: str
     version: str
     tag: Optional[str]
 
@@ -103,9 +111,9 @@ class HubItemMetadata(HubObjectMetadata):
         if self.source == HubSourceType.functions:
             # This is needed since the hub deployment script modifies the paths to use _ instead of -.
             modified_name = self.name.replace("-", "_")
-            # Prefer using the tag if exists. Otherwise use version.
+            # Prefer using the tag if exists. Otherwise, use version.
             version = self.tag or self.version
-            return f"{self.source.value}/{self.channel}/{modified_name}/{version}/"
+            return f"{modified_name}/{version}/"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Bad source for hub item - {self.source}"
@@ -121,8 +129,10 @@ class HubItem(BaseModel):
     metadata: HubItemMetadata
     spec: HubItemSpec
     status: ObjectStatus
+    assets: Dict[str, str] = {}
 
 
 class HubCatalog(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
+    channel: str
     catalog: List[HubItem]

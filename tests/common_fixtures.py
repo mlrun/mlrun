@@ -43,6 +43,7 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
+from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
@@ -201,22 +202,23 @@ class RunDBMock:
     def __init__(self):
         self.kind = "http"
         self._pipeline = None
-        self._function = None
+        self._functions = {}
         self._artifacts = {}
         self._project_name = None
         self._runs = {}
 
     def reset(self):
-        self._function = None
+        self._functions = {}
         self._pipeline = None
         self._project_name = None
         self._project = None
-        self._artifacts = None
+        self._artifacts = {}
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
-        self._function = function
-        return "1234-1234-1234-1234"
+        hash_key = mlrun.utils.fill_function_hash(function, tag)
+        self._functions[name] = function
+        return hash_key
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         self._artifacts[key] = artifact
@@ -224,6 +226,27 @@ class RunDBMock:
 
     def read_artifact(self, key, tag=None, iter=None, project=""):
         return self._artifacts.get(key, None)
+
+    def list_artifacts(
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category=None,
+        iter: int = None,
+        best_iteration: bool = False,
+        as_records: bool = False,
+        use_tag_as_uid: bool = None,
+    ):
+        def filter_artifact(artifact):
+            if artifact["metadata"].get("tag", None) == tag:
+                return True
+
+        return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
         self._runs[uid] = {
@@ -235,14 +258,10 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
 
-    def get_function(self, function, project, tag):
-        return {
-            "name": function,
-            "metadata": "bla",
-            "uid": "1234-1234-1234-1234",
-            "project": project,
-            "tag": tag,
-        }
+    def get_function(self, function, project, tag, hash_key=None):
+        if function not in self._functions:
+            raise mlrun.errors.MLRunNotFoundError("Function not found")
+        return self._functions[function]
 
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}

@@ -43,7 +43,7 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
 
-def test_noparams():
+def test_noparams(db):
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
         params={"input_name": str(input_file_path)}, handler=my_func
@@ -121,7 +121,7 @@ def test_local_runtime():
     verify_state(result)
 
 
-def test_local_runtime_failure_before_executing_the_function_code():
+def test_local_runtime_failure_before_executing_the_function_code(db):
     function = new_function(command=f"{assets_path}/fail.py")
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
@@ -188,7 +188,7 @@ def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
     assert mlrun.RunObject.logs.call_count == expected_watch_count
 
 
-def test_local_args():
+def test_local_args(db):
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
     result = new_function(

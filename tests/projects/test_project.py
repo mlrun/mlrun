@@ -45,7 +45,7 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_sync_functions():
+def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
     project.set_function("hub://describe", "describe")
@@ -407,7 +407,7 @@ def test_set_func_requirements():
     ]
 
 
-def test_set_function_underscore_name():
+def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
         "project", default_requirements=["pandas>1, <3"]
     )

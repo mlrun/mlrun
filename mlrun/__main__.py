@@ -1058,8 +1058,9 @@ def logs(uid, project, offset, db, watch):
     "--notification",
     "-nt",
     multiple=True,
-    help="Allow to set a project notifier in runtime, by json file or a dictionary."
-    "For using notifications in other runs in a project please store them as env or project secrets.",
+    help="notification file=notification.json or a dictionary, "
+         "for setting a notification for all or other runs in a project"
+         "please set the notifications as aa ENV or a project secrets.",
 )
 def project(
     context,
@@ -1476,6 +1477,7 @@ def load_notification(notifications, project):
                 add_notification_to_project(notification_from_file, project)
 
         else:
+            print(notification)
             notification = simplejson.loads(notification)
             add_notification_to_project(notification, project)
 

@@ -81,10 +81,10 @@ class HubSource(BaseModel):
         return cls(
             metadata=hub_metadata,
             spec=HubSourceSpec(
-                path=config.marketplace.default_source.url,
-                channel=config.marketplace.default_source.channel,
+                path=config.hub.default_source.url,
+                channel=config.hub.default_source.channel,
                 object_type=HubSourceType(
-                    config.marketplace.default_source.object_type
+                    config.hub.default_source.object_type
                 ),
             ),
             status=ObjectStatus(state="created"),

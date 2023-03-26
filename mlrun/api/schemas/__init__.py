@@ -81,13 +81,13 @@ from .frontend_spec import (
 from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
 from .http import HTTPSessionRetryMode
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
-from .marketplace import (
-    IndexedMarketplaceSource,
-    MarketplaceCatalog,
-    MarketplaceItem,
-    MarketplaceObjectMetadata,
-    MarketplaceSource,
-    MarketplaceSourceSpec,
+from .hub import (
+    IndexedHubSource,
+    HubCatalog,
+    HubItem,
+    HubObjectMetadata,
+    HubSource,
+    HubSourceSpec,
     last_source_index,
 )
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport

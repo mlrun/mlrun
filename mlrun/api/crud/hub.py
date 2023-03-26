@@ -16,12 +16,12 @@ import json
 
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.schemas.marketplace import (
-    MarketplaceCatalog,
-    MarketplaceItem,
-    MarketplaceItemMetadata,
-    MarketplaceItemSpec,
-    MarketplaceSource,
+from mlrun.api.schemas.hub import (
+    HubCatalog,
+    HubItem,
+    HubItemMetadata,
+    HubItemSpec,
+    HubSource,
     ObjectStatus,
 )
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -35,9 +35,9 @@ from .secrets import Secrets, SecretsClientType
 secret_name_separator = "-__-"
 
 
-class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
+class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
-        self._internal_project_name = config.marketplace.k8s_secrets_project_name
+        self._internal_project_name = config.hub.k8s_secrets_project_name
         self._catalogs = {}
 
     @staticmethod
@@ -51,10 +51,10 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def _generate_credentials_secret_key(source, key=""):
         full_key = source + secret_name_separator + key
         return Secrets().generate_client_project_secret_key(
-            SecretsClientType.marketplace, full_key
+            SecretsClientType.hub, full_key
         )
 
-    def add_source(self, source: MarketplaceSource):
+    def add_source(self, source: HubSource):
         source_name = source.metadata.name
         credentials = source.spec.credentials
         if credentials:
@@ -82,7 +82,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def _store_source_credentials(self, source_name, credentials: dict):
         if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "MLRun is not configured with k8s, marketplace source credentials cannot be stored securely"
+                "MLRun is not configured with k8s, hub source credentials cannot be stored securely"
             )
 
         adjusted_credentials = {
@@ -128,7 +128,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
                 "Invalid catalog file - no 'functions' section found."
             )
 
-        catalog = MarketplaceCatalog(catalog=[])
+        catalog = HubCatalog(catalog=[])
         # Loop over channels, then per function extract versions.
         for channel_name in catalog_dict:
             channel_dict = catalog_dict[channel_name]
@@ -138,12 +138,12 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
                     version_dict = function_dict[version_tag]
                     function_details_dict = version_dict.copy()
                     spec_dict = function_details_dict.pop("spec", None)
-                    metadata = MarketplaceItemMetadata(
+                    metadata = HubItemMetadata(
                         channel=channel_name, tag=version_tag, **function_details_dict
                     )
                     item_uri = source.get_full_uri(metadata.get_relative_path())
-                    spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
-                    item = MarketplaceItem(
+                    spec = HubItemSpec(item_uri=item_uri, **spec_dict)
+                    item = HubItem(
                         metadata=metadata, spec=spec, status=ObjectStatus()
                     )
                     catalog.catalog.append(item)
@@ -152,12 +152,12 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_source_catalog(
         self,
-        source: MarketplaceSource,
+        source: HubSource,
         channel=None,
         version=None,
         tag=None,
         force_refresh=False,
-    ) -> MarketplaceCatalog:
+    ) -> HubCatalog:
         source_name = source.metadata.name
         if not self._catalogs.get(source_name) or force_refresh:
             url = source.get_catalog_uri()
@@ -169,7 +169,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog = self._catalogs[source_name]
 
-        result_catalog = MarketplaceCatalog(catalog=[])
+        result_catalog = HubCatalog(catalog=[])
         for item in catalog.catalog:
             if (
                 (channel is None or item.metadata.channel == channel)
@@ -182,13 +182,13 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_item(
         self,
-        source: MarketplaceSource,
+        source: HubSource,
         item_name,
         channel,
         version=None,
         tag=None,
         force_refresh=False,
-    ) -> MarketplaceItem:
+    ) -> HubItem:
         catalog = self.get_source_catalog(source, channel, version, tag, force_refresh)
         items = [item for item in catalog.catalog if item.metadata.name == item_name]
         if not items:
@@ -202,7 +202,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             )
         return items[0]
 
-    def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
+    def get_item_object_using_source_credentials(self, source: HubSource, url):
         credentials = self._get_source_credentials(source.metadata.name)
 
         if not url.startswith(source.spec.path):

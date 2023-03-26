@@ -26,10 +26,10 @@ import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 from mlrun.api.schemas import AuthorizationAction
-from mlrun.api.schemas.marketplace import (
-    IndexedMarketplaceSource,
-    MarketplaceCatalog,
-    MarketplaceItem,
+from mlrun.api.schemas.hub import (
+    IndexedHubSource,
+    HubCatalog,
+    HubItem,
 )
 from mlrun.api.utils.singletons.db import get_db
 
@@ -37,34 +37,34 @@ router = APIRouter()
 
 
 @router.post(
-    path="/marketplace/sources",
+    path="/hub/sources",
     status_code=HTTPStatus.CREATED.value,
-    response_model=IndexedMarketplaceSource,
+    response_model=IndexedHubSource,
 )
 async def create_source(
-    source: IndexedMarketplaceSource,
+    source: IndexedHubSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.create,
         auth_info,
     )
 
-    await run_in_threadpool(get_db().create_marketplace_source, db_session, source)
+    await run_in_threadpool(get_db().create_hub_source, db_session, source)
     # Handle credentials if they exist
-    await run_in_threadpool(mlrun.api.crud.Marketplace().add_source, source.source)
+    await run_in_threadpool(mlrun.api.crud.Hub().add_source, source.source)
     return await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source.source.metadata.name
+        get_db().get_hub_source, db_session, source.source.metadata.name
     )
 
 
 @router.get(
-    path="/marketplace/sources",
-    response_model=List[IndexedMarketplaceSource],
+    path="/hub/sources",
+    response_model=List[IndexedHubSource],
 )
 async def list_sources(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
@@ -73,16 +73,16 @@ async def list_sources(
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.read,
         auth_info,
     )
 
-    return await run_in_threadpool(get_db().list_marketplace_sources, db_session)
+    return await run_in_threadpool(get_db().list_hub_sources, db_session)
 
 
 @router.delete(
-    path="/marketplace/sources/{source_name}",
+    path="/hub/sources/{source_name}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def delete_source(
@@ -93,18 +93,18 @@ async def delete_source(
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.delete,
         auth_info,
     )
 
-    await run_in_threadpool(get_db().delete_marketplace_source, db_session, source_name)
-    await run_in_threadpool(mlrun.api.crud.Marketplace().remove_source, source_name)
+    await run_in_threadpool(get_db().delete_hub_source, db_session, source_name)
+    await run_in_threadpool(mlrun.api.crud.Hub().remove_source, source_name)
 
 
 @router.get(
-    path="/marketplace/sources/{source_name}",
-    response_model=IndexedMarketplaceSource,
+    path="/hub/sources/{source_name}",
+    response_model=IndexedHubSource,
 )
 async def get_source(
     source_name: str,
@@ -113,49 +113,49 @@ async def get_source(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    marketplace_source = await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
+    hub_source = await run_in_threadpool(
+        get_db().get_hub_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.read,
         auth_info,
     )
 
-    return marketplace_source
+    return hub_source
 
 
 @router.put(
-    path="/marketplace/sources/{source_name}", response_model=IndexedMarketplaceSource
+    path="/hub/sources/{source_name}", response_model=IndexedHubSource
 )
 async def store_source(
     source_name: str,
-    source: IndexedMarketplaceSource,
+    source: IndexedHubSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.store,
         auth_info,
     )
 
     await run_in_threadpool(
-        get_db().store_marketplace_source, db_session, source_name, source
+        get_db().store_hub_source, db_session, source_name, source
     )
     # Handle credentials if they exist
-    await run_in_threadpool(mlrun.api.crud.Marketplace().add_source, source.source)
+    await run_in_threadpool(mlrun.api.crud.Hub().add_source, source.source)
 
     return await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
+        get_db().get_hub_source, db_session, source_name
     )
 
 
 @router.get(
-    path="/marketplace/sources/{source_name}/items",
-    response_model=MarketplaceCatalog,
+    path="/hub/sources/{source_name}/items",
+    response_model=HubCatalog,
 )
 async def get_catalog(
     source_name: str,
@@ -169,16 +169,16 @@ async def get_catalog(
     ),
 ):
     ordered_source = await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
+        get_db().get_hub_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.read,
         auth_info,
     )
 
     return await run_in_threadpool(
-        mlrun.api.crud.Marketplace().get_source_catalog,
+        mlrun.api.crud.Hub().get_source_catalog,
         ordered_source.source,
         channel,
         version,
@@ -188,8 +188,8 @@ async def get_catalog(
 
 
 @router.get(
-    "/marketplace/sources/{source_name}/items/{item_name}",
-    response_model=MarketplaceItem,
+    "/hub/sources/{source_name}/items/{item_name}",
+    response_model=HubItem,
 )
 async def get_item(
     source_name: str,
@@ -204,16 +204,16 @@ async def get_item(
     ),
 ):
     ordered_source = await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
+        get_db().get_hub_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.read,
         auth_info,
     )
 
     return await run_in_threadpool(
-        mlrun.api.crud.Marketplace().get_item,
+        mlrun.api.crud.Hub().get_item,
         ordered_source.source,
         item_name,
         channel,
@@ -224,7 +224,7 @@ async def get_item(
 
 
 @router.get(
-    "/marketplace/sources/{source_name}/item-object",
+    "/hub/sources/{source_name}/item-object",
 )
 async def get_object(
     source_name: str,
@@ -235,15 +235,15 @@ async def get_object(
     ),
 ):
     ordered_source = await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
+        get_db().get_hub_source, db_session, source_name
     )
     object_data = await run_in_threadpool(
-        mlrun.api.crud.Marketplace().get_item_object_using_source_credentials,
+        mlrun.api.crud.Hub().get_item_object_using_source_credentials,
         ordered_source.source,
         url,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.api.schemas.AuthorizationResourceTypes.hub_source,
         AuthorizationAction.read,
         auth_info,
     )

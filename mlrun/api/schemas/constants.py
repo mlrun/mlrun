@@ -174,7 +174,8 @@ class APIStates:
     def description(state: str):
         return {
             APIStates.online: "API is online",
-            APIStates.waiting_for_migrations: "API is waiting for migrations to be triggered. Send POST request to /api/operations/migrations to trigger it",
+            APIStates.waiting_for_migrations: "API is waiting for migrations to be triggered. "
+            "Send POST request to /api/operations/migrations to trigger it",
             APIStates.migrations_in_progress: "Migrations are in progress",
             APIStates.migrations_failed: "Migrations failed, API can't be started",
             APIStates.migrations_completed: "Migrations completed, API is waiting to become online",

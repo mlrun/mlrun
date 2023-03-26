@@ -25,23 +25,24 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 
 MLRun is pre-installed in CE Jupyter.
 
-To install on a **Python 3.9** client, run:<br>
+To install on a **Python 3.9** environment, run:<br>
 ```
 ./align_mlrun.sh
 ```
 
-To install on a **Python 3.7** client, run:
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
   
 1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
 2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
 
-```$CONDA_HOME/bin/conda install -y conda=23.1.0
-   $CONDA_HOME/bin/conda install -y pip
 ```
-3.  If you are going to work with python 3.9, create a new conda env and activate it:
+$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y pip
 ```
-    conda create -n python39 python=3.9 ipykernel -y
-    conda activate python39
+3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
 ```
 4. Install mlrun:
 ```

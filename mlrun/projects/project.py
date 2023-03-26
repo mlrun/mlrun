@@ -169,7 +169,13 @@ def new_project(
         # Remove original owner name for avoiding possible conflicts
         project.spec.owner = None
     else:
-        project = MlrunProject(name=name)
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": name,
+                }
+            }
+        )
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
 
@@ -419,9 +425,15 @@ def _load_project_dir(context, name="", subpath=""):
 
     elif path.isfile(path.join(context, subpath_str, "function.yaml")):
         func = import_function(path.join(context, subpath_str, "function.yaml"))
-        project = MlrunProject(
-            name=func.metadata.project,
-            functions=[{"url": "function.yaml", "name": func.metadata.name}],
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": func.metadata.project,
+                },
+                "spec": {
+                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                },
+            }
         )
     else:
         raise mlrun.errors.MLRunNotFoundError(
@@ -769,6 +781,7 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
+        # TODO: remove all arguments except metadata and spec in 1.6.0
         name=None,
         description=None,
         params=None,
@@ -777,7 +790,7 @@ class MlrunProject(ModelObj):
         artifacts=None,
         artifact_path=None,
         conda=None,
-        # all except these 2 are for backwards compatibility with MlrunProjectLegacy
+        # all except these metadata and spec are for backwards compatibility with MlrunProjectLegacy
         metadata=None,
         spec=None,
         default_requirements: typing.Union[str, typing.List[str]] = None,
@@ -788,6 +801,26 @@ class MlrunProject(ModelObj):
         self.spec = spec
         self._status = None
         self.status = None
+
+        if any(
+            [
+                name,
+                description,
+                params,
+                functions,
+                workflows,
+                artifacts,
+                artifact_path,
+                conda,
+                default_requirements,
+            ]
+        ):
+            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
+            warnings.warn(
+                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
+                " use metadata and spec instead",
+                FutureWarning,
+            )
 
         # Handling the fields given in the legacy way
         self.metadata.name = name or self.metadata.name
@@ -1536,6 +1569,7 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
+        name = mlrun.utils.normalize_name(name) if name else name
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):

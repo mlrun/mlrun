@@ -31,9 +31,9 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
-from mlrun.api.api.endpoints.grafana_proxy import (
-    _parse_query_parameters,
-    _validate_query_parameters,
+from mlrun.api.crud.model_monitoring.grafana import (
+    parse_query_parameters,
+    validate_query_parameters,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
@@ -82,6 +82,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
     reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
+
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
@@ -302,30 +303,30 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
 def test_parse_query_parameters_failure():
     # No 'targets' in body
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({})
+        parse_query_parameters({})
 
     # No 'target' list in 'targets' dictionary
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({"targets": []})
+        parse_query_parameters({"targets": []})
 
     # Target query not separated by equals ('=') char
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({"targets": [{"target": "test"}]})
+        parse_query_parameters({"targets": [{"target": "test"}]})
 
 
 def test_parse_query_parameters_success():
     # Target query separated by equals ('=') char
-    params = _parse_query_parameters({"targets": [{"target": "test=some_test"}]})
+    params = parse_query_parameters({"targets": [{"target": "test=some_test"}]})
     assert params["test"] == "some_test"
 
     # Target query separated by equals ('=') char (multiple queries)
-    params = _parse_query_parameters(
+    params = parse_query_parameters(
         {"targets": [{"target": "test=some_test;another_test=some_other_test"}]}
     )
     assert params["test"] == "some_test"
     assert params["another_test"] == "some_other_test"
 
-    params = _parse_query_parameters(
+    params = parse_query_parameters(
         {"targets": [{"target": "test=some_test;another_test=some_other_test;"}]}
     )
     assert params["test"] == "some_test"
@@ -335,19 +336,17 @@ def test_parse_query_parameters_success():
 def test_validate_query_parameters_failure():
     # No 'target_endpoint' in query parameters
     with pytest.raises(MLRunBadRequestError):
-        _validate_query_parameters({})
+        validate_query_parameters({})
 
     # target_endpoint unsupported
     with pytest.raises(MLRunBadRequestError):
-        _validate_query_parameters(
+        validate_query_parameters(
             {"target_endpoint": "unsupported_endpoint"}, {"supported_endpoint"}
         )
 
 
 def test_validate_query_parameters_success():
-    _validate_query_parameters(
-        {"target_endpoint": "list_endpoints"}, {"list_endpoints"}
-    )
+    validate_query_parameters({"target_endpoint": "list_endpoints"}, {"list_endpoints"})
 
 
 def _get_access_key() -> Optional[str]:

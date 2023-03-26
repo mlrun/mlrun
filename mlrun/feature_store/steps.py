@@ -315,7 +315,11 @@ class MapValues(StepToDict, MLRunStep):
                 types = set(
                     type(val)
                     for val in column_map.values()
-                    if type(val) is not None and not math.isnan(val)
+                    if type(val) is not None
+                    and not (
+                            isinstance(val, (float, np.float64, np.float32, np.float16))
+                            and math.isnan(val)
+                    )
                 )
             else:
                 pass

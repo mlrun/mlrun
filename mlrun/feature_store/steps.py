@@ -235,7 +235,7 @@ class MapValues(StepToDict, MLRunStep):
         source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
-            if "ranges" not in column_map:
+            if not self.is_ranges(column_map=column_map):
                 if column not in source_column_names:
                     continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
@@ -320,6 +320,10 @@ class MapValues(StepToDict, MLRunStep):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"MapValues - mapping values of the same column must be in the same type! Column- {column}"
                 )
+
+    @staticmethod
+    def is_ranges(column_map:dict):
+        return "ranges" in column_map
 
 
 class Imputer(StepToDict, MLRunStep):

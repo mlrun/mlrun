@@ -801,23 +801,26 @@ with ctx:
         )
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: not supported for spark runtime, must be False
+        :param target_dir:      local target dir for repo clone / archive extraction
         """
         if pull_at_runtime:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
             )
 
-        super().with_source_archive(source, workdir, handler, pull_at_runtime)
+        super().with_source_archive(
+            source, workdir, handler, pull_at_runtime, target_dir
+        )
 
     def get_pods(self, name=None, namespace=None, driver=False):
         k8s = self._get_k8s()

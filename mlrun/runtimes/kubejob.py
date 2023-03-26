@@ -58,16 +58,17 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param target_dir:      local target dir for repo clone / archive extraction
         """
         if source.endswith(".zip") and not pull_at_runtime:
             logger.warn(
@@ -79,6 +80,9 @@ class KubejobRuntime(KubeResource):
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
+        if target_dir:
+            self.spec.clone_target_dir = target_dir
+
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
@@ -86,7 +90,7 @@ class KubejobRuntime(KubeResource):
             and pull_at_runtime
             and not self.spec.image
         ):
-            # if we load source from repo and dont need a full build use the base_image as the image
+            # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
         elif not pull_at_runtime:
             # clear the image so build will not be skipped
@@ -223,7 +227,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = self.spec.build.base_image or get_in(
                 data, "data.spec.build.base_image"
             )
-            self.spec.workdir = get_in(data, "data.spec.workdir")
+            # get the clone target dir in case it was enriched due to loading source
+            self.spec.clone_target_dir = get_in(data, "data.spec.clone_target_dir")
             ready = data.get("ready", False)
             if not ready:
                 logger.info(
@@ -348,11 +353,12 @@ class KubejobRuntime(KubeResource):
         workdir = self.spec.workdir
         if workdir:
             if self.spec.build.source and self.spec.build.load_source_on_run:
-                # workdir will be set AFTER the clone
+                # workdir will be set AFTER the clone which is done in the pre-run of local runtime
                 workdir = None
             elif not workdir.startswith("/"):
-                # relative path mapped to real path in the job pod
-                workdir = os.path.join("/mlrun", workdir)
+                # workdir is a relative path from the source root to where the code is located
+                # add the clone_target_dir (where to source was copied)
+                workdir = os.path.join(self.spec.clone_target_dir, workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(

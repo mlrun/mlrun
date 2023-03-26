@@ -133,6 +133,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        clone_target_dir=None,
     ):
 
         self.command = command or ""
@@ -151,6 +152,7 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:
@@ -159,6 +161,19 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def clone_target_dir(self):
+        return self._clone_target_dir
+
+    @clone_target_dir.setter
+    def clone_target_dir(self, clone_target_dir):
+        """
+        Copies the source to the specified target dir and sets it as workdir.
+        Is ignored if no source or load source on run is specified.
+        """
+        # TODO: ensure that the target dir path is absolute
+        self._clone_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):
         pass

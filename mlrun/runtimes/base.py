@@ -171,7 +171,6 @@ class FunctionSpec(ModelObj):
     def clone_target_dir(self, clone_target_dir):
         """
         Copies the source to the specified target dir and sets it as workdir.
-        Is ignored if no source or load source on run is specified.
         If a relative path is specified, it will be enriched with a temp dir path.
         """
         self._clone_target_dir = clone_target_dir

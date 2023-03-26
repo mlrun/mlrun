@@ -31,7 +31,7 @@ def test_offline_state(
 ) -> None:
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.offline
     response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
 
     response = client.get("projects")
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value

@@ -26,7 +26,6 @@ import mlrun
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path, out_path, tests_root_directory
 
-
 code = """
 import mlrun, sys
 if __name__ == "__main__":
@@ -41,6 +40,11 @@ echo "abc123" $1
 
 
 class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
+
+    assets_path = (
+        pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
+    )
+
     def test_main_run_basic(self):
         out = self._exec_run(
             f"{examples_path}/training.py",
@@ -55,7 +59,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         Test that the run command waits for the run to complete before returning
         (mainly sanity as this is expected when running local function)
         """
-        path = str(pathlib.Path(__file__).absolute().parent / "assets" / "sleep.py")
+        path = str(self.assets_path / "sleep.py")
         time_to_sleep = 10
         start_time = datetime.datetime.now()
         out = self._exec_run(
@@ -355,7 +359,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
 
     def test_main_local_project(self):
-        project_path = str(pathlib.Path(__file__).parent / "assets")
+        project_path = str(self.assets_path)
         args = "-f simple -p x=2 --dump"
         out = self._exec_main("run", args.split(), cwd=project_path)
         assert out.find("state: completed") != -1, out
@@ -373,7 +377,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
 
     def test_main_run_class(self):
-        function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+        function_path = str(self.assets_path / "handler.py")
 
         out = self._exec_run(
             function_path,
@@ -399,8 +403,8 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_main_env_file(self):
         # test run with env vars loaded from a .env file
-        function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-        envfile = str(pathlib.Path(__file__).parent / "assets" / "envfile")
+        function_path = str(self.assets_path / "handler.py")
+        envfile = str(self.assets_path / "envfile")
 
         out = self._exec_run(
             function_path,

@@ -271,9 +271,7 @@ class GraphServer(ModelObj):
             context.logger.error(f"run error, {traceback.format_exc()}")
             server_context.push_error(event, message, source="_handler")
             return context.Response(
-                body=message,
-                content_type="text/plain",
-                status_code=400,
+                body=message, content_type="text/plain", status_code=400,
             )
 
         if asyncio.iscoroutine(response):

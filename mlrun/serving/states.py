@@ -327,7 +327,8 @@ class TaskStep(BaseStep):
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
-            self._set_error_handler()
+            if mode == "sync":
+                self._set_error_handler()
             return
 
         self._class_object, self.class_name = self.get_step_class_object(
@@ -466,9 +467,7 @@ class TaskStep(BaseStep):
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             self._log_error(event, exc)
-            handled = self._call_error_handler(event, exc)
-            if not handled:
-                raise exc
+            self._call_error_handler(event, exc)
             event.terminated = True
         return event
 
@@ -1061,9 +1060,7 @@ class FlowStep(BaseStep):
                 event = next_obj.run(event, *args, **kwargs)
             except Exception as exc:
                 self._log_error(event, exc, failed_step=next_obj.name)
-                handled = self._call_error_handler(event, exc)
-                if not handled:
-                    raise exc
+                self._call_error_handler(event, exc)
                 event.terminated = True
                 return event
 

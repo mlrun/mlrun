@@ -218,6 +218,22 @@ def init_ctx(
     return context
 
 
+def raising_step(event):
+    if "error" in event:
+        raise Exception(f"On event Fail")
+    return "All good"
+
+
+def handle_error(event):
+    print("Handling error")
+    return
+
+
+def echo(event):
+    print("Echo:", event)
+    return event
+
+
 def test_v2_get_models():
     context = init_ctx()
 
@@ -714,3 +730,29 @@ def test_mock_invoke():
 
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_error_handler(engine):
+    fn = mlrun.new_function("demo", kind="serving").with_code(
+        os.path.abspath("./test_serving.py")
+    )
+    graph = fn.set_topology("flow", engine=engine)
+    graph.to(name="raise", handler="raising_step").error_handler("error_catcher")
+    graph.add_step(name="echo", handler="echo", after="raise").respond()
+    graph.add_step(
+        name="error_catcher", handler="handle_error", full_event=True, after=""
+    )
+
+    server = fn.to_mock_server()
+
+    resp = server.test("", body={"good": 1})
+    assert resp == "All good"
+
+    resp = server.test("", body={"error": 1})
+    resp = resp["origin_body"] if engine == "async" else resp
+    assert resp["error"] == 1
+
+    resp = server.test("", body={"good": 1})
+    assert resp == "All good"
+    server.wait_for_completion()

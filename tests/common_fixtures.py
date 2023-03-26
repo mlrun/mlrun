@@ -298,16 +298,17 @@ class RunDBMock:
         skip_deployed=False,
         builder_env=None,
     ):
-        self._function = func.to_dict()
+        function = func.to_dict()
         status = NuclioStatus(
             state="ready",
             nuclio_name="test-nuclio-name",
         )
+        self._functions[function["metadata"]["name"]] = function
         return {
             "data": {
                 "status": status.to_dict(),
-                "metadata": self._function.get("metadata"),
-                "spec": self._function.get("spec"),
+                "metadata": function.get("metadata"),
+                "spec": function.get("spec"),
             }
         }
 
@@ -325,8 +326,13 @@ class RunDBMock:
         for key, value in updates.items():
             update_in(self._runs[uid]["struct"], key, value)
 
-    def assert_no_mount_or_creds_configured(self):
-        env_list = self._function["spec"]["env"]
+    def assert_no_mount_or_creds_configured(self, function_name=None):
+        if function_name:
+            function = self._functions[function_name]
+        else:
+            function = list(self._functions.values())[0]
+
+        env_list = function["spec"]["env"]
         env_params = [item["name"] for item in env_list]
         for env_variable in [
             "V3IO_USERNAME",
@@ -336,15 +342,19 @@ class RunDBMock:
         ]:
             assert env_variable not in env_params
 
-        volume_mounts = self._function["spec"]["volume_mounts"]
-        volumes = self._function["spec"]["volumes"]
+        volume_mounts = function["spec"]["volume_mounts"]
+        volumes = function["spec"]["volumes"]
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
     def assert_v3io_mount_or_creds_configured(
-        self, v3io_user, v3io_access_key, cred_only=False
+        self, v3io_user, v3io_access_key, cred_only=False, function_name=None
     ):
-        env_list = self._function["spec"]["env"]
+        if function_name:
+            function = self._functions[function_name]
+        else:
+            function = list(self._functions.values())[0]
+        env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
         expected_env = {
             "V3IO_USERNAME": v3io_user,
@@ -355,8 +365,8 @@ class RunDBMock:
         result.pop("dictionary_item_removed")
         assert result == {}
 
-        volume_mounts = self._function["spec"]["volume_mounts"]
-        volumes = self._function["spec"]["volumes"]
+        volume_mounts = function["spec"]["volume_mounts"]
+        volumes = function["spec"]["volumes"]
 
         if cred_only:
             assert len(volumes) == 0
@@ -380,8 +390,11 @@ class RunDBMock:
         assert deepdiff.DeepDiff(volumes, expected_volumes) == {}
         assert deepdiff.DeepDiff(volume_mounts, expected_mounts) == {}
 
-    def assert_pvc_mount_configured(self, pvc_params):
-        function_spec = self._function["spec"]
+    def assert_pvc_mount_configured(self, pvc_params, function_name=None):
+        if function_name:
+            function_spec = self._functions[function_name]["spec"]
+        else:
+            function_spec = list(self._functions.values())[0]["spec"]
 
         expected_volumes = [
             {
@@ -399,8 +412,12 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
-    def assert_s3_mount_configured(self, s3_params):
-        env_list = self._function["spec"]["env"]
+    def assert_s3_mount_configured(self, s3_params, function_name=None):
+        if function_name:
+            function = self._functions[function_name]
+        else:
+            function = list(self._functions.values())[0]
+        env_list = function["spec"]["env"]
         param_names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
         secret_name = s3_params.get("secret_name")
         non_anonymous = s3_params.get("non_anonymous")
@@ -425,8 +442,12 @@ class RunDBMock:
             expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
 
-    def assert_env_variables(self, expected_env_dict):
-        env_list = self._function["spec"]["env"]
+    def assert_env_variables(self, expected_env_dict, function_name=None):
+        if function_name:
+            function = self._functions[function_name]
+        else:
+            function = list(self._functions.values())[0]
+        env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
 
         for key, value in expected_env_dict.items():

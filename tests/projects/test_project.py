@@ -358,12 +358,11 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
-                func
-            ), "func did not return"
+            normalized_name = mlrun.utils.helpers.normalize_name(func)
+            assert fn.metadata.name == normalized_name, "func did not return"
 
-    if save:
-        assert rundb_mock._function is not None
+            if save:
+                assert normalized_name in rundb_mock._functions
 
 
 def _assert_project_function_objects(project, expected_function_objects):

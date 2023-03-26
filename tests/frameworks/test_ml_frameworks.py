@@ -17,7 +17,6 @@ import typing
 from typing import Dict, List, Tuple
 
 import pytest
-import sqlalchemy.orm
 
 import mlrun
 from mlrun.frameworks._common import ArtifactsLibrary

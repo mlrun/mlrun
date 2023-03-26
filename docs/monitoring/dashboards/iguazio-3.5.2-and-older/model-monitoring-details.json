@@ -729,7 +729,7 @@
       }
     }
   ],
-  "refresh": "1m",
+  "refresh": "30s",
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],

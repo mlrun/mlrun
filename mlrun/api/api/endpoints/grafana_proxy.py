@@ -31,6 +31,19 @@ from mlrun.api.schemas import GrafanaTable, GrafanaTimeSeriesTarget
 
 router = APIRouter()
 
+NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
+    "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
+}
+NAME_TO_QUERY_FUNCTION_DICTIONARY = {
+    "list_endpoints": mlrun.api.crud.model_monitoring.grafana.grafana_list_endpoints,
+    "individual_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
+    "overall_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
+    "incoming_features": mlrun.api.crud.model_monitoring.grafana.grafana_incoming_features,
+}
+
+SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
+SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
+
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(
@@ -42,12 +55,6 @@ def grafana_proxy_model_endpoints_check_connection(
     """
     mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     return Response(status_code=HTTPStatus.OK.value)
-
-
-NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
-    "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
-}
-SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
 
 
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
@@ -90,16 +97,6 @@ async def grafana_proxy_model_endpoints_search(
             function, db_session, auth_info, query_parameters
         )
     return result
-
-
-NAME_TO_QUERY_FUNCTION_DICTIONARY = {
-    "list_endpoints": mlrun.api.crud.model_monitoring.grafana.grafana_list_endpoints,
-    "individual_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
-    "overall_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
-    "incoming_features": mlrun.api.crud.model_monitoring.grafana.grafana_incoming_features,
-}
-
-SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
 
 
 @router.post(

@@ -458,7 +458,7 @@
       }
     }
   ],
-  "refresh": false,
+  "refresh": "30s",
   "schemaVersion": 37,
   "style": "dark",
   "tags": [],

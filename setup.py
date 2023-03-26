@@ -200,6 +200,7 @@ setup(
         "mlrun.mlutils",
         "mlrun.model_monitoring",
         "mlrun.package",
+        "mlrun.package.packagers",
         "mlrun.platforms",
         "mlrun.projects",
         "mlrun.runtimes",

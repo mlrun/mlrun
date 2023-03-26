@@ -1059,7 +1059,7 @@ def logs(uid, project, offset, db, watch):
     "-nt",
     multiple=True,
     help='notification file=notification.json or a dictionary e.g \'{"slack":{"webhook":"<webhook>"}}\''
-         'for setting a notification for all or other runs in a project'
+         ' for setting a notification for all or other runs in a project'
          ' please set the notifications as an ENV or a project secrets.',
 )
 def project(

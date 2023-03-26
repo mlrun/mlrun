@@ -240,7 +240,7 @@ class MapValues(StepToDict, MLRunStep):
                     df = df.withColumn(
                         new_column_name,
                         when(
-                            col(column).isin(column_map),
+                            col(column).isin(list(column_map.keys())),
                             mapping_expr.getItem(col(column)),
                         ).otherwise(col(column)),
                     )

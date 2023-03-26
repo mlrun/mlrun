@@ -17,8 +17,8 @@ import http
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.config
 import mlrun.api.schemas
+import mlrun.config
 
 
 def test_health(

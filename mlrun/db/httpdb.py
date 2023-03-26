@@ -2707,9 +2707,7 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
-    def create_hub_source(
-        self, source: Union[dict, schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: Union[dict, schemas.IndexedHubSource]):
         """
         Add a new hub source.
 

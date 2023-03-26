@@ -46,9 +46,7 @@ class HubSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
     credentials: Optional[dict] = {}
-    object_type: HubSourceType = Field(
-        HubSourceType.functions, const=True
-    )
+    object_type: HubSourceType = Field(HubSourceType.functions, const=True)
 
 
 class HubSource(BaseModel):

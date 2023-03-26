@@ -817,9 +817,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_hub_source(
-        self, source: Union[dict, schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: Union[dict, schemas.IndexedHubSource]):
         raise NotImplementedError()
 
     def store_hub_source(

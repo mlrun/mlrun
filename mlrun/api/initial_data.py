@@ -498,9 +498,7 @@ def _add_default_hub_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
-        hub_source = db.get_hub_source(
-            db_session, config.hub.default_source.name
-        )
+        hub_source = db.get_hub_source(db_session, config.hub.default_source.name)
     except mlrun.errors.MLRunNotFoundError:
         hub_source = None
 

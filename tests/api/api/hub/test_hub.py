@@ -143,9 +143,7 @@ def test_hub_source_apis(
 
     # Negative tests
     # Try to delete the default source.
-    response = client.delete(
-        f"hub/sources/{config.hub.default_source.name}"
-    )
+    response = client.delete(f"hub/sources/{config.hub.default_source.name}")
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # Try to store an object with invalid order
     source_2["index"] = 42
@@ -181,9 +179,7 @@ def test_hub_credentials_removed_from_db(
         == {}
     )
     expected_credentials = {
-        mlrun.api.crud.Hub()._generate_credentials_secret_key(
-            "source_1", key
-        ): value
+        mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key): value
         for key, value in credentials.items()
     }
     k8s_secrets_mock.assert_project_secrets(
@@ -218,9 +214,7 @@ def test_hub_source_manager(
     manager.remove_source("source_1")
     for key in credentials:
         expected_credentials.pop(
-            mlrun.api.crud.Hub()._generate_credentials_secret_key(
-                "source_1", key
-            )
+            mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key)
         )
     k8s_secrets_mock.assert_project_secrets(
         config.hub.k8s_secrets_project_name, expected_credentials

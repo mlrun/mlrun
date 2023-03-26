@@ -26,11 +26,7 @@ import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 from mlrun.api.schemas import AuthorizationAction
-from mlrun.api.schemas.hub import (
-    IndexedHubSource,
-    HubCatalog,
-    HubItem,
-)
+from mlrun.api.schemas.hub import HubCatalog, HubItem, IndexedHubSource
 from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
@@ -125,9 +121,7 @@ async def get_source(
     return hub_source
 
 
-@router.put(
-    path="/hub/sources/{source_name}", response_model=IndexedHubSource
-)
+@router.put(path="/hub/sources/{source_name}", response_model=IndexedHubSource)
 async def store_source(
     source_name: str,
     source: IndexedHubSource,
@@ -142,15 +136,11 @@ async def store_source(
         auth_info,
     )
 
-    await run_in_threadpool(
-        get_db().store_hub_source, db_session, source_name, source
-    )
+    await run_in_threadpool(get_db().store_hub_source, db_session, source_name, source)
     # Handle credentials if they exist
     await run_in_threadpool(mlrun.api.crud.Hub().add_source, source.source)
 
-    return await run_in_threadpool(
-        get_db().get_hub_source, db_session, source_name
-    )
+    return await run_in_threadpool(get_db().get_hub_source, db_session, source_name)
 
 
 @router.get(

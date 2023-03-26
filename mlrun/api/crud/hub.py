@@ -139,9 +139,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
-                metadata = HubItemMetadata(
-                    tag=version_tag, **object_details_dict
-                )
+                metadata = HubItemMetadata(tag=version_tag, **object_details_dict)
                 item_uri = source.get_full_uri(metadata.get_relative_path())
                 spec = HubItemSpec(item_uri=item_uri, **spec_dict)
                 item = HubItem(

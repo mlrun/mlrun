@@ -53,8 +53,8 @@ from mlrun.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
-    Log,
     HubSource,
+    Log,
     Notification,
     Project,
     Run,
@@ -3258,9 +3258,7 @@ class SQLDB(DBInterface):
             else:
                 start, end = move_to, move_from - 1
 
-        query = session.query(HubSource).filter(
-            HubSource.index >= start
-        )
+        query = session.query(HubSource).filter(HubSource.index >= start)
         if end:
             query = query.filter(HubSource.index <= end)
 
@@ -3338,27 +3336,21 @@ class SQLDB(DBInterface):
             )
         return order
 
-    def create_hub_source(
-        self, session, ordered_source: schemas.IndexedHubSource
-    ):
+    def create_hub_source(self, session, ordered_source: schemas.IndexedHubSource):
         logger.debug(
             "Creating hub source in DB",
             index=ordered_source.index,
             name=ordered_source.source.metadata.name,
         )
 
-        order = self._validate_and_adjust_hub_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
         name = ordered_source.source.metadata.name
         source_record = self._query(session, HubSource, name=name).one_or_none()
         if source_record:
             raise mlrun.errors.MLRunConflictError(
                 f"Hub source name already exists. name = {name}"
             )
-        source_record = self._transform_hub_source_schema_to_record(
-            ordered_source
-        )
+        source_record = self._transform_hub_source_schema_to_record(ordered_source)
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=order, move_from=None
@@ -3371,17 +3363,13 @@ class SQLDB(DBInterface):
         name,
         ordered_source: schemas.IndexedHubSource,
     ):
-        logger.debug(
-            "Storing hub source in DB", index=ordered_source.index, name=name
-        )
+        logger.debug("Storing hub source in DB", index=ordered_source.index, name=name)
 
         if name != ordered_source.source.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Conflict between resource name and metadata.name in the stored object"
             )
-        order = self._validate_and_adjust_hub_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
 
         source_record = self._query(session, HubSource, name=name).one_or_none()
         current_order = source_record.index if source_record else None
@@ -3397,13 +3385,9 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=current_order
         )
 
-    def list_hub_sources(
-        self, session
-    ) -> List[schemas.IndexedHubSource]:
+    def list_hub_sources(self, session) -> List[schemas.IndexedHubSource]:
         results = []
-        query = self._query(session, HubSource).order_by(
-            HubSource.index.desc()
-        )
+        query = self._query(session, HubSource).order_by(HubSource.index.desc())
         for record in query:
             ordered_source = self._transform_hub_source_record_to_schema(record)
             # Need this to make the list return such that the default source is last in the response.

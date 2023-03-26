@@ -527,9 +527,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_hub_source(
-        self, source: Union[dict, schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: Union[dict, schemas.IndexedHubSource]):
         pass
 
     @abstractmethod

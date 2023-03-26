@@ -543,19 +543,13 @@ class DBInterface(ABC):
     ):
         return []
 
-    def create_hub_source(
-        self, session, ordered_source: schemas.IndexedHubSource
-    ):
+    def create_hub_source(self, session, ordered_source: schemas.IndexedHubSource):
         pass
 
-    def store_hub_source(
-        self, session, name, ordered_source: schemas.IndexedHubSource
-    ):
+    def store_hub_source(self, session, name, ordered_source: schemas.IndexedHubSource):
         pass
 
-    def list_hub_sources(
-        self, session
-    ) -> List[schemas.IndexedHubSource]:
+    def list_hub_sources(self, session) -> List[schemas.IndexedHubSource]:
         pass
 
     def delete_hub_source(self, session, name):

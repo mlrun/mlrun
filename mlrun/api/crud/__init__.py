@@ -17,8 +17,8 @@ from .client_spec import ClientSpec  # noqa: F401
 from .clusterization_spec import ClusterizationSpec  # noqa: F401
 from .feature_store import FeatureStore  # noqa: F401
 from .functions import Functions  # noqa: F401
-from .logs import Logs  # noqa: F401
 from .hub import Hub  # noqa: F401
+from .logs import Logs  # noqa: F401
 from .model_monitoring import ModelEndpoints, ModelEndpointStoreType  # noqa: F401
 from .notifications import Notifications  # noqa: F401
 from .pipelines import Pipelines  # noqa: F401

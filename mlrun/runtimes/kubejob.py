@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import tempfile
 import time
 
 from kubernetes import client
@@ -357,8 +358,9 @@ class KubejobRuntime(KubeResource):
                 workdir = None
             elif not workdir.startswith("/"):
                 # workdir is a relative path from the source root to where the code is located
-                # add the clone_target_dir (where to source was copied)
-                workdir = os.path.join(self.spec.clone_target_dir, workdir)
+                # add the clone_target_dir (where to source was copied) or a temp dir
+                workdir_parent_path = self.spec.clone_target_dir or tempfile.mkdtemp()
+                workdir = os.path.join(workdir_parent_path, workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(

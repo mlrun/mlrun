@@ -171,8 +171,8 @@ class FunctionSpec(ModelObj):
         """
         Copies the source to the specified target dir and sets it as workdir.
         Is ignored if no source or load source on run is specified.
+        If a relative path is specified, it will be enriched with a temp dir path.
         """
-        # TODO: ensure that the target dir path is absolute
         self._clone_target_dir = clone_target_dir
 
     def enrich_function_preemption_spec(self):

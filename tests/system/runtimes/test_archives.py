@@ -108,7 +108,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.state() == "completed"
         assert run.output("tag")
 
-    @pytest.mark.parametrize("load_mode", ["build"])
+    @pytest.mark.parametrize("load_mode", ["run", "build"])
     @pytest.mark.parametrize("case", job_cases.keys())
     def test_job_git(self, load_mode, case):
         command, workdir, handler, tag = job_cases[case]

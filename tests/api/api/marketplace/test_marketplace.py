@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import http
 import pathlib
 import random
 from http import HTTPStatus
@@ -255,7 +256,6 @@ def test_marketplace_default_source(
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
     manager = mlrun.api.crud.Marketplace()
-
     source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
@@ -304,3 +304,20 @@ def test_marketplace_catalog_apis(
     function_modified_name = item["metadata"]["name"].replace("_", "-")
 
     assert yaml_function_name == function_modified_name
+
+
+def test_marketplace_get_asset(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+) -> None:
+    possible_assets = ["docs", "source", "example", "function"]
+    sources = client.get("marketplace/sources").json()
+    source_name = sources[0]["source"]["metadata"]["name"]
+    catalog = client.get(f"marketplace/sources/{source_name}/items").json()
+    for _ in range(10):
+        item = random.choice(catalog["catalog"])
+        asset_type = random.choice(possible_assets)
+        response = client.get(
+            f"marketplace/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_type}"
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.content == bytes(response.text, encoding="utf-8")

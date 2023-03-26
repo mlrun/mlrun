@@ -65,10 +65,7 @@ class ModelEndpointsTable(Base, BaseModel):
     )
     children = Column(model_monitoring_constants.EventFieldType.CHILDREN, Text)
     label_names = Column(model_monitoring_constants.EventFieldType.LABEL_NAMES, Text)
-    # timestamp = Column(
-    #     model_monitoring_constants.EventFieldType.TIMESTAMP,
-    #     sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
-    # )
+
     endpoint_type = Column(
         model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
         String(10),

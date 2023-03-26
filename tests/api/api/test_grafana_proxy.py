@@ -84,6 +84,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
     reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
+
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object

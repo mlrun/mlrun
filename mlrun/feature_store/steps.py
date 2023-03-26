@@ -235,7 +235,7 @@ class MapValues(StepToDict, MLRunStep):
         source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
-            if not self.is_ranges(column_map=column_map):
+            if not self.get_ranges_key() in column_map:
                 if column not in source_column_names:
                     continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
@@ -311,7 +311,7 @@ class MapValues(StepToDict, MLRunStep):
     def validate_args(cls, feature_set, **kwargs):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
-            if not cls.is_ranges(column_map=column_map):
+            if not cls.get_ranges_key() in column_map:
                 types = set(
                     type(val)
                     for val in column_map.values()
@@ -330,8 +330,8 @@ class MapValues(StepToDict, MLRunStep):
                 )
 
     @staticmethod
-    def is_ranges(column_map:dict):
-        return "ranges" in column_map
+    def get_ranges_key():
+        return "ranges"
 
 
 class Imputer(StepToDict, MLRunStep):

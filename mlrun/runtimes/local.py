@@ -39,7 +39,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
-from .base import BaseRuntime, FunctionSpec, spec_fields
+from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std

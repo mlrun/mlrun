@@ -98,11 +98,11 @@ class TestMLRunSystem:
         logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
 
         logger.debug("Removing test data from database")
-        # if self._should_clean_resources():
-        #     fsets = self._run_db.list_feature_sets()
-        #     if fsets:
-        #         for fset in fsets:
-        #             fset.purge_targets()
+        if self._should_clean_resources():
+            fsets = self._run_db.list_feature_sets()
+            if fsets:
+                for fset in fsets:
+                    fset.purge_targets()
 
         self._delete_test_project()
 

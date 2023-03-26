@@ -322,6 +322,7 @@ class MapValues(StepToDict, MLRunStep):
                     )
                 )
             else:
+                #TODO check if to drop if I have ranges and regular mapping
                 ranges_dict = column_map[cls.get_ranges_key()]
                 types = set()
                 for ranges_mapping_values in ranges_dict.values():

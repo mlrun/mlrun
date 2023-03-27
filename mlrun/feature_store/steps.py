@@ -333,7 +333,7 @@ class MapValues(StepToDict, MLRunStep):
                     range_types = set(
                         type(val)
                         for val in ranges_mapping_values
-                        if type(val) is not None
+                        if type(val) is not None and val != "-inf" and val != "inf"
                         and not (
                                 isinstance(val, (float, np.float64, np.float32, np.float16))
                                 and math.isnan(val)

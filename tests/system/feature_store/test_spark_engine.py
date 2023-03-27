@@ -1490,6 +1490,38 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fstore.RunConfig(local=False),
             )
+    def test_mapvalues_validator(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_mapvalues_validator"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "hr_is_error": {False: "no", True: 1},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        with pytest.raises(
+                mlrun.runtimes.utils.RunError,
+                match="^MapValues - mapping values of the same column must be in the same type! Column - 'hr_is_error'",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                targets,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1508,8 +1540,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
-            match="^MapValues - mapping values of the same column must be in the same type! Column- bad$",
+                mlrun.runtimes.utils.RunError,
+                match="^MapValues - mapping range values of the same column must be in the same type! Column - 'bad'",
         ):
             fstore.ingest(
                 measurements,

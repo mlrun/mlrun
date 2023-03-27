@@ -311,6 +311,7 @@ class MapValues(StepToDict, MLRunStep):
     def validate_args(cls, feature_set, **kwargs):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
+            is_range = False
             if not cls.get_ranges_key() in column_map:
                 types = set(
                     type(val)
@@ -327,6 +328,7 @@ class MapValues(StepToDict, MLRunStep):
                         f"MapValues - mapping values of the same column can not combine ranges and single replacement"
                         f"- '{column}'"
                     )
+                is_range = True
                 ranges_dict = column_map[cls.get_ranges_key()]
                 types = set()
                 for ranges_mapping_values in ranges_dict.values():
@@ -344,7 +346,8 @@ class MapValues(StepToDict, MLRunStep):
                     types.union(range_types)
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"MapValues - mapping values of the same column must be in the same type! Column- {column}"
+                    f"MapValues - mapping {'range ' if is_range else ''}values of the same column must be in the"
+                    f" same type! Column - '{column}'"
                 )
 
     @staticmethod

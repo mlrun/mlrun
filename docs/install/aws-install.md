@@ -3,6 +3,12 @@
 
 For AWS users, the easiest way to install MLRun is to use a native AWS deployment. This option deploys MLRun on an AWS EKS service using a CloudFormation stack.
 
+```{admonition} Note
+These instructions install the latest software version:
+- CE: v1.2.1, see the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html)
+- Enterprise: v1.3.0
+```
+
 ## Prerequisites
 
 1. An AWS account with permissions that include the ability to: 

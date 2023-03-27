@@ -1,6 +1,12 @@
 (install-on-kubernetes)=
 # Install MLRun on Kubernetes
 
+```{admonition} Note
+These instructions install the latest software version:
+- CE: v1.2.1, see the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html)
+- Enterprise: v1.3.0
+```
+
 **In this section**
 - [Prerequisites](#prerequisites)
 - [Community Edition Flavors](#community-edition-flavors)
@@ -28,7 +34,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
-The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
+The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
 ```
 
 ## Community Edition flavors

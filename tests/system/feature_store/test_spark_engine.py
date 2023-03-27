@@ -1481,7 +1481,35 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         with pytest.raises(
             mlrun.runtimes.utils.RunError,
             match="^MapValues - mapping that changes column type must change all values accordingly,"
-                  " which is not the case for column 'hr_is_error$'",
+            " which is not the case for column 'hr_is_error$'",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                targets,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {"ranges": {"one": [0, 30], "two": ['a', "inf"]}},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        with pytest.raises(
+            mlrun.runtimes.utils.RunError,
+            match="^MapValues - mapping values of the same column must be in the same type! Column- bad$",
         ):
             fstore.ingest(
                 measurements,

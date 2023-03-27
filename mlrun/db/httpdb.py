@@ -2895,7 +2895,9 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
+        path = (
+            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",
+        )
         params = {
             "version": version,
             "tag": tag,

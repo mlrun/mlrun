@@ -322,7 +322,11 @@ class MapValues(StepToDict, MLRunStep):
                     )
                 )
             else:
-                #TODO check if to drop if I have ranges and regular mapping
+                if len(column_map) > 1:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"MapValues - mapping values of the same column can not combine ranges and single replacement"
+                        f"- {column}"
+                    )
                 ranges_dict = column_map[cls.get_ranges_key()]
                 types = set()
                 for ranges_mapping_values in ranges_dict.values():

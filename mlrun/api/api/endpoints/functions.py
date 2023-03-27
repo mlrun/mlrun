@@ -40,6 +40,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.model_monitoring.constants
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
@@ -635,8 +636,9 @@ def _build_function(
                         model_monitoring_access_key = _process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
-                            "MODEL_MONITORING_ACCESS_KEY",
+                            mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
                         )
+
                         # initialize model monitoring stream
                         _create_model_monitoring_stream(project=fn.metadata.project)
 
@@ -656,10 +658,10 @@ def _build_function(
                         # deploy both model monitoring stream and model monitoring batch job
                         mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
                             project=fn.metadata.project,
-                            model_monitoring_access_key=model_monitoring_access_key,
                             db_session=db_session,
                             auth_info=auth_info,
                             tracking_policy=fn.spec.tracking_policy,
+                            model_monitoring_access_key=model_monitoring_access_key,
                         )
                 except Exception as exc:
                     logger.warning(

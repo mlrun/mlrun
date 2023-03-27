@@ -1512,7 +1512,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
+            mlrun.errors.MLRunInvalidArgumentError,
             match="^MapValues - mapping values of the same column must be in the same type! Column - 'hr_is_error'",
         ):
             fstore.ingest(
@@ -1540,7 +1540,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
+            mlrun.errors.MLRunInvalidArgumentError,
             match="^MapValues - mapping range values of the same column must be in the same type! Column - 'bad'",
         ):
             fstore.ingest(

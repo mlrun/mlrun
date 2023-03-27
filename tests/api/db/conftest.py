@@ -52,7 +52,7 @@ def data_migration_db() -> Generator:
     # TODO: fix duplication
     dsn = "sqlite:///:memory:?check_same_thread=false"
     config.httpdb.dsn = dsn
-    _init_engine()
+    _init_engine(dsn=dsn)
     # memory sqldb remove it self when all session closed, this session will keep it up during all test
     db_session = create_session()
     try:

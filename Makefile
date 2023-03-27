@@ -222,6 +222,10 @@ push-mlrun: mlrun ## Push mlrun docker image
 	docker push $(MLRUN_IMAGE_NAME_TAGGED)
 	$(MLRUN_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-mlrun
+pull-mlrun: ## Pull mlrun docker image
+	docker pull $(MLRUN_IMAGE_NAME_TAGGED)
+
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
 MLRUN_BASE_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
@@ -257,6 +261,9 @@ push-base: base ## Push base docker image
 	docker push $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 	$(MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-base
+pull-base: ## Pull base docker image
+	docker pull $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
 MLRUN_MODELS_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
@@ -296,6 +303,10 @@ push-models: models ## Push models docker image
 	docker push $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-models
+pull-models: ## Pull models docker image
+	docker pull $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
+
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
 MLRUN_MODELS_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
@@ -325,6 +336,10 @@ models-gpu: update-version-file ## Build models-gpu docker image
 push-models-gpu: models-gpu ## Push models gpu docker image
 	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-models-gpu
+pull-models-gpu: ## Pull models gpu docker image
+	docker pull $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 
 .PHONY: prebake-models-gpu
 prebake-models-gpu: ## Build prebake models GPU docker image
@@ -370,25 +385,36 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
 
+.PHONY: pull-jupyter
+pull-jupyter: ## Pull mlrun jupyter docker image
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+
 .PHONY: log-collector
 log-collector: update-version-file
-	cd go && \
-		MLRUN_VERSION=$(MLRUN_VERSION) \
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make log-collector
+		make --no-print-directory -C $(shell pwd)/go log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
-	cd go && \
-		MLRUN_VERSION=$(MLRUN_VERSION) \
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make push-log-collector
+		make --no-print-directory -C $(shell pwd)/go push-log-collector
+
+.PHONY: pull-log-collector
+pull-log-collector:
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make --no-print-directory -C $(shell pwd)/go pull-log-collector
 
 
 .PHONY: compile-schemas
@@ -425,6 +451,9 @@ push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
 	$(MLRUN_API_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-api
+pull-api: ## Pull api docker image
+	docker pull $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test

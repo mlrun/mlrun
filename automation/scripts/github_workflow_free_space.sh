@@ -49,7 +49,9 @@ sudo rm --recursive --force \
     "$AGENT_TOOLSDIRECTORY"
 
 # clean unneeded docker images
-docker system prune --all --force
+if [ -z "$KEEP_DOCKER_IMAGES" ]; then
+  docker system prune --all --force
+fi
 
 # post cleanup
 print_free_space

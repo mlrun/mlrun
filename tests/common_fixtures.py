@@ -121,7 +121,7 @@ def db():
     db_session = None
     try:
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()

@@ -41,7 +41,7 @@ def db(request):
         db_file = f"{path}/mlrun.db"
         dsn = f"sqlite:///{db_file}?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()

@@ -27,11 +27,11 @@ import requests
 import semver
 
 import mlrun
+import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
-from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
@@ -2529,7 +2529,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         """
         Creates a DB record with the given model_endpoint record.
@@ -2539,11 +2541,16 @@ class HTTPRunDB(RunDBInterface):
         :param model_endpoint: An object representing the model endpoint.
         """
 
+        if isinstance(
+            model_endpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint
+        ):
+            model_endpoint = model_endpoint.to_dict()
+
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="POST",
             path=path,
-            body=model_endpoint.json(),
+            body=dict_to_json(model_endpoint),
         )
 
     def delete_model_endpoint(
@@ -2552,7 +2559,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_id: str,
     ):
         """
-        Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
+        Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
@@ -2575,7 +2582,7 @@ class HTTPRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
-    ) -> schemas.ModelEndpointList:
+    ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
         This functions supports filtering by the following parameters:
@@ -2591,8 +2598,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
-            (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
+         label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
@@ -2603,10 +2610,14 @@ class HTTPRunDB(RunDBInterface):
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
                                  days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
+        :param uids: if passed will return `ModelEndpointList` of endpoints with uid in uids
         """
 
         path = f"projects/{project}/model-endpoints"
+
+        if labels and isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         response = self.api_call(
             method="GET",
             path=path,
@@ -2621,7 +2632,15 @@ class HTTPRunDB(RunDBInterface):
                 "uid": uids,
             },
         )
-        return schemas.ModelEndpointList(**response.json())
+
+        # Generate a list of a model endpoint dictionaries
+        model_endpoints = response.json()["endpoints"]
+        if model_endpoints:
+            return [
+                mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(obj)
+                for obj in model_endpoints
+            ]
+        return []
 
     def get_model_endpoint(
         self,
@@ -2631,21 +2650,29 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-    ) -> schemas.ModelEndpoint:
+    ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
-        Returns a ModelEndpoint object with additional metrics and feature related data.
+        Returns a single `ModelEndpoint` object with additional metrics and feature related data.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the model endpoint
-        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-            the output of the resulting object
+        :param project:                    The name of the project
+        :param endpoint_id:                The unique id of the model endpoint.
+        :param start:                      The start time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param end:                        The end time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
+                                           metrics for model endpoints such as predictions_per_second and
+                                           latency_avg_5m but also custom metrics defined by the user. Please note that
+                                           these metrics are stored in the time series DB and the results will be
+                                           appeared under model_endpoint.spec.metrics.
+        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
+                                           be added to the output of the resulting object.
+
+        :return: A `ModelEndpoint` object.
         """
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
@@ -2659,7 +2686,10 @@ class HTTPRunDB(RunDBInterface):
                 "feature_analysis": feature_analysis,
             },
         )
-        return schemas.ModelEndpoint(**response.json())
+
+        return mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(
+            response.json()
+        )
 
     def patch_model_endpoint(
         self,
@@ -2673,9 +2703,9 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. The values should be
-                           from type string or from a valid numerical type such as int or float. More details
-                           about the model endpoint available attributes can be found under
+                           of this dictionary should exist in the target table. Note that the values should be
+                           from type string or from a valid numerical type such as int or float.
+                            More details about the model endpoint available attributes can be found under
                            :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
                            Example::

@@ -11,15 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import datetime
+import io
 import pathlib
+import sys
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun import MLClientCtx, get_run_db, new_function, new_task
+from mlrun import MLClientCtx, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -41,6 +44,17 @@ base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
+
+
+@contextlib.contextmanager
+def captured_output():
+    new_out, new_err = io.StringIO(), io.StringIO()
+    old_out, old_err = sys.stdout, sys.stderr
+    try:
+        sys.stdout, sys.stderr = new_out, new_err
+        yield sys.stdout, sys.stderr
+    finally:
+        sys.stdout, sys.stderr = old_out, old_err
 
 
 def test_noparams(db):
@@ -188,20 +202,20 @@ def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
     assert mlrun.RunObject.logs.call_count == expected_watch_count
 
 
-def test_local_args(db):
+@pytest.mark.asyncio
+async def test_local_args(db, db_session):
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}"
-    ).run(spec)
+
+    function = new_function(command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}")
+    with captured_output() as (out, err):
+        result = function.run(spec)
+
+    output = out.getvalue().strip()
+
     verify_state(result)
 
-    db = get_run_db()
-    state, log = db.get_log(result.metadata.uid)
-    log = str(log)
-    print(state)
-    print(log)
-    assert log.find(", --xyz, 789") != -1, "params not detected in argv"
+    assert output.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
 def test_local_context(rundb_mock):
@@ -372,15 +386,15 @@ def test_run_from_module():
 def test_args_integrity():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(
+    function = new_function(
         command=f"{tests_root_directory}/no_ctx.py",
         args=["It's", "a", "nice", "day!"],
-    ).run(spec)
+    )
+
+    with captured_output() as (out, err):
+        result = function.run(spec)
+
+    output = out.getvalue().strip()
     verify_state(result)
 
-    db = get_run_db()
-    state, log = db.get_log(result.metadata.uid)
-    log = str(log)
-    print(state)
-    print(log)
-    assert log.find("It's, a, nice, day!") != -1, "params not detected in argv"
+    assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"

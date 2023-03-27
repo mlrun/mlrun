@@ -83,9 +83,7 @@ class HubSource(BaseModel):
             spec=HubSourceSpec(
                 path=config.hub.default_source.url,
                 channel=config.hub.default_source.channel,
-                object_type=HubSourceType(
-                    config.hub.default_source.object_type
-                ),
+                object_type=HubSourceType(config.hub.default_source.object_type),
             ),
             status=ObjectStatus(state="created"),
         )

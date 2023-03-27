@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 7,
-  "iteration": 1627466285618,
+  "id": 37,
+  "iteration": 1679742399589,
   "links": [
     {
       "icon": "external link",
@@ -27,7 +27,7 @@
       "type": "link",
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
-        {
+    {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
@@ -87,7 +87,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
           "type": "table"
         }
       ],
@@ -108,7 +108,7 @@
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -156,18 +156,39 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=predictions_per_second;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
       "title": "Predictions/s (5 Minute Average)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "accuracy": true,
+              "drift_status": true,
+              "endpoint_function": true,
+              "endpoint_id": true,
+              "endpoint_model": true,
+              "endpoint_model_class": true,
+              "error_count": true,
+              "first_request": true,
+              "last_request": true,
+              "latency_avg_1h": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -191,7 +212,7 @@
         "x": 12,
         "y": 0
       },
-      "id": 10,
+      "id": 25,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -209,9 +230,10 @@
       "pluginVersion": "7.2.0",
       "targets": [
         {
+          "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
@@ -220,11 +242,25 @@
       "title": "Average Latency (Last Hour)",
       "transformations": [
         {
-          "id": "reduce",
+          "id": "organize",
           "options": {
-            "reducers": [
-              "mean"
-            ]
+            "excludeByName": {
+              "accuracy": true,
+              "drift_status": true,
+              "endpoint_function": true,
+              "endpoint_id": true,
+              "endpoint_model": true,
+              "endpoint_model_class": true,
+              "error_count": true,
+              "first_request": true,
+              "last_request": true,
+              "latency_avg_1h": false,
+              "predictions_per_second": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "latency_avg_1h": "Average Latency (Last Hour)"
+            }
           }
         }
       ],
@@ -291,7 +327,7 @@
       "type": "stat"
     },
     {
-      "datasource": "model-monitoring",
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -327,46 +363,6 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Function"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Model"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Model Class"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "First Request"
             },
             "properties": [
@@ -377,10 +373,6 @@
               {
                 "id": "custom.align",
                 "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
               }
             ]
           },
@@ -391,48 +383,29 @@
             },
             "properties": [
               {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
                 "id": "unit",
                 "value": "dateTimeFromNow"
               },
               {
-                "id": "noValue",
-                "value": "N/A"
+                "id": "custom.align",
+                "value": "center"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Accuracy"
+              "options": "Endpoint ID"
             },
             "properties": [
               {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Error Count"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Endpoint ID Details",
+                    "url": "/d/AohIXhAMk/model-monitoring-details?orgId=1&refresh=1m&var-PROJECT=$PROJECT&var-MODEL=﻿${__value.text}"
+                  }
+                ]
               }
             ]
           },
@@ -442,14 +415,6 @@
               "options": "Drift Status"
             },
             "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
-              },
               {
                 "id": "mappings",
                 "value": [
@@ -476,60 +441,6 @@
                     "to": "",
                     "type": 1,
                     "value": "DRIFT_DETECTED"
-                  },
-                  {
-                    "from": "",
-                    "id": 3,
-                    "text": "-1",
-                    "to": "",
-                    "type": 1,
-                    "value": "N\\A"
-                  }
-                ]
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "color-background"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "rgba(255, 255, 255, 0)",
-                      "value": null
-                    },
-                    {
-                      "color": "green",
-                      "value": 0
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1
-                    },
-                    {
-                      "color": "red",
-                      "value": 2
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Endpoint ID"
-            },
-            "properties": [
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "targetBlank": true,
-                    "title": "",
-                    "url": "/d/AohIXhAMk/model-monitoring-details?orgId=1&refresh=1m&var-PROJECT=$PROJECT&var-MODEL=﻿${__value.text}"
                   }
                 ]
               }
@@ -543,7 +454,7 @@
         "x": 0,
         "y": 3
       },
-      "id": 22,
+      "id": 24,
       "options": {
         "showHeader": true,
         "sortBy": [
@@ -559,7 +470,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "project=$PROJECT;target_endpoint=list_endpoints",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid,function_uri,model,model_class,first_request,last_request,error_count,drift_status",
           "type": "table"
         }
       ],
@@ -574,34 +485,32 @@
               "model_hash": false
             },
             "indexByName": {
-              "accuracy": 8,
-              "drift_status": 9,
-              "endpoint_function": 1,
-              "endpoint_id": 0,
-              "endpoint_model": 2,
-              "endpoint_model_class": 3,
-              "endpoint_tag": 4,
-              "error_count": 7,
-              "first_request": 5,
-              "last_request": 6
+              "drift_status": 7,
+              "error_count": 6,
+              "first_request": 4,
+              "function_uri": 1,
+              "last_request": 5,
+              "model": 2,
+              "model_class": 3,
+              "uid": 0
             },
             "renameByName": {
-              "accuracy": "Accuracy",
               "drift_status": "Drift Status",
               "endpoint_function": "Function",
-              "endpoint_id": "Endpoint ID",
               "endpoint_model": "Model",
               "endpoint_model_class": "Model Class",
               "endpoint_tag": "Tag",
               "error_count": "Error Count",
               "first_request": "First Request",
               "function": "Function",
+              "function_uri": "Function",
               "last_request": "Last Request",
               "latency_avg_1s": "Average Latency",
               "model": "Model",
               "model_class": "Class",
               "predictions_per_second_count_1s": "Predictions/1s",
-              "tag": "Tag"
+              "tag": "Tag",
+              "uid": "Endpoint ID"
             }
           }
         }
@@ -885,7 +794,7 @@
       }
     }
   ],
-  "refresh": "5s",
+  "refresh": "30s",
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],
@@ -916,12 +825,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 2
+  "version": 13
 }

@@ -383,7 +383,8 @@ default_config = {
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
-        "store_type": "kv",
+        "store_type": "v3io-nosql",
+        "endpoint_store_connection": "",
     },
     "secret_stores": {
         "vault": {

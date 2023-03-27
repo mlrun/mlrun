@@ -25,10 +25,24 @@ import mlrun.api.crud
 import mlrun.api.crud.model_monitoring.grafana
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.model_monitoring
 from mlrun.api.api import deps
 from mlrun.api.schemas import GrafanaTable, GrafanaTimeSeriesTarget
 
 router = APIRouter()
+
+NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
+    "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
+}
+NAME_TO_QUERY_FUNCTION_DICTIONARY = {
+    "list_endpoints": mlrun.api.crud.model_monitoring.grafana.grafana_list_endpoints,
+    "individual_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
+    "overall_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
+    "incoming_features": mlrun.api.crud.model_monitoring.grafana.grafana_incoming_features,
+}
+
+SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
+SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
 
 
 @router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
@@ -43,12 +57,6 @@ def grafana_proxy_model_endpoints_check_connection(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
-    "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
-}
-SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
-
-
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(
     request: Request,
@@ -61,13 +69,18 @@ async def grafana_proxy_model_endpoints_search(
 
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
+
+    :param request:    An api request with the required target and parameters.
+    :param auth_info:  The auth info of the request.
+    :param db_session: A session that manages the current dialog with the database.
+
+    :return: List of results. e.g. list of available project names.
     """
     mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(
         body
     )
-
     mlrun.api.crud.model_monitoring.grafana.validate_query_parameters(
         query_parameters, SUPPORTED_SEARCH_FUNCTIONS
     )
@@ -76,21 +89,14 @@ async def grafana_proxy_model_endpoints_search(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
+
     if asyncio.iscoroutinefunction(function):
-        return await function(db_session, auth_info)
-    result = await run_in_threadpool(function, db_session, auth_info)
+        result = await function(db_session, auth_info, query_parameters)
+    else:
+        result = await run_in_threadpool(
+            function, db_session, auth_info, query_parameters
+        )
     return result
-
-
-#
-NAME_TO_QUERY_FUNCTION_DICTIONARY = {
-    "list_endpoints": mlrun.api.crud.model_monitoring.grafana.grafana_list_endpoints,
-    "individual_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
-    "overall_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
-    "incoming_features": mlrun.api.crud.model_monitoring.grafana.grafana_incoming_features,
-}
-
-SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
 
 
 @router.post(
@@ -108,12 +114,14 @@ async def grafana_proxy_model_endpoints_query(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
+
     warnings.warn(
-        "This api is deprecated in 1.3.0 and will be removed in 1.5.0. "
+        "This api is deprecated in 1.3.1 and will be removed in 1.5.0. "
         "Please update grafana model monitoring dashboards that use a different data source",
         # TODO: remove in 1.5.0
         FutureWarning,
     )
+
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_query_parameters(
         body

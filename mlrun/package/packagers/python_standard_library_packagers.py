@@ -23,29 +23,29 @@ from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 
-from ..constants import ArtifactTypes
-from ..packager import Packager
+from ..constants import ArtifactType
+from .default_packager import DefaultPackager
 
 
 # builtins packagers:
-class IntPackager(Packager):
-    TYPE = int
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.RESULT
+class IntPackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = int
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
 
-class FloatPackager(Packager):
-    TYPE = float
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.RESULT
+class FloatPackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = float
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
 
-class BytesPackager(Packager):
-    TYPE = bytes
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.RESULT
+class BytesPackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = bytes
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
 
-class StrPackager(Packager):
-    TYPE = str
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.RESULT
+class StrPackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = str
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
     class ArchiveFormats(Enum):
         ZIP = "zip"
@@ -95,8 +95,8 @@ class StrPackager(Packager):
 
 # pathlib packagers:
 class PathPackager(StrPackager):
-    TYPE = pathlib.Path
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.RESULT
+    PACKABLE_OBJECT_TYPE = pathlib.Path
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
     @classmethod
     def pack_result(cls, obj: pathlib.Path, key: str) -> dict:

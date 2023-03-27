@@ -15,22 +15,22 @@
 import builtins
 import importlib
 import inspect
-import os
 import re
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
+from mlrun.run import get_or_create_ctx
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 
-from .constants import ArtifactTypes, LogHintKeys
+from .constants import ArtifactType, LogHintKey
 from .packagers_manager import PackagersManager
 
 
 class ContextHandler:
     """
-    Private class for handling an MLRun context of a function that is wrapped in MLRun's `handler` decorator.
+    A class for handling a MLRun context of a function that is wrapped in MLRun's `handler` decorator.
 
     The context handler have 3 duties:
       1. Check if the user used MLRun to run the wrapped function and if so, get the MLRun context.
@@ -73,26 +73,14 @@ class ContextHandler:
                     self._context = argument_value
                     break
 
-        # Search if the function was triggered from an MLRun RunTime object by looking at the call stack:
-        # Index 0: the current frame.
-        # Index 1: the decorator's frame.
-        # Index 2-...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
+        # Use get or create a context if there was no context provided:
         if self._context is None:
-            for callstack_frame in inspect.getouterframes(inspect.currentframe()):
-                if (
-                    os.path.join("mlrun", "runtimes", "local")
-                    in callstack_frame.filename
-                ):
-                    import mlrun
+            self._context = get_or_create_ctx("context")
 
-                    self._context = mlrun.get_or_create_ctx("context")
-                    break
-
-        # If a context was found, give the packagers manager custom packagers to collect (if available):
-        if self._context is not None:
-            # TODO: Complete this in the project spec first
-            # self._packagers_manager.collect_packagers(packagers=self._context.project.get_custom_packagers())
-            pass
+        # Give the packagers manager custom packagers to collect (if available):
+        # TODO: Complete this in the project spec first
+        # self._packagers_manager.collect_packagers(packagers=self._context.project.get_custom_packagers())
+        pass
 
     def is_context_available(self) -> bool:
         """
@@ -139,18 +127,18 @@ class ContextHandler:
                         type_hint=type_hints[type_hints_keys[i]],
                     )
                 )
-                continue
-            parsed_args.append(argument)
+            else:
+                parsed_args.append(argument)
         parsed_args = tuple(parsed_args)  # `args` is expected to be a tuple.
 
         # Parse the keyword arguments:
-        for key in kwargs.keys():
-            if isinstance(kwargs[key], DataItem) and type_hints[key] not in [
+        for key, value in kwargs.items():
+            if isinstance(value, DataItem) and type_hints[key] not in [
                 inspect._empty,
                 DataItem,
             ]:
                 kwargs[key] = self._packagers_manager.unpack(
-                    data_item=kwargs[key], type_hint=type_hints[key]
+                    data_item=value, type_hint=type_hints[key]
                 )
 
         return parsed_args
@@ -166,6 +154,22 @@ class ContextHandler:
         :param outputs:   List of outputs to log.
         :param log_hints: List of log hints (logging configurations) to use.
         """
+        # Verify the outputs and log hints are the same length:
+        if len(outputs) != len(log_hints):
+            self._context.logger.warn(
+                f"The outputs objects returned from the function does not match the amount of provided log hints."
+            )
+            if len(outputs) > len(log_hints):
+                ignored_outputs = [str(output) for output in outputs[len(log_hints):]]
+                self._context.logger.warn(
+                    f"The following outputs will not be logged: {', '.join(ignored_outputs)}"
+                )
+            if len(outputs) < len(log_hints):
+                ignored_log_hints = [str(log_hint) for log_hint in log_hints[len(outputs):]]
+                self._context.logger.warn(
+                    f"The following log hints will be ignored: {', '.join(ignored_log_hints)}"
+                )
+
         # Go over the outputs and pack them:
         for obj, log_hint in zip(outputs, log_hints):
             # Check if needed to log (not None):
@@ -176,8 +180,8 @@ class ContextHandler:
             # Check if the object to log is None (None values are only logged if the artifact type is Result):
             if (
                 obj is None
-                and log_hint.get(LogHintKeys.ARTIFACT_TYPE, ArtifactTypes.RESULT)
-                != ArtifactTypes.RESULT
+                and log_hint.get(LogHintKey.ARTIFACT_TYPE, ArtifactType.RESULT)
+                != ArtifactType.RESULT
             ):
                 continue
             # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to enable
@@ -195,6 +199,9 @@ class ContextHandler:
             self._context.log_results(results=result)
         for artifact in self._packagers_manager.artifacts:
             self._context.log_artifact(item=artifact)
+
+        # Clear packagers outputs:
+        self._packagers_manager.clear_packagers_outputs()
 
     def set_labels(self, labels: Dict[str, str]):
         """
@@ -329,7 +336,7 @@ class ContextHandler:
         if isinstance(log_hint, str):
             # Check if only key is given:
             if ":" not in log_hint:
-                log_hint = {LogHintKeys.KEY: log_hint}
+                log_hint = {LogHintKey.KEY: log_hint}
             # Check for valid "<key> : <artifact type>" pattern:
             else:
                 if log_hint.count(":") > 1:
@@ -341,12 +348,12 @@ class ContextHandler:
                 # Split into key and type:
                 key, artifact_type = log_hint.replace(" ", "").split(":")
                 log_hint = {
-                    LogHintKeys.KEY: key,
-                    LogHintKeys.ARTIFACT_TYPE: artifact_type,
+                    LogHintKey.KEY: key,
+                    LogHintKey.ARTIFACT_TYPE: artifact_type,
                 }
 
         # Validate the log hint dictionary has the mandatory key:
-        if LogHintKeys.KEY not in log_hint:
+        if LogHintKey.KEY not in log_hint:
             raise MLRunInvalidArgumentError(
                 f"A log hint dictionary must include the 'key' - the artifact key (it's name). The following log hint "
                 f"is missing the key: {log_hint}."

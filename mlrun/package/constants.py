@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-class ArtifactTypes:
+class ArtifactType:
     """
     Possible artifact types to pack objects as and log using a `mlrun.Packager`.
     """
@@ -25,7 +25,7 @@ class ArtifactTypes:
     RESULT = "result"
 
 
-class LogHintKeys:
+class LogHintKey:
     """
     Known keys for a log hint to have.
     """

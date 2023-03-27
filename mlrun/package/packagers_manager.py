@@ -15,12 +15,15 @@
 import importlib
 import inspect
 import itertools
+import os
+import shutil
 import typing
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem, is_store_uri, parse_store_uri, store_manager
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.package.packager import Packager
+from mlrun.package.packagers.default_packager import DefaultPackager
 from mlrun.utils import StorePrefix, logger
 
 
@@ -51,7 +54,7 @@ class PackagersManager:
                                  object or data item.
         """
         # Set the default packager:
-        self._default_packager = default_packager or Packager
+        self._default_packager = default_packager or DefaultPackager
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
@@ -66,10 +69,20 @@ class PackagersManager:
 
     @property
     def artifacts(self) -> typing.List[Artifact]:
+        """
+        Get the artifacts that were packed by the manager.
+
+        :return: A list of artifacts.
+        """
         return self._artifacts
 
     @property
     def results(self) -> dict:
+        """
+        Get the results that were packed by the manager.
+
+        :return: A results dictionary.
+        """
         return self._results
 
     def collect_packagers(self, packagers: typing.List[typing.Union[typing.Type, str]]):
@@ -78,13 +91,13 @@ class PackagersManager:
         `Packager`. If needed to import all packagers from a module, use the module path with a "*" at the end.
 
         Notice: Only packagers that are declared in the module will be collected (packagers imported in the module scope
-        won't be collected). For example:
+        won't be collected). For example::
 
-        >>> from mlrun import Packager
-        >>> from x import XPackager
+            from mlrun import Packager
+            from x import XPackager
 
-        >>> class YPackager(Packager):
-        ...     pass
+            class YPackager(Packager):
+                pass
 
         Only "YPackager" will be collected as it is declared in the module, but not "XPackager" which is only imported.
 
@@ -128,17 +141,19 @@ class PackagersManager:
                 )
             # Collect the packager:
             self._packagers.append(packager)
+            # For debugging, we'll print the collected packager:
+            logger.debug(f"The packagers manager collected the packager: {str(packager)}")
 
     def pack(
         self, obj: typing.Any, log_hint: typing.Dict[str, str]
-    ) -> typing.Union[Artifact, dict]:
+    ) -> typing.Union[Artifact, dict, None]:
         """
         Pack an object using one of the manager's packagers.
 
         :param obj:      The object to pack as an artifact.
         :param log_hint: The log hint to use.
 
-        :return: The packaged artifact or result.
+        :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
         """
         # Get the artifact type (if user didn't pass any, the packager will use its configured default):
         artifact_type = log_hint.pop("artifact_type", None)
@@ -154,6 +169,10 @@ class PackagersManager:
             obj=obj, artifact_type=artifact_type, configurations=log_hint
         )
 
+        # Check if the packaged object is None, meaning there was an error in the process of packing it:
+        if packed_object is None:
+            return None
+
         # If the packed object is a result, return it as is:
         if isinstance(packed_object, dict):
             # Collect the result and return:
@@ -164,17 +183,17 @@ class PackagersManager:
         artifact, instructions = packed_object
 
         # Prepare the manager's labels:
-        package_instructions = {
-            self._InstructionsNotesKeys.PACKAGER_NAME: packager.__name__,
-            self._InstructionsNotesKeys.OBJECT_TYPE: self._get_type_name(
+        packaging_instructions = {
+            self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
+            self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(
                 typ=object_type
             ),
-            self._InstructionsNotesKeys.ARTIFACT_TYPE: artifact_type,
-            self._InstructionsNotesKeys.INSTRUCTIONS: instructions,
+            self._InstructionsNotesKey.ARTIFACT_TYPE: artifact_type,
+            self._InstructionsNotesKey.INSTRUCTIONS: instructions,
         }
 
         # Set the instructions in the artifact's spec:
-        artifact.spec.package_instructions = package_instructions
+        artifact.spec.packaging_instructions = packaging_instructions
 
         # Collect the artifact and return:
         self._artifacts.append(artifact)
@@ -207,23 +226,23 @@ class PackagersManager:
             artifact, _ = store_manager.get_store_artifact(url=data_item.artifact_url)
             # Get the key from the artifact's metadata and instructions from the artifact's spec:
             artifact_key = artifact.metadata.key
-            package_instructions = artifact.spec.package_instructions
+            packaging_instructions = artifact.spec.packaging_instructions
             # Extract the manager notes and packager instructions found:
-            if package_instructions:
-                packager_name = package_instructions.pop(
-                    self._InstructionsNotesKeys.PACKAGER_NAME, None
+            if packaging_instructions:
+                packager_name = packaging_instructions.pop(
+                    self._InstructionsNotesKey.PACKAGER_NAME, None
                 )
-                object_type = package_instructions.pop(
-                    self._InstructionsNotesKeys.OBJECT_TYPE, None
+                object_type = packaging_instructions.pop(
+                    self._InstructionsNotesKey.OBJECT_TYPE, None
                 )
                 if object_type is not None:
                     # Get the actual type from the stored string:
                     object_type = self._get_type_from_name(type_name=object_type)
-                artifact_type = package_instructions.pop(
-                    self._InstructionsNotesKeys.ARTIFACT_TYPE, None
+                artifact_type = packaging_instructions.pop(
+                    self._InstructionsNotesKey.ARTIFACT_TYPE, None
                 )
-                instructions = package_instructions.pop(
-                    self._InstructionsNotesKeys.INSTRUCTIONS, {}
+                instructions = packaging_instructions.pop(
+                    self._InstructionsNotesKey.INSTRUCTIONS, {}
                 )
 
         # If both original packaged object type and user's type hint available, validate they are equal:
@@ -286,7 +305,7 @@ class PackagersManager:
         for artifact in self.artifacts:
             # Go over the extra data keys:
             for key in artifact.spec.extra_data:
-                # Future link is marked with ellipses:
+                # Future link is marked with ellipses (...):
                 if artifact.spec.extra_data[key] is ...:
                     # Look for an artifact or result with this key to link it:
                     extra_data = self._look_for_extra_data(
@@ -299,15 +318,30 @@ class PackagersManager:
                         )
                     # Link it (None will be used in case it was not found):
                     artifact.spec.extra_data[key] = extra_data
-            # Go over the metrics keys (if available):
+            # Go over the metrics keys if available (`ModelArtifactSpec` has a metrics property that may be waiting for
+            # values from logged results):
             if hasattr(artifact.spec, "metrics"):
                 for key in artifact.spec.metrics:
-                    # Future link is marked with ellipses:
+                    # Future link is marked with ellipses (...):
                     if artifact.spec.metrics[key] is ...:
                         # Link it (None will be used in case it was not found):
                         artifact.spec.metrics[key] = joined_results.get(key, None)
 
-    class _InstructionsNotesKeys:
+    def clear_packagers_outputs(self):
+        """
+        Clear the outputs of all packagers. This method should be called at the end of the run after logging all
+        artifacts as some will require uploading the files that will be deleted in this method.
+        """
+        for packager in self._packagers:
+            for path in packager.get_clearing_path_list():
+                if not os.path.exists(path):
+                    continue
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+
+    class _InstructionsNotesKey:
         """
         Library of keys for the packager instructions to be added to the packed artifact's spec.
         """
@@ -452,7 +486,7 @@ class PackagersManager:
         results: dict,
     ) -> typing.Union[Artifact, str, int, float, None]:
         """
-        Look for an extra data item (artifact of result) by given key. If not found, None is returned.
+        Look for an extra data item (artifact or result) by given key. If not found, None is returned.
 
         :param key:       Key to look for.
         :param artifacts: Artifacts to look in.

@@ -205,6 +205,27 @@ class MLRunFatalFailureError(Exception):
         self.original_exception = original_exception
 
 
+class MLRunPackageError(MLRunBaseError):
+    """
+    General error from `mlrun.package`.
+    """
+    pass
+
+
+class MLRunPackagePackingError(MLRunBaseError):
+    """
+    An error that may be raised during a `mlrun.Packager.pack` method.
+    """
+    pass
+
+
+class MLRunPackageUnpackingError(MLRunBaseError):
+    """
+    An error that may be raised during a `mlrun.Packager.unpack` method.
+    """
+    pass
+
+
 STATUS_ERRORS = {
     HTTPStatus.BAD_REQUEST.value: MLRunBadRequestError,
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,

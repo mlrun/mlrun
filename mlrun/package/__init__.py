@@ -25,7 +25,7 @@ from typing import Callable, Dict, List, Type, Union
 from mlrun.package.packager import Packager
 
 # `mlrun.package` __init__ file imports:
-from .constants import ArtifactTypes, LogHintKeys
+from .constants import ArtifactType, LogHintKey
 from .context_handler import ContextHandler
 from .packagers_manager import PackagersManager
 

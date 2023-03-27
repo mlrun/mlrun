@@ -17,13 +17,13 @@ import pandas as pd
 from mlrun.artifacts import DatasetArtifact
 from mlrun.datastore import DataItem
 
-from ..constants import ArtifactTypes
-from ..packager import Packager
+from ..constants import ArtifactType
+from .default_packager import DefaultPackager
 
 
-class PandasDataFramePackager(Packager):
-    TYPE = pd.DataFrame
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.DATASET
+class PandasDataFramePackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = pd.DataFrame
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.DATASET
 
     @classmethod
     def pack_dataset(cls, obj: pd.DataFrame, key: str, fmt: str = "parquet"):
@@ -35,8 +35,8 @@ class PandasDataFramePackager(Packager):
 
 
 class PandasSeriesPackager(PandasDataFramePackager):
-    TYPE = pd.Series
-    DEFAULT_ARTIFACT_TYPE = ArtifactTypes.DATASET
+    PACKABLE_OBJECT_TYPE = pd.Series
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.DATASET
 
     @classmethod
     def pack_dataset(cls, obj: pd.Series, key: str, fmt: str = "parquet"):

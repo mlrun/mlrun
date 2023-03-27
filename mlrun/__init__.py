@@ -20,7 +20,7 @@ __all__ = [
     "code_to_function",
     "import_function",
     "handler",
-    "ArtifactTypes",
+    "ArtifactType",
     "get_secret_or_env",
 ]
 
@@ -35,7 +35,7 @@ from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactTypes, Packager, handler
+from .package import ArtifactType, Packager, handler
 from .platforms import (
     VolumeMount,
     auto_mount,

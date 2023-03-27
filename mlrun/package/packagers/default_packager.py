@@ -21,9 +21,9 @@ import warnings
 from types import MethodType, ModuleType
 from typing import Any, Dict, List, Tuple, Type, Union
 
-from mlrun.errors import MLRunPackageUnpackingError
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
+from mlrun.errors import MLRunPackageUnpackingError
 from mlrun.utils import logger
 
 from ..constants import ArtifactType
@@ -400,7 +400,7 @@ class DefaultPackager(Packager):
             arguments_type=cls._ArgumentsType.INSTRUCTIONS,
         ):
             raise MLRunPackageUnpackingError(
-                f"The packager '{cls.__name__}' could not unpack the package due to missing instructions. The artifact " 
+                f"The packager '{cls.__name__}' could not unpack the package due to missing instructions. The artifact "
                 f"was probably packed with a different packager. Please read the warnings printed for more details."
             )
 

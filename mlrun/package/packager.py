@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
-from typing import Any, Tuple, Type, Union, List
+from typing import Any, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem

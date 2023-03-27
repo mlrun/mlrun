@@ -209,6 +209,7 @@ class MLRunPackageError(MLRunBaseError):
     """
     General error from `mlrun.package`.
     """
+
     pass
 
 
@@ -216,6 +217,7 @@ class MLRunPackagePackingError(MLRunBaseError):
     """
     An error that may be raised during a `mlrun.Packager.pack` method.
     """
+
     pass
 
 
@@ -223,6 +225,7 @@ class MLRunPackageUnpackingError(MLRunBaseError):
     """
     An error that may be raised during a `mlrun.Packager.unpack` method.
     """
+
     pass
 
 

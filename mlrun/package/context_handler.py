@@ -19,10 +19,10 @@ import re
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
-from mlrun.run import get_or_create_ctx
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
+from mlrun.run import get_or_create_ctx
 
 from .constants import ArtifactType, LogHintKey
 from .packagers_manager import PackagersManager
@@ -160,12 +160,14 @@ class ContextHandler:
                 f"The outputs objects returned from the function does not match the amount of provided log hints."
             )
             if len(outputs) > len(log_hints):
-                ignored_outputs = [str(output) for output in outputs[len(log_hints):]]
+                ignored_outputs = [str(output) for output in outputs[len(log_hints) :]]
                 self._context.logger.warn(
                     f"The following outputs will not be logged: {', '.join(ignored_outputs)}"
                 )
             if len(outputs) < len(log_hints):
-                ignored_log_hints = [str(log_hint) for log_hint in log_hints[len(outputs):]]
+                ignored_log_hints = [
+                    str(log_hint) for log_hint in log_hints[len(outputs) :]
+                ]
                 self._context.logger.warn(
                     f"The following log hints will be ignored: {', '.join(ignored_log_hints)}"
                 )

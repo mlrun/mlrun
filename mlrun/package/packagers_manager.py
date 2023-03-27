@@ -142,7 +142,9 @@ class PackagersManager:
             # Collect the packager:
             self._packagers.append(packager)
             # For debugging, we'll print the collected packager:
-            logger.debug(f"The packagers manager collected the packager: {str(packager)}")
+            logger.debug(
+                f"The packagers manager collected the packager: {str(packager)}"
+            )
 
     def pack(
         self, obj: typing.Any, log_hint: typing.Dict[str, str]

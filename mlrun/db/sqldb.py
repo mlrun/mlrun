@@ -16,6 +16,7 @@ import datetime
 from typing import List, Optional, Union
 
 import mlrun.api.schemas
+import mlrun.model_monitoring.model_endpoint
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
 from mlrun.api.db.sqldb.session import create_session
@@ -29,7 +30,6 @@ from mlrun.api.db.sqldb.session import create_session
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
 from ..api import schemas
-from ..api.schemas import ModelEndpoint
 from .base import RunDBError, RunDBInterface
 
 
@@ -775,7 +775,9 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         raise NotImplementedError()
 

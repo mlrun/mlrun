@@ -282,7 +282,7 @@ class MapValues(StepToDict, MLRunStep):
                         column_filter & new_column_filter
                     ).filter(~col(column).isin(mapping_to_null))
 
-                    if not turned_to_none_values.isEmpty():
+                    if turned_to_none_values.count() == 0:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"MapValues - mapping that changes column type must change all values accordingly,"
                             f" which is not the case for column '{column}'"

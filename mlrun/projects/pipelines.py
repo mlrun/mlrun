@@ -754,6 +754,7 @@ class _RemoteRunner(_PipelineRunner):
         workflow_spec: WorkflowSpec,
         artifact_path: str,
         workflow_handler: str,
+        subpath: str,
         namespace: str,
     ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
         """
@@ -766,6 +767,7 @@ class _RemoteRunner(_PipelineRunner):
         :param workflow_spec:       workflow to run
         :param artifact_path:       path to store artifacts
         :param workflow_handler:    workflow function handler (for running workflow function directly)
+        :param subpath:    project subpath (within the archive)
         :param namespace:           kubernetes namespace if other than default
         :return:
         """
@@ -791,6 +793,7 @@ class _RemoteRunner(_PipelineRunner):
                     "ttl": workflow_spec.cleanup_ttl or workflow_spec.ttl,
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
+                    "subpath": subpath,
                     "schedule": workflow_spec.schedule,
                 },
                 handler="mlrun.projects.load_and_run",
@@ -839,6 +842,7 @@ class _RemoteRunner(_PipelineRunner):
             workflow_spec=workflow_spec,
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
+            subpath = project.spec.subpath,
             namespace=namespace,
         )
 

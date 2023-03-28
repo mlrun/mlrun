@@ -14,12 +14,16 @@
 #
 class EventFieldType:
     FUNCTION_URI = "function_uri"
+    FUNCTION = "function"
+    MODEL_URI = "model_uri"
     MODEL = "model"
     VERSION = "version"
     VERSIONED_MODEL = "versioned_model"
     MODEL_CLASS = "model_class"
     TIMESTAMP = "timestamp"
     ENDPOINT_ID = "endpoint_id"
+    UID = "uid"
+    ENDPOINT_TYPE = "endpoint_type"
     REQUEST_ID = "request_id"
     RECORD_TYPE = "record_type"
     FEATURES = "features"
@@ -27,7 +31,6 @@ class EventFieldType:
     NAMED_FEATURES = "named_features"
     LABELS = "labels"
     LATENCY = "latency"
-    UNPACKED_LABELS = "unpacked_labels"
     LABEL_COLUMNS = "label_columns"
     LABEL_NAMES = "label_names"
     PREDICTION = "prediction"
@@ -47,6 +50,22 @@ class EventFieldType:
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
+    MODEL_ENDPOINTS = "model_endpoints"
+    STATE = "state"
+    PROJECT = "project"
+    STREAM_PATH = "stream_path"
+    ACTIVE = "active"
+    MONITORING_MODE = "monitoring_mode"
+    FEATURE_STATS = "feature_stats"
+    CURRENT_STATS = "current_stats"
+    CHILDREN = "children"
+    CHILDREN_UIDS = "children_uids"
+    DRIFT_MEASURES = "drift_measures"
+    DRIFT_STATUS = "drift_status"
+    MONITOR_CONFIGURATION = "monitor_configuration"
+    FEATURE_SET_URI = "monitoring_feature_set_uri"
+    ALGORITHM = "algorithm"
+    ACCURACY = "accuracy"
 
 
 class EventLiveStats:
@@ -61,7 +80,24 @@ class EventKeyMetrics:
     BASE_METRICS = "base_metrics"
     CUSTOM_METRICS = "custom_metrics"
     ENDPOINT_FEATURES = "endpoint_features"
+    GENERIC = "generic"
+    REAL_TIME = "real_time"
 
 
-class StoreTarget:
+class TimeSeriesTarget:
     TSDB = "tsdb"
+
+
+class ModelEndpointTarget:
+    V3IO_NOSQL = "v3io-nosql"
+    SQL = "sql"
+
+
+class ProjectSecretKeys:
+    ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
+    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+
+
+class ModelMonitoringStoreKinds:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"

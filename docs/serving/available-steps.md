@@ -84,7 +84,6 @@ The following table lists the available data-transformation steps. The next tabl
 | mlrun.datastore.SqlTarget                                                                                              | Persists the data in SQL table to its associated storage by key.                                   | Y      | N     | Y      |
 | [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)            | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. | Y      | Y     | Y      |
 | [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)              | Writes all incoming events into a V3IO stream.                                                     | Y      | N     | N      |
-| [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame) | Create pandas data frame from events. Can appear in the middle of the flow.                        | Y      | N     | N      |
 
 ## Models
 | Class name                                       | Description                                   |   

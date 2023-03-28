@@ -21,6 +21,9 @@ mlrun.egg-info/
 model.txt
 result*.html
 tests/test_results/
+tests/temp*
+tests/*.pkl
+tests/project.yaml
 *venv*
 mlrun/utils/version/version.json
 mlrun/api/migrations_sqlite/mlrun.db

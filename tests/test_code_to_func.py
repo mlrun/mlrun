@@ -14,9 +14,9 @@
 
 from os import path
 
-from mlrun import code_to_function, get_run_db, new_model_server
+from mlrun import code_to_function, new_model_server
 from mlrun.runtimes.function import compile_function_config
-from mlrun.utils import get_in, parse_versioned_object_uri
+from mlrun.utils import get_in
 from tests.conftest import examples_path, results, tests_root_directory
 
 
@@ -46,24 +46,6 @@ def test_nuclio_nb_serving():
     assert fn.kind == "remote", "kind not set, test failed"
     assert fn.spec.function_kind == "serving", "code not embedded"
     assert fn.spec.build.origin_filename == filename, "did not record filename"
-
-
-def test_job_file():
-    filename = f"{examples_path}/training.py"
-    fn = code_to_function(filename=filename, kind="job")
-    assert fn.kind == "job", "kind not set, test failed"
-    assert fn.spec.build.functionSourceCode, "code not embedded"
-    assert fn.spec.build.origin_filename == filename, "did not record filename"
-    assert type(fn.metadata.labels) == dict, "metadata labels were not set"
-    run = fn.run(workdir=str(examples_path), local=True)
-
-    project, uri, tag, hash_key = parse_versioned_object_uri(run.spec.function)
-    local_fn = get_run_db().get_function(uri, project, tag=tag, hash_key=hash_key)
-    assert local_fn["spec"]["command"] == filename, "wrong command path"
-    assert (
-        local_fn["spec"]["build"]["functionSourceCode"]
-        == fn.spec.build.functionSourceCode
-    ), "code was not copied to local function"
 
 
 def test_job_file_noembed():

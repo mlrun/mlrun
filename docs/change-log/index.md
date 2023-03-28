@@ -25,23 +25,24 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 
 MLRun is pre-installed in CE Jupyter.
 
-To install on a **Python 3.9** client, run:<br>
+To install on a **Python 3.9** environment, run:<br>
 ```
 ./align_mlrun.sh
 ```
 
-To install on a **Python 3.7** client, run:
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
   
 1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
 2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
 
-```$CONDA_HOME/bin/conda install -y conda=23.1.0
-   $CONDA_HOME/bin/conda install -y pip
 ```
-3.  If you are going to work with python 3.9, create a new conda env and activate it:
+$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y pip
 ```
-    conda create -n python39 python=3.9 ipykernel -y
-    conda activate python39
+3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
 ```
 4. Install mlrun:
 ```
@@ -62,7 +63,7 @@ To install on a **Python 3.7** client, run:
 | ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark. |
 | ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
 | ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
-| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
+| ML-3373 |  Supports creating a feature vector over several feature sets with different entities. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). This API will change in a future release, moving the relationship from the feature set to the feature vector. |
 
 #### Logging data
 | ID   | Description                                                    |

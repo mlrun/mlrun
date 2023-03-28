@@ -515,6 +515,7 @@ class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         self.auth = None
+        self._headers = None
         if self._get_secret_or_env("AUTH_TOKEN"):
             if schema=='https':
                 token = self._get_secret_or_env("AUTH_TOKEN")
@@ -538,7 +539,7 @@ class HttpStore(DataStore):
         raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
-        data = http_get(self.url + self._join(key), None or self._headers, self.auth)
+        data = http_get(self.url + self._join(key), self._headers, self.auth)
         if offset:
             data = data[offset:]
         if size:

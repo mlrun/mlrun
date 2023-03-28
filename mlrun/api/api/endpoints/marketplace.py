@@ -267,6 +267,7 @@ async def get_asset(
 ):
     """
     Retrieve asset from a specific item in specific marketplace source.
+
     :param source_name: marketplace source name
     :param item_name:   the name of the item
     :param asset_name:  the name of the asset to retrieve
@@ -274,6 +275,7 @@ async def get_asset(
     :param version:     item version
     :param db_session:  a session that manages the current dialog with the database
     :param auth_info:   the auth info of the request
+
     :return: fastapi response with the asset in content
     """
     source = await run_in_threadpool(
@@ -285,6 +287,7 @@ async def get_asset(
         AuthorizationAction.read,
         auth_info,
     )
+    # Getting the relevant item which hold the asset information
     item = await run_in_threadpool(
         mlrun.api.crud.Marketplace().get_item,
         source.source,
@@ -293,17 +296,12 @@ async def get_asset(
         tag,
     )
 
+    # Getting the asset from the item
     asset, url = await run_in_threadpool(
         mlrun.api.crud.Marketplace().get_asset,
         source.source,
         item,
         asset_name,
-    )
-
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
-        AuthorizationAction.read,
-        auth_info,
     )
 
     ctype, _ = mimetypes.guess_type(url)

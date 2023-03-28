@@ -21,12 +21,8 @@ import mlrun.api.initial_data
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_project_background_task(db: DBInterface, db_session: Session):
     project = "test-project"
     db.store_background_task(db_session, "test", timeout=600, project=project)
@@ -35,9 +31,6 @@ def test_store_project_background_task(db: DBInterface, db_session: Session):
     assert background_task.status.state == "running"
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_get_project_background_task_with_timeout_exceeded(
     db: DBInterface, db_session: Session
 ):
@@ -50,9 +43,6 @@ def test_get_project_background_task_with_timeout_exceeded(
     assert background_task.status.state == "failed"
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_get_project_background_task_doesnt_exists(
     db: DBInterface, db_session: Session
 ):
@@ -61,9 +51,6 @@ def test_get_project_background_task_doesnt_exists(
         db.get_background_task(db_session, "test", project=project)
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_project_background_task_after_status_updated(
     db: DBInterface, db_session: Session
 ):
@@ -100,9 +87,6 @@ def test_store_project_background_task_after_status_updated(
     )
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_get_project_background_task_with_disabled_timeout(
     db: DBInterface, db_session: Session
 ):

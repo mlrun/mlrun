@@ -18,7 +18,7 @@ from ..config import config
 from ..platforms import add_or_refresh_credentials
 from ..utils import logger
 from .base import RunDBError, RunDBInterface  # noqa
-from .filedb import FileRunDB
+from .nopdb import NopDB
 from .sqldb import SQLDB
 
 
@@ -69,12 +69,14 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     kwargs = {}
     if "://" not in str(url) or scheme in ["file", "s3", "v3io", "v3ios"]:
         logger.warning(
-            "Could not detect path to API server, Using Deprecated client interface"
+            "Could not detect path to API server, not connected to API server!"
         )
         logger.warning(
-            "Please make sure your env variable MLRUN_DBPATH is configured correctly to point to the API server!"
+            "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API server"
+            " in order to connect"
         )
-        cls = FileRunDB
+        cls = NopDB
+
     elif scheme in ("http", "https"):
         # import here to avoid circular imports
         from .httpdb import HTTPRunDB

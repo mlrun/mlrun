@@ -127,6 +127,7 @@ class Runs(
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
+        with_notifications: bool = False,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
@@ -150,6 +151,7 @@ class Runs(
             max_partitions,
             requested_logs,
             return_as_run_structs,
+            with_notifications,
         )
 
     def delete_run(

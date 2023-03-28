@@ -12,35 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import typing
 
+import mlrun.api.schemas
 import mlrun.lists
-
-
-class NotificationSeverity(str, enum.Enum):
-    INFO = "info"
-    DEBUG = "debug"
-    VERBOSE = "verbose"
-    WARNING = "warning"
-    ERROR = "error"
 
 
 class NotificationBase:
     def __init__(
         self,
+        name: str = None,
         params: typing.Dict[str, str] = None,
     ):
+        self.name = name
         self.params = params or {}
 
     @property
     def active(self) -> bool:
         return True
 
-    def send(
+    def push(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -52,15 +48,20 @@ class NotificationBase:
     ) -> None:
         self.params = params or {}
 
-    @staticmethod
     def _get_html(
+        self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ) -> str:
         if custom_html:
             return custom_html
+
+        if self.name:
+            message = f"{self.name}: {message}"
 
         if not runs:
             return f"[{severity}] {message}"

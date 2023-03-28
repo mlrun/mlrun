@@ -1,0 +1,38 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: Image Matrix Prep
+description: Prepares the matrix of images to build
+inputs:
+  skip_images:
+    description: 'Comma separated list of images to skip'
+    required: false
+    default: ''
+outputs:
+  matrix:
+    description: 'The matrix of images to build'
+    value: ${{ steps.set-matrix.outputs.matrix }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+    - id: set-matrix
+      run: |
+        skipImages=",$INPUT_SKIP_IMAGES,"
+        matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
+        echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
+      shell: bash
+      env:
+        INPUT_SKIP_IMAGES: ${{ inputs.skip_images }}

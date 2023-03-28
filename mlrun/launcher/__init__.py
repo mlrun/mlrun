@@ -11,16 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.common import AbstractLauncher
-
-from .local import ClientLocalLauncher
-from .remote import ClientRemoteLauncher
-
-
-class ClientSideLauncherFactory(object):
-    @staticmethod
-    def create_client_side_launcher(local, **kwargs) -> AbstractLauncher:
-        """create ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified"""
-        if local:
-            return ClientLocalLauncher(**kwargs)
-        return ClientRemoteLauncher(**kwargs)
+from .abstract import AbstractLauncher

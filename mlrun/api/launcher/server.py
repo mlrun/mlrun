@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.common.runtimes
+import mlrun.launcher.abstract
 
 
-class ServerSideLauncher(mlrun.common.runtimes.AbstractLauncher):
+class ServerSideLauncher(mlrun.launcher.abstract.AbstractLauncher):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

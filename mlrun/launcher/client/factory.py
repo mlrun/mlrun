@@ -11,31 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.common.runtimes
+from mlrun.common import AbstractLauncher
+
+from .launcher import ClientLocalLauncher, ClientRemoteLauncher
 
 
-class ClientRemoteLauncher(mlrun.common.runtimes.AbstractLauncher):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+class ClientSideLauncherFactory(object):
     @staticmethod
-    def verify_base_image(runtime):
-        pass
-
-    @staticmethod
-    def save(runtime):
-        pass
-
-    @staticmethod
-    def run(runtime):
-        pass
-
-    @staticmethod
-    def _enrich_and_validate(runtime):
-        pass
-
-    def _submit_job(self, runtime):
-        pass
-
-    def _deploy(self, runtime):
-        pass
+    def create_client_side_launcher(local, **kwargs) -> AbstractLauncher:
+        """create ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified"""
+        if local:
+            return ClientLocalLauncher(**kwargs)
+        return ClientRemoteLauncher(**kwargs)

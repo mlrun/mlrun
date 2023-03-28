@@ -1457,7 +1457,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert not df["bad_mapped"].isnull().any()
         assert not (df["bad_mapped"] == 17).any()
         # Note that there are no occurrences of -1 in the "bad" field of the original DataFrame.
-        assert len(df[df["bad_mapped"] == -1]) == len(original_df[original_df["bad"] == 17])
+        assert len(df[df["bad_mapped"] == -1]) == len(
+            original_df[original_df["bad"] == 17]
+        )
 
     def test_mapvalues_with_mixed_types(self):
         key = "patient_id"
@@ -1569,7 +1571,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="^MapValues - mapping values of the same column can not combine ranges and single replacement"
+            match="^MapValues - mapping values of the same column can not combine ranges and single "
+            "replacement, which is the case for column"
             " 'bad'$",
         ):
             fstore.ingest(

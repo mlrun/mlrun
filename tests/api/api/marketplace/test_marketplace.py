@@ -309,15 +309,20 @@ def test_marketplace_catalog_apis(
 def test_marketplace_get_asset(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
-    possible_assets = ["docs", "source", "example", "function"]
+    possible_assets = [
+        ("docs", "text/html; charset=utf-8"),
+        ("source", "text/x-python; charset=utf-8"),
+        ("example", "application/octet-stream"),
+        ("function", "application/octet-stream"),
+    ]
     sources = client.get("marketplace/sources").json()
     source_name = sources[0]["source"]["metadata"]["name"]
     catalog = client.get(f"marketplace/sources/{source_name}/items").json()
     for _ in range(10):
         item = random.choice(catalog["catalog"])
-        asset_type = random.choice(possible_assets)
+        asset_name, expected_content_type = random.choice(possible_assets)
         response = client.get(
-            f"marketplace/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_type}"
+            f"marketplace/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
         )
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.content == bytes(response.text, encoding="utf-8")
+        assert response.headers["content-type"] == expected_content_type

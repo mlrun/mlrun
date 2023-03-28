@@ -15,7 +15,7 @@ import abc
 
 
 class AbstractLauncher(abc.ABC):
-    """ "
+    """
     Abstract class for managing and running functions in different contexts
     This class is designed to encapsulate the logic of running a function in different contexts
     i.e. running a function locally, remotely or in a server

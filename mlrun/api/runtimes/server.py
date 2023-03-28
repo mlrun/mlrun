@@ -33,11 +33,11 @@ class ServerSideLauncher(mlrun.common.runtimes.AbstractLauncher):
     @staticmethod
     def _enrich_and_validate(runtime):
         """
-        enrich the function with:
-            1. default values
+        Enrich the function with:
+            1. Default values
             2. mlrun config values
-            3. project context values
-            4. run specific parameters
-         and validate the function
+            3. Project context values
+            4. Run specific parameters
+         and validate
         """
         pass

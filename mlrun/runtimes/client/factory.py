@@ -23,5 +23,4 @@ class ClientSideLauncherFactory(object):
         """create ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified"""
         if local:
             return ClientLocalLauncher(**kwargs)
-
         return ClientRemoteLauncher(**kwargs)

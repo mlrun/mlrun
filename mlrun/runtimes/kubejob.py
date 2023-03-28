@@ -356,7 +356,7 @@ class KubejobRuntime(KubeResource):
             if self.spec.build.source and self.spec.build.load_source_on_run:
                 # workdir will be set AFTER the clone which is done in the pre-run of local runtime
                 workdir = None
-            elif not workdir.startswith("/"):
+            elif not os.path.isabs(workdir):
                 # workdir is a relative path from the source root to where the code is located
                 # add the clone_target_dir (where to source was copied), if not specified assume the workdir is complete
                 if self.spec.clone_target_dir:

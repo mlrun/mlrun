@@ -343,7 +343,7 @@ class MapValues(StepToDict, MLRunStep):
                             and math.isnan(val)
                         )
                     )
-                    types.union(range_types)
+                    types = types.union(range_types)
             if len(types) > 1:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"MapValues - mapping {'range ' if is_range else ''}values of the same column must be in the"

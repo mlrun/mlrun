@@ -325,7 +325,7 @@ class MapValues(StepToDict, MLRunStep):
                 if len(column_map) > 1:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"MapValues - mapping values of the same column can not combine ranges and "
-                        f"single replacement,  which is the case for column '{column}'"
+                        f"single replacement, which is the case for column '{column}'"
                     )
                 ranges_dict = column_map[cls.get_ranges_key()]
                 types = set()

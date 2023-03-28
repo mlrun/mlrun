@@ -157,7 +157,8 @@ class ContextHandler:
         # Verify the outputs and log hints are the same length:
         if len(outputs) != len(log_hints):
             self._context.logger.warn(
-                f"The outputs objects returned from the function does not match the amount of provided log hints."
+                f"The amount of outputs objects returned from the function ({len(outputs)}) does not match the amount "
+                f"of provided log hints ({len(log_hints)})."
             )
             if len(outputs) > len(log_hints):
                 ignored_outputs = [str(output) for output in outputs[len(log_hints) :]]
@@ -217,15 +218,16 @@ class ContextHandler:
     @staticmethod
     def parse_type_hint(type_hint: Union[Type, str]) -> Type:
         """
-        Parse a given type hint from string to its actual hinted type class object. The string must be one of the following:
+        Parse a given type hint from string to its actual hinted type class object. The string must be one of the
+        following:
 
         * Python builtin type - one of `tuple`, `list`, `set`, `dict` and `bytearray`.
         * Full module import path. An alias (if import pandas as pd is used, the type hint cannot be `pd.DataFrame`) is
           not allowed.
 
         The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
-        handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
-        same reason import aliases cannot be used as well.
+        handler itself, hence modules and objects that were imported in the handler's scope are not available. This is
+        the same reason import aliases cannot be used as well.
 
         If the provided type hint is not a string, it will simply be returned as is.
 

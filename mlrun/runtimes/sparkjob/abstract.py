@@ -143,6 +143,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -172,6 +173,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(

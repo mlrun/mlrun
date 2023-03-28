@@ -31,8 +31,9 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import class_mapper, relationship
+from sqlalchemy.orm import relationship
 
+import mlrun.utils.db
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
@@ -41,42 +42,8 @@ NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-class BaseModel:
-    def to_dict(self, exclude=None):
-        """
-        NOTE - this function (currently) does not handle serializing relationships
-        """
-        exclude = exclude or []
-        mapper = class_mapper(self.__class__)
-        columns = [column.key for column in mapper.columns if column.key not in exclude]
-        get_key_value = (
-            lambda c: (c, getattr(self, c).isoformat())
-            if isinstance(getattr(self, c), datetime)
-            else (c, getattr(self, c))
-        )
-        return dict(map(get_key_value, columns))
-
-
-class HasStruct(BaseModel):
-    @property
-    def struct(self):
-        return pickle.loads(self.body)
-
-    @struct.setter
-    def struct(self, value):
-        self.body = pickle.dumps(value)
-
-    def to_dict(self, exclude=None):
-        """
-        NOTE - this function (currently) does not handle serializing relationships
-        """
-        exclude = exclude or []
-        exclude.append("body")
-        return super().to_dict(exclude)
-
-
 def make_label(table):
-    class Label(Base, BaseModel):
+    class Label(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
             UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
@@ -91,7 +58,7 @@ def make_label(table):
 
 
 def make_tag(table):
-    class Tag(Base, BaseModel):
+    class Tag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
@@ -108,7 +75,7 @@ def make_tag(table):
 # TODO: don't want to refactor everything in one PR so splitting this function to 2 versions - eventually only this one
 #  should be used
 def make_tag_v2(table):
-    class Tag(Base, BaseModel):
+    class Tag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_name", name=f"_{table}_tags_uc"),
@@ -130,7 +97,7 @@ def make_tag_v2(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
-    class Artifact(Base, HasStruct):
+    class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
@@ -151,7 +118,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
-    class Function(Base, HasStruct):
+    class Function(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
@@ -172,7 +139,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
 
-    class Log(Base, BaseModel):
+    class Log(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "logs"
 
         id = Column(Integer, primary_key=True)
@@ -184,7 +151,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
-    class Notification(Base, BaseModel):
+    class Notification(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "notifications"
         __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
 
@@ -218,7 +185,7 @@ with warnings.catch_warnings():
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
 
-    class Run(Base, HasStruct):
+    class Run(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
@@ -250,7 +217,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
-    class BackgroundTask(Base, BaseModel):
+    class BackgroundTask(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "background_tasks"
         __table_args__ = (
             UniqueConstraint("name", "project", name="_background_tasks_uc"),
@@ -268,7 +235,7 @@ with warnings.catch_warnings():
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
-    class Schedule(Base, BaseModel):
+    class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
 
@@ -320,14 +287,14 @@ with warnings.catch_warnings():
         Column("user_id", Integer, ForeignKey("users.id")),
     )
 
-    class User(Base, BaseModel):
+    class User(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "users"
         __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
 
-    class Project(Base, BaseModel):
+    class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
         # For now since we use project name a lot
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
@@ -361,7 +328,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = pickle.dumps(value)
 
-    class Feature(Base, BaseModel):
+    class Feature(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "features"
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
@@ -375,7 +342,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
-    class Entity(Base, BaseModel):
+    class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
@@ -389,7 +356,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
-    class FeatureSet(Base, BaseModel):
+    class FeatureSet(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_sets"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
@@ -425,7 +392,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class FeatureVector(Base, BaseModel):
+    class FeatureVector(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_vectors"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),
@@ -458,7 +425,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class MarketplaceSource(Base, BaseModel):
+    class MarketplaceSource(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "marketplace_sources"
         __table_args__ = (UniqueConstraint("name", name="_marketplace_sources_uc"),)
 
@@ -482,7 +449,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class DataVersion(Base, BaseModel):
+    class DataVersion(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "data_versions"
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 

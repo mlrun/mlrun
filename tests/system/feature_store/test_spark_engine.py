@@ -1513,7 +1513,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="^MapValues - mapping values of the same column must be in the same type! Column - 'hr_is_error'$",
+            match="^MapValues - mapping values of the same column must be in the same type! Column 'hr_is_error'$",
         ):
             fstore.ingest(
                 measurements,
@@ -1541,7 +1541,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="^MapValues - mapping range values of the same column must be in the same type! Column - 'bad'$",
+            match="^MapValues - mapping range values of the same column must be in the same type! Column 'bad'$",
         ):
             fstore.ingest(
                 measurements,
@@ -1570,7 +1570,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match="^MapValues - mapping values of the same column can not combine ranges and single replacement"
-            "- 'bad'$",
+            " 'bad'$",
         ):
             fstore.ingest(
                 measurements,

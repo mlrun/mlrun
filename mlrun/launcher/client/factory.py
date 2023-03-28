@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from mlrun.launcher.abstract import AbstractLauncher
-
-from .local import ClientLocalLauncher
-from .remote import ClientRemoteLauncher
+from mlrun.launcher.client import ClientLocalLauncher, ClientRemoteLauncher
 
 
 class ClientSideLauncherFactory(object):

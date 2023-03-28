@@ -1062,9 +1062,6 @@ class BaseRuntime(ModelObj):
 
     def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
 
-        # import here to avoid circular imports
-        import mlrun.api.crud
-
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid
@@ -1084,10 +1081,13 @@ class BaseRuntime(ModelObj):
         # Otherwise, we continue on.
         if is_running_as_api():
 
+            # import here to avoid circular imports and to avoid importing api requirements
+            from mlrun.api.crud import Notifications
+
             # If in the api server, we can assume that watch=False, so we save notification
             # configs to the DB, for the run monitor to later pick up and push.
             session = mlrun.api.db.sqldb.session.create_session()
-            mlrun.api.crud.Notifications().store_run_notifications(
+            Notifications().store_run_notifications(
                 session,
                 runobj.spec.notifications,
                 runobj.metadata.uid,

@@ -21,7 +21,6 @@ import mlrun.utils.helpers
 from mlrun import errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
 
 
 def _create_feature_set(name):
@@ -59,10 +58,6 @@ def _create_feature_set(name):
     }
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_create_feature_set(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
@@ -82,10 +77,6 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     assert len(features_res.features) == 1
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_handle_feature_set_with_datetime_fields(db: DBInterface, db_session: Session):
     # Simulate a situation where a feature-set client-side object is created with datetime fields, and then stored to
     # DB. This may happen in API calls which utilize client-side objects (such as ingest). See ML-3552.
@@ -99,9 +90,6 @@ def test_handle_feature_set_with_datetime_fields(db: DBInterface, db_session: Se
     mlrun.utils.helpers.fill_object_hash(fs_server_object.dict(), "uid")
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
@@ -159,9 +147,6 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     assert updated_feature_set.metadata.labels == feature_set.metadata.labels
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
     name = "mock_feature_set"
     feature_set = _create_feature_set(name)

@@ -1188,14 +1188,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
-        target_df.set_index(["patient_id"], drop=True, inplace=True)
-        assert resp_df.equals(target_df)
+        target_df.set_index(key, drop=True, inplace=True)
 
         source_df = source.to_dataframe()
         source_df.set_index(key, drop=True, inplace=True)
-        target_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
+
+        assert resp_df.equals(target_df)
+
         resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 

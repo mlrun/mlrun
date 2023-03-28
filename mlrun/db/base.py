@@ -17,8 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
+import mlrun.model_monitoring.model_endpoint
 from mlrun.api import schemas
-from mlrun.api.schemas import ModelEndpoint
 
 
 class RunDBError(Exception):
@@ -480,7 +480,9 @@ class RunDBInterface(ABC):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         pass
 
@@ -554,7 +556,6 @@ class RunDBInterface(ABC):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -566,7 +567,6 @@ class RunDBInterface(ABC):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,

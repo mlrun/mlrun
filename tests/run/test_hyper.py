@@ -188,7 +188,7 @@ def hyper_func2(context, p1=1):
     context.log_dataset("df2", df=df)
 
 
-def test_hyper_get_artifact():
+def test_hyper_get_artifact(rundb_mock):
     fn = mlrun.new_function("test_hyper_get_artifact")
     run = mlrun.run_function(
         fn,

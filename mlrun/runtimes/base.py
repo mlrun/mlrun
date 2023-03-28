@@ -155,7 +155,7 @@ class FunctionSpec(ModelObj):
         self.allow_empty_resources = None
         # the build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
-        self._clone_target_dir = clone_target_dir or ""
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:

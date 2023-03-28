@@ -358,9 +358,13 @@ class KubejobRuntime(KubeResource):
                 workdir = None
             elif not workdir.startswith("/"):
                 # workdir is a relative path from the source root to where the code is located
-                # add the clone_target_dir (where to source was copied) or a temp dir
-                workdir_parent_path = self.spec.clone_target_dir or tempfile.mkdtemp()
-                workdir = os.path.join(workdir_parent_path, workdir)
+                # add the clone_target_dir (where to source was copied), if not specified assume the workdir is complete
+                if self.spec.clone_target_dir:
+                    if workdir.startswith("./"):
+                        # TODO: use 'removeprefix' when we drop python 3.7 support
+                        # workdir.removeprefix("./")
+                        workdir = workdir[2:]
+                    workdir = os.path.join(self.spec.clone_target_dir, workdir)
 
         pod_spec = func_to_pod(
             self.full_image_path(

@@ -174,7 +174,7 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
-source = SqlDBSource(table_name='my_table', 
+source = SQLSource(table_name='my_table', 
                      db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
                      key_field='key',
                      time_fields=['timestamp'], )

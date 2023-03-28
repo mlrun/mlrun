@@ -141,6 +141,8 @@ class ServingSpec(NuclioSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        service_type=None,
+        add_templated_ingress_host_mode=None,
     ):
 
         super().__init__(
@@ -178,6 +180,8 @@ class ServingSpec(NuclioSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            service_type=service_type,
+            add_templated_ingress_host_mode=add_templated_ingress_host_mode,
         )
 
         self.models = models or {}

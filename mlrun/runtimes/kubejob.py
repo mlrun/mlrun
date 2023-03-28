@@ -223,6 +223,7 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = self.spec.build.base_image or get_in(
                 data, "data.spec.build.base_image"
             )
+            self.spec.workdir = get_in(data, "data.spec.workdir")
             ready = data.get("ready", False)
             if not ready:
                 logger.info(

@@ -159,7 +159,6 @@ async def store_source(
 )
 async def get_catalog(
     source_name: str,
-    channel: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
@@ -180,7 +179,6 @@ async def get_catalog(
     return await run_in_threadpool(
         mlrun.api.crud.Marketplace().get_source_catalog,
         ordered_source.source,
-        channel,
         version,
         tag,
         force_refresh,
@@ -194,7 +192,6 @@ async def get_catalog(
 async def get_item(
     source_name: str,
     item_name: str,
-    channel: Optional[str] = Query("development"),
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
@@ -216,7 +213,6 @@ async def get_item(
         mlrun.api.crud.Marketplace().get_item,
         ordered_source.source,
         item_name,
-        channel,
         version,
         tag,
         force_refresh,

@@ -25,23 +25,24 @@ python 3.7 have the suffix: `-py37`. The correct version is automatically chosen
 
 MLRun is pre-installed in CE Jupyter.
 
-To install on a **Python 3.9** client, run:<br>
+To install on a **Python 3.9** environment, run:<br>
 ```
 ./align_mlrun.sh
 ```
 
-To install on a **Python 3.7** client, run:
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
   
 1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
 2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
 
-```$CONDA_HOME/bin/conda install -y conda=23.1.0
-   $CONDA_HOME/bin/conda install -y pip
 ```
-3.  If you are going to work with python 3.9, create a new conda env and activate it:
+$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y pip
 ```
-    conda create -n python39 python=3.9 ipykernel -y
-    conda activate python39
+3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
 ```
 4. Install mlrun:
 ```
@@ -62,12 +63,12 @@ To install on a **Python 3.7** client, run:
 | ML-2802 | `get_offline_features` supports Spark Operator and Remote Spark. |
 | ML-2957 | The username and password for the RedisNoSqlTarget are now configured using secrets, as `<prefix_>REDIS_USER <prefix_>REDIS_PASSWORD` where \<prefix> is the optional RedisNoSqlTarget `credentials_prefix` parameter. See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store). |
 | ML-3008 | Supports Spark using Redis as an online KV target, which caused a [breaking change](#breaking-changes). |
-| ML-3373 |  Supports creating a feature vector over several feature sets with different entity. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). |
+| ML-3373 |  Supports creating a feature vector over several feature sets with different entities. (Outer joins are Tech Preview.) See [Using an offline feature vector](../feature-store/feature-vectors.html#using-an-offline-feature-vector). This API will change in a future release, moving the relationship from the feature set to the feature vector. |
 
 #### Logging data
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2845 | Logging data using `hints`. You can now passing data into MLRun and log it without using the decorator. Instead you use log hints. This is part of the changes in MLRun that will continue in v1.4 that simplify bringing usable code into MLRun without having to modify it. See [more details](../track-returning-values-using-returns-new-in-v1-3-0). |
+| ML-2845 | Logging data using `hints`. You can now pass data into MLRun and log it using log hints, instead of the decorator. This is the initial change in MLRun to simplify wrapping usable code into MLRun without having to modify it. Future releases will continue this paradigm shift. See [more details](../cheat-sheet.html#track-returning-values-using-returns-new-in-v1-3-0). |
 
 
 #### Projects
@@ -136,8 +137,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 | Deprecated/removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
-| `project.functions`                  | `project.get_functions`, `project.set_functions`, `project.list_functions` |
-| `project.artifacts`                  | `project.get_artifacts`, `project.set_artifacts`, `project.list_artifacts` |
+| `project.functions`                  | `project.get_function`, `project.set_function`, `project.list_function` |
+| `project.artifacts`                  | `project.get_artifact`, `project.set_artifact`, `project.list_artifact` |
 | `project.func()`                     | `project.get_function()`                       |
 | `project.create_vault_secrets()`     | NA                                   |
 | `project.get_vault_secret()`         | NA                                   |
@@ -153,8 +154,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | Project APIs 
-such as `get_or_create_project`, `load_project` |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
 | `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |
@@ -513,9 +513,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
-| ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on a platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
+| ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
+| ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
+| ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
 
     
 ## Limitations

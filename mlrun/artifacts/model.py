@@ -549,7 +549,7 @@ def get_model(model_dir, suffix=""):
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path
-        # in the store is different than the local model_file it was generated from
+        # in the store is different from the local model_file it was generated from
         model_file = _get_file_path(
             target, model_spec.model_target_file or model_spec.model_file
         )

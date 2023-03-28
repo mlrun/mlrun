@@ -1329,6 +1329,101 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_security_context(other_security_context)
 
+    @pytest.mark.parametrize(
+        "service_type, default_service_type, expected_service_type, "
+        "add_templated_ingress_host_mode, default_add_templated_ingress_host_mode, expected_ingress_host_template",
+        [
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.always,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "",
+                "ClusterIP",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+        ],
+    )
+    def test_deploy_with_service_type(
+        self,
+        db: Session,
+        client: TestClient,
+        service_type,
+        default_service_type,
+        expected_service_type,
+        add_templated_ingress_host_mode,
+        default_add_templated_ingress_host_mode,
+        expected_ingress_host_template,
+    ):
+        mlconf.httpdb.nuclio.default_service_type = default_service_type
+        mlconf.httpdb.nuclio.add_templated_ingress_host_mode = (
+            default_add_templated_ingress_host_mode
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_service_type(service_type, add_templated_ingress_host_mode)
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["serviceType"] == expected_service_type
+
+        if expected_ingress_host_template is None:
+            # never
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses == []
+
+        else:
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

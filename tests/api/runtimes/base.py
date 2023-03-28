@@ -128,7 +128,6 @@ class TestRuntimeBase:
         mlrun.runtimes.DaskCluster,
         mlrun.runtimes.KubejobRuntime,
         mlrun.runtimes.LocalRuntime,
-        mlrun.runtimes.Spark2Runtime,
         mlrun.runtimes.Spark3Runtime,
         mlrun.runtimes.RemoteSparkRuntime,
     ]:

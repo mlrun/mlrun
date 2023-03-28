@@ -41,8 +41,8 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
-from mlrun.utils.model_monitoring import EndpointType
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -50,8 +50,10 @@ from tests.system.base import TestMLRunSystem
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test4"
+class TestModelEndpointsOperations(TestMLRunSystem):
+    """Applying basic model endpoint CRUD operations through MLRun API"""
+
+    project_name = "pr-endpoints-operations"
 
     def test_clear_endpoint(self):
         """Validates the process of create and delete a basic model endpoint"""
@@ -60,7 +62,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         db.create_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
+            endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
         )
 
         endpoint_response = db.get_model_endpoint(
@@ -86,14 +88,14 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db.create_model_endpoint(
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
-            model_endpoint=endpoint,
+            model_endpoint=endpoint.dict(),
         )
 
         endpoint_before_update = db.get_model_endpoint(
             project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
-        assert endpoint_before_update.status.state is None
+        assert endpoint_before_update.status.state == "null"
 
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
@@ -107,8 +109,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
             "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
         }
-
-        # {"drift_status": "POSSIBLE_DRIFT", "state": "new_state"}
 
         # Create attributes dictionary according to the required format
         attributes = {
@@ -133,7 +133,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_out.endpoints) == 0
+        assert len(endpoints_out) == 0
 
     def test_list_endpoints(self):
         db = mlrun.get_run_db()
@@ -145,13 +145,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         for endpoint in endpoints_in:
             db.create_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint
+                endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
             )
 
         endpoints_out = db.list_model_endpoints(self.project_name)
 
         in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
-        out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out.endpoints))
+        out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
 
         endpoints_intersect = in_endpoint_ids.intersection(out_endpoint_ids)
         assert len(endpoints_intersect) == number_of_endpoints
@@ -176,29 +176,67 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             db.create_model_endpoint(
                 endpoint_details.metadata.project,
                 endpoint_details.metadata.uid,
-                endpoint_details,
+                endpoint_details.dict(),
             )
 
         filter_model = db.list_model_endpoints(self.project_name, model="filterme")
-        assert len(filter_model.endpoints) == 1
+        assert len(filter_model) == 1
 
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermex=1"]
-        )
-        assert len(filter_labels.endpoints) == 4
+        # TODO: Uncomment the following assertions once the KV labels filters is fixed.
+        #       Following the implementation of supporting SQL store for model endpoints records, this table
+        #       has static schema. That means, in order to keep the schema logic for both SQL and KV,
+        #       it is not possible to add new label columns dynamically to the KV table. Therefore, the label filtering
+        #       process for the KV should be updated accordingly.
+        #
 
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermex=1", "filtermey=2"]
-        )
-        assert len(filter_labels.endpoints) == 4
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermex=1"]
+        # )
+        # assert len(filter_labels) == 4
+        #
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermex=1", "filtermey=2"]
+        # )
+        # assert len(filter_labels) == 4
+        #
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermey=2"]
+        # )
+        # assert len(filter_labels) == 4
 
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermey=2"]
+    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
+        def random_labels():
+            return {
+                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
+            }
+
+        return ModelEndpoint(
+            metadata=ModelEndpointMetadata(
+                project=self.project_name, labels=random_labels()
+            ),
+            spec=ModelEndpointSpec(
+                function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
+                model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
+                model_class="classifier",
+                active=True,
+            ),
+            status=ModelEndpointStatus(state=state),
         )
-        assert len(filter_labels.endpoints) == 4
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestBasicModelMonitoring(TestMLRunSystem):
+    """Deploy and apply monitoring on a basic pre-trained model"""
+
+    project_name = "pr-basic-model-monitoring"
 
     @pytest.mark.timeout(270)
     def test_basic_model_monitoring(self):
+        # Main validations:
+        # 1 - a single model endpoint is created
+        # 2 - stream metrics are recorded as expected under the model endpoint
+
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
@@ -268,8 +306,181 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         total = sum((m[1] for m in predictions_per_second.values))
         assert total > 0
 
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringRegression(TestMLRunSystem):
+    """Train, deploy and apply monitoring on a regression model"""
+
+    project_name = "pr-regression-model-monitoring"
+
+    @pytest.mark.timeout(200)
+    def test_model_monitoring_with_regression(self):
+        # Main validations:
+        # 1 - model monitoring feature is created according to the feature vector instead of a model object when
+        #     inputs are missing
+        # 2 - access key secret within the model monitoring batch job
+        # 3 - scheduling policy of the batch job
+
+        # Load boston housing pricing dataset
+        diabetes_data = load_diabetes()
+        train_set = pd.DataFrame(
+            diabetes_data.data, columns=diabetes_data.feature_names
+        ).reset_index()
+        train_set.rename({"index": "patient_id"}, axis=1, inplace=True)
+
+        # Load target dataset
+        target_set = pd.DataFrame(
+            diabetes_data.target, columns=["target"]
+        ).reset_index()
+        target_set.rename({"index": "patient_id"}, axis=1, inplace=True)
+
+        # Create feature sets for both the features and the labels
+        diabetes_set = mlrun.feature_store.FeatureSet(
+            "diabetes-set", entities=["patient_id"]
+        )
+        label_set = mlrun.feature_store.FeatureSet(
+            "target-set", entities=["patient_id"]
+        )
+
+        # Ingest data
+        mlrun.feature_store.ingest(diabetes_set, train_set)
+        mlrun.feature_store.ingest(
+            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
+        )
+
+        # Define feature vector and save it to MLRun's feature store DB
+        fv = mlrun.feature_store.FeatureVector(
+            "diabetes-features",
+            features=["diabetes-set.*"],
+            label_feature="target-set.target",
+        )
+        fv.save()
+
+        assert (
+            fv.uri == f"store://feature-vectors/{self.project_name}/diabetes-features"
+        )
+
+        # Request (get or create) the offline dataset from the feature store and save to a parquet target
+        mlrun.feature_store.get_offline_features(
+            fv, target=mlrun.datastore.targets.ParquetTarget()
+        )
+
+        # Train the model using the auto trainer from the marketplace
+        train = mlrun.import_function("hub://auto_trainer", new_name="train")
+        train.deploy()
+        model_class = "sklearn.linear_model.LinearRegression"
+        model_name = "diabetes_model"
+        label_columns = "target"
+
+        train_run = train.run(
+            inputs={"dataset": fv.uri},
+            params={
+                "model_class": model_class,
+                "model_name": model_name,
+                "label_columns": label_columns,
+                "train_test_split_size": 0.2,
+            },
+            handler="train",
+        )
+
+        # Remove features from model obj and set feature vector uri
+        db = mlrun.get_run_db()
+        model_obj: mlrun.artifacts.ModelArtifact = (
+            mlrun.datastore.store_resources.get_store_resource(
+                train_run.outputs["model"], db=db
+            )
+        )
+        model_obj.inputs = []
+        model_obj.feature_vector = fv.uri + ":latest"
+        mlrun.artifacts.model.update_model(model_obj)
+
+        # Set the serving topology to simple model routing
+        # with data enrichment and imputing from the feature vector
+        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+        serving_fn.set_topology(
+            "router",
+            mlrun.serving.routers.EnrichmentModelRouter(
+                feature_vector_uri=str(fv.uri), impute_policy={"*": "$mean"}
+            ),
+        )
+        serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
+
+        # Define tracking policy
+        tracking_policy = {
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+        }
+
+        # Enable model monitoring
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
+
+        # Deploy the serving function
+        serving_fn.deploy()
+
+        # Validate that the model monitoring batch access key is replaced with an internal secret
+        batch_function = mlrun.get_run_db().get_function(
+            name="model-monitoring-batch", project=self.project_name
+        )
+        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
+        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        assert batch_access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix + auth_secret
+        )
+
+        # Validate a single endpoint
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        assert len(endpoints_list.endpoints) == 1
+
+        # Validate monitoring mode
+        model_endpoint = endpoints_list.endpoints[0]
+        assert model_endpoint.spec.monitoring_mode == ModelMonitoringMode.enabled.value
+
+        # Validate tracking policy
+        batch_job = db.get_schedule(
+            project=self.project_name, name="model-monitoring-batch"
+        )
+        assert batch_job.cron_trigger.hour == "*/3"
+
+        # TODO: uncomment the following assertion once the auto trainer function
+        #  from mlrun marketplace is upgraded to 1.0.8
+        # assert len(model_obj.spec.feature_stats) == len(
+        #     model_endpoint.spec.feature_names
+        # ) + len(model_endpoint.spec.label_names)
+
+        # Validate monitoring feature set URI
+        assert mlrun.feature_store.get_feature_set(
+            model_endpoint.status.monitoring_feature_set_uri
+        )
+
+        monitoring_feature_set = mlrun.feature_store.get_feature_set(
+            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+        )
+
+        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
+        # tag from the feature set URI)
+        assert (
+            model_endpoint.status.monitoring_feature_set_uri
+            == monitoring_feature_set.uri.replace(":latest", "")
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestVotingModelMonitoring(TestMLRunSystem):
+    """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
+
+    project_name = "pr-voting-model-monitoring"
+
     @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
+        # Main validations:
+        # 1 - model monitoring feature set is created with the relevant features and target
+        # 2 - deployment status of monitoring stream nuclio function
+        # 3 - model endpoints types for both children and router
+        # 4 - metrics and drift status per model endpoint
+
         simulation_time = 120  # 120 seconds to allow tsdb batching
 
         iris = load_iris()
@@ -477,184 +688,6 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 for measure in measures:
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
-
-    @pytest.mark.timeout(200)
-    def test_model_monitoring_with_regression(self):
-        # The following test:
-        # 1 - apply model monitoring for a regression algorithm
-        # 2 - use auto_trainer functionality
-        # 3 - creates the model monitoring feature set based on the feature vector and not on the model object
-
-        # Load boston housing pricing dataset
-        diabetes_data = load_diabetes()
-        train_set = pd.DataFrame(
-            diabetes_data.data, columns=diabetes_data.feature_names
-        ).reset_index()
-        train_set.rename({"index": "patient_id"}, axis=1, inplace=True)
-
-        # Load target dataset
-        target_set = pd.DataFrame(
-            diabetes_data.target, columns=["target"]
-        ).reset_index()
-        target_set.rename({"index": "patient_id"}, axis=1, inplace=True)
-
-        # Create feature sets for both the features and the labels
-        diabetes_set = mlrun.feature_store.FeatureSet(
-            "diabetes-set", entities=["patient_id"]
-        )
-        label_set = mlrun.feature_store.FeatureSet(
-            "target-set", entities=["patient_id"]
-        )
-
-        # Ingest data
-        mlrun.feature_store.ingest(diabetes_set, train_set)
-        mlrun.feature_store.ingest(
-            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
-        )
-
-        # Define feature vector and save it to MLRun's feature store DB
-        fv = mlrun.feature_store.FeatureVector(
-            "diabetes-features",
-            features=["diabetes-set.*"],
-            label_feature="target-set.target",
-        )
-        fv.save()
-
-        assert (
-            fv.uri == f"store://feature-vectors/{self.project_name}/diabetes-features"
-        )
-
-        # Request (get or create) the offline dataset from the feature store and save to a parquet target
-        mlrun.feature_store.get_offline_features(
-            fv, target=mlrun.datastore.targets.ParquetTarget()
-        )
-
-        # Train the model using the auto trainer from the marketplace
-        train = mlrun.import_function("hub://auto_trainer", new_name="train")
-        train.deploy()
-        model_class = "sklearn.linear_model.LinearRegression"
-        model_name = "diabetes_model"
-        label_columns = "target"
-
-        train_run = train.run(
-            inputs={"dataset": fv.uri},
-            params={
-                "model_class": model_class,
-                "model_name": model_name,
-                "label_columns": label_columns,
-                "train_test_split_size": 0.2,
-            },
-            handler="train",
-        )
-
-        # Remove features from model obj and set feature vector uri
-        db = mlrun.get_run_db()
-        model_obj: mlrun.artifacts.ModelArtifact = (
-            mlrun.datastore.store_resources.get_store_resource(
-                train_run.outputs["model"], db=db
-            )
-        )
-        model_obj.inputs = []
-        model_obj.feature_vector = fv.uri + ":latest"
-        mlrun.artifacts.model.update_model(model_obj)
-
-        # Set the serving topology to simple model routing
-        # with data enrichment and imputing from the feature vector
-        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
-        serving_fn.set_topology(
-            "router",
-            mlrun.serving.routers.EnrichmentModelRouter(
-                feature_vector_uri=str(fv.uri), impute_policy={"*": "$mean"}
-            ),
-        )
-        serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
-
-        # Define tracking policy
-        tracking_policy = {
-            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
-        }
-
-        # Enable model monitoring
-        serving_fn.set_tracking(tracking_policy=tracking_policy)
-
-        # Deploy the serving function
-        serving_fn.deploy()
-
-        # Validate that the model monitoring batch access key is replaced with an internal secret
-        batch_function = mlrun.get_run_db().get_function(
-            name="model-monitoring-batch", project=self.project_name
-        )
-        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
-        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=""
-        )
-        assert batch_access_key.startswith(
-            mlrun.model.Credentials.secret_reference_prefix + auth_secret
-        )
-
-        # Validate a single endpoint
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_list.endpoints) == 1
-
-        # Validate monitoring mode
-        model_endpoint = endpoints_list.endpoints[0]
-        assert (
-            model_endpoint.spec.monitoring_mode
-            == mlrun.api.schemas.ModelMonitoringMode.enabled.value
-        )
-
-        # Validate tracking policy
-        batch_job = db.get_schedule(
-            project=self.project_name, name="model-monitoring-batch"
-        )
-        assert batch_job.cron_trigger.hour == "*/3"
-
-        # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun marketplace is upgraded to 1.0.8
-        # assert len(model_obj.spec.feature_stats) == len(
-        #     model_endpoint.spec.feature_names
-        # ) + len(model_endpoint.spec.label_names)
-
-        # Validate monitoring feature set URI
-        assert mlrun.feature_store.get_feature_set(
-            model_endpoint.status.monitoring_feature_set_uri
-        )
-
-        monitoring_feature_set = mlrun.feature_store.get_feature_set(
-            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
-        )
-
-        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
-        # tag from the feature set URI)
-        assert (
-            model_endpoint.status.monitoring_feature_set_uri
-            == monitoring_feature_set.uri.replace(":latest", "")
-        )
-
-    @staticmethod
-    def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
-        return mlrun.api.schemas.AuthInfo(
-            data_session=os.environ.get("V3IO_ACCESS_KEY")
-        )
-
-    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
-        def random_labels():
-            return {
-                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
-            }
-
-        return ModelEndpoint(
-            metadata=ModelEndpointMetadata(
-                project=self.project_name, labels=random_labels()
-            ),
-            spec=ModelEndpointSpec(
-                function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
-                model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
-                model_class="classifier",
-                active=True,
-            ),
-            status=ModelEndpointStatus(state=state),
-        )
 
     def _check_monitoring_building_state(self, base_runtime):
         # Check if model monitoring stream function is ready

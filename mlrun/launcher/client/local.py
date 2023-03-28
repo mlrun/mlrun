@@ -12,14 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from ..abstract import AbstractLauncher
-from .local import ClientLocalLauncher
-from .remote import ClientRemoteLauncher
 
 
-class ClientSideLauncherFactory(object):
+class ClientLocalLauncher(AbstractLauncher):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     @staticmethod
-    def create_client_side_launcher(local, **kwargs) -> AbstractLauncher:
-        """create ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified"""
-        if local:
-            return ClientLocalLauncher(**kwargs)
-        return ClientRemoteLauncher(**kwargs)
+    def verify_base_image(runtime):
+        pass
+
+    @staticmethod
+    def save(runtime):
+        pass
+
+    @staticmethod
+    def run(runtime):
+        pass
+
+    @staticmethod
+    def _enrich_and_validate(runtime):
+        pass
+
+    def _run_local(self, runtime):
+        pass

@@ -39,7 +39,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
-from .base import BaseRuntime, FunctionSpec, spec_fields
+from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std
@@ -170,47 +170,9 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         return context.to_dict()
 
 
-class LocalFunctionSpec(FunctionSpec):
-    _dict_fields = spec_fields + ["clone_target_dir"]
-
-    def __init__(
-        self,
-        command=None,
-        args=None,
-        mode=None,
-        default_handler=None,
-        pythonpath=None,
-        entry_points=None,
-        description=None,
-        workdir=None,
-        build=None,
-        clone_target_dir=None,
-    ):
-        super().__init__(
-            command=command,
-            args=args,
-            mode=mode,
-            build=build,
-            entry_points=entry_points,
-            description=description,
-            workdir=workdir,
-            default_handler=default_handler,
-            pythonpath=pythonpath,
-        )
-        self.clone_target_dir = clone_target_dir
-
-
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
-
-    @property
-    def spec(self) -> LocalFunctionSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", LocalFunctionSpec)
 
     def to_job(self, image=""):
         struct = self.to_dict()

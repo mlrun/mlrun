@@ -203,36 +203,6 @@ def get_stream_path(project: str = None):
     return stream_uri
 
 
-def get_kafka_bootstrap_servers(project: str = None):
-    """Get Kafka bootstrap servers string from the project secret. If wasn't set, take it from the system
-    configurations"""
-    if is_running_as_api():
-
-        # Running on API server side
-        import mlrun.api.crud.secrets
-        import mlrun.api.schemas
-
-        return (
-            mlrun.api.crud.secrets.Secrets().get_project_secret(
-                project=project,
-                provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
-                allow_secrets_from_k8s=True,
-                secret_key=model_monitoring_constants.ProjectSecretKeys.KAFKA_BOOTSTRAP_SERVERS,
-            )
-            or mlrun.mlconf.model_endpoint_monitoring.store_prefixes.stream
-        )
-    else:
-
-        import mlrun
-
-        return (
-            mlrun.get_secret_or_env(
-                model_monitoring_constants.ProjectSecretKeys.KAFKA_BOOTSTRAP_SERVERS
-            )
-            or mlrun.mlconf.model_endpoint_monitoring.store_prefixes.stream
-        )
-
-
 def validate_errors_and_metrics(endpoint: dict):
     """
     Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0

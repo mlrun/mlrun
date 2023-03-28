@@ -370,9 +370,7 @@ class ModelEndpoints:
         model_endpoint_store = get_model_endpoint_store(
             project=project,
         )
-        print(
-            "[EYAL]: in modelendpoints crud  - going to delete endpoint ", endpoint_id
-        )
+
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
@@ -743,7 +741,7 @@ class ModelEndpoints:
             access_key=auth_info.data_session, project=project_name
         )
         endpoints = endpoint_store.list_model_endpoints()
-        print("[EYAL]: now in delete model endpoints resources")
+
         # Delete model endpoints resources from databases using the model endpoint store object
         endpoint_store.delete_model_endpoints_resources(endpoints)
 

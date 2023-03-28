@@ -334,7 +334,7 @@ class MapValues(StepToDict, MLRunStep):
                 for ranges_mapping_values in ranges_dict.values():
                     range_types = set(
                         type(val)
-                        for val in ranges_mapping_values.values()
+                        for val in ranges_mapping_values
                         if type(val) is not None
                         and val != "-inf"
                         and val != "inf"

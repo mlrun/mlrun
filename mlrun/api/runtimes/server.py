@@ -14,7 +14,7 @@
 import mlrun.common.runtimes
 
 
-class ServerRuntime(mlrun.common.runtimes.AbstractFindMeAName):
+class ServerSideLauncher(mlrun.common.runtimes.AbstractLauncher):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -32,7 +32,12 @@ class ServerRuntime(mlrun.common.runtimes.AbstractFindMeAName):
 
     @staticmethod
     def _enrich_and_validate(runtime):
-        pass
-
-    def _get_cmd(self, runtime):
+        """
+        enrich the function with:
+            1. default values
+            2. mlrun config values
+            3. project context values
+            4. run specific parameters
+         and validate the function
+        """
         pass

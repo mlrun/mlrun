@@ -14,7 +14,7 @@
 import mlrun.common.runtimes
 
 
-class ClientLocalRuntime(mlrun.common.runtimes.AbstractFindMeAName):
+class ClientLocalLauncher(mlrun.common.runtimes.AbstractLauncher):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

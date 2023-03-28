@@ -14,7 +14,7 @@
 import mlrun.common.runtimes
 
 
-class ClientRemoteRuntime(mlrun.common.runtimes.AbstractFindMeAName):
+class ClientRemoteLauncher(mlrun.common.runtimes.AbstractLauncher):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

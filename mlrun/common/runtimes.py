@@ -14,7 +14,14 @@
 import abc
 
 
-class AbstractFindMeAName(abc.ABC):
+class AbstractLauncher(abc.ABC):
+    """ "
+    Abstract class for managing and running functions in different contexts
+    This class is designed to encapsulate the logic of running a function in different contexts
+    i.e. running a function locally, remotely or in a server
+    Each context will have its own implementation of the abstract methods
+    """
+
     @staticmethod
     @abc.abstractmethod
     def verify_base_image(runtime):
@@ -35,12 +42,4 @@ class AbstractFindMeAName(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def _enrich_and_validate(runtime):
-        """
-        enrich the function with:
-            1. default values
-            2. mlrun config values
-            3. project context values
-            4. run specific parameters
-         and validate the function
-        """
         pass

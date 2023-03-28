@@ -70,20 +70,7 @@ def verify_api_state(request: Request):
             "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
-            message = (
-                "API is waiting for migrations to be triggered. Send POST request to /api/operations/migrations to"
-                " trigger it"
-            )
-            if (
-                mlrun.mlconf.httpdb.state
-                == mlrun.api.schemas.APIStates.migrations_in_progress
-            ):
-                message = "Migrations are in progress"
-            elif (
-                mlrun.mlconf.httpdb.state
-                == mlrun.api.schemas.APIStates.migrations_failed
-            ):
-                message = "Migrations failed, API can't be started"
+            message = mlrun.api.schemas.APIStates.description(mlrun.mlconf.httpdb.state)
             raise mlrun.errors.MLRunPreconditionFailedError(message)
 
 

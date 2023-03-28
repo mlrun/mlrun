@@ -885,7 +885,7 @@ class SQLSource(BaseSourceDriver):
         Reads SqlDB as input source for a flow.
         example::
             db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
-            source = SqlDBSource(
+            source = SQLSource(
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
         :param name:            source name

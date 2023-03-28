@@ -137,7 +137,7 @@ class MapValues(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        mapping: Dict[str, Dict[str, Any]],
+        mapping: Dict[str, Dict[Any, Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,

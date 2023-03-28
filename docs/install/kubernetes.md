@@ -289,8 +289,10 @@ In order to upgrade to the latest version of the chart, first make sure you have
 helm repo update
 ```
 
-Then upgrade the chart:
+Then try to upgrade the chart:
 
 ```bash
-helm upgrade --install --reuse-values mlrun-ce mlrun-ce/mlrun-ce
+helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
 ```
+
+If it fails, you should reinstall the chart

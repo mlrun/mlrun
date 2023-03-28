@@ -173,8 +173,7 @@ Instead of waiting for completion, you can set up a notification in Slack with a
 
 Use one of:
 ```
-# If you want to get slack notification after the run with the results summary, use
-# project.notifiers.slack(webhook="https://<webhook>")
+project.notifiers.add_notification(notification_type="slack",params={"webhook":"<user-slack-webhook>"})
 ```
 or in a Jupyter notebook with the` %env` magic command:
 ```

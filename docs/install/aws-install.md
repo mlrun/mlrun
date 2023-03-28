@@ -7,6 +7,16 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
 These instructions install the community edition, which currently includes MLRun 1.2.1. See the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html).
 ```
 
+**In this section**
+- [Prerequisites](#prerequisites)
+- [Post deployment expectations](#post-deployment-expectations)
+- [Configuration settings](#configuration-settings)
+- [Getting started](#getting-started)
+- [Storage resources](#storage-resources)
+- [How to configure the online features store](#how-to-configure-the-online-feature-store)
+- [Streaming support](#streaming-support)
+- [Cleanup](#cleanup)
+
 ## Prerequisites
 
 1. An AWS account with permissions that include the ability to: 
@@ -131,7 +141,7 @@ Currently the MLRun feature store supports the following options:
 - Redis 
 - Iguazio key-value database
 
-To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/). for information about Redis installation.
+To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/) for information about Redis installation.
 
 ## Streaming support
 

@@ -7,14 +7,14 @@ These instructions install the community edition, which currently includes MLRun
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Community Edition Flavors](#community-edition-flavors)
-- [Installing the Chart](#installing-the-chart)
-- [Configuring Online Feature Store](#configuring-online-feature-store)
+- [Community Edition flavors](#community-edition-flavors)
+- [Installing the chart](#installing-the-chart)
+- [Configuring the online features store](#configuring-the-online-feature-store)
 - [Usage](#usage)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
-- [Storage Resources](#storage-resources)
+- [Storage resources](#storage-resources)
 - [Uninstalling the chart](#uninstalling-the-chart)
 - [Upgrading the chart](#upgrading-the-chart)
 
@@ -54,7 +54,7 @@ The MLRun CE (Community Edition) includes the following components:
 
 
 <a id="installing-the-chart"></a>
-## Installing the Chart
+## Installing the chart
 
 ```{admonition} Note
 These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
@@ -140,7 +140,7 @@ When the installation is complete, the helm command prints the URLs and Ports of
 > mysql database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the 
 > `--set pipelines.mysql.enabled=false`. 
 
-## Configuring Online Feature Store
+## Configuring the online feature store
 The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
 To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).
 
@@ -173,7 +173,7 @@ You can change the ports by providing values to the helm install command.
 You can add and configure a k8s ingress-controller for better security and control over external access.
 ```
 
-## Start Working
+## Start working
     
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
 [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
@@ -236,7 +236,7 @@ When installing the MLRun Community Edition, several storage resources are creat
 - **PVs via default configured storage class**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun, Minio for artifacts and Pipelines Storage and more. These are not deleted when the stack is uninstalled to allow upgrades without losing data.
 - **Container Images in the configured docker-registry**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in the given configured docker registry. These images persist in the docker registry and are not deleted.
 
-## Uninstalling the Chart
+## Uninstalling the chart
 
 The following command deletes the pods, deployments, config maps, services and roles+role bindings associated with the chart and release.
 

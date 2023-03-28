@@ -327,10 +327,7 @@ class RunDBMock:
             update_in(self._runs[uid]["struct"], key, value)
 
     def assert_no_mount_or_creds_configured(self, function_name=None):
-        if function_name:
-            function = self._functions[function_name]
-        else:
-            function = list(self._functions.values())[0]
+        function = self._get_function_internal(function_name)
 
         env_list = function["spec"]["env"]
         env_params = [item["name"] for item in env_list]
@@ -350,10 +347,7 @@ class RunDBMock:
     def assert_v3io_mount_or_creds_configured(
         self, v3io_user, v3io_access_key, cred_only=False, function_name=None
     ):
-        if function_name:
-            function = self._functions[function_name]
-        else:
-            function = list(self._functions.values())[0]
+        function = self._get_function_internal(function_name)
         env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
         expected_env = {
@@ -391,10 +385,7 @@ class RunDBMock:
         assert deepdiff.DeepDiff(volume_mounts, expected_mounts) == {}
 
     def assert_pvc_mount_configured(self, pvc_params, function_name=None):
-        if function_name:
-            function_spec = self._functions[function_name]["spec"]
-        else:
-            function_spec = list(self._functions.values())[0]["spec"]
+        function_spec = self._get_function_internal(function_name)["spec"]
 
         expected_volumes = [
             {
@@ -413,10 +404,7 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
     def assert_s3_mount_configured(self, s3_params, function_name=None):
-        if function_name:
-            function = self._functions[function_name]
-        else:
-            function = list(self._functions.values())[0]
+        function = self._get_function_internal(function_name)
         env_list = function["spec"]["env"]
         param_names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
         secret_name = s3_params.get("secret_name")
@@ -443,10 +431,7 @@ class RunDBMock:
         assert expected_envs == env_dict
 
     def assert_env_variables(self, expected_env_dict, function_name=None):
-        if function_name:
-            function = self._functions[function_name]
-        else:
-            function = list(self._functions.values())[0]
+        function = self._get_function_internal(function_name)
         env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
 
@@ -458,6 +443,12 @@ class RunDBMock:
         authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
     ):
         pass
+
+    def _get_function_internal(self, function_name: str = None):
+        if function_name:
+            return self._functions[function_name]
+
+        return list(self._functions.values())[0]
 
 
 @pytest.fixture()

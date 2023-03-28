@@ -372,6 +372,8 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # run db operations.
         "nop_db": {
             # if set to true, will raise an error for trying to use run db functionality
             # if set to false, will use a nop db which will not preform any run db operations

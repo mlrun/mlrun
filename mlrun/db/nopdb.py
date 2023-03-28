@@ -31,20 +31,18 @@ class NopDB(RunDBInterface):
 
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):
+            env_var_message = (
+                "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API "
+                "server in order to connect"
+            )
             if config.httpdb.nop_db.raise_error:
-                raise mlrun.errors.MLRunBadRequestError(
-                    "MLRUN_DB_PATH is not set. Please set this environment variable to the URL of the API server in"
-                    " order to connect"
-                )
+                raise mlrun.errors.MLRunBadRequestError(env_var_message)
 
             if config.httpdb.nop_db.verbose:
                 logger.warning(
                     "Could not detect path to API server, not connected to API server!"
                 )
-                logger.warning(
-                    "MLRUN_DB_PATH is not set. Please set this environment variable to the URL of the API server in"
-                    " order to connect"
-                )
+                logger.warning(env_var_message)
 
             return
 

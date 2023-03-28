@@ -2,9 +2,7 @@
 # Install MLRun on Kubernetes
 
 ```{admonition} Note
-These instructions install the latest software version:
-- CE: v1.2.1, see the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html)
-- Enterprise: v1.3.0
+These instructions install the community edition, which currently includes MLRun 1.2.1. See the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html).
 ```
 
 **In this section**

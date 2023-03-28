@@ -52,7 +52,7 @@ def test_in_memory():
     ), "failed to log in mem artifact"
 
 
-def test_file():
+def test_file(rundb_mock):
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
 

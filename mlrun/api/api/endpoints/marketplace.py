@@ -278,15 +278,16 @@ async def get_asset(
 
     :return: fastapi response with the asset in content
     """
-    source = await run_in_threadpool(
-        get_db().get_marketplace_source, db_session, source_name
-    )
-
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
+
+    source = await run_in_threadpool(
+        get_db().get_marketplace_source, db_session, source_name
+    )
+
     # Getting the relevant item which hold the asset information
     item = await run_in_threadpool(
         mlrun.api.crud.Marketplace().get_item,

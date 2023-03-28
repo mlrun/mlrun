@@ -133,13 +133,14 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         :param asset:   The asset name
         :return:    Full path to the asset, relative to the item directory.
         """
-        asset_path = item.assets.get(asset, None)
+        asset_path = item.spec.assets.get(asset, None)
         if not asset_path:
             raise mlrun.errors.MLRunNotFoundError(
-                f"asset {asset} of item {item.metadata.name}:{item.metadata.version} not found"
+                f"Asset={asset} not found. "
+                f"item={item.metadata.name}, version={item.metadata.version}, tag={item.metadata.tag}"
             )
         item_path = item.metadata.get_relative_path()
-        return source.get_full_uri(f"{item_path}/{asset_path}")
+        return source.get_full_uri(item_path + asset_path)
 
     @staticmethod
     def _transform_catalog_dict_to_schema(
@@ -164,12 +165,13 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
                     tag=version_tag, **object_details_dict
                 )
                 item_uri = source.get_full_uri(metadata.get_relative_path())
-                spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
+                spec = MarketplaceItemSpec(
+                    item_uri=item_uri, assets=assets, **spec_dict
+                )
                 item = MarketplaceItem(
                     metadata=metadata,
                     spec=spec,
                     status=ObjectStatus(),
-                    assets=assets,
                 )
                 catalog.catalog.append(item)
 
@@ -293,9 +295,11 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     ) -> Tuple[bytes, str]:
         """
         Retrieve asset object from marketplace source.
+
         :param source:      marketplace source
         :param item:        marketplace item which contains the assets
-        :param asset_name:  asset name, like source, example, etc
+        :param asset_name:  asset name, like source, example, etc.
+
         :return: tuple of asset as bytes and url of asset
         """
         credentials = self._get_source_credentials(source.metadata.name)

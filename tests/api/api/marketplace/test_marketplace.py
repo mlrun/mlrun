@@ -18,6 +18,7 @@ import random
 from http import HTTPStatus
 
 import deepdiff
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -306,7 +307,7 @@ def test_marketplace_catalog_apis(
     assert yaml_function_name == function_modified_name
 
 
-def test_marketplace_get_asset(
+def test_marketplace_get_asset_from_default_source(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     possible_assets = [
@@ -326,3 +327,39 @@ def test_marketplace_get_asset(
         )
         assert response.status_code == http.HTTPStatus.OK.value
         assert response.headers["content-type"] == expected_content_type
+
+
+def test_marketplace_get_asset_1(
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    manager = mlrun.api.crud.Marketplace()
+
+    # Adding marketplace source with credentials:
+    credentials = {"secret": "value"}
+
+    source_dict = _generate_source_dict(1, "source", credentials)
+    expected_credentials = {
+        mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+            "source", "secret"
+        ): credentials["secret"]
+    }
+    source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+    manager.add_source(source_object)
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
+    )
+    # getting asset:
+    catalog = manager.get_source_catalog(source_object)
+    item = catalog.catalog[0]
+    asset_object, url = manager.get_asset(source_object, item, "html_asset")
+    relative_asset_path = "functions/channel/dev_function/latest/static/my_html.html"
+    with open(relative_asset_path, "r") as f:
+        expected_content = f.read()
+    # Validating content and url:
+    assert expected_content == asset_object.decode("utf-8") and url.endswith(
+        relative_asset_path
+    )
+
+    # Verify not-found assets are handled properly
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        manager.get_asset(source_object, item, "not-found")

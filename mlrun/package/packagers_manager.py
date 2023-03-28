@@ -26,6 +26,8 @@ from mlrun.package.packager import Packager
 from mlrun.package.packagers.default_packager import DefaultPackager
 from mlrun.utils import StorePrefix, logger
 
+from .constants import LogHintKey
+
 
 class PackagersManager:
     """
@@ -148,58 +150,66 @@ class PackagersManager:
 
     def pack(
         self, obj: typing.Any, log_hint: typing.Dict[str, str]
-    ) -> typing.Union[Artifact, dict, None]:
+    ) -> typing.Union[
+        Artifact, dict, None, typing.List[typing.Union[Artifact, dict, None]]
+    ]:
         """
-        Pack an object using one of the manager's packagers.
+        Pack an object using one of the manager's packagers. A `dict` ("**") or `list` ("*") unpacking syntax in the
+        log hint key will pack the objects within them in separate packages.
 
         :param obj:      The object to pack as an artifact.
         :param log_hint: The log hint to use.
 
-        :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
+        :return: The packaged artifact or result. None is returned if there was a problem while packing the object. If
+                 a prefix of dict or list unpacking was provided in the log hint key, a list of all the arbitrary number
+                 of packaged objects will be returned.
         """
-        # Get the artifact type (if user didn't pass any, the packager will use its configured default):
-        artifact_type = log_hint.pop("artifact_type", None)
+        # Get the key to see if needed to pack arbitrary number of objects via list or dict prefixes:
+        log_hint_key = log_hint[LogHintKey.KEY]
+        if log_hint_key.startswith("**"):
+            # A dictionary unpacking prefix was given, validate the object is a dictionary and prepare the objects to
+            # pack with their keys:
+            if not isinstance(obj, dict):
+                logger.warn(
+                    f"The log hint key '{log_hint_key}' has a dictionary unpacking prefix ('**') to log arbitrary "
+                    f"number of objects within the dictionary, but a dictionary was not provided, the given object is "
+                    f"of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the "
+                    f"'**' prefix from the key."
+                )
+                return None
+            objects_to_pack = {
+                f"{log_hint_key[len('**'):]}{dict_key}": dict_obj
+                for dict_key, dict_obj in obj.items()
+            }
+        elif log_hint_key.startswith("*"):
+            # A list unpacking prefix was given, validate the object is a list and prepare the objects to pack with
+            # their keys:
+            if not isinstance(obj, list):
+                logger.warn(
+                    f"The log hint key '{log_hint_key}' has a list unpacking prefix ('*') to log arbitrary number of "
+                    f"objects within the list, but a list was not provided, the given object is of type "
+                    f"'{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the '*' "
+                    f"prefix from the key."
+                )
+                return None
+            objects_to_pack = {
+                f"{log_hint_key[len('*'):]}{i}": obj[i] for i in range(len(obj))
+            }
+        else:
+            # A single object is required to be packaged:
+            objects_to_pack = {log_hint_key: obj}
 
-        # Get a packager:
-        object_type = type(obj)
-        packager = self._get_packager(
-            object_type=object_type, artifact_type=artifact_type
-        )
+        # Go over the collected keys and objects and pack them:
+        packages = []
+        for key, per_key_obj in objects_to_pack.items():
+            # Edit the key in the log hint:
+            per_key_log_hint = log_hint.copy()
+            per_key_log_hint[LogHintKey.KEY] = key
+            # Pack and collect the package:
+            packages.append(self._pack(obj=per_key_obj, log_hint=per_key_log_hint))
 
-        # Use the packager to pack the object:
-        packed_object = packager.pack(
-            obj=obj, artifact_type=artifact_type, configurations=log_hint
-        )
-
-        # Check if the packaged object is None, meaning there was an error in the process of packing it:
-        if packed_object is None:
-            return None
-
-        # If the packed object is a result, return it as is:
-        if isinstance(packed_object, dict):
-            # Collect the result and return:
-            self._results.update(packed_object)
-            return packed_object
-
-        # It is an artifact, continue with the packaging:
-        artifact, instructions = packed_object
-
-        # Prepare the manager's labels:
-        packaging_instructions = {
-            self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
-            self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(
-                typ=object_type
-            ),
-            self._InstructionsNotesKey.ARTIFACT_TYPE: artifact_type,
-            self._InstructionsNotesKey.INSTRUCTIONS: instructions,
-        }
-
-        # Set the instructions in the artifact's spec:
-        artifact.spec.packaging_instructions = packaging_instructions
-
-        # Collect the artifact and return:
-        self._artifacts.append(artifact)
-        return artifact
+        # If multiple packages were packed, return a list, otherwise return the single package:
+        return packages if len(packages) > 1 else packages[0]
 
     def unpack(self, data_item: DataItem, type_hint: typing.Type) -> typing.Any:
         """
@@ -480,6 +490,61 @@ class PackagersManager:
 
         # No packager was found:
         return None
+
+    def _pack(
+        self, obj: typing.Any, log_hint: dict
+    ) -> typing.Union[Artifact, dict, None]:
+        """
+        Pack an object using one of the manager's packagers.
+
+        :param obj:      The object to pack as an artifact.
+        :param log_hint: The log hint to use.
+
+        :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
+        """
+        # Get the artifact type (if user didn't pass any, the packager will use its configured default):
+        artifact_type = log_hint.pop(LogHintKey.ARTIFACT_TYPE, None)
+
+        # Get a packager:
+        object_type = type(obj)
+        packager = self._get_packager(
+            object_type=object_type, artifact_type=artifact_type
+        )
+
+        # Use the packager to pack the object:
+        packed_object = packager.pack(
+            obj=obj, artifact_type=artifact_type, configurations=log_hint
+        )
+
+        # Check if the packaged object is None, meaning there was an error in the process of packing it:
+        if packed_object is None:
+            return None
+
+        # If the packed object is a result, return it as is:
+        if isinstance(packed_object, dict):
+            # Collect the result and return:
+            self._results.update(packed_object)
+            return packed_object
+
+        # It is an artifact, continue with the packaging:
+        artifact, instructions = packed_object
+
+        # Prepare the manager's labels:
+        packaging_instructions = {
+            self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
+            self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(
+                typ=object_type
+            ),
+            self._InstructionsNotesKey.ARTIFACT_TYPE: artifact_type,
+            self._InstructionsNotesKey.INSTRUCTIONS: instructions,
+        }
+
+        # Set the instructions in the artifact's spec:
+        artifact.spec.packaging_instructions = packaging_instructions
+
+        # Collect the artifact and return:
+        self._artifacts.append(artifact)
+        return artifact
 
     @staticmethod
     def _look_for_extra_data(

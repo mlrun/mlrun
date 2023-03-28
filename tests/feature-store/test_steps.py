@@ -492,7 +492,7 @@ def test_mapvalues_mixed_types_validator(rundb_mock, mapping):
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match=f"^MapValues - mapping values of the same column must be in the same type!"
+        match=f"^MapValues - mapping values of the same column must be in the same type, which was not the case for"
         f" Column '{list(mapping.keys())[0]}'$",
     ):
         fstore.ingest(

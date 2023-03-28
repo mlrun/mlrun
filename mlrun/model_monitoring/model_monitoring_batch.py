@@ -627,7 +627,6 @@ class BatchProcessor:
             return
 
         for endpoint in endpoints:
-            print('[EYAL]: current endpoint: ', endpoint)
             if (
                 endpoint[mlrun.model_monitoring.EventFieldType.ACTIVE]
                 and endpoint[mlrun.model_monitoring.EventFieldType.MONITORING_MODE]
@@ -647,8 +646,6 @@ class BatchProcessor:
 
     def update_drift_metrics(self, endpoint: dict):
         try:
-            print('[EYAL]: right now working on endpoint: ', endpoint)
-
             # Convert feature set into dataframe and get the latest dataset
             (
                 _,

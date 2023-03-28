@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import tempfile
 import time
 
 from kubernetes import client

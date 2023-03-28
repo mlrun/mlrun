@@ -198,15 +198,15 @@ class ModelEndpoints:
 
         feature_set = mlrun.feature_store.FeatureSet(
             f"monitoring-{serving_function_name}-{model_name}",
-            entities=["endpoint_id"],
-            timestamp_key="timestamp",
+            entities=[model_monitoring_constants.EventFieldType.ENDPOINT_ID],
+            timestamp_key=model_monitoring_constants.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 
         feature_set.metadata.labels = {
-            "endpoint_id": model_endpoint.metadata.uid,
-            "model_class": model_endpoint.spec.model_class,
+            model_monitoring_constants.EventFieldType.ENDPOINT_ID: model_endpoint.metadata.uid,
+            model_monitoring_constants.EventFieldType.MODEL_CLASS: model_endpoint.spec.model_class,
         }
 
         # Add features to the feature set according to the model object
@@ -238,11 +238,16 @@ class ModelEndpoints:
             )
 
         # Define parquet target for this feature set
-        parquet_path = (
-            f"v3io:///projects/{model_endpoint.metadata.project}"
-            f"/model-endpoints/parquet/key={model_endpoint.metadata.uid}"
+        parquet_path = mlrun.mlconf.get_file_target_path(
+            project=model_endpoint.metadata.project,
+            kind=model_monitoring_constants.FileTargetKind.PARQUET,
+            target="offline",
         )
-        parquet_target = mlrun.datastore.targets.ParquetTarget("parquet", parquet_path)
+        parquet_path = parquet_path + f"/key={model_endpoint.metadata.uid}"
+
+        parquet_target = mlrun.datastore.targets.ParquetTarget(
+            model_monitoring_constants.FileTargetKind.PARQUET, parquet_path
+        )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
         driver.update_resource_status("created")
         feature_set.set_targets(
@@ -364,6 +369,9 @@ class ModelEndpoints:
         """
         model_endpoint_store = get_model_endpoint_store(
             project=project,
+        )
+        print(
+            "[EYAL]: in modelendpoints crud  - going to delete endpoint ", endpoint_id
         )
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
@@ -735,7 +743,7 @@ class ModelEndpoints:
             access_key=auth_info.data_session, project=project_name
         )
         endpoints = endpoint_store.list_model_endpoints()
-
+        print("[EYAL]: now in delete model endpoints resources")
         # Delete model endpoints resources from databases using the model endpoint store object
         endpoint_store.delete_model_endpoints_resources(endpoints)
 
@@ -782,7 +790,10 @@ class ModelEndpoints:
             )
 
         fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
-            project, model_monitoring_access_key, db_session, tracking_policy
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            tracking_policy=tracking_policy,
+            auth_info=auth_info,
         )
 
         mlrun.api.api.endpoints.functions._build_function(

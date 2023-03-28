@@ -372,15 +372,6 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
-        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
-        # run db operations.
-        "nop_db": {
-            # if set to true, will raise an error for trying to use run db functionality
-            # if set to false, will use a nop db which will not preform any run db operations
-            "raise_error": False,
-            # if set to true, will log a warning for trying to use run db functionality while in nop db mode
-            "verbose": True,
-        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -388,6 +379,9 @@ default_config = {
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
+            "offline": "projects/{project}/model-endpoints/{kind}",
+            "stream": "",
+            "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
@@ -936,6 +930,79 @@ class Config:
     def get_v3io_access_key(self):
         # Get v3io access key from the environment
         return os.environ.get("V3IO_ACCESS_KEY")
+
+    def get_file_target_path(
+        self, project: str = "", kind: str = "", target: str = "online"
+    ) -> str:
+        """Get the full path from the configuration based on the provided project and kind.
+
+        :param project: Project name.
+        :param kind:    Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:  Can be either online or offline. If the target is online, then we try to get a specific path
+                        for the provided kind. If it doesn't exist, use the default path.
+                        If the target path is offline and the offline path is already a full path in the configuration,
+                        then the result will be that path as-is. If the offline path is a relative path, then the
+                        result will be based on the mlrun artifact path and the offline relative path. If the offline
+                        path is an empty string, then the result will be based on the user_space default path.
+
+        :return: Full configured path for the provided kind.
+        """
+
+        if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project, kind=kind)
+            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project, kind=kind
+            )
+
+        # Leaving here the first condition for backwards compatibility, remove in 1.5.0
+        # TODO: remove in 1.5.0
+        if (
+            "offline"
+            not in mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+        ):
+            return (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project, kind=kind
+                )
+            )
+
+        # Get the current offline path from the configuration
+        file_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline
+
+        # Absolute path
+        if any(value in file_path for value in ["://", ":///"]) or file_path.startswith(
+            "/"
+        ):
+            return file_path
+
+        # Relative path
+        elif mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline != "":
+            return os.environ[
+                "MLRUN_ARTIFACT_PATH"
+            ] + mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline.format(
+                project=project, kind=kind
+            )
+
+        # User space path
+        else:
+            return (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project, kind=kind
+                )
+            )
+
+    def is_ce_mode(self) -> bool:
+        # True if the setup is in CE environment
+        if isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
+            ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        ):
+            return True
+        return False
 
 
 # Global configuration

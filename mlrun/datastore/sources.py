@@ -727,6 +727,9 @@ class OnlineSource(BaseSourceDriver):
 class HttpSource(OnlineSource):
     kind = "http"
 
+    def __init__(self, path: str = None):
+        super().__init__(path=path)
+
     def add_nuclio_trigger(self, function):
         trigger_args = self.attributes.get("trigger_args")
         if trigger_args:
@@ -885,7 +888,7 @@ class SQLSource(BaseSourceDriver):
         Reads SqlDB as input source for a flow.
         example::
             db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
-            source = SQLSource(
+            source = SqlDBSource(
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
         :param name:            source name

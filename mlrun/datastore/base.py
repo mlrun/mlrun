@@ -517,11 +517,13 @@ class HttpStore(DataStore):
         self.auth = None
         self._headers = None
         if self._get_secret_or_env("HTTPS_AUTH_TOKEN"):
-            if schema=='https':
+            if schema == "https":
                 token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
                 self._headers = {"Authorization": f"token {token}"}
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError("For using HTTPS_AUTH_TOKEN please use https schema")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "For using HTTPS_AUTH_TOKEN please use https schema"
+                )
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""

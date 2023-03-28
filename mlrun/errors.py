@@ -179,6 +179,10 @@ class MLRunInternalServerError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
+class MLRunServiceUnavailableError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.SERVICE_UNAVAILABLE.value
+
+
 class MLRunRuntimeError(MLRunHTTPStatusError, RuntimeError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
 
@@ -213,4 +217,5 @@ STATUS_ERRORS = {
     HTTPStatus.CONFLICT.value: MLRunConflictError,
     HTTPStatus.PRECONDITION_FAILED.value: MLRunPreconditionFailedError,
     HTTPStatus.INTERNAL_SERVER_ERROR.value: MLRunInternalServerError,
+    HTTPStatus.SERVICE_UNAVAILABLE.value: MLRunServiceUnavailableError,
 }

@@ -295,4 +295,19 @@ Then try to upgrade the chart:
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
 ```
 
-If it fails, you should reinstall the chart
+If it fails, you should reinstall the chart:
+
+1. remove current mlrun-ce
+```bash
+mkdir ~/tmp
+helm get values -n mlrun mlrun-ce > ~/tmp/mlrun-ce-values.yaml
+helm uninstall mlrun-ce
+```
+2.  reinstall mlrun-ce, reuse values
+```bash
+helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlrun-ce --devel
+```
+
+```{admonition} Note
+If your values have fixed mlrun service versions (e..g: mlrun:1.2.1) then you might want to remove it from the values file to allow newer chart defaults to kick in
+```

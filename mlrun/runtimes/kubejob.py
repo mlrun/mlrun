@@ -69,7 +69,7 @@ class KubejobRuntime(KubeResource):
         :param handler:         default function handler
         :param workdir:         working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
-        :param target_dir:      local target dir for repo clone / archive extraction
+        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
         if source.endswith(".zip") and not pull_at_runtime:
             logger.warn(

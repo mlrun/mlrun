@@ -813,7 +813,7 @@ with ctx:
         :param handler:         default function handler
         :param workdir:         working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: not supported for spark runtime, must be False
-        :param target_dir:      local target dir for repo clone / archive extraction
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
         """
         if pull_at_runtime:
             raise mlrun.errors.MLRunInvalidArgumentError(

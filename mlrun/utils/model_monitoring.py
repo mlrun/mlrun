@@ -218,7 +218,11 @@ def validate_errors_and_metrics(endpoint: dict):
     )
 
     # Validate default value for `error_count`
-    if endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null":
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
+    if (
+        model_monitoring_constants.EventFieldType.ERROR_COUNT in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null"
+    ):
         endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`

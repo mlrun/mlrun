@@ -811,15 +811,16 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "workdir,expected_workdir",
+    "clone_target_dir,expected_workdir",
     [
         (None, r"WORKDIR .*\/tmp.*\/mlrun"),
         ("", r"WORKDIR .*\/tmp.*\/mlrun"),
         ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
+        ("rel_path", r"WORKDIR .*\/tmp.*\/mlrun\/rel_path"),
         ("/some/workdir", r"WORKDIR \/some\/workdir"),
     ],
 )
-def test_builder_workdir(monkeypatch, workdir, expected_workdir):
+def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     _patch_k8s_helper(monkeypatch)
     mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
     docker_registry = "default.docker.registry/default-repository"
@@ -832,8 +833,8 @@ def test_builder_workdir(monkeypatch, workdir, expected_workdir):
         image="mlrun/mlrun",
         kind="job",
     )
-    if workdir is not None:
-        function.spec.workdir = workdir
+    if clone_target_dir is not None:
+        function.spec.clone_target_dir = clone_target_dir
     function.spec.build.source = "some-source.tgz"
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -842,7 +843,7 @@ def test_builder_workdir(monkeypatch, workdir, expected_workdir):
     dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
     dockerfile_lines = dockerfile.splitlines()
     expected_workdir_re = re.compile(expected_workdir)
-    assert expected_workdir_re.match(dockerfile_lines[2])
+    assert expected_workdir_re.match(dockerfile_lines[1])
 
 
 def _get_target_image_from_create_pod_mock():

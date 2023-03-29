@@ -135,6 +135,7 @@ class KubeResourceSpec(FunctionSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        clone_target_dir=None,
     ):
         super().__init__(
             command=command,
@@ -148,6 +149,7 @@ class KubeResourceSpec(FunctionSpec):
             default_handler=default_handler,
             pythonpath=pythonpath,
             disable_auto_mount=disable_auto_mount,
+            clone_target_dir=clone_target_dir,
         )
         self._volumes = {}
         self._volume_mounts = {}

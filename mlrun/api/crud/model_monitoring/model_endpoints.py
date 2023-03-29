@@ -244,11 +244,12 @@ class ModelEndpoints:
         )
         parquet_target = mlrun.datastore.targets.ParquetTarget("parquet", parquet_path)
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
-        driver.update_resource_status("created")
+
         feature_set.set_targets(
             [mlrun.datastore.targets.ParquetTarget(path=parquet_path)],
             with_defaults=False,
         )
+        driver.update_resource_status("created")
 
         # Save the new feature set
         feature_set._override_run_db(db_session)

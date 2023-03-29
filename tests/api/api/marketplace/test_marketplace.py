@@ -329,7 +329,7 @@ def test_marketplace_get_asset_from_default_source(
         assert response.headers["content-type"] == expected_content_type
 
 
-def test_marketplace_get_asset_1(
+def test_marketplace_get_asset(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     manager = mlrun.api.crud.Marketplace()
@@ -351,14 +351,19 @@ def test_marketplace_get_asset_1(
     # getting asset:
     catalog = manager.get_source_catalog(source_object)
     item = catalog.catalog[0]
+    # verifying item contain the asset:
+    assert item.spec.assets.get("html_asset", "") == "static/my_html.html"
+
     asset_object, url = manager.get_asset(source_object, item, "html_asset")
     relative_asset_path = "functions/channel/dev_function/latest/static/my_html.html"
-    with open(relative_asset_path, "r") as f:
+    asset_path = pathlib.Path(__file__).absolute().parent / relative_asset_path
+    with open(asset_path, "r") as f:
         expected_content = f.read()
     # Validating content and url:
     assert expected_content == asset_object.decode("utf-8") and url.endswith(
         relative_asset_path
     )
+    assert url == str(asset_path)
 
     # Verify not-found assets are handled properly
     with pytest.raises(mlrun.errors.MLRunNotFoundError):

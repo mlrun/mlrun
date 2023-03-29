@@ -515,6 +515,7 @@ class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         self._https_auth_token = None
+        self._schema = schema
         self.auth = None
         self._headers = {}
         self._enrich_https_token()
@@ -550,7 +551,7 @@ class HttpStore(DataStore):
             self._headers.setdefault("Authorization", f"token {token}")
 
     def _validate_https_token(self):
-        if self._https_auth_token and self.schema not in ["https"]:
+        if self._https_auth_token and self._schema not in ["https"]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "For using HTTPS_AUTH_TOKEN please use https schema"
             )

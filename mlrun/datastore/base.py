@@ -514,16 +514,11 @@ def http_upload(url, file_path, headers=None, auth=None):
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
+        self._https_auth_token = None
         self.auth = None
-        self._headers = None
-        if self._get_secret_or_env("HTTPS_AUTH_TOKEN"):
-            if schema == "https":
-                token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
-                self._headers = {"Authorization": f"token {token}"}
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "For using HTTPS_AUTH_TOKEN please use https schema"
-                )
+        self._headers = {}
+        self._enrich_https_token()
+        self._validate_https_token()
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -547,3 +542,15 @@ class HttpStore(DataStore):
         if size:
             data = data[:size]
         return data
+
+    def _enrich_https_token(self):
+        token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
+        if token:
+            self._https_auth_token = token
+            self._headers.setdefault("Authorization", f"token {token}")
+
+    def _validate_https_token(self):
+        if self._https_auth_token and self._schema not in ["https"]:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "For using HTTPS_AUTH_TOKEN please use https schema"
+            )

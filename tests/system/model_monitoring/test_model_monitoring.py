@@ -212,7 +212,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         return ModelEndpoint(
             metadata=ModelEndpointMetadata(
-                project=self.project_name, labels=random_labels()
+                project=self.project_name,
+                labels=random_labels(),
+                uid=str(randint(1000, 5000)),
             ),
             spec=ModelEndpointSpec(
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
@@ -295,15 +297,15 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
-        assert len(endpoints_list.endpoints) == 1
+        assert len(endpoints_list) == 1
 
-        endpoint = endpoints_list.endpoints[0]
+        endpoint = endpoints_list[0]
         assert len(endpoint.status.metrics) > 0
 
-        predictions_per_second = endpoint.status.metrics["predictions_per_second"]
-        assert predictions_per_second.name == "predictions_per_second"
-
-        total = sum((m[1] for m in predictions_per_second.values))
+        predictions_per_second = endpoint.status.metrics["real_time"][
+            "predictions_per_second"
+        ]
+        total = sum((m[1] for m in predictions_per_second))
         assert total > 0
 
 
@@ -431,10 +433,10 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_list.endpoints) == 1
+        assert len(endpoints_list) == 1
 
         # Validate monitoring mode
-        model_endpoint = endpoints_list.endpoints[0]
+        model_endpoint = endpoints_list[0]
         assert model_endpoint.spec.monitoring_mode == ModelMonitoringMode.enabled.value
 
         # Validate tracking policy
@@ -612,25 +614,23 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             self.project_name, top_level=True
         )
 
-        assert len(top_level_endpoints.endpoints) == 1
-        assert (
-            top_level_endpoints.endpoints[0].status.endpoint_type == EndpointType.ROUTER
-        )
+        assert len(top_level_endpoints) == 1
+        assert top_level_endpoints[0].status.endpoint_type == EndpointType.ROUTER
 
-        children_list = top_level_endpoints.endpoints[0].status.children_uids
+        children_list = top_level_endpoints[0].status.children_uids
         assert len(children_list) == len(model_names)
 
         endpoints_children_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, uids=children_list
         )
-        assert len(endpoints_children_list.endpoints) == len(model_names)
-        for child in endpoints_children_list.endpoints:
+        assert len(endpoints_children_list) == len(model_names)
+        for child in endpoints_children_list:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
         # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
-        for endpoint in endpoints_list.endpoints:
+        for endpoint in endpoints_list:
             # Validate that the model endpoint record has been updated through the stream process
             assert endpoint.status.first_request != endpoint.status.last_request
             data = client.read(

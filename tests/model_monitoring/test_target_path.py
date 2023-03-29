@@ -17,33 +17,53 @@ import mlrun.config
 import mlrun.utils.model_monitoring
 
 TEST_PROJECT = "test-model-endpoints"
-os.environ['MLRUN_ARTIFACT_PATH'] = 's3://some-bucket/'
+os.environ["MLRUN_ARTIFACT_PATH"] = "s3://some-bucket/"
+
 
 def test_get_file_target_path():
 
     # offline target with relative path
-    offline_parquet_relative = mlrun.mlconf.get_file_target_path(project=TEST_PROJECT, kind="parquet", target="offline")
-    assert offline_parquet_relative == os.environ['MLRUN_ARTIFACT_PATH']+'projects/'+TEST_PROJECT+'/model-endpoints/parquet'
+    offline_parquet_relative = mlrun.mlconf.get_file_target_path(
+        project=TEST_PROJECT, kind="parquet", target="offline"
+    )
+    assert (
+        offline_parquet_relative
+        == os.environ["MLRUN_ARTIFACT_PATH"]
+        + "projects/"
+        + TEST_PROJECT
+        + "/model-endpoints/parquet"
+    )
 
     # online target
-    online_target = mlrun.mlconf.get_file_target_path(project=TEST_PROJECT, kind="some_kind", target="online")
-    assert online_target == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/some_kind"
+    online_target = mlrun.mlconf.get_file_target_path(
+        project=TEST_PROJECT, kind="some_kind", target="online"
+    )
+    assert (
+        online_target
+        == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/some_kind"
+    )
 
     # offline target with absolute path
-    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline = "schema://projects/test-path"
-    offline_parquet_abs = mlrun.mlconf.get_file_target_path(project=TEST_PROJECT, kind="parquet", target="offline")
-    assert offline_parquet_abs == 'schema://projects/test-path'
+    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline = (
+        "schema://projects/test-path"
+    )
+    offline_parquet_abs = mlrun.mlconf.get_file_target_path(
+        project=TEST_PROJECT, kind="parquet", target="offline"
+    )
+    assert offline_parquet_abs == "schema://projects/test-path"
+
 
 def test_get_stream_path():
     # default stream path
     stream_path = mlrun.utils.model_monitoring.get_stream_path(project=TEST_PROJECT)
-    assert stream_path == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/stream"
+    assert (
+        stream_path == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/stream"
+    )
 
     # kafka stream path from env
-    os.environ['STREAM_PATH'] = 'kafka://some_kafka_bootstrap_servers:8080'
+    os.environ["STREAM_PATH"] = "kafka://some_kafka_bootstrap_servers:8080"
     stream_path = mlrun.utils.model_monitoring.get_stream_path(project=TEST_PROJECT)
-    assert stream_path == f"kafka://some_kafka_bootstrap_servers:8080?topic=monitoring_stream_{TEST_PROJECT}"
-
-
-
-
+    assert (
+        stream_path
+        == f"kafka://some_kafka_bootstrap_servers:8080?topic=monitoring_stream_{TEST_PROJECT}"
+    )

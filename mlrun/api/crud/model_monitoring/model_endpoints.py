@@ -251,7 +251,6 @@ class ModelEndpoints:
             with_defaults=False,
         )
 
-
         # Save the new feature set
         feature_set._override_run_db(db_session)
         feature_set.save()

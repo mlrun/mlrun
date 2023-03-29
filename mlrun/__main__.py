@@ -1462,28 +1462,34 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
     return runtime
 
 
-def load_notification(notifications, project):
-    # A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
-    # Each notification is stored in a tuple called notifications.
-    # The code then goes through each value in the notifications tuple and check
-    # if the notification starts with "file=", such as "file=notification.json," in those cases it loads the
-    # notification.json file and uses add_notification_to_project to add the notifications from the file to
-    # the project. If not, it adds the notification dictionary to the project.
+def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
+    """
+
+    :param notifications:  Notifications file or a dictionary to be added to the project
+    :param project: The object to which the notifications will be added
+    :return:
+    A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
+    Each notification is stored in a tuple called notifications.
+    The code then goes through each value in the notifications tuple and check
+    if the notification starts with "file=", such as "file=notification.json," in those cases it loads the
+    notification.json file and uses add_notification_to_project to add the notifications from the file to
+    the project. If not, it adds the notification dictionary to the project.
+    """
     for notification in notifications:
         if notification.startswith("file="):
             file_path = notification.split("=")[-1]
-            with open(file_path) as fp:
-                notification_from_file = simplejson.load(fp)
-                add_notification_to_project(notification_from_file, project)
-
+            notification = open(file_path, "r")
+            notification = simplejson.load(notification)
         else:
             notification = simplejson.loads(notification)
-            add_notification_to_project(notification, project)
+        add_notification_to_project(notification, project)
 
 
-def add_notification_to_project(notification, proj):
+def add_notification_to_project(
+    notification: str, project: mlrun.projects.MlrunProject
+):
     for notification_type, notification_params in notification.items():
-        proj.notifiers.add_notification(
+        project.notifiers.add_notification(
             notification_type=notification_type, params=notification_params
         )
 
@@ -1491,7 +1497,7 @@ def add_notification_to_project(notification, proj):
 def send_workflow_error_notification(run_id, project, trace):
     message = (
         f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
-        f"error: ```{trace}```"
+        f"error: ```{err_to_str(trace)}```"
     )
     project.notifiers.push(
         message=message, severity=mlrun.api.schemas.NotificationSeverity.ERROR

@@ -151,40 +151,6 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
-    class Notification(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "notifications"
-        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
-        name = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        kind = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        message = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        severity = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        when = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        condition = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        params = Column("params", JSON)
-        run = Column(Integer, ForeignKey("runs.id"))
-        sent_time = Column(
-            TIMESTAMP(),
-            nullable=True,
-        )
-        status = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-
     class Run(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "runs"
         __table_args__ = (

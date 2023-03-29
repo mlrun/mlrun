@@ -1100,7 +1100,7 @@ def _init_endpoint_record(
                 db.create_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,
-                    model_endpoint=current_endpoint.dict(),
+                    model_endpoint=current_endpoint,
                 )
 
         except Exception as exc:

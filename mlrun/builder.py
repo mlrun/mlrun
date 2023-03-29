@@ -55,7 +55,6 @@ def make_dockerfile(
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if source:
-        dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
@@ -398,14 +397,18 @@ def build_image(
         enriched_group_id = runtime.spec.security_context.run_as_group
 
     if source_to_copy and (
-        not runtime.spec.workdir or not path.isabs(runtime.spec.workdir)
+        not runtime.spec.clone_target_dir
+        or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # the user may give a relative workdir to the source where the code is located
-        # add the relative workdir to the target source copy path
+        # use a temp dir for permissions and set it as the workdir
         tmpdir = tempfile.mkdtemp()
-        relative_workdir = runtime.spec.workdir or ""
-        _, _, relative_workdir = relative_workdir.partition("./")
-        runtime.spec.workdir = path.join(tmpdir, "mlrun", relative_workdir)
+        relative_workdir = runtime.spec.clone_target_dir or ""
+        if relative_workdir.startswith("./"):
+            # TODO: use 'removeprefix' when we drop python 3.7 support
+            # relative_workdir.removeprefix("./")
+            relative_workdir = relative_workdir[2:]
+
+        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
 
     dock = make_dockerfile(
         base_image,
@@ -415,7 +418,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=runtime.spec.workdir,
+        workdir=runtime.spec.clone_target_dir,
     )
 
     kpod = make_kaniko_pod(

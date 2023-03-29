@@ -66,7 +66,7 @@ class KubejobRuntime(KubeResource):
                                 git://github.com/mlrun/something.git
                                 http://some/url/file.zip
         :param handler:         default function handler
-        :param workdir:         working dir relative to the archive root or absolute (e.g. './subdir')
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
@@ -350,20 +350,7 @@ class KubejobRuntime(KubeResource):
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
-        workdir = self.spec.workdir
-        if workdir:
-            if self.spec.build.source and self.spec.build.load_source_on_run:
-                # workdir will be set AFTER the clone which is done in the pre-run of local runtime
-                workdir = None
-            elif not os.path.isabs(workdir):
-                # workdir is a relative path from the source root to where the code is located
-                # add the clone_target_dir (where to source was copied), if not specified assume the workdir is complete
-                if self.spec.clone_target_dir:
-                    if workdir.startswith("./"):
-                        # TODO: use 'removeprefix' when we drop python 3.7 support
-                        # workdir.removeprefix("./")
-                        workdir = workdir[2:]
-                    workdir = os.path.join(self.spec.clone_target_dir, workdir)
+        workdir = self._resolve_workdir()
 
         pod_spec = func_to_pod(
             self.full_image_path(
@@ -396,6 +383,31 @@ class KubejobRuntime(KubeResource):
             runobj.status.status_text = txt
 
         return None
+
+    def _resolve_workdir(self):
+        """
+        The workdir is relative to the source root, if the source is not loaded on run then the workdir
+        is relative to the clone target dir (where the source was copied to).
+        Otherwise, if the source is loaded on run, the workdir is resolved on the run as well.
+        If the workdir is absolute, keep it as is.
+        """
+        workdir = self.spec.workdir
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            # workdir will be set AFTER the clone which is done in the pre-run of local runtime
+            return None
+
+        if workdir and os.path.isabs(workdir):
+            return workdir
+
+        if self.spec.clone_target_dir:
+            workdir = workdir or ""
+            if workdir.startswith("./"):
+                # TODO: use 'removeprefix' when we drop python 3.7 support
+                # workdir.removeprefix("./")
+                workdir = workdir[2:]
+            return os.path.join(self.spec.clone_target_dir, workdir)
+
+        return workdir
 
 
 def func_to_pod(image, runtime, extra_env, command, args, workdir):

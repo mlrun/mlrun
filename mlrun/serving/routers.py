@@ -24,6 +24,7 @@ import numpy
 import numpy as np
 
 import mlrun
+import mlrun.model_monitoring
 import mlrun.utils.model_monitoring
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
@@ -32,10 +33,8 @@ from ..api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
 )
 from ..config import config
-from ..utils.model_monitoring import EndpointType
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
@@ -1043,7 +1042,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{voting_ensemble.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+    endpoint_uid = mlrun.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -1061,33 +1060,33 @@ def _init_endpoint_record(
                 if hasattr(c, "endpoint_uid"):
                     children_uids.append(c.endpoint_uid)
 
-                model_endpoint = ModelEndpoint(
-                    metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-                    spec=ModelEndpointSpec(
-                        function_uri=graph_server.function_uri,
-                        model=versioned_model_name,
-                        model_class=voting_ensemble.__class__.__name__,
-                        stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                            project=project, kind="stream"
-                        ),
-                        active=True,
-                        monitoring_mode=ModelMonitoringMode.enabled
-                        if voting_ensemble.context.server.track_models
-                        else ModelMonitoringMode.disabled,
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=voting_ensemble.__class__.__name__,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
                     ),
-                    status=ModelEndpointStatus(
-                        children=list(voting_ensemble.routes.keys()),
-                        endpoint_type=EndpointType.ROUTER,
-                        children_uids=children_uids,
-                    ),
-                )
+                    active=True,
+                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
+                    if voting_ensemble.context.server.track_models
+                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
+                ),
+                status=ModelEndpointStatus(
+                    children=list(voting_ensemble.routes.keys()),
+                    endpoint_type=mlrun.model_monitoring.EndpointType.ROUTER,
+                    children_uids=children_uids,
+                ),
+            )
 
             db = mlrun.get_run_db()
 
             db.create_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
-                model_endpoint=model_endpoint,
+                model_endpoint=model_endpoint.dict(),
             )
 
             # Update model endpoint children type
@@ -1095,7 +1094,9 @@ def _init_endpoint_record(
                 current_endpoint = db.get_model_endpoint(
                     project=project, endpoint_id=model_endpoint
                 )
-                current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+                current_endpoint.status.endpoint_type = (
+                    mlrun.model_monitoring.EndpointType.LEAF_EP
+                )
                 db.create_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,

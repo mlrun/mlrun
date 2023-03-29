@@ -954,7 +954,10 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
-            for item in state.next or []:
+            next_steps = state.next or []
+            if state.on_error:
+                next_steps.append(state.on_error)
+            for item in next_steps:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)

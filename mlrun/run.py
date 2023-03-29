@@ -57,7 +57,6 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     get_runtime_class,
 )
@@ -702,7 +701,6 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     RemoteSparkRuntime,
 ]:

@@ -93,6 +93,7 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
+    "clone_target_dir",
 ]
 
 
@@ -133,6 +134,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        clone_target_dir=None,
     ):
 
         self.command = command or ""
@@ -151,6 +153,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        # the build.source is cloned/extracted to the specified clone_target_dir
+        # if a relative path is specified, it will be enriched with a temp dir path
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:
@@ -1062,9 +1067,6 @@ class BaseRuntime(ModelObj):
 
     def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
 
-        # import here to avoid circular imports
-        import mlrun.api.crud
-
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid
@@ -1084,10 +1086,13 @@ class BaseRuntime(ModelObj):
         # Otherwise, we continue on.
         if is_running_as_api():
 
+            # import here to avoid circular imports and to avoid importing api requirements
+            from mlrun.api.crud import Notifications
+
             # If in the api server, we can assume that watch=False, so we save notification
             # configs to the DB, for the run monitor to later pick up and push.
             session = mlrun.api.db.sqldb.session.create_session()
-            mlrun.api.crud.Notifications().store_run_notifications(
+            Notifications().store_run_notifications(
                 session,
                 runobj.spec.notifications,
                 runobj.metadata.uid,

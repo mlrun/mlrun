@@ -40,22 +40,26 @@ def test_offline_state(
 
 
 @pytest.mark.parametrize(
-    "state",
+    "state, expected_healthz_status_code",
     [
-        mlrun.api.schemas.APIStates.waiting_for_migrations,
-        mlrun.api.schemas.APIStates.migrations_in_progress,
-        mlrun.api.schemas.APIStates.migrations_failed,
-        mlrun.api.schemas.APIStates.waiting_for_chief,
+        (mlrun.api.schemas.APIStates.waiting_for_migrations, http.HTTPStatus.OK.value),
+        (mlrun.api.schemas.APIStates.migrations_in_progress, http.HTTPStatus.OK.value),
+        (mlrun.api.schemas.APIStates.migrations_failed, http.HTTPStatus.OK.value),
+        (
+            mlrun.api.schemas.APIStates.waiting_for_chief,
+            http.HTTPStatus.SERVICE_UNAVAILABLE.value,
+        ),
     ],
 )
 def test_api_states(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     state,
+    expected_healthz_status_code,
 ) -> None:
     mlrun.mlconf.httpdb.state = state
     response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == expected_healthz_status_code
 
     response = client.get("projects/some-project/background-tasks/some-task")
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value

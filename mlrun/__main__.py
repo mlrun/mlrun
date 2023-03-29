@@ -1183,11 +1183,9 @@ def project(
                 overwrite=overwrite_schedule,
             )
 
-        except Exception as err:
+        except Exception :
             trace = traceback.format_exc()
-            print(type(trace))
-            print(type(err))
-            send_workflow_error_notification(run, proj, err)
+            send_workflow_error_notification(run, proj, trace)
             exit(1)
 
     elif sync:
@@ -1496,10 +1494,10 @@ def add_notification_to_project(
         )
 
 
-def send_workflow_error_notification(run_id: str, project: mlrun.projects.MlrunProject, err: str):
+def send_workflow_error_notification(run_id: str, project: mlrun.projects.MlrunProject, trace: str):
     message = (
         f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
-        f"error: ```{err_to_str(err)}```"
+        f"error: ```{err_to_str(trace)}```"
     )
     project.notifiers.push(
         message=message, severity=mlrun.api.schemas.NotificationSeverity.ERROR

@@ -404,11 +404,12 @@ class _ModelLogPusher:
         return base_data
 
     def push(self, start, request, resp=None, op=None, error=None):
+        start_str = start.isoformat(sep=" ", timespec="microseconds")
         if error:
             data = self.base_data()
             data["request"] = request
             data["op"] = op
-            data["when"] = str(start)
+            data["when"] = start_str
             message = str(error)
             if self.verbose:
                 message = f"{message}\n{traceback.format_exc()}"
@@ -445,7 +446,7 @@ class _ModelLogPusher:
                 data["request"] = request
                 data["op"] = op
                 data["resp"] = resp
-                data["when"] = str(start)
+                data["when"] = start_str
                 data["microsec"] = microsec
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics

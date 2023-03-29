@@ -360,10 +360,7 @@ def test_marketplace_get_asset(
     with open(asset_path, "r") as f:
         expected_content = f.read()
     # Validating content and url:
-    assert expected_content == asset_object.decode("utf-8") and url.endswith(
-        relative_asset_path
-    )
-    assert url == str(asset_path)
+    assert expected_content == asset_object.decode("utf-8") and url == str(asset_path)
 
     # Verify not-found assets are handled properly
     with pytest.raises(mlrun.errors.MLRunNotFoundError):

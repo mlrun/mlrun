@@ -568,8 +568,10 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
+                workdir = self._resolve_workdir()
                 self.spec.command = "local://" + os.path.join(
-                    self.spec.workdir or "", self.spec.command
+                    workdir or "",
+                    self.spec.command,
                 )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
@@ -805,11 +807,11 @@ with ctx:
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: not supported for spark runtime, must be False
         """
         if pull_at_runtime:

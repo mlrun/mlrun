@@ -312,7 +312,7 @@ def _mock_random_endpoint(
 
     return mlrun.api.schemas.ModelEndpoint(
         metadata=mlrun.api.schemas.ModelEndpointMetadata(
-            project=TEST_PROJECT, labels=random_labels()
+            project=TEST_PROJECT, labels=random_labels(), uid=str(randint(1000, 5000))
         ),
         spec=mlrun.api.schemas.ModelEndpointSpec(
             function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",

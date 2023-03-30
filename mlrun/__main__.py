@@ -16,6 +16,7 @@
 import json
 import pathlib
 import socket
+import traceback
 import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
@@ -1181,8 +1182,8 @@ def project(
                 timeout=timeout,
                 overwrite=overwrite_schedule,
             )
-
         except Exception as err:
+            print(traceback.format_exc())
             send_workflow_error_notification(run, proj, err)
             exit(1)
 

@@ -131,17 +131,18 @@ class SystemTestPreparer:
         self.connect_to_remote()
 
         # for sanity clean up before starting the run
-        # self.clean_up_remote_workdir()
-        #
-        # self._prepare_env_remote()
-        #
-        # self._resolve_iguazio_version()
-        #
-        # self._download_provctl()
-        #
-        # self._override_mlrun_api_env()
-        #
-        # self._patch_mlrun()
+        self.clean_up_remote_workdir()
+
+        self._prepare_env_remote()
+
+        self._resolve_iguazio_version()
+
+        self._download_provctl()
+
+        self._override_mlrun_api_env()
+
+        self._patch_mlrun()
+
         if self._purge_db:
             self._purge_mlrun_db()
 
@@ -548,7 +549,7 @@ class SystemTestPreparer:
                 "--",
                 drop_db_cmd,
             ],
-            # verbose=False,
+            verbose=False,
         )
 
     def _get_pod_name_command(self, labels, namespace=None):

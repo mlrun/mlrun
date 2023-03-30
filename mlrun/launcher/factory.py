@@ -11,5 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .local import ClientLocalLauncher
-from .remote import ClientRemoteLauncher
+from mlrun.launcher import LocalLauncher, RemoteLauncher
+from mlrun.launcher.base import _BaseLauncher
+
+
+class LauncherFactory(object):
+    @staticmethod
+    def create_client_side_launcher(local) -> _BaseLauncher:
+        """create LocalLauncher or RemoteLauncher according to the if local run was specified"""
+        if local:
+            return LocalLauncher()
+        return RemoteLauncher()

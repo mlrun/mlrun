@@ -11,13 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.launcher.abstract import AbstractLauncher
+from mlrun.launcher.base import _BaseLauncher
 
 
-class ClientRemoteLauncher(AbstractLauncher):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+class LocalLauncher(_BaseLauncher):
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -31,11 +28,12 @@ class ClientRemoteLauncher(AbstractLauncher):
         pass
 
     @staticmethod
-    def _enrich_and_validate(runtime):
+    def _enrich_runtime(runtime):
         pass
 
-    def _submit_job(self, runtime):
+    @staticmethod
+    def _validate_runtime(runtime):
         pass
 
-    def _deploy(self, runtime):
+    def _run_local(self, runtime):
         pass

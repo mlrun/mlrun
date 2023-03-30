@@ -11,28 +11,40 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.launcher.abstract import AbstractLauncher
+import abc
 
 
-class ClientLocalLauncher(AbstractLauncher):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+class _BaseLauncher(abc.ABC):
+    """
+    Abstract class for managing and running functions in different contexts
+    This class is designed to encapsulate the logic of running a function in different contexts
+    i.e. running a function locally, remotely or in a server
+    Each context will have its own implementation of the abstract methods
+    """
 
     @staticmethod
+    @abc.abstractmethod
     def verify_base_image(runtime):
+        """resolves and sets the build base image if build is needed"""
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def save(runtime):
+        """store the function to the db"""
         pass
 
     @staticmethod
     def run(runtime):
+        """run the function from the server/client[local/remote]"""
         pass
 
     @staticmethod
-    def _enrich_and_validate(runtime):
+    @abc.abstractmethod
+    def _enrich_runtime(runtime):
         pass
 
-    def _run_local(self, runtime):
+    @staticmethod
+    @abc.abstractmethod
+    def _validate_runtime(runtime):
         pass

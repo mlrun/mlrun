@@ -11,4 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .abstract import AbstractLauncher
+from .base import _BaseLauncher
+from .factory import LauncherFactory
+from .local import LocalLauncher
+from .remote import RemoteLauncher

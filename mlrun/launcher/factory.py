@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.launcher import LocalLauncher, RemoteLauncher
 from mlrun.launcher.base import _BaseLauncher
+from mlrun.launcher.local import LocalLauncher
+from mlrun.launcher.remote import RemoteLauncher
 
 
 class LauncherFactory(object):

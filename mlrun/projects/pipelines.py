@@ -842,7 +842,7 @@ class _RemoteRunner(_PipelineRunner):
             workflow_spec=workflow_spec,
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
-            subpath = project.spec.subpath,
+            subpath=project.spec.subpath,
             namespace=namespace,
         )
 

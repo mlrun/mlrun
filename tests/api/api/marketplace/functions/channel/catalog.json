@@ -27,6 +27,9 @@
           "pandas_profiling"
         ]
       },
+      "assets": {
+        "html_asset": "static/my_html.html"
+      },
       "url": "",
       "version": "0.0.1"
     }

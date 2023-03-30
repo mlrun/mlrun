@@ -16,7 +16,6 @@
 import json
 import pathlib
 import socket
-import traceback
 import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
@@ -1493,7 +1492,9 @@ def add_notification_to_project(
         )
 
 
-def send_workflow_error_notification(run_id: str, project: mlrun.projects.MlrunProject, error: KeyError):
+def send_workflow_error_notification(
+    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+):
     message = (
         f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
         f"error: ```{err_to_str(error)}```"

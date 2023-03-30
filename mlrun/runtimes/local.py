@@ -19,6 +19,7 @@ import os
 import socket
 import sys
 import tempfile
+import threading
 import traceback
 from contextlib import redirect_stdout
 from copy import copy
@@ -362,17 +363,33 @@ def run_exec(cmd, args, env=None, cwd=None):
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("running:", cmd)
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
+    process = Popen(
+        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+    )
+
+    def read_stderr(stderr):
+        while True:
+            nextline = process.stderr.readline()
+            if not nextline:
+                break
+            stderr[0] += nextline
+
+    # ML-3710. We must read stderr in a separate thread to drain the stderr pipe so that the spawned process won't
+    # hang if it tries to write more to stderr than the buffer size (default of approx 8kb).
+    stderr = [""]
+    stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
+    stderr_consumer_thread.start()
+
     while True:
         nextline = process.stdout.readline()
-        if not nextline and process.poll() is not None:
+        if not nextline:
             break
-        print(nextline.decode("utf-8"), end="")
+        print(nextline, end="")
         sys.stdout.flush()
-        out += nextline.decode("utf-8")
-    code = process.poll()
+        out += nextline
 
-    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    stderr_consumer_thread.join()
+    err = stderr[0]
     return out, err
 
 

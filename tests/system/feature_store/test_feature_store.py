@@ -26,6 +26,7 @@ from time import sleep
 import fsspec
 import numpy as np
 import pandas as pd
+import pyarrow
 import pyarrow.parquet as pq
 import pytest
 import requests
@@ -853,13 +854,17 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert resp1 == resp2
 
+        major_pyarrow_version = int(pyarrow.__version__.split(".")[0])
         file_system = fsspec.filesystem("v3io")
         path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
-            path,
+            path if major_pyarrow_version < 11 else path[len("v3io://") :],
             filesystem=file_system,
         )
-        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        if major_pyarrow_version < 11:
+            partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        else:
+            partitions = dataset.partitioning.schema.names
 
         if key_bucketing_number is None:
             expected_partitions = []

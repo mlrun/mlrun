@@ -2906,6 +2906,35 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="GET", path=path, params=params)
         return schemas.MarketplaceItem(**response.json())
 
+    def get_marketplace_asset(
+        self,
+        source_name: str,
+        item_name: str,
+        asset_name: str,
+        version: str = None,
+        tag: str = "latest",
+    ):
+        """
+        Get marketplace asset from item.
+
+        :param source_name: Name of source.
+        :param item_name:   Name of the item which holds the asset.
+        :param asset_name:  Name of the asset to retrieve.
+        :param version: Get a specific version of the item. Default is ``None``.
+        :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
+
+        :return: http response with the asset in the content attribute
+        """
+        path = (
+            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",
+        )
+        params = {
+            "version": version,
+            "tag": tag,
+        }
+        response = self.api_call(method="GET", path=path, params=params)
+        return response
+
     def verify_authorization(
         self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import mlrun.errors
 import mlrun.utils.singleton
@@ -122,6 +122,27 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         return source_secrets
 
     @staticmethod
+    def _get_asset_full_path(
+        source: MarketplaceSource, item: MarketplaceItem, asset: str
+    ):
+        """
+        Combining the item path with the asset path.
+
+        :param source:  Marketplace source object.
+        :param item:    The relevant item to get the asset from.
+        :param asset:   The asset name
+        :return:    Full path to the asset, relative to the item directory.
+        """
+        asset_path = item.spec.assets.get(asset, None)
+        if not asset_path:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Asset={asset} not found. "
+                f"item={item.metadata.name}, version={item.metadata.version}, tag={item.metadata.tag}"
+            )
+        item_path = item.metadata.get_relative_path()
+        return source.get_full_uri(item_path + asset_path)
+
+    @staticmethod
     def _transform_catalog_dict_to_schema(
         source: MarketplaceSource, catalog_dict: Dict[str, Any]
     ) -> MarketplaceCatalog:
@@ -139,11 +160,14 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
+                assets = object_details_dict.pop("assets", {})
                 metadata = MarketplaceItemMetadata(
                     tag=version_tag, **object_details_dict
                 )
                 item_uri = source.get_full_uri(metadata.get_relative_path())
-                spec = MarketplaceItemSpec(item_uri=item_uri, **spec_dict)
+                spec = MarketplaceItemSpec(
+                    item_uri=item_uri, assets=assets, **spec_dict
+                )
                 item = MarketplaceItem(
                     metadata=metadata,
                     spec=spec,
@@ -262,3 +286,25 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog_data = mlrun.run.get_object(url=url, secrets=credentials)
         return catalog_data
+
+    def get_asset(
+        self,
+        source: MarketplaceSource,
+        item: MarketplaceItem,
+        asset_name: str,
+    ) -> Tuple[bytes, str]:
+        """
+        Retrieve asset object from marketplace source.
+
+        :param source:      marketplace source
+        :param item:        marketplace item which contains the assets
+        :param asset_name:  asset name, like source, example, etc.
+
+        :return: tuple of asset as bytes and url of asset
+        """
+        credentials = self._get_source_credentials(source.metadata.name)
+        asset_path = self._get_asset_full_path(source, item, asset_name)
+        return (
+            mlrun.run.get_object(url=asset_path, secrets=credentials),
+            asset_path,
+        )

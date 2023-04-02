@@ -135,7 +135,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         artifact = target_project.import_artifact(
             f"s3://ֿ{results_dir}/a.zip",
-            f"mod-zip",
+            "mod-zip",
             artifact_path=results_dir,
         )
 

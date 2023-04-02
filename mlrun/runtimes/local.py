@@ -370,7 +370,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     def read_stderr(stderr):
         while True:
             nextline = process.stderr.readline()
-            if not nextline and process.poll() is not None:
+            if not nextline:
                 break
             stderr.write(nextline)
 
@@ -383,7 +383,7 @@ def run_exec(cmd, args, env=None, cwd=None):
         with io.StringIO() as stdout:
             while True:
                 nextline = process.stdout.readline()
-                if not nextline and process.poll() is not None:
+                if not nextline:
                     break
                 print(nextline, end="")
                 sys.stdout.flush()

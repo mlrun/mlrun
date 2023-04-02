@@ -129,11 +129,10 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifact_url = f"{results_dir}/a.zip"
         model.export(artifact_url)
 
+        # mock downloading the artifact from s3 by copying it locally to a temp path
         mlrun.datastore.base.DataStore.download = unittest.mock.MagicMock(
             side_effect=shutil.copyfile
         )
-
-        # import and log the artifact to the new project
         artifact = target_project.import_artifact(
             f"s3://ֿ{results_dir}/a.zip",
             f"mod-zip",
@@ -142,5 +141,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         temp_local_path = mlrun.datastore.base.DataStore.download.call_args[0][1]
         assert artifact.metadata.project == "log-mod2"
+        # verify that the original artifact was not deleted
         assert os.path.exists(artifact_url)
+        # verify that the temp path was deleted after the import
         assert not os.path.exists(temp_local_path)

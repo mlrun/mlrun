@@ -27,6 +27,4 @@ def test_run_exec_verbose_stderr():
     script_path = str(pathlib.Path(__file__).parent / "assets" / "verbose_stderr.py")
     out, err = run_exec(["python"], [script_path])
     assert out == "some output\n"
-    print(f"out={out}")
-    print(f"err={err}")
     assert len(err) == 100000

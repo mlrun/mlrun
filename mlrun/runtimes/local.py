@@ -360,7 +360,6 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("running:", cmd)
@@ -377,20 +376,22 @@ def run_exec(cmd, args, env=None, cwd=None):
 
     # ML-3710. We must read stderr in a separate thread to drain the stderr pipe so that the spawned process won't
     # hang if it tries to write more to stderr than the buffer size (default of approx 8kb).
-    with io.StringIO() as stderr:
-        stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
-        stderr_consumer_thread.start()
+    with io.StringIO() as stdout:
+        with io.StringIO() as stderr:
+            stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
+            stderr_consumer_thread.start()
 
-        while True:
-            nextline = process.stdout.readline()
-            if not nextline and process.poll() is not None:
-                break
-            print(nextline, end="")
-            sys.stdout.flush()
-            out += nextline
+            while True:
+                nextline = process.stdout.readline()
+                if not nextline and process.poll() is not None:
+                    break
+                print(nextline, end="")
+                sys.stdout.flush()
+                stdout.write(nextline)
 
-        stderr_consumer_thread.join()
-        err = stderr.getvalue()
+            stderr_consumer_thread.join()
+            out = stdout.getvalue()
+            err = stderr.getvalue()
     return out, err
 
 

@@ -157,3 +157,19 @@ jobs:
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
+          
+  update-tutorials:
+    name: Create tutorials tar
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: create tar for tutorial dir
+      run: tar -cvf mlrun-tutorials.tar docs/tutorial
+
+    - name: Release tutorials.tar asset
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: mlrun-tutorials.tar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

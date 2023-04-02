@@ -650,7 +650,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector-merger@e67bf7add40a6bafa25e19a1b80f3d4cc3789eff",
+            "function": "None/my-vector-merger@a15d3e85a5326af937459528b28426ae7759e640",
             "secret_sources": [],
             "data_stores": [],
             "handler": "merge_handler",

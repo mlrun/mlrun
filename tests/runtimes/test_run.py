@@ -50,6 +50,7 @@ def _get_runtime():
             "priority_class_name": "",
             "tolerations": None,
             "security_context": None,
+            "clone_target_dir": "",
         },
         "verbose": False,
     }

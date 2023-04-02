@@ -12,20 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import http
+
 from fastapi import APIRouter
 
-import mlrun.api.crud
 import mlrun.api.schemas
+from mlrun.config import config as mlconfig
 
 router = APIRouter()
 
 
 @router.get(
     "/healthz",
-    response_model=mlrun.api.schemas.ClientSpec,
+    status_code=http.HTTPStatus.OK.value,
 )
 def health():
 
-    # TODO: From 0.7.0 client uses the /client-spec endpoint,
-    #  when this is the oldest relevant client, remove this logic from the healthz endpoint
-    return mlrun.api.crud.ClientSpec().get_client_spec()
+    # offline is the initial state
+    # waiting for chief is set for workers waiting for chief to be ready and then clusterize against it
+    if mlconfig.httpdb.state in [
+        mlrun.api.schemas.APIStates.offline,
+        mlrun.api.schemas.APIStates.waiting_for_chief,
+    ]:
+        raise mlrun.errors.MLRunServiceUnavailableError()
+
+    return {"status": "ok"}

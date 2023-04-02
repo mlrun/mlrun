@@ -28,8 +28,8 @@ numpy>=1.16.5, <1.23.0
 pandas~=1.2, <1.5.0
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
-# < 11 since starting from 11 ParquetDataset is deprecated and ParquetDatasetV2 is used instead
-pyarrow>=10,<11
+# <12 to prevent bugs due to major upgrading
+pyarrow>=10.0, <12
 pyyaml~=5.1
 requests~=2.22
 # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)

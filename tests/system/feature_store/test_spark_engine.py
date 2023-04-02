@@ -357,7 +357,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(False),
+            run_config=fstore.RunConfig(local=False),
             overwrite=True,
         )
         # read the dataframe from the redis back
@@ -405,7 +405,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(False),
+            run_config=fstore.RunConfig(local=False),
             overwrite=True,
         )
         # read the dataframe from the redis back

@@ -105,11 +105,12 @@ class Feature(ModelObj):
         :param labels:      a set of key/value labels (tags)
         """
         self.name = name or ""
-        self.value_type = (
-            python_type_to_value_type(value_type)
-            if value_type is not None
-            else ValueType.STRING
-        )
+        if isinstance(value_type, ValueType):
+            self.value_type = value_type
+        elif value_type is not None:
+            self.value_type = python_type_to_value_type(value_type)
+        else:
+            self.value_type = ValueType.STRING
         self.dims = dims
         self.description = description
         self.default = default

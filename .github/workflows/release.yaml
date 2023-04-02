@@ -157,9 +157,11 @@ jobs:
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
-          
+  
+  
   update-tutorials:
     name: Create tutorials tar
+    needs: create-releases
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3

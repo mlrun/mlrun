@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pathlib
 
 from mlrun.runtimes.local import run_exec
 
@@ -23,6 +24,9 @@ def test_run_exec_basic():
 
 # ML-3710
 def test_run_exec_verbose_stderr():
-    out, err = run_exec(["python"], ["assets/verbose_stderr.py"])
+    script_path = str(pathlib.Path(__file__).parent / "assets" / "verbose_stderr.py")
+    out, err = run_exec(["python"], [script_path])
     assert out == "some output\n"
+    print(f"out={out}")
+    print(f"err={err}")
     assert len(err) == 100000

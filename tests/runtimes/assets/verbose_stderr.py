@@ -15,10 +15,8 @@
 import sys
 
 print("some output")
-sys.stdout.flush()
 
 for i in range(10000):
     print("123456789", file=sys.stderr)
-sys.stderr.flush()
 
 sys.exit(1)

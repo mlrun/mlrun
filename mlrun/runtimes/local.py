@@ -184,12 +184,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def with_source_archive(self, source, workdir=None, handler=None, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
-        :param target_dir: local target dir for repo clone (by default its <current-dir>/code)
+        :param source:      valid path to git, zip, or tar file, e.g.
+                            git://github.com/mlrun/something.git
+                            http://some/url/file.zip
+        :param handler:     default function handler
+        :param workdir:     working dir relative to the archive root (e.g. './subdir') or absolute
+        :param target_dir:  local target dir for repo clone (by default its <current-dir>/code)
         """
         self.spec.build.source = source
         self.spec.build.load_source_on_run = True

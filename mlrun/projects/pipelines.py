@@ -767,7 +767,7 @@ class _RemoteRunner(_PipelineRunner):
         :param workflow_spec:       workflow to run
         :param artifact_path:       path to store artifacts
         :param workflow_handler:    workflow function handler (for running workflow function directly)
-        :param subpath:    project subpath (within the archive)
+        :param subpath:             project subpath (within the archive)
         :param namespace:           kubernetes namespace if other than default
         :return:
         """

@@ -23,7 +23,7 @@ from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 
-from ..constants import ArtifactType
+from ..common import ArtifactType
 from .default_packager import DefaultPackager
 
 

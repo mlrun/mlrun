@@ -19,12 +19,13 @@ from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 
 
-class _PackagerMeta(type):
+class _PackagerMeta(type(ABC)):
     """
     Metaclass for `Packager` to override type class methods.
     """
 
     # TODO: When 3.7 is no longer supported, add "Packager" as reference type hint to cls (cls: "Packager")
+    @classmethod
     def __repr__(cls) -> str:
         """
         Get the string representation of a packager in the following format:

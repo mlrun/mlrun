@@ -23,7 +23,7 @@ from collections import OrderedDict
 from typing import Callable, Dict, List, Type, Union
 
 # `mlrun.package` __init__ file imports:
-from .constants import ArtifactType, LogHintKey
+from .common import ArtifactType, LogHintKey
 from .context_handler import ContextHandler
 from .packager import Packager
 from .packagers import DefaultPackager

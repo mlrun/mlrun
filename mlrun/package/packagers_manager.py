@@ -30,7 +30,7 @@ from mlrun.package.packager import Packager
 from mlrun.package.packagers.default_packager import DefaultPackager
 from mlrun.utils import StorePrefix, logger
 
-from .constants import LogHintKey, TypingUtils
+from .common import LogHintKey, TypingUtils
 
 
 class PackagersManager:

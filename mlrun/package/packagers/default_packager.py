@@ -26,7 +26,7 @@ from mlrun.datastore import DataItem
 from mlrun.errors import MLRunPackageUnpackingError
 from mlrun.utils import logger
 
-from ..constants import ArtifactType
+from ..common import ArtifactType
 from ..packager import Packager
 
 

@@ -26,7 +26,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.run import get_or_create_ctx
 from mlrun.utils import logger
 
-from .constants import ArtifactType, LogHintKey
+from .common import ArtifactType, LogHintKey
 from .packagers_manager import PackagersManager
 
 

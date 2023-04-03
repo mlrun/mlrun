@@ -43,23 +43,30 @@ class LogHintKey:
 
 class TypingUtils:
     """
-    Static class for utilities functions to process typing module objects - type hints.
+    Static class for utilities functions to process type hints.
     """
 
     @staticmethod
     def is_typing_type(type_hint: typing.Type) -> bool:
         """
-        Check whether a given type is from the `typing` module.
+        Check whether a given type is a type hint from one of the modules `typing` and `types`. The function will return
+        True for generic type aliases also, meaning Python 3.9's new hinting feature that includes hinting like
+        `list[int]` instead of `typing.List[int]`.
 
         :param type_hint: The type to check.
 
-        :return: True if the type is from `typing` and False otherwise.
+        :return: True if the type hint from `typing` / `types` and False otherwise.
         """
-        return hasattr(type_hint, "___module__") and type_hint.__module__ == "typing"
+        # A type hint should be one of the based typing classes, meaning it will have "typing" as its module. Some
+        # typing classes are considered a type (like `TypeVar`) so we check their type as well. The only case "types"
+        # will be a module is for generic aliases like `list[int]`.
+        return (type_hint.__module__ == "typing") or (
+            type(type_hint).__module__ in ["typing", "types"]
+        )
 
     @staticmethod
     def reduce_type_hint(
-        type_hint: typing.Union[typing.Type, typing.List[typing.Type]],
+        type_hint: typing.Union[typing.Type, typing.Set[typing.Type]],
     ) -> typing.Set[typing.Type]:
         """
         Reduce a type hint (or a list of type hints) using the `_reduce_type_hint` function.
@@ -69,7 +76,7 @@ class TypingUtils:
         :return: The reduced type hints set or an empty set if the type hint could not be reduced.
         """
         # Wrap in a list if provided a single type hint:
-        type_hints = [type_hint] if not isinstance(type_hint, list) else type_hint
+        type_hints = {type_hint} if not isinstance(type_hint, set) else type_hint
 
         # Iterate over the type hints and reduce each one:
         return set(
@@ -126,8 +133,8 @@ class TypingUtils:
         if origin is None:
             return []
 
-        # If the origin is a type of one of builtin, contextlib or collections (for example: List's origin is list)
-        # then we can be sure there is nothing to reduce as it's a regular type:
+        # If the origin is a type of one of `builtins`, `contextlib` or `collections` (for example: List's origin is
+        # list) then we can be sure there is nothing to reduce as it's a regular type:
         if not TypingUtils.is_typing_type(type_hint=origin):
             return [origin]
 
@@ -146,7 +153,8 @@ class TypingUtils:
             # A union is reduced to its arguments:
             return list(args)
         if origin is typing.Annotated:
-            # Annotated is used to describe (add metadata to) a type, so we take the first argument:
+            # Annotated is used to describe (add metadata to) a type, so we take the first argument (the type the
+            # metadata is being added to):
             return [args[0]]
         if origin is typing.Final or origin is typing.ClassVar:
             # Both Final and ClassVar takes only one argument - the type:

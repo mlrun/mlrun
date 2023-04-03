@@ -42,7 +42,7 @@ class _PackagerMeta(type):
         supported_artifact_types = cls.get_supported_artifact_types()
 
         # Return the string representation in the format noted above:
-        return f"{packager_name} (type={handled_type}, artifact_types={supported_artifact_types}"
+        return f"{packager_name} (packable_type={handled_type}, artifact_types={supported_artifact_types}"
 
 
 class Packager(ABC, metaclass=_PackagerMeta):
@@ -54,17 +54,22 @@ class Packager(ABC, metaclass=_PackagerMeta):
     2. Unpacking - get a ``mlrun.DataItem`` (an input to a MLRun function) and parse it to the desired hinted type. The
        packager is using the instructions it notetd itself when orignaly packing the object.
 
-    The Packager has one class variable and 4 class methods that must be implemented:
+    The Packager has one class variable and five class methods that must be implemented:
+    * ``PACKABLE_OBJECT_TYPE`` - A class variable to specify the object type this packager handles. Used for the repr
+      method.
+    * ``get_default_artifact_type`` - A class method to get the default artifact type when it is not provided by the
+      user.
+    * ``get_supported_artifact_types`` - A class method to get the supported artifact types this packager can pack an
+      object as. Used for the repr method.
+    * ``pack`` - A class method to pack a returned object using the provided log hint configurations while noting itself
+      instructions for how to unpack it once needed (only relevant of packed artifacts as results do not need
+      unpacking).
+    * ``unpack`` - A class method to unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the
+      instructions noted while originally packing it.
+    * ``is_packable`` - A class method to know whether to use this packager to pack / unpack an object by it's type and
+      the required artifact type.
 
-    * Class variable:
-       * ``TYPE`` - The object type this packager handles. Defaulted to any type.
-    * Class methods:
-       * ``get_default_artifact_type`` - Get the default artifact type when it is not provided by the user.
-       * ``pack`` - Pack a returned object using the provieded log hint configurations while noting itself instructions
-         for how to unpack it once needed (only relevant of packed artifacts as results do not need unpacking).
-       * ``unpack`` - Unpack a MLRun ``DataItem``, parsing it to its desired hinted type using the instructions noted
-         while originally packing it.
-       * ``is_packable`` - Whether to use this packager to pack / unpack an object by the required artifact type.
+    Each packager should handle a single type of object.
 
     Linking Artifacts (extra data)
     ------------------------------
@@ -145,7 +150,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
     def unpack(
         cls,
         data_item: DataItem,
-        artifact_type: str,
+        artifact_type: Union[str, None],
         instructions: dict,
     ) -> Any:
         """

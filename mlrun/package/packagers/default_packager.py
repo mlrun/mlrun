@@ -249,12 +249,17 @@ class DefaultPackager(Packager):
     A default packager that handles all types and pack them as pickle files.
 
     The default packager implements all the required methods and have a default logic that should be satisfying most
-    use cases. In order to work with this class, you shouldn't override the ``pack``, ``unpack`` and ``is_packable``
-    methods, but follow the guidelines below:
+    use cases. In order to work with this class, you shouldn't override the abstract class methods, but follow the
+    guidelines below:
 
-    * ``pack`` is getting the object and sending it to the relevant packing method by the artifact type given (if
-      artifact type was not provided, the default one will be used). For example: if the artifact type is "object" then
-      the class method ``pack_object`` must be implemented. The signature of each pack class method must be::
+    * The class variable ``PACKABLE_OBJECT_TYPE``: The type of object this packager can pack and unpack (used in the
+      ``is_packable`` method).
+    * The class variable ``DEFAULT_ARTIFACT_TYPE``: The default artifact type to pack as or unpack from. Unique to the
+      ``DefaultPackager`` (not inherited from ``Packager``).
+    * The abstract class method ``pack``: The method is implemented to get the object and send it to the relevant
+      packing method by the artifact type given using the following naming: "pack_<artifact_type>". (if artifact type
+      was not provided, the default one will be used). For example: if the artifact type is "object" then the class
+      method ``pack_object`` must be implemented. The signature of each pack class method must be::
 
           @classmethod
           def pack_x(cls, obj: Any, ...) -> Union[Tuple[Artifact, dict], dict, None]:
@@ -264,10 +269,11 @@ class DefaultPackager(Packager):
       the returning values are the packed artifact and the instructions for unpacking it, or in case of result, the
       dictionary of the result with its key and value. The log hint configurations are sent by the user and shouldn't be
       mandatory, meaning they should have a default value.
-    * ``unpack`` is getting a ``DataItem`` and sending it to the relevant unpacking method by the artifact type (if
-      artifact type was not provided, the default one will be used). For example: if the artifact type stored within
-      the ``DataItem`` is "object" then the class method ``unpack_object`` must be implemented. The signature of each
-      unpack class method must be::
+    * The abstract class method ``unpack``: The method is implemented to get a ``DataItem`` and send it to the relevant
+      unpacking method by the artifact type using the following naming: "unpack_<artifact_type>" (if artifact type was
+      not provided, the default one will be used). For example: if the artifact type stored within the ``DataItem`` is
+      "object" then the class method ``unpack_object`` must be implemented. The signature of each unpack class method
+      must be::
 
           @classmethod
           def unpack_x(cls, data_item: mlrun.DataItem, ...) -> Any:
@@ -277,26 +283,34 @@ class DefaultPackager(Packager):
       were originally returned from ``pack_x`` (Each instruction must be optional (have a default value) to support
       objects from this type that were not packaged but customly logged) and the returning value is the unpacked
       object.
-    * ``is_packable`` is getting the object and the artifact type desired to pack and log it as. So, it is automatically
-      looking for all pack class methods implemented to collect the supported artifact types. So, if ``PackagerX`` has
-      ``pack_y`` and ``pack_z`` that means the artifact types supported are 'y' and 'z'.
+    * The abstract class method ``is_packable``: The method is implemented to validate the object type and artifact type
+      automatically by the following rules:
 
-    The ``get_default_artifact_type`` method is implemented to return the clss variable ``DEFAULT_ARTIFACT_TYPE``. You
-    may still override the method if the default artifact type you need may change according to the object that's about
-    to be packaged.
+      * Object type validation: Checking if the object type given is equal or a subclass of the class variable
+        ``PACKABLE_OBJECT_TYPE``.
+      * Artifact type validation: Checking if the artifact type given is in the list returned from
+        ``get_supported_artifact_types``.
 
-    Remember (from the ``Packager`` docstring):
+    * The abstract class method ``get_supported_artifact_types``: The method is implemented to look for all
+      pack + unpack class methods implemented to collect the supported artifact types. If ``PackagerX`` has ``pack_y``,
+      ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are 'y' and 'z'.
+    * The abstract class method ``get_default_artifact_type``: The method is implemented to return the new class
+      variable ``DEFAULT_ARTIFACT_TYPE``. You may still override the method if the default artifact type you need may
+      change according to the object that's about to be packaged.
 
-    * In order to link between packages (using the extra data or metrics spec attributes of an artifact), you should use
-      the key as if it exists and as value ellipses (...). The manager will link all packages once it is done packing.
+    Important to remember (from the ``Packager`` docstring):
+
+    * Linking artifacts ("extra data"): In order to link between packages (using the extra data or metrics spec
+      attributes of an artifact), you should use the key as if it exists and as value ellipses (...). The manager will
+      link all packages once it is done packing.
 
       For example, given extra data keys in the log hint as `extra_data`, setting them to an artifact should be::
 
           artifact = Artifact(key="my_artifact")
           artifact.spec.extra_data = {key: ... for key in extra_data}
-    * Some packagers may produce files and temporary directories that should be deleted once done with logging the
-      artifact. The packager can mark paths of files and directories to delete after logging using the class method
-      ``future_clear``.
+    * Clearing outputs: Some packagers may produce files and temporary directories that should be deleted once done with
+      logging the artifact. The packager can mark paths of files and directories to delete after logging using the class
+      method ``future_clear``.
 
       For example, in the following packager's ``pack`` method we can write a text file, create an Artifact and then
       mark the text file to be deleted once the artifact is logged::
@@ -376,7 +390,7 @@ class DefaultPackager(Packager):
     def unpack(
         cls,
         data_item: DataItem,
-        artifact_type: str,
+        artifact_type: Union[str, None],
         instructions: dict,
     ) -> Any:
         """
@@ -390,6 +404,10 @@ class DefaultPackager(Packager):
 
         :raise MLRunPackageUnpackingError: In case the packager could not unpack the data item.
         """
+        # Get default artifact type in case it was not provided:
+        if artifact_type is None:
+            artifact_type = cls.get_default_artifact_type(obj=data_item)
+
         # Get the unpacking method according to the artifact type:
         unpack_method = getattr(cls, f"unpack_{artifact_type}")
 
@@ -418,7 +436,7 @@ class DefaultPackager(Packager):
         :return: True if packable and False otherwise.
         """
         # Check type (ellipses means any type):
-        if cls.PACKABLE_OBJECT_TYPE is not Ellipsis and not issubclass(
+        if cls.PACKABLE_OBJECT_TYPE is not ... and not issubclass(
             object_type, cls.PACKABLE_OBJECT_TYPE
         ):
             return False

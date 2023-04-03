@@ -213,7 +213,15 @@ class MLRunPackageError(MLRunBaseError):
     pass
 
 
-class MLRunPackagePackingError(MLRunBaseError):
+class MLRunPackagePackagerCollectionError(MLRunPackageError):
+    """
+    An error that may be raised during the collection of packagers the manager is assigned to do.
+    """
+
+    pass
+
+
+class MLRunPackagePackingError(MLRunPackageError):
     """
     An error that may be raised during a `mlrun.Packager.pack` method.
     """
@@ -221,7 +229,7 @@ class MLRunPackagePackingError(MLRunBaseError):
     pass
 
 
-class MLRunPackageUnpackingError(MLRunBaseError):
+class MLRunPackageUnpackingError(MLRunPackageError):
     """
     An error that may be raised during a `mlrun.Packager.unpack` method.
     """

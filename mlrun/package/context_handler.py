@@ -15,14 +15,16 @@
 import builtins
 import importlib
 import inspect
+import os
 import re
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
 from mlrun.datastore import DataItem
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError
 from mlrun.execution import MLClientCtx
 from mlrun.run import get_or_create_ctx
+from mlrun.utils import logger
 
 from .constants import ArtifactType, LogHintKey
 from .packagers_manager import PackagersManager
@@ -73,14 +75,44 @@ class ContextHandler:
                     self._context = argument_value
                     break
 
-        # Use get or create a context if there was no context provided:
+        # Search if the function was triggered from an MLRun RunTime object by looking at the call stack:
+        # Index 0: the current frame.
+        # Index 1: the decorator's frame.
+        # Index 2-...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
         if self._context is None:
-            self._context = get_or_create_ctx("context")
+            for callstack_frame in inspect.getouterframes(inspect.currentframe()):
+                if (
+                    os.path.join("mlrun", "runtimes", "local")
+                    in callstack_frame.filename
+                ):
+                    self._context = get_or_create_ctx("context")
+                    break
 
         # Give the packagers manager custom packagers to collect (if available):
-        # TODO: Complete this in the project spec first
-        # self._packagers_manager.collect_packagers(packagers=self._context.project.get_custom_packagers())
-        pass
+        if self._context is not None:
+            # Get the custom packagers property from the project's spec:
+            custom_packagers = self._context.get_project_param(
+                key="custom_packagers", default=[]
+            )
+            if custom_packagers:
+                # Packager added to collect may not be mandatory, so if it fails we will write a debugging message and
+                # continue, but if they are mandatory, we will raise an error:
+                for custom_packager, is_mandatory in custom_packagers:
+                    try:
+                        self._packagers_manager.collect_packagers(
+                            packagers=custom_packagers
+                        )
+                    except (
+                        MLRunInvalidArgumentError,
+                        MLRunPackagePackagerCollectionError,
+                    ) as error:
+                        if is_mandatory:
+                            raise error
+                        else:
+                            self._context.logger.debug(
+                                f"The packager '{custom_packager}' could not be imported due to the following error:\n"
+                                f"'{error}'"
+                            )
 
     def is_context_available(self) -> bool:
         """
@@ -221,17 +253,15 @@ class ContextHandler:
         Parse a given type hint from string to its actual hinted type class object. The string must be one of the
         following:
 
-        * Python builtin type - one of `tuple`, `list`, `set`, `dict` and `bytearray`.
-        * Full module import path. An alias (if import pandas as pd is used, the type hint cannot be `pd.DataFrame`) is
-          not allowed.
+        * Python builtin type - for example: `tuple`, `list`, `set`, `dict` and `bytearray`.
+        * Full module import path. An alias (if `import pandas as pd is used`, the type hint cannot be `pd.DataFrame`)
+          is not allowed.
 
-        The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
+        The type class on its own (like `DataFrame`) cannot be used as the scope of this function is not the same as the
         handler itself, hence modules and objects that were imported in the handler's scope are not available. This is
         the same reason import aliases cannot be used as well.
 
         If the provided type hint is not a string, it will simply be returned as is.
-
-        **Notice**: This method should only run on client side as it dependent on user requirements.
 
         :param type_hint: The type hint to parse.
 
@@ -257,24 +287,21 @@ class ContextHandler:
         # Look for a builtin type (rest of the builtin types like `int`, `str`, `float` should be treated as results,
         # hence not given as an input to an MLRun function, but as a parameter):
         builtin_types = {
-            builtin_type.__name__: builtin_type
-            for builtin_type in [
-                builtin
-                for builtin in builtins.__dir__()
-                if isinstance(getattr(builtins, builtin), type)
-            ]
+            builtin_name: builtin_type
+            for builtin_name, builtin_type in builtins.__dict__.items()
+            if isinstance(builtin_type, type)
         }
         if type_hint in builtin_types:
             return builtin_types[type_hint]
 
-        # If it's not a builtin, its should have a full module path:
+        # If it's not a builtin, its should have a full module path, meaning at least one '.' to separate the module and
+        # the class. If it doesn't, we will try to get the class from the main module:
         if "." not in type_hint:
-            raise MLRunInvalidArgumentError(
-                f"MLRun tried to get the type hint '{type_hint}' but it can't as it is not a valid builtin Python type "
-                f"(one of {', '.join(list(builtin_types.keys()))}). Pay attention using only the type as string is not "
-                f"allowed as the handler's scope is different than MLRun's. To properly give a type hint, please "
-                f"specify the full module path. For example: do not use `DataFrame`, use `pandas.DataFrame`."
+            logger.warn(
+                f"The type hint string given '{type_hint}' is not a `builtins` python type. MLRun will try to look for "
+                f"it in the `__main__` module instead."
             )
+            type_hint = f"__main__.{type_hint}"
 
         # Import the module to receive the hinted type:
         try:
@@ -295,12 +322,23 @@ class ContextHandler:
             type_hint = getattr(module, type_hint)
         except ModuleNotFoundError as module_not_found_error:
             # May be raised from `importlib.import_module` in case the module does not exist.
-            raise MLRunInvalidArgumentError(
-                f"MLRun tried to get the type hint '{type_hint}' but the module '{module_path}' cannot be imported. "
-                f"Keep in mind that using alias in the module path (meaning: import module as alias) is not allowed. "
-                f"If the module path is correct, please make sure the module package is installed in the python "
-                f"interpreter."
-            ) from module_not_found_error
+            if "__main__" in type_hint:
+                message = (
+                    f"MLRun tried to get the type hint '{type_hint.split('.')[1]}' but it can't as it is not a valid "
+                    f"builtin Python type (one of `list`, `dict`, `str`, `int`, etc.) nor a locally declared type "
+                    f"(from the `__main__` module). Pay attention using only the type as string is not allowed as the "
+                    f"handler's scope is different than MLRun's. To properly give a type hint as string, please "
+                    f"specify the full module path without aliases. For example: do not use `DataFrame` or "
+                    f"`pd.DataFrame`, use `pandas.DataFrame`."
+                )
+            else:
+                message = (
+                    f"MLRun tried to get the type hint '{type_hint}' but the module '{module_path}' cannot be "
+                    f"imported. Keep in mind that using alias in the module path (meaning: import module as alias) is "
+                    f"not allowed. If the module path is correct, please make sure the module package is installed in "
+                    f"the python interpreter."
+                )
+            raise MLRunInvalidArgumentError(message) from module_not_found_error
         except AttributeError as attribute_error:
             # May be raised from `getattr(module, type_hint)` in case the class type cannot be imported directly from
             # the imported module.

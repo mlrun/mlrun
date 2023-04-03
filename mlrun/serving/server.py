@@ -302,6 +302,8 @@ class GraphServer(ModelObj):
 def v2_serving_init(context, namespace=None):
     """hook for nuclio init_context()"""
 
+    traceback.print_stack()
+
     data = os.environ.get("SERVING_SPEC_ENV", "")
     if not data:
         raise MLRunInvalidArgumentError("failed to find spec env var")

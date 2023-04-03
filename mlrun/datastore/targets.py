@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
+from storey.utils import hash_list, stringify_key
 
 import mlrun
 import mlrun.utils.helpers
@@ -1050,39 +1051,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
             **self.attributes,
         )
 
+    def prepare_spark_df(self, df, key_columns):
+        raise NotImplementedError()
+
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "io.iguaz.v3io.spark.sql.kv",
-        }
-        if isinstance(key_column, list) and len(key_column) >= 1:
-            if len(key_column) > 2:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Spark supports maximun of 2 keys and {key_column} are provided"
-                )
-            spark_options["key"] = key_column[0]
-            if len(key_column) > 1:
-                spark_options["sorting-key"] = key_column[1]
-        else:
-            spark_options["key"] = key_column
-        if not overwrite:
-            spark_options["columnUpdate"] = True
-        return spark_options
+        raise NotImplementedError()
 
     def get_dask_options(self):
         return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
-
-    def prepare_spark_df(self, df, key_columns):
-        import pyspark.sql.functions as funcs
-
-        for col_name, col_type in df.dtypes:
-            if col_type.startswith("decimal("):
-                # V3IO does not support this level of precision
-                df = df.withColumn(col_name, funcs.col(col_name).cast("double"))
-        return df
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1126,6 +1105,41 @@ class NoSqlTarget(NoSqlBaseTarget):
             V3ioDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        spark_options = {
+            "path": store_path_to_spark(self.get_target_path()),
+            "format": "io.iguaz.v3io.spark.sql.kv",
+        }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 2:
+                spark_options["sorting-key"] = "_spark_object_sorting_key"
+            if len(key_column) == 2:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        if not overwrite:
+            spark_options["columnUpdate"] = True
+        return spark_options
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import col, udf
+        from pyspark.sql.types import StringType
+
+        for col_name, col_type in df.dtypes:
+            if col_type.startswith("decimal("):
+                # V3IO does not support this level of precision
+                df = df.withColumn(col_name, col(col_name).cast("double"))
+        if len(key_columns) > 2:
+            hash_and_concat_udf = udf(
+                lambda *x: hash_list([str(i) for i in x]), StringType()
+            )
+            return df.withColumn(
+                "_spark_object_sorting_key",
+                hash_and_concat_udf(*[col(c) for c in key_columns[1:]]),
+            )
+        return df
 
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
@@ -1186,11 +1200,20 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return endpoint
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import udf
+        from pyspark.sql.functions import col, udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: str(x) + "}:static", StringType())
-        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
+        if len(key_columns) > 1:
+            hash_and_concat_udf = udf(
+                lambda *x: stringify_key([str(i) for i in x]) + "}:static", StringType()
+            )
+            return df.withColumn(
+                "_spark_object_name",
+                hash_and_concat_udf(*[col(c) for c in key_columns]),
+            )
+        else:
+            udf1 = udf(lambda x: str(x) + "}:static", StringType())
+            return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
 class StreamTarget(BaseStoreTarget):

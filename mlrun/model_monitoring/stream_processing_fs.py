@@ -62,7 +62,7 @@ class EventStreamProcessor:
         self.aggregate_avg_period = aggregate_avg_period
 
         # Parquet path and configurations
-        self.parquet_path = mlrun.mlconf.get_file_target_path(
+        self.parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project, kind=FileTargetKind.PARQUET, target="offline"
         )
         self.parquet_batching_max_events = parquet_batching_max_events
@@ -105,7 +105,7 @@ class EventStreamProcessor:
         )
 
         # KV path
-        kv_path = mlrun.mlconf.get_file_target_path(
+        kv_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project, kind=FileTargetKind.ENDPOINTS
         )
         (
@@ -115,7 +115,7 @@ class EventStreamProcessor:
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
 
         # TSDB path and configurations
-        tsdb_path = mlrun.mlconf.get_file_target_path(
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project, kind=FileTargetKind.EVENTS
         )
         (

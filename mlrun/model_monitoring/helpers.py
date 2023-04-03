@@ -50,7 +50,8 @@ def initial_model_monitoring_stream_processing_function(
     Initialize model monitoring stream processing function.
 
     :param project:                     Project name.
-    :param model_monitoring_access_key: Access key to apply the model monitoring process.
+    :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
+                                        deployments this parameter will be None.
     :param tracking_policy:             Model monitoring configurations.
     :param auth_info:                   The auth info of the request.
 
@@ -105,7 +106,8 @@ def get_model_monitoring_batch_function(
     Initialize model monitoring batch function.
 
     :param project:                     project name.
-    :param model_monitoring_access_key: access key to apply the model monitoring process.
+    :param model_monitoring_access_key: access key to apply the model monitoring process. Please note that in CE
+                                        deployments this parameter will be None.
     :param db_session:                  A session that manages the current dialog with the database.
     :param auth_info:                   The auth info of the request.
     :param tracking_policy:             Model monitoring configurations.
@@ -176,17 +178,18 @@ def _apply_stream_trigger(
         )
         function = stream_source.add_nuclio_trigger(function)
 
-    elif stream_path.startswith("v3io://") and not mlrun.mlconf.is_ce_mode():
-        # Generate V3IO stream trigger
-        function.add_v3io_stream_trigger(
-            stream_path=stream_path, name="monitoring_stream_trigger"
-        )
+    if not mlrun.mlconf.is_ce_mode():
         function = _apply_access_key_and_mount_function(
             project=project,
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
             auth_info=auth_info,
         )
+        if stream_path.startswith("v3io://"):
+            # Generate V3IO stream trigger
+            function.add_v3io_stream_trigger(
+                stream_path=stream_path, name="monitoring_stream_trigger"
+            )
     # Add the default HTTP source
     http_source = mlrun.datastore.sources.HttpSource()
     function = http_source.add_nuclio_trigger(function)

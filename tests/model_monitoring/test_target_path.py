@@ -23,7 +23,7 @@ os.environ["MLRUN_ARTIFACT_PATH"] = "s3://some-bucket/"
 def test_get_file_target_path():
 
     # offline target with relative path
-    offline_parquet_relative = mlrun.mlconf.get_file_target_path(
+    offline_parquet_relative = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="parquet", target="offline"
     )
     assert (
@@ -35,7 +35,7 @@ def test_get_file_target_path():
     )
 
     # online target
-    online_target = mlrun.mlconf.get_file_target_path(
+    online_target = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="some_kind", target="online"
     )
     assert (
@@ -44,10 +44,10 @@ def test_get_file_target_path():
     )
 
     # offline target with absolute path
-    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline = (
+    mlrun.mlconf.model_endpoint_monitoring.offline_storage_path = (
         "schema://projects/test-path"
     )
-    offline_parquet_abs = mlrun.mlconf.get_file_target_path(
+    offline_parquet_abs = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="parquet", target="offline"
     )
     assert offline_parquet_abs == "schema://projects/test-path"

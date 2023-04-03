@@ -385,13 +385,19 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
+        # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
+        # stream, and endpoints.
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
-            "offline": "projects/{project}/model-endpoints/{kind}",
             "stream": "",
-            "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         },
+        # Offline storage path can be either relative or a full path. This path is used for general offline data
+        # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
+        "offline_storage_path": "projects/{project}/model-endpoints/{kind}",
+        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
+        # when the user is working in CE environment and has not provided any stream path.
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
@@ -940,19 +946,26 @@ class Config:
         # Get v3io access key from the environment
         return os.environ.get("V3IO_ACCESS_KEY")
 
-    def get_file_target_path(
-        self, project: str = "", kind: str = "", target: str = "online"
+    def get_model_monitoring_file_target_path(
+        self,
+        project: str = "",
+        kind: str = "",
+        target: str = "online",
+        artifact_path: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
-        :param project: Project name.
-        :param kind:    Kind of target path (e.g. events, log_stream, endpoints, etc.)
-        :param target:  Can be either online or offline. If the target is online, then we try to get a specific path
-                        for the provided kind. If it doesn't exist, use the default path.
-                        If the target path is offline and the offline path is already a full path in the configuration,
-                        then the result will be that path as-is. If the offline path is a relative path, then the
-                        result will be based on the mlrun artifact path and the offline relative path. If the offline
-                        path is an empty string, then the result will be based on the user_space default path.
+        :param project:        Project name.
+        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
+                               path for the provided kind. If it doesn't exist, use the default path.
+                               If the target path is offline and the offline path is already a full path in the
+                               configuration, then the result will be that path as-is. If the offline path is a
+                               relative path, then the result will be based on the mlrun artifact path and the offline
+                               relative path. If the offline path is an empty string, then the result will be based on
+                               the user_space default path.
+        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
+                               relative artifact path will be taken from the global MLRun artifact path.
 
         :return: Full configured path for the provided kind.
         """
@@ -963,41 +976,31 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project, kind=kind)
+                return store_prefix_dict[kind].format(project=project)
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project, kind=kind
             )
 
-        # Leaving here the first condition for backwards compatibility, remove in 1.5.0
-        # TODO: remove in 1.5.0
-        if (
-            "offline"
-            not in mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
-        ):
-            return (
-                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                    project=project, kind=kind
-                )
-            )
-
         # Get the current offline path from the configuration
-        file_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline
+        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path
 
         # Absolute path
-        if any(value in file_path for value in ["://", ":///"]) or file_path.startswith(
-            "/"
+        if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
+            file_path
         ):
             return file_path
 
         # Relative path
-        elif mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline != "":
-            return os.environ[
-                "MLRUN_ARTIFACT_PATH"
-            ] + mlrun.mlconf.model_endpoint_monitoring.store_prefixes.offline.format(
-                project=project, kind=kind
+        elif file_path != "":
+            artifact_path = artifact_path or config.artifact_path
+            return (
+                artifact_path
+                + mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
+                    project=project, kind=kind
+                )
             )
 
-        # User space path
+        # User space default path
         else:
             return (
                 mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(

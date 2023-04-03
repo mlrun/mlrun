@@ -631,20 +631,23 @@ def _build_function(
                 try:
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
-                        model_monitoring_access_key = None
 
+                        # Generating model monitoring access key
+                        model_monitoring_access_key = None
                         if not mlrun.mlconf.is_ce_mode():
-                            # Initialize model monitoring V3IO stream
-                            _create_model_monitoring_stream(
-                                project=fn.metadata.project,
-                                function=fn,
-                                db_session=db_session,
-                            )
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
                                 mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
                             )
+                            if mlrun.utils.model_monitoring.get_stream_path(
+                                project=fn.metadata.project
+                            ).startswith("v3io:///"):
+                                # Initialize model monitoring V3IO stream
+                                _create_model_monitoring_stream(
+                                    project=fn.metadata.project,
+                                    function=fn,
+                                )
 
                         if fn.spec.tracking_policy:
                             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
@@ -816,12 +819,14 @@ async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
         )
 
 
-def _create_model_monitoring_stream(project: str, function, db_session):
+def _create_model_monitoring_stream(project: str, function):
 
     _init_serving_function_stream_args(fn=function)
     # get model monitoring access key
 
-    stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="events")
+    stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project, kind="events"
+    )
 
     _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 

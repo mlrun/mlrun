@@ -529,46 +529,9 @@ class BatchProcessor:
         )
 
         if not mlrun.mlconf.is_ce_mode():
-
-            self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
-            self.model_monitoring_access_key = (
-                os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
-            )
-
-            # Define the required paths for the project objects
-            tsdb_path = mlrun.mlconf.get_file_target_path(
-                project=self.project, kind=mlrun.model_monitoring.FileTargetKind.EVENTS
-            )
-            (
-                _,
-                self.tsdb_container,
-                self.tsdb_path,
-            ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(
-                tsdb_path
-            )
-            # stream_path = template.format(project=self.project, kind="log_stream")
-            stream_path = mlrun.mlconf.get_file_target_path(
-                project=self.project,
-                kind=mlrun.model_monitoring.FileTargetKind.LOG_STREAM,
-            )
-            (
-                _,
-                self.stream_container,
-                self.stream_path,
-            ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(
-                stream_path
-            )
-
-            # Get the frames clients based on the v3io configuration
-            # it will be used later for writing the results into the tsdb
-            self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
-                access_key=self.v3io_access_key
-            )
-            self.frames = mlrun.utils.v3io_clients.get_frames_client(
-                address=mlrun.mlconf.v3io_framesd,
-                container=self.tsdb_container,
-                token=self.v3io_access_key,
-            )
+            # TODO: Once there is a time series DB alternative in a non-CE deployment, we need to update this if
+            #  statement to be applied only for V3IO TSDB
+            self._initialize_v3io_configurations()
 
         # If an error occurs, it will be raised using the following argument
         self.exception = None
@@ -582,6 +545,43 @@ class BatchProcessor:
         # Convert batch dict string into a dictionary
         if isinstance(self.batch_dict, str):
             self._parse_batch_dict_str()
+
+    def _initialize_v3io_configurations(self):
+        self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
+        self.model_monitoring_access_key = (
+            os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
+        )
+
+        # Define the required paths for the project objects
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project, kind=mlrun.model_monitoring.FileTargetKind.EVENTS
+        )
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+        # stream_path = template.format(project=self.project, kind="log_stream")
+        stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mlrun.model_monitoring.FileTargetKind.LOG_STREAM,
+        )
+        (
+            _,
+            self.stream_container,
+            self.stream_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
+
+        # Get the frames clients based on the v3io configuration
+        # it will be used later for writing the results into the tsdb
+        self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
+            access_key=self.v3io_access_key
+        )
+        self.frames = mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container=self.tsdb_container,
+            token=self.v3io_access_key,
+        )
 
     def post_init(self):
         """

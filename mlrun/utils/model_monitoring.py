@@ -157,6 +157,8 @@ def get_connection_string(project: str = None):
 
 
 def get_stream_path(project: str = None):
+    # TODO: This function (as well as other methods in this file) includes both client and server side code. We will
+    #  need to refactor and adjust this file in the future.
     """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
 
     if is_running_as_api():
@@ -170,10 +172,10 @@ def get_stream_path(project: str = None):
             provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
             allow_secrets_from_k8s=True,
             secret_key=model_monitoring_constants.ProjectSecretKeys.STREAM_PATH,
-        ) or mlrun.mlconf.get_file_target_path(
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=model_monitoring_constants.FileTargetKind.STREAM,
-            target=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
         )
 
     else:
@@ -182,24 +184,24 @@ def get_stream_path(project: str = None):
 
         stream_uri = mlrun.get_secret_or_env(
             model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
-        ) or mlrun.mlconf.get_file_target_path(
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=model_monitoring_constants.FileTargetKind.STREAM,
-            target=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
         )
 
-    if (
-        stream_uri.startswith("kafka://")
-        and "topic=monitoring_stream_" not in stream_uri
-    ):
+    if stream_uri.startswith("kafka://"):
+        if "?topic" in stream_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom kafka topic is not allowed"
+            )
         # Add topic to stream kafka uri
         stream_uri += f"?topic=monitoring_stream_{project}"
+
     elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
         # V3IO is not supported in CE mode, generating a default http stream path
-        stream_uri = mlrun.mlconf.get_file_target_path(
-            project=project,
-            kind=model_monitoring_constants.FileTargetKind.DEFAULT_HTTP_SINK,
-        )
+        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+
     return stream_uri
 
 

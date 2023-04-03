@@ -403,7 +403,7 @@ class OutputStream:
             )
 
 
-class HTTPOutputSource:
+class HTTPOutputStream:
     """HTTP output source that usually used for CE mode and debugging process"""
 
     def __init__(self, stream_path: str):

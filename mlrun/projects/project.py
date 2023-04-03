@@ -2153,7 +2153,7 @@ class MlrunProject(ModelObj):
 
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
-        :param stream_path:               Path to the model monitoring stream process
+        :param stream_path:               Path to the model monitoring stream
         """
 
         secrets_dict = {}
@@ -2168,6 +2168,10 @@ class MlrunProject(ModelObj):
             ] = endpoint_store_connection
 
         if stream_path:
+            if stream_path.startswith("kafka://") and "?topic" in stream_path:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Custom kafka topic is not allowed"
+                )
             secrets_dict[
                 model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
             ] = stream_path

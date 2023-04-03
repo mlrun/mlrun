@@ -238,7 +238,7 @@ class ModelEndpoints:
             )
 
         # Define parquet target for this feature set
-        parquet_path = mlrun.mlconf.get_file_target_path(
+        parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=model_endpoint.metadata.project,
             kind=model_monitoring_constants.FileTargetKind.PARQUET,
             target="offline",

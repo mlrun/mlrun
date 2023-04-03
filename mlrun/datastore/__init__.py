@@ -34,7 +34,7 @@ __all__ = [
 import mlrun.datastore.wasbfs
 
 from ..platforms.iguazio import (
-    HTTPOutputSource,
+    HTTPOutputStream,
     KafkaOutputStream,
     OutputStream,
     parse_path,
@@ -93,7 +93,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
             topic, bootstrap_servers, kwargs.get("kafka_producer_options")
         )
     elif stream_path.startswith("http://") or stream_path.startswith("https://"):
-        return HTTPOutputSource(stream_path=stream_path)
+        return HTTPOutputStream(stream_path=stream_path)
     elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):

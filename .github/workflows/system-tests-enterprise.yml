@@ -15,7 +15,7 @@
 name: System Tests Enterprise
 
 env:
-  selectedbranch: 'development,brancha,branchb'
+  selectedbranch: 'development'
 
 on:
   push:

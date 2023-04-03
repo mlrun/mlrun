@@ -74,7 +74,6 @@ def test_async_nested():
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
-    logger.info(graph.to_yaml())
     server = function.to_mock_server()
 
     # plot the graph for test & debug
@@ -96,7 +95,6 @@ def test_on_error():
     ).respond().full_event = True
     function.verbose = True
     server = function.to_mock_server()
-    logger.info(graph.to_yaml())
 
     # plot the graph for test & debug
     graph.plot(f"{results}/serving/on_error.png")
@@ -118,7 +116,6 @@ def test_push_error():
     server.error_stream = "dummy:///nothing"
     # Force an error inside push_error itself
     server._error_stream_object = _DummyStreamRaiser()
-    logger.info(graph.to_yaml())
 
     server.test(body=[])
     server.wait_for_completion()

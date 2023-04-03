@@ -208,6 +208,9 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
+          --purge-db \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \

@@ -1469,12 +1469,15 @@ class MlrunProject(ModelObj):
                 with open(f"{temp_dir}/_body", "rb") as fp:
                     artifact.spec._body = fp.read()
                 artifact.target_path = ""
+
+                # if the dataitem is not a file, it means we downloaded it from a remote source to a temp file,
+                # so we need to remove it after we're done with it
+                dataitem.remove_local()
+
                 return self.log_artifact(
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
 
-            if dataitem.kind != "file":
-                remove(item_file)
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 

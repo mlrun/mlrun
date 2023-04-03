@@ -157,3 +157,21 @@ jobs:
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
+  
+  
+  update-tutorials:
+    name: Bundle tutorials
+    needs: create-releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create tutorials tar
+        run: |
+          tar -cvf mlrun-tutorials.tar docs/tutorial
+      - name: Add tutorials tar to release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: v${{ github.event.inputs.version }}
+          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          artifacts: mlrun-tutorials.tar

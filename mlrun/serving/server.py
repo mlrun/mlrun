@@ -308,6 +308,7 @@ def v2_serving_init(context, namespace=None):
     if not data:
         raise MLRunInvalidArgumentError("failed to find spec env var")
     spec = json.loads(data)
+    print('v2_serving_init: just before first log')
     context.logger.info("Initializing server from spec")
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":

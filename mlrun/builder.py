@@ -35,14 +35,14 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
-    base_image,
-    commands=None,
-    source=None,
-    requirements=None,
-    workdir="/mlrun",
-    extra="",
-    user_unix_id=None,
-    enriched_group_id=None,
+    base_image: str,
+    commands: list = None,
+    source: str = None,
+    requirements: str = None,
+    workdir: str = "/mlrun",
+    extra: str = "",
+    user_unix_id: int = None,
+    enriched_group_id: int = None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -76,10 +76,10 @@ def make_dockerfile(
             dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
 
         dock += f"ENV PYTHONPATH {workdir}\n"
-    if requirements:
-        dock += f"RUN python -m pip install -r {requirements}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
+    if requirements:
+        dock += f"RUN python -m pip install -r {requirements}\n"
     if extra:
         dock += extra
     logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -193,19 +193,23 @@ def make_kaniko_pod(
         commands = []
         env = {}
         if dockertext:
-            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
+            # set and encode docker content to the DOCKERFILE environment variable in the kaniko pod
             env["DOCKERFILE"] = b64encode(dockertext.encode("utf-8")).decode("utf-8")
+            # dump dockerfile content and decode to Dockerfile destination
+            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
         if inline_code:
             name = inline_path or "main.py"
-            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
             env["CODE"] = b64encode(inline_code.encode("utf-8")).decode("utf-8")
+            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
-            commands.append(
-                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
-            )
+            # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
             env["REQUIREMENTS"] = b64encode(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
+            # dump requirement content and decode to the requirement.txt destination
+            commands.append(
+                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
+            )
 
         kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
@@ -295,7 +299,6 @@ def build_image(
     image_target,
     commands=None,
     source="",
-    mounter="v3io",
     base_image=None,
     requirements=None,
     inline_code=None,
@@ -318,7 +321,10 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-
+    # TODO: currently requirements are not being passed to that method, this is due to the ImageBuilder class not having
+    #   requirements attribute in it, remove this comment when requirements attribute is being added to the class and
+    #   passed to the `build_image` method. Also `with_requirements` will have to be changed to set them to the
+    #   requirements attribute instead of transforming it right to commands
     if isinstance(requirements, list):
         requirements_list = requirements
         requirements_path = "requirements.txt"
@@ -583,7 +589,6 @@ def build_runtime(
         base_image=enriched_base_image,
         commands=build.commands,
         namespace=namespace,
-        # inline_code=inline,
         source=build.source,
         secret_name=build.secret,
         interactive=interactive,

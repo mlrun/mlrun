@@ -17,7 +17,7 @@ from mlrun.launcher import ClientLocalLauncher, ClientRemoteLauncher, _BaseLaunc
 
 class LauncherFactory(object):
     @staticmethod
-    def create_launcher(local) -> _BaseLauncher:
+    def create_launcher(local: bool = False) -> _BaseLauncher:
         """
         Creates a ServerSideLauncher if running as API.
         Otherwise, ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified.

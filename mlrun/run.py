@@ -453,8 +453,8 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     special URLs::
 
-        function hub: hub://{name}[:{tag}]
-        local mlrun db:       db://{project-name}/{name}[:{tag}]
+        function hub:       hub://[{source}/]{name}[:{tag}]
+        local mlrun db:     db://{project-name}/{name}[:{tag}]
 
     examples::
 

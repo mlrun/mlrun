@@ -365,3 +365,61 @@ def test_marketplace_get_asset(
     # Verify not-found assets are handled properly
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         manager.get_asset(source_object, item, "not-found")
+
+
+def test_list_sources_with_filters(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+):
+    credentials = {"secret1": "value1", "another-secret": "42"}
+    source_1 = _generate_source_dict(-1, "source_1", credentials)
+    response = client.post("marketplace/sources", json=source_1)
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    # verifying source and default source in db:
+    sources = client.get("marketplace/sources").json()
+    assert len(sources) == 2
+
+    # verifying filtering by good item name:
+    sources = client.get(
+        "marketplace/sources", params={"item_name": "auto_trainer"}
+    ).json()
+    assert len(sources) == 1
+
+    # verifying filtering by bad item name:
+    sources = client.get(
+        "marketplace/sources", params={"item_name": "blah-blah"}
+    ).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and bad tag:
+    sources = client.get(
+        "marketplace/sources", params={"item_name": "auto_trainer", "tag": "bad-tag"}
+    ).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and good tag:
+    sources = client.get(
+        "marketplace/sources", params={"item_name": "auto_trainer", "tag": "latest"}
+    ).json()
+    assert len(sources) == 1
+
+    # verifying filtering by item name and bad version:
+    sources = client.get(
+        "marketplace/sources",
+        params={"item_name": "auto_trainer", "version": "99.99.99"},
+    ).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and good version:
+    sources = client.get(
+        "marketplace/sources", params={"item_name": "auto_trainer", "version": "1.1.0"}
+    ).json()
+    assert len(sources) == 1
+
+    # verifying bad filtering with tag and without item name:
+    response = client.get("marketplace/sources", params={"tag": "latest"})
+    assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+
+    # verifying bad filtering with version and without item name:
+    response = client.get("marketplace/sources", params={"version": "1.1.0"})
+    assert response.status_code == http.HTTPStatus.BAD_REQUEST.value

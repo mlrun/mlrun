@@ -494,17 +494,32 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
+def _need_to_update_default_marketplace_source(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    sources = db.list_marketplace_sources(db_session)
+    default = config.marketplace.default_source
+    for source in sources:
+        src = source.source
+        index = source.index
+        if index == mlrun.api.schemas.last_source_index:
+            # Default source is the last index
+            if (
+                default.url != src.spec.path
+                or default.channel != src.spec.channel
+                or default.name != src.metadata.name
+                or default.object_type != src.spec.object_type
+            ):
+                db.delete_marketplace_source(db_session, src.metadata.name)
+                return True
+            return False
+    return True
+
+
 def _add_default_marketplace_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    try:
-        hub_marketplace_source = db.get_marketplace_source(
-            db_session, config.marketplace.default_source.name
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        hub_marketplace_source = None
-
-    if not hub_marketplace_source:
+    if _need_to_update_default_marketplace_source(db, db_session):
         hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
         # hub_source will be None if the configuration has marketplace.default_source.create=False
         if hub_source:
@@ -520,7 +535,6 @@ def _add_default_marketplace_source_if_needed(
             db_session.commit()
         else:
             logger.info("Not adding default marketplace source, per configuration")
-    return
 
 
 def _add_data_version(

@@ -2814,12 +2814,24 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="PUT", path=path, json=source)
         return schemas.IndexedMarketplaceSource(**response.json())
 
-    def list_marketplace_sources(self):
+    def list_marketplace_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         """
         List marketplace sources in the MLRun DB.
+
+        :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
+        :param tag:         Must be provided with item name, will be filtered by this tag.
+        :param version:     Must be provided with item name, will be filtered by this version.
+
+        :returns: List of indexed marketplace sources.
         """
         path = "marketplace/sources"
-        response = self.api_call(method="GET", path=path).json()
+        params = {"item-name": item_name, "tag": tag, "version": version}
+        response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:
             results.append(schemas.IndexedMarketplaceSource(**item))

@@ -427,7 +427,12 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def list_marketplace_sources(self):
+    def list_marketplace_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     def get_marketplace_source(self, source_name: str):

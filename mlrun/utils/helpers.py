@@ -599,19 +599,42 @@ def generate_artifact_uri(project, key, tag=None, iter=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri):
+def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+    """
+    Retrieve the full uri of the item's yaml in the marketplace.
+
+    :param uri: structure: "hub://[<source>/]<item-name>[:<version>]"
+
+    :return: (extended uri of item, is hub item)
+    """
     if not uri.startswith(hub_prefix):
         return uri, False
-    name = uri[len(hub_prefix) :]
-    tag = "master"
-    if ":" in name:
-        loc = name.find(":")
-        tag = name[loc + 1 :]
-        name = name[:loc]
 
+    db = mlrun.get_run_db()
+    name = uri.strip(hub_prefix)
+    tag = "latest"
+    source_name = ""
+    if ":" in name:
+        name, tag = name.split(":")
+    if "/" in name:
+        source_name, name = name.split("/")
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.get_hub_url().format(name=name, tag=tag), True
+    function_suffix = f"{name}/{tag}/src/function.yaml"
+
+    if not source_name:
+        # Searching item in all sources
+        sources = db.list_marketplace_sources(item_name=name, tag=tag)
+        if not sources:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Item={name}, tag={tag} not found in all marketplace sources"
+            )
+        # getting default source or first:
+        source = sources[-1] if sources[-1].index == -1 else sources[0]
+    else:
+        # Specific source is given
+        source = mlrun.db.get_run_db().get_marketplace_source(source_name)
+    return source.source.get_full_uri(function_suffix), True
 
 
 def gen_md_table(header, rows=None):

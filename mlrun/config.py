@@ -80,7 +80,7 @@ default_config = {
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
-    "hub_url": "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
+    "hub_url": "https://raw.githubusercontent.com/mlrun/marketplace/master/{tag}/{name}/function.yaml",
     "ipython_widget": True,
     "log_level": "INFO",
     # log formatter (options: human | json)
@@ -443,9 +443,9 @@ default_config = {
         "default_source": {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
-            "name": "mlrun_global_hub",
+            "name": "default",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "url": "https://mlrun.github.io/marketplace/",
             "object_type": "functions",
             "channel": "master",
         },
@@ -606,16 +606,6 @@ class Config:
             and config.httpdb.builder.pip_ca_secret_key
             and config.httpdb.builder.pip_ca_path
         )
-
-    @staticmethod
-    def get_hub_url():
-        if not config.hub_url.endswith("function.yaml"):
-            if config.hub_url.startswith("http"):
-                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
-            elif config.hub_url.startswith("v3io"):
-                return f"{config.hub_url}/{{name}}/function.yaml"
-
-        return config.hub_url
 
     @staticmethod
     def decode_base64_config_and_load_to_object(

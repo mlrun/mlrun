@@ -541,7 +541,12 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_marketplace_sources(self):
+    def list_marketplace_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     @abstractmethod

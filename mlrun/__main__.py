@@ -1058,9 +1058,9 @@ def logs(uid, project, offset, db, watch):
     "--notification",
     "-nt",
     multiple=True,
-    help='notification file=notification.json or a dictionary e.g \'{"slack":{"webhook":"<webhook>"}}\''
-    " for setting a notification for all or other runs in a project"
-    " please set the notifications as an ENV or a project secrets.",
+    help="To have a notification for the run set notification file "
+    "destination define: file=notification.json or a "
+    'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\'',
 )
 def project(
     context,
@@ -1463,16 +1463,15 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
 def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
     """
-
-    :param notifications:  Notifications file or a dictionary to be added to the project
-    :param project: The object to which the notifications will be added
-    :return:
     A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
     Each notification is stored in a tuple called notifications.
     The code then goes through each value in the notifications tuple and check
     if the notification starts with "file=", such as "file=notification.json," in those cases it loads the
     notification.json file and uses add_notification_to_project to add the notifications from the file to
     the project. If not, it adds the notification dictionary to the project.
+    :param notifications:  Notifications file or a dictionary to be added to the project
+    :param project: The object to which the notifications will be added
+    :return:
     """
     for notification in notifications:
         if notification.startswith("file="):

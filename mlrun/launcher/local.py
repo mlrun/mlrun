@@ -14,7 +14,7 @@
 from mlrun.launcher.base import _BaseLauncher
 
 
-class LocalLauncher(_BaseLauncher):
+class ClientLocalLauncher(_BaseLauncher):
     @staticmethod
     def verify_base_image(runtime):
         pass

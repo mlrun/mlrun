@@ -14,7 +14,7 @@
 from mlrun.launcher.base import _BaseLauncher
 
 
-class Launcher(_BaseLauncher):
+class ServerSideLauncher(_BaseLauncher):
     @staticmethod
     def run(runtime):
         pass

@@ -12,3 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# TODO: remove noqa when the factory will be used (imported but unused lint error)
+from .launcher import ServerSideLauncher  # noqa: F401

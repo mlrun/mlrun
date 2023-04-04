@@ -28,7 +28,6 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
-    extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
@@ -134,44 +133,6 @@ def test_run_name_regex(value, expected):
 def test_spark_job_name_regex(value, expected):
     with expected:
         verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
-
-
-def test_extend_hub_uri():
-    hub_urls = [
-        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
-        "https://raw.githubusercontent.com/mlrun/functions",
-    ]
-    cases = [
-        {
-            "input_uri": "http://no-hub-prefix",
-            "expected_output": "http://no-hub-prefix",
-        },
-        {
-            "input_uri": "hub://function_name",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
-        },
-        {
-            "input_uri": "hub://function_name:development",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
-            "ml",
-        },
-        {
-            "input_uri": "hub://function-name",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
-        },
-        {
-            "input_uri": "hub://function-name:development",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
-            "ml",
-        },
-    ]
-    for hub_url in hub_urls:
-        mlrun.mlconf.hub_url = hub_url
-        for case in cases:
-            input_uri = case["input_uri"]
-            expected_output = case["expected_output"]
-            output, _ = extend_hub_uri_if_needed(input_uri)
-            assert expected_output == output
 
 
 @pytest.mark.parametrize(

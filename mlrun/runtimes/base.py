@@ -1278,14 +1278,18 @@ class BaseRuntime(ModelObj):
         :return: function object
         """
         encoded_requirements = self._encode_requirements(requirements)
-        commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = f"python -m pip install {encoded_requirements}"
-        # make sure we dont append the same line twice
-        if new_command not in commands:
-            commands.append(new_command)
-        self.spec.build.commands = commands
+        requirements = self.spec.build.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in encoded_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.spec.build.requirements = requirements
+
         if verify_base_image:
             self.verify_base_image()
+
         return self
 
     def with_commands(
@@ -1453,8 +1457,8 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
-    def _encode_requirements(self, requirements_to_encode):
-
+    @staticmethod
+    def _encode_requirements(requirements_to_encode) -> list:
         # if a string, read the file then encode
         if isinstance(requirements_to_encode, str):
             with open(requirements_to_encode, "r") as fp:
@@ -1488,7 +1492,8 @@ class BaseRuntime(ModelObj):
             # quote the requirement to avoid issues with special characters, double quotes, etc.
             requirements.append(shlex.quote(requirement))
 
-        return " ".join(requirements)
+        return requirements
+        # return " ".join(requirements)
 
     def _validate_output_path(self, run):
         if is_local(run.spec.output_path):

@@ -695,11 +695,20 @@ def my_func(context):
     ):
         runtime = self._generate_runtime()
         runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
-        expected_commands = ["apt-get update", "python -m pip install scikit-learn"]
+        expected_commands = ["apt-get update"]
+        expected_requirements = ["scikit-learn"]
         assert (
             deepdiff.DeepDiff(
                 expected_commands,
                 runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=False,
             )
             == {}

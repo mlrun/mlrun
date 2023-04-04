@@ -380,7 +380,7 @@ class TaskStep(BaseStep):
         for key in ["name", "context", "input_path", "result_path", "full_event"]:
             if argspec.varkw or key in argspec.args:
                 class_args[key] = getattr(self, key)
-        if argspec.varkw or "graph_step" in argspec.args:
+        if "graph_step" in argspec.args:
             class_args["graph_step"] = self
         return class_args
 

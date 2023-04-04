@@ -406,7 +406,7 @@ class ParallelRun(BaseModelRouter):
                 self._pool = executor_class(
                     max_workers=len(self.routes),
                     initializer=ParallelRun.init_pool,
-                    initargs=(server, routes, id(self)),
+                    initargs=(server, routes),
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 executor_class = concurrent.futures.ThreadPoolExecutor
@@ -421,7 +421,7 @@ class ParallelRun(BaseModelRouter):
         if self._pool is not None:
             if self.executor_type == ParallelRunnerModes.process:
                 global local_routes
-                local_routes.pop(id(self))
+                del local_routes
             self._pool.shutdown()
             self._pool = None
 
@@ -445,7 +445,7 @@ class ParallelRun(BaseModelRouter):
         for route in self.routes.keys():
             if self.executor_type == ParallelRunnerModes.process:
                 future = executor.submit(
-                    ParallelRun._wrap_step, route, id(self), copy.copy(event)
+                    ParallelRun._wrap_step, route, copy.copy(event)
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 step = self.routes[route]
@@ -469,25 +469,22 @@ class ParallelRun(BaseModelRouter):
         return results
 
     @staticmethod
-    def init_pool(server_spec, routes, object_id):
+    def init_pool(server_spec, routes):
         server = mlrun.serving.GraphServer.from_dict(server_spec)
         server.init_states(None, None)
         global local_routes
-        if object_id in local_routes:
-            return
         for route in routes.values():
             route.context = server.context
             if route._object:
                 route._object.context = server.context
-        local_routes[object_id] = routes
+        local_routes = routes
 
     @staticmethod
-    def _wrap_step(route, object_id, event):
+    def _wrap_step(route, event):
         global local_routes
-        routes = local_routes.get(object_id, None).copy()
-        if routes is None:
+        if local_routes is None:
             return None, None
-        return route, routes[route].run(event)
+        return route, local_routes[route].run(event)
 
     @staticmethod
     def _wrap_method(route, handler, event):

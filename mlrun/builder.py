@@ -321,7 +321,10 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-
+    # TODO: currently requirements are not being passed to that method, this is due to the ImageBuilder class not having
+    #   requirements attribute in it, remove this comment when requirements attribute is being added to the class and
+    #   passed to the `build_image` method. Also `with_requirements` will have to be changed to set them to the
+    #   requirements attribute instead of transforming it right to commands
     if isinstance(requirements, list):
         requirements_list = requirements
         requirements_path = "requirements.txt"

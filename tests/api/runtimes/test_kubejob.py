@@ -690,6 +690,21 @@ def my_func(context):
             == {}
         )
 
+    def test_build_config_commands_and_requirements_order(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+        runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
+        expected_commands = ["apt-get update", "python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+
     def test_build_config_with_images(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.build_config(base_image="mlrun/mlrun", image="target/mlrun")

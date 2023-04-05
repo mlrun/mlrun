@@ -171,22 +171,22 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
     @staticmethod
-    def read_csv_and_assert(csv_path_spark, csv_path_storey):
-        read_back_df_spark = None
+    def read_csv(csv_path: str) -> pd.DataFrame:
         file_system = fsspec.filesystem("v3io")
-        for file_entry in file_system.ls(csv_path_spark):
+        for file_entry in file_system.ls(csv_path):
             filepath = file_entry["name"]
             if not filepath.endswith("/_SUCCESS"):
-                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
-                break
-        assert read_back_df_spark is not None
+                return pd.read_csv(f"v3io://{filepath}")
+        raise AssertionError(f"No files found in {csv_path}")
 
-        read_back_df_storey = None
-        for file_entry in file_system.ls(csv_path_storey):
-            filepath = file_entry["name"]
-            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-            break
-        assert read_back_df_storey is not None
+    @staticmethod
+    def read_csv_and_assert(csv_path_spark, csv_path_storey):
+        read_back_df_spark = TestFeatureStoreSparkEngine.read_csv(
+            csv_path=csv_path_spark
+        )
+        read_back_df_storey = TestFeatureStoreSparkEngine.read_csv(
+            csv_path=csv_path_storey
+        )
 
         read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
         read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
@@ -368,6 +368,66 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 {
                     "bad": 95,
                     "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
+    @pytest.mark.parametrize(
+        "target_kind",
+        ["Redis", "v3io"] if mlrun.mlconf.redis.url is not None else ["v3io"],
+    )
+    def test_ingest_multiple_entities(self, target_kind):
+        key1 = "patient_id"
+        key2 = "bad"
+        key3 = "department"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key1), fstore.Entity(key2), fstore.Entity(key3)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        if target_kind == "Redis":
+            targets = [RedisNoSqlTarget()]
+        else:
+            targets = [NoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get(
+                [
+                    {
+                        "patient_id": "305-90-1613",
+                        "bad": 95,
+                        "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    }
+                ]
+            )
+            assert resp == [
+                {
                     "room": 2,
                     "hr": 220.0,
                     "hr_is_error": False,
@@ -1367,7 +1427,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
     @pytest.mark.parametrize("with_original_features", [True, False])
-    def test_ingest_with_steps_mapval(self, with_original_features):
+    def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
@@ -1421,6 +1481,77 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+
+    def test_mapvalues_with_partial_mapping(self):
+        # checks partial mapping -> only part of the values in field are replaced.
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_mapvalues_with_partial_mapping"
+        original_df = pd.read_parquet(self.get_remote_pq_source_path())
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {17: -1},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+        df = self.read_csv(csv_path=csv_path_spark)
+        assert not df.empty
+        assert not df["bad_mapped"].isna().any()
+        assert not df["bad_mapped"].isnull().any()
+        assert not (df["bad_mapped"] == 17).any()
+        # Note that there are no occurrences of -1 in the "bad" field of the original DataFrame.
+        assert len(df[df["bad_mapped"] == -1]) == len(
+            original_df[original_df["bad"] == 17]
+        )
+
+    def test_mapvalues_with_mixed_types(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_mapvalues_with_mixed_types"
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "hr_is_error": {True: "1"},
+                },
+                with_original_features=True,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        with pytest.raises(
+            mlrun.runtimes.utils.RunError,
+            match="^MapValues - mapping that changes column type must change all values accordingly,"
+            " which is not the case for column 'hr_is_error'$",
+        ):
+            fstore.ingest(
+                measurements,
+                source,
+                targets,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=False),
+            )
 
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):

@@ -82,30 +82,47 @@ class TestAutoMount:
         "requirements,encoded_requirements",
         [
             # strip spaces
-            (["pandas==1.0.0", "numpy==1.0.0 "], "pandas==1.0.0 numpy==1.0.0"),
+            (["pandas==1.0.0", "numpy==1.0.0 "], ["pandas==1.0.0", "numpy==1.0.0"]),
             # handle ranges
-            (["pandas>=1.0.0, <2"], "'pandas>=1.0.0, <2'"),
-            (["pandas>=1.0.0,<2"], "'pandas>=1.0.0,<2'"),
+            (["pandas>=1.0.0, <2"], ["pandas>=1.0.0, <2"]),
+            (["pandas>=1.0.0,<2"], ["pandas>=1.0.0,<2"]),
             # handle flags
-            (["-r somewhere/requirements.txt"], "-r somewhere/requirements.txt"),
+            (["-r somewhere/requirements.txt"], ["-r somewhere/requirements.txt"]),
             # handle flags and specific
             # handle escaping within specific
             (
                 ["-r somewhere/requirements.txt", "pandas>=1.0.0, <2"],
-                "-r somewhere/requirements.txt 'pandas>=1.0.0, <2'",
+                ["-r somewhere/requirements.txt", "pandas>=1.0.0, <2"],
             ),
             # handle from git
             (
                 ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
-                "'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'",
+                ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
             ),
             # handle comments
-            (["# dont care", "faker"], "faker"),
-            (["faker # inline dontcare"], "faker"),
-            (["faker #inline dontcare2"], "faker"),
+            (["# dont care", "faker"], ["faker"]),
+            (["faker # inline dontcare"], ["faker"]),
+            (["faker #inline dontcare2"], ["faker"]),
+            (
+                [
+                    "numpy==1.0.0 ",
+                    "pandas>=1.0.0, <2",
+                    "# dont care",
+                    "pandas2>=1.0.0,<2 # just an inline comment",
+                    "-r somewhere/requirements.txt",
+                    "something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something",
+                ],
+                [
+                    "numpy==1.0.0",
+                    "pandas>=1.0.0, <2",
+                    "pandas2>=1.0.0,<2",
+                    "-r somewhere/requirements.txt",
+                    "something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something",
+                ],
+            ),
         ],
     )
-    def test_encode_requirements(self, requirements, encoded_requirements):
+    def test_resolve_requirements(self, requirements, encoded_requirements):
         for requirements_as_file in [True, False]:
             if requirements_as_file:
 
@@ -118,7 +135,7 @@ class TestAutoMount:
                             f.write(requirement + "\n")
                     requirements = temp_file.name
 
-            encoded = self._generate_runtime()._encode_requirements(requirements)
+            encoded = self._generate_runtime()._resolve_requirements(requirements)
             assert (
                 encoded == encoded_requirements
             ), f"Failed to encode {requirements} as file {requirements_as_file}"

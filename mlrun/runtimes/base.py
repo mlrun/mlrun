@@ -1277,11 +1277,11 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        encoded_requirements = self._encode_requirements(requirements)
+        resolved_requirements = self._resolve_requirements(requirements)
         requirements = self.spec.build.requirements or [] if not overwrite else []
 
         # make sure we don't append the same line twice
-        for requirement in encoded_requirements:
+        for requirement in resolved_requirements:
             if requirement not in requirements:
                 requirements.append(requirement)
 
@@ -1458,14 +1458,15 @@ class BaseRuntime(ModelObj):
                         print("    " + line)
 
     @staticmethod
-    def _encode_requirements(requirements_to_encode) -> list:
+    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
         # if a string, read the file then encode
-        if isinstance(requirements_to_encode, str):
-            with open(requirements_to_encode, "r") as fp:
-                requirements_to_encode = fp.read().splitlines()
+        if isinstance(requirements_to_resolve, str):
+            with open(requirements_to_resolve, "r") as fp:
+                requirements_to_resolve = fp.read().splitlines()
 
         requirements = []
-        for requirement in requirements_to_encode:
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
             requirement = requirement.strip()
 
             # ignore empty lines
@@ -1478,22 +1479,9 @@ class BaseRuntime(ModelObj):
             if len(inline_comment) > 1:
                 requirement = inline_comment[0].strip()
 
-            # -r / --requirement are flags and should not be escaped
-            # we allow such flags (could be passed within the requirements.txt file) and do not
-            # try to open the file and include its content since it might be a remote file
-            # given on the base image.
-            for req_flag in ["-r", "--requirement"]:
-                if requirement.startswith(req_flag):
-                    requirement = requirement[len(req_flag) :].strip()
-                    requirements.append(req_flag)
-                    break
-
-            # wrap in single quote to ensure that the requirement is treated as a single string
-            # quote the requirement to avoid issues with special characters, double quotes, etc.
-            requirements.append(shlex.quote(requirement))
+            requirements.append(requirement)
 
         return requirements
-        # return " ".join(requirements)
 
     def _validate_output_path(self, run):
         if is_local(run.spec.output_path):

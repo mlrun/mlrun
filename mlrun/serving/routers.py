@@ -401,7 +401,8 @@ class ParallelRun(BaseModelRouter):
                     step._parent = None
                     if step._object:
                         step._object.context = None
-                        step._object._kwargs["graph_step"] = None
+                        if hasattr(step._object, "_kwargs"):
+                            step._object._kwargs["graph_step"] = None
                     routes[key] = step
                 executor_class = concurrent.futures.ProcessPoolExecutor
                 self._pool = executor_class(

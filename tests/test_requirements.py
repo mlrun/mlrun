@@ -139,6 +139,8 @@ def test_requirement_specifiers_convention():
         "plotly": {"~=5.4, <5.12.0"},
         # used in tests
         "aioresponses": {"~=0.7"},
+        # conda requirements since conda does not support ~= operator
+        "lightgbm": {">=3.0"},
     }
 
     for (

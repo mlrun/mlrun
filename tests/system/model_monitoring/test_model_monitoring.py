@@ -748,7 +748,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
                 key=model_name, category="model", tag="latest"
             ),
         )
-        # project.set_model_monitoring_credentials(stream_path="kafka://192.168.223.248:9092")
+
         project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
 
         # enable model monitoring

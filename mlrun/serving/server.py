@@ -18,7 +18,6 @@ import asyncio
 import json
 import os
 import socket
-import sys
 import traceback
 import uuid
 from typing import Optional, Union
@@ -34,7 +33,7 @@ from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
-from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
+from ..utils import get_caller_globals, parse_versioned_object_uri
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import event_id_key, event_path_key
 
@@ -456,7 +455,7 @@ class GraphContext:
             self.Response = nuclio_context.Response
             self.worker_id = nuclio_context.worker_id
         elif not logger:
-            self.logger = create_logger(level, "human", "flow", sys.stdout)
+            self.logger = mlrun.utils.helpers.logger
 
         self._server = server
         self.current_function = None

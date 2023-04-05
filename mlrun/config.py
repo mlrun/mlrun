@@ -394,7 +394,7 @@ default_config = {
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
-        "offline_storage_path": "projects/{project}/model-endpoints/{kind}",
+        "offline_storage_path": "model-endpoints/{kind}",
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
@@ -962,8 +962,7 @@ class Config:
                                If the target path is offline and the offline path is already a full path in the
                                configuration, then the result will be that path as-is. If the offline path is a
                                relative path, then the result will be based on the mlrun artifact path and the offline
-                               relative path. If the offline path is an empty string, then the result will be based on
-                               the user_space default path.
+                               relative path.
         :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
                                relative artifact path will be taken from the global MLRun artifact path.
 
@@ -982,39 +981,40 @@ class Config:
             )
 
         # Get the current offline path from the configuration
-        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path
+        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
+            project=project, kind=kind
+        )
 
         # Absolute path
         if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
             file_path
         ):
+            if project not in file_path:
+                # Project name must be included
+                file_path = file_path.replace(kind, f"{project}/{kind}")
             return file_path
 
         # Relative path
-        elif file_path != "":
-            artifact_path = artifact_path or config.artifact_path
-            return (
-                artifact_path
-                + mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
-                    project=project, kind=kind
-                )
-            )
-
-        # User space default path
         else:
-            return (
-                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                    project=project, kind=kind
+            artifact_path = (
+                artifact_path
+                or mlrun.utils.helpers.fill_artifact_path_template(
+                    artifact_path=config.artifact_path, project=project
                 )
             )
+            if artifact_path[-1] != "/":
+                artifact_path += "/"
+            if project not in file_path and project not in artifact_path:
+                # Project name must be included
+                artifact_path += f"{project}/"
+
+            return artifact_path + file_path
 
     def is_ce_mode(self) -> bool:
         # True if the setup is in CE environment
-        if isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
+        return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
-        ):
-            return True
-        return False
+        )
 
 
 # Global configuration

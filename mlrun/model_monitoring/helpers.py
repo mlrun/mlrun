@@ -63,6 +63,7 @@ def initial_model_monitoring_stream_processing_function(
     stream_processor = mlrun.model_monitoring.stream_processing_fs.EventStreamProcessor(
         project=project,
         parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+        model_monitoring_access_key=model_monitoring_access_key,
     )
 
     # Create a new serving function for the streaming process

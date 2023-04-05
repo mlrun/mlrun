@@ -28,10 +28,7 @@ def test_get_file_target_path():
     )
     assert (
         offline_parquet_relative
-        == os.environ["MLRUN_ARTIFACT_PATH"]
-        + "projects/"
-        + TEST_PROJECT
-        + "/model-endpoints/parquet"
+        == os.environ["MLRUN_ARTIFACT_PATH"] + TEST_PROJECT + "/model-endpoints/parquet"
     )
 
     # online target
@@ -50,7 +47,10 @@ def test_get_file_target_path():
     offline_parquet_abs = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="parquet", target="offline"
     )
-    assert offline_parquet_abs == "schema://projects/test-path"
+    assert (
+        offline_parquet_abs + f"/{TEST_PROJECT}/parquet"
+        == f"schema://projects/test-path/{TEST_PROJECT}/parquet"
+    )
 
 
 def test_get_stream_path():

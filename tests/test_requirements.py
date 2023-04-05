@@ -171,6 +171,8 @@ def test_requirement_specifiers_inconsistencies():
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},
+        # conda requirements since conda does not support ~= operator
+        "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
     }
 
     for (

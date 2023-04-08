@@ -108,6 +108,10 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
+.PHONY: install-conda-requirements
+install-conda-requirements: install-requirements ## Install all requirements needed for development with specific conda packages for arm64
+	conda install --yes --file conda-arm64-requirements.txt
+
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

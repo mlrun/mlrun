@@ -141,12 +141,12 @@ class KubejobRuntime(KubeResource):
         # (requirements are added to the commands parameter)
         if (requirements or commands) and overwrite:
             self.spec.build.commands = None
+        if commands:
+            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if requirements:
             self.with_requirements(
                 requirements, overwrite=False, verify_base_image=False
             )
-        if commands:
-            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret is not None:

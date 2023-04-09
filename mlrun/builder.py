@@ -38,7 +38,7 @@ def make_dockerfile(
     base_image: str,
     commands: list = None,
     source: str = None,
-    requirements: str = None,
+    requirements_path: str = None,
     workdir: str = "/mlrun",
     extra: str = "",
     user_unix_id: int = None,
@@ -78,9 +78,11 @@ def make_dockerfile(
         dock += f"ENV PYTHONPATH {workdir}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
-    if requirements:
-        dock += f"RUN echo 'Installing {requirements}...\n f{requirements} contains: \n'; cat {requirements}\n"
-        dock += f"RUN python -m pip install -r {requirements}\n"
+    if requirements_path:
+        dock += (
+            f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        )
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -96,6 +98,7 @@ def make_kaniko_pod(
     inline_code=None,
     inline_path=None,
     requirements=None,
+    requirements_path=None,
     secret_name=None,
     name="",
     verbose=False,
@@ -209,7 +212,7 @@ def make_kaniko_pod(
             ).decode("utf-8")
             # dump requirement content and decode to the requirement.txt destination
             commands.append(
-                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
             )
 
         kpod.append_init_container(
@@ -415,7 +418,7 @@ def build_image(
         base_image,
         commands,
         source=source_to_copy,
-        requirements=requirements_path,
+        requirements_path=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
@@ -430,6 +433,7 @@ def build_image(
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements_list,
+        requirements_path=requirements_path,
         secret_name=secret_name,
         name=name,
         verbose=verbose,

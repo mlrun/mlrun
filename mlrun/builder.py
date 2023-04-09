@@ -79,6 +79,7 @@ def make_dockerfile(
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
     if requirements:
+        dock += f"RUN echo 'Installing {requirements}...\n f{requirements} contains: \n'; cat {requirements}\n"
         dock += f"RUN python -m pip install -r {requirements}\n"
     if extra:
         dock += extra
@@ -323,7 +324,7 @@ def build_image(
     )
     if requirements and isinstance(requirements, list):
         requirements_list = requirements
-        requirements_path = "requirements.txt"
+        requirements_path = "/empty/requirements.txt"
     else:
         requirements_list = None
         requirements_path = requirements or ""

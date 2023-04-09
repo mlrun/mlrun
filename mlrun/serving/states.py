@@ -1208,10 +1208,6 @@ class FlowStep(BaseStep):
                 raise MLRunInvalidArgumentError(
                     f"cant set before, there is no step named {step_name}"
                 )
-            if step_name == step.base_step:
-                raise GraphError(
-                    f"graph loop, step {step_name} is specified in before and/or after {name}"
-                )
             self[step_name].after_step(name)
 
 

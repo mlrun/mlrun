@@ -651,6 +651,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "outputs": [],
             "output_path": "v3io:///mypath",
             "secret_sources": [],
+            "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2",
             "data_stores": [],
             "handler": "merge_handler",
         }
@@ -660,7 +661,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 expected_runspec,
                 # excluding function attribute as it contains hash of the object, excluding this path because any change
                 # in the structure of the run will require to update the function hash
-                # e.g function attribute: "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2"
                 exclude_paths="function",
             )
             == {}

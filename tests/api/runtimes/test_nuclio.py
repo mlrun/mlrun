@@ -652,7 +652,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         function.with_requirements(requirements)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
-            expected_build_commands=expected_commands
+            expected_class=self.class_name, expected_build_commands=expected_commands
         )
 
     def test_deploy_function_with_commands_and_requirements(
@@ -667,7 +667,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "python -m pip install pandas numpy",
         ]
         self._assert_deploy_called_basic_config(
-            expected_build_commands=expected_commands
+            expected_class=self.class_name, expected_build_commands=expected_commands
         )
 
     def test_deploy_function_with_labels(self, db: Session, client: TestClient):

@@ -80,7 +80,6 @@ default_config = {
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
-    "hub_url": "https://raw.githubusercontent.com/mlrun/marketplace/master/{tag}/{name}/function.yaml",
     "ipython_widget": True,
     "log_level": "INFO",
     # log formatter (options: human | json)

@@ -352,7 +352,6 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = server_cfg.get("hub_url") or config.hub_url
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector

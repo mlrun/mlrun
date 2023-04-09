@@ -147,18 +147,35 @@ class BaseStep(ModelObj):
         result_path: str = None,
         **class_args,
     ):
-        """
+        """set error handler step (on failure/raise of this step)
 
-        :param class_name:
-        :param name:
-        :param handler:
-        :param before:
-        :param function:
-        :param full_event:
-        :param input_path:
-        :param result_path:
-        :param class_args:
-        :return:
+        use before to define the next steps, the default will end the graph after the error handler execution.
+
+        example:
+            graph = function.set_topology('flow', engine='async')
+            graph.to(name='raise', handler='raising_step', verbose=True)\
+                .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
+            graph.add_step(name="echo", handler='echo', after="raise").respond()
+
+        :param class_name:  class name or step object to build the step from
+                            for router steps the class name should start with '*'
+                            for queue/stream step the class should be '>>' or '$queue'
+        :param name:        unique name (and path) for the child step, default is class name
+        :param handler:     class/function handler to invoke on run/event
+                            can use $prev to indicate the last added step
+        :param before:      string or list of next step names that will run after this step
+        :param function:    function this step should run in
+        :param full_event:  this step accepts the full event (not just body)
+        :param input_path:  selects the key/path in the event to use as input to the step
+                            this require that the event body will behave like a dict, example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
+                            receive 7 as input
+        :param result_path: selects the key/path in the event to write the results to
+                            this require that the event body will behave like a dict, example:
+                            event: {"x": 5} , result_path="y" means the output of the step will be written
+                            to event["y"] resulting in {"x": 5, "y": <result>}
+        :param class_args:  class init arguments
+
         """
         if class_name or handler:
             name = get_name(name, class_name)
@@ -1173,17 +1190,13 @@ class FlowStep(BaseStep):
         )
 
     def _insert_all_error_handlers(self):
+        """insert all error steps tp the graph"""
         for name, step in self._steps.items():
             if step.kind == "error_step":
                 self._insert_error_step(name, step)
 
     def _insert_error_step(self, name, step):
-        """
-
-        :param name:
-        :param step:
-        :return:
-        """
+        """insert error step tp the graph"""
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):

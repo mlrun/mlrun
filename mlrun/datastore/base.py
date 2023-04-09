@@ -553,5 +553,5 @@ class HttpStore(DataStore):
     def _validate_https_token(self):
         if self._https_auth_token and self._schema in ["http"]:
             logger.warn(
-                f"It is not secure and not recommended to provide a AUTH TOKEN while using {self._schema} schema"
+                f"A AUTH TOKEN should not be provided while using {self._schema} schema as it is not secure and is not recommended."
             )

@@ -42,7 +42,7 @@ import mlrun.errors
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
 
-from ..config import config
+from ..config import config, is_running_as_api
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -607,8 +607,9 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
 
     :return: (extended uri of item, is hub item)
     """
-    if not uri.startswith(hub_prefix):
-        return uri, False
+    is_hub_uri = uri.startswith(hub_prefix)
+    if not is_hub_uri:
+        return uri, is_hub_uri
 
     db = mlrun.get_run_db()
     name = uri.strip(hub_prefix)
@@ -621,8 +622,11 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
     function_suffix = f"{name}/{tag}/src/function.yaml"
-
     if not source_name:
+        # try to get from default without db?
+        if not is_running_as_api():
+            marketplace_url = config.get_default_marketplace_source()
+            return marketplace_url + function_suffix, is_hub_uri
         # Searching item in all sources
         sources = db.list_marketplace_sources(item_name=name, tag=tag)
         if not sources:
@@ -633,8 +637,8 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
         source = sources[-1] if sources[-1].index == -1 else sources[0]
     else:
         # Specific source is given
-        source = mlrun.db.get_run_db().get_marketplace_source(source_name)
-    return source.source.get_full_uri(function_suffix), True
+        source = db.get_marketplace_source(source_name)
+    return source.source.get_full_uri(function_suffix), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

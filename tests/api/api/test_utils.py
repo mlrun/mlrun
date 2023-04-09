@@ -1177,8 +1177,9 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
 ):
     task_name = "task_name"
     tests.api.api.utils.create_project(client, PROJECT)
-
+    print("1")
     _mock_import_function(monkeypatch)
+    print("-1")
     submit_job_body = {
         "task": {
             "spec": {"function": "hub://gen_class_data"},
@@ -1307,8 +1308,16 @@ def _mock_import_function(monkeypatch):
         _, _, _, original_function = _generate_original_function()
         return original_function
 
+    def _mock_extend_hub_uri_if_needed(*args, **kwargs):
+        return "some-url", True
+
     monkeypatch.setattr(
         mlrun.run, "import_function_to_dict", _mock_import_function_to_dict
+    )
+
+    monkeypatch.setattr(
+        "mlrun.utils.helpers.extend_hub_uri_if_needed.__code__",
+        _mock_extend_hub_uri_if_needed.__code__,
     )
 
 

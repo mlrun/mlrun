@@ -607,6 +607,11 @@ class Config:
         )
 
     @staticmethod
+    def get_default_marketplace_source() -> str:
+        default_source = config.marketplace.default_source
+        return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
+
+    @staticmethod
     def decode_base64_config_and_load_to_object(
         attribute_path: str, expected_type=dict
     ):

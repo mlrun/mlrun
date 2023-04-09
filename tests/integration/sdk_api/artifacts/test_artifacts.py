@@ -12,11 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
+import pathlib
+import shutil
+import unittest.mock
+
 import pandas
 
 import mlrun
 import mlrun.artifacts
 import tests.integration.sdk_api.base
+from tests import conftest
+
+results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 
 
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -71,3 +79,69 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
             project=prj, category=mlrun.api.schemas.ArtifactCategories.dataset
         )
         assert len(artifacts) == 1, "bad number of dataset artifacts"
+
+    def test_export_import(self):
+        project = mlrun.new_project("log-mod")
+        target_project = mlrun.new_project("log-mod2")
+        for mode in [False, True]:
+            mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = mode
+
+            model = project.log_model(
+                "mymod",
+                body=b"123",
+                model_file="model.pkl",
+                extra_data={"kk": b"456"},
+                artifact_path=results_dir,
+            )
+
+            for suffix in ["yaml", "json", "zip"]:
+                # export the artifact to a file
+                model.export(f"{results_dir}/a.{suffix}")
+
+                # import and log the artifact to the new project
+                artifact = target_project.import_artifact(
+                    f"{results_dir}/a.{suffix}",
+                    f"mod-{suffix}",
+                    artifact_path=results_dir,
+                )
+                assert artifact.kind == "model"
+                assert artifact.metadata.key == f"mod-{suffix}"
+                assert artifact.metadata.project == "log-mod2"
+                temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
+                    artifact.uri
+                )
+                with open(temp_path, "rb") as fp:
+                    data = fp.read()
+                assert data == b"123"
+                assert extra_dataitems["kk"].get() == b"456"
+
+    def test_import_remote_zip(self):
+        project = mlrun.new_project("log-mod")
+        target_project = mlrun.new_project("log-mod2")
+        model = project.log_model(
+            "mymod",
+            body=b"123",
+            model_file="model.pkl",
+            extra_data={"kk": b"456"},
+            artifact_path=results_dir,
+        )
+
+        artifact_url = f"{results_dir}/a.zip"
+        model.export(artifact_url)
+
+        # mock downloading the artifact from s3 by copying it locally to a temp path
+        mlrun.datastore.base.DataStore.download = unittest.mock.MagicMock(
+            side_effect=shutil.copyfile
+        )
+        artifact = target_project.import_artifact(
+            f"s3://ֿ{results_dir}/a.zip",
+            "mod-zip",
+            artifact_path=results_dir,
+        )
+
+        temp_local_path = mlrun.datastore.base.DataStore.download.call_args[0][1]
+        assert artifact.metadata.project == "log-mod2"
+        # verify that the original artifact was not deleted
+        assert os.path.exists(artifact_url)
+        # verify that the temp path was deleted after the import
+        assert not os.path.exists(temp_local_path)

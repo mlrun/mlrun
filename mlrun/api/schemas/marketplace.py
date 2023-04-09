@@ -122,6 +122,7 @@ class MarketplaceItemMetadata(MarketplaceObjectMetadata):
 
 class MarketplaceItemSpec(ObjectSpec):
     item_uri: str
+    assets: Dict[str, str] = {}
 
 
 class MarketplaceItem(BaseModel):
@@ -129,7 +130,6 @@ class MarketplaceItem(BaseModel):
     metadata: MarketplaceItemMetadata
     spec: MarketplaceItemSpec
     status: ObjectStatus
-    assets: Dict[str, str] = {}
 
 
 class MarketplaceCatalog(BaseModel):

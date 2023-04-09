@@ -239,7 +239,6 @@ def test_ensemble_get_models():
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/")
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
     #           "weights": None}
@@ -256,7 +255,6 @@ def test_ensemble_get_metadata_of_models():
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
@@ -499,7 +497,7 @@ def test_v2_explain():
     assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
-def test_v2_get_modelmeta():
+def test_v2_get_modelmeta(rundb_mock):
     project = mlrun.new_project("tstsrv", save=False)
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)
@@ -588,12 +586,11 @@ def test_v2_mock():
 
 def test_function():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("router")
+    fn.set_topology("router")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"

@@ -183,6 +183,7 @@ class NuclioSpec(KubeResourceSpec):
         security_context=None,
         service_type=None,
         add_templated_ingress_host_mode=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -212,6 +213,7 @@ class NuclioSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self.base_spec = base_spec or {}

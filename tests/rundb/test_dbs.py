@@ -23,13 +23,12 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-from mlrun.db import SQLDB, FileRunDB, sqldb
+from mlrun.db import SQLDB, sqldb
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
 
 dbs = [
     "sql",
-    "file",
     # TODO: 'httpdb',
 ]
 
@@ -42,13 +41,11 @@ def db(request):
         db_file = f"{path}/mlrun.db"
         dsn = f"sqlite:///{db_file}?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()
         db = SQLDB(dsn, session=db_session)
-    elif request.param == "file":
-        db = FileRunDB(path)
     else:
         assert False, f"unknown db type - {request.param}"
 
@@ -139,8 +136,6 @@ def test_artifacts(db: RunDBInterface):
 
 
 def test_list_runs(db: RunDBInterface):
-    if isinstance(db, FileRunDB):
-        pytest.skip("FIXME")
     uid = "u183"
     run = new_run("s1", {"l1": "v1", "l2": "v2"}, uid, x=1)
     count = 5

@@ -51,12 +51,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - id: set-matrix
-        run: |
-          skipImages=",$INPUT_SKIP_IMAGES,"
-          matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
-          echo "matrix={\"include\":$(echo $matrix)}" >> $GITHUB_OUTPUT
-        env:
-          INPUT_SKIP_IMAGES: ${{ github.event.inputs.skip_images }}
+        uses: ./.github/actions/image-matrix-prep
+        with:
+          skip_images: ${{ github.event.inputs.skip_images }}
+
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

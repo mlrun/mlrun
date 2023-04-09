@@ -17,17 +17,16 @@ import traceback
 from typing import Dict, Union
 
 import mlrun
+import mlrun.model_monitoring
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
 )
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
-from mlrun.utils.model_monitoring import EndpointType
 
 from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
@@ -487,7 +486,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{model.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+    uid = mlrun.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -512,18 +511,21 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
                     if model.context.server.track_models
-                    else ModelMonitoringMode.disabled,
+                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
                 ),
-                status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
+                status=ModelEndpointStatus(
+                    endpoint_type=mlrun.model_monitoring.EndpointType.NODE_EP
+                ),
             )
 
             db = mlrun.get_run_db()
+
             db.create_model_endpoint(
                 project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-                model_endpoint=model_endpoint,
+                endpoint_id=uid,
+                model_endpoint=model_endpoint.dict(),
             )
 
         except Exception as e:

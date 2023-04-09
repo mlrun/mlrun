@@ -372,6 +372,15 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # run db operations.
+        "nop_db": {
+            # if set to true, will raise an error for trying to use run db functionality
+            # if set to false, will use a nop db which will not preform any run db operations
+            "raise_error": False,
+            # if set to true, will log a warning for trying to use run db functionality while in nop db mode
+            "verbose": True,
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -383,7 +392,8 @@ default_config = {
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
-        "store_type": "kv",
+        "store_type": "v3io-nosql",
+        "endpoint_store_connection": "",
     },
     "secret_stores": {
         "vault": {

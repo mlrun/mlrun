@@ -125,7 +125,7 @@ def test_requirement_specifiers_convention():
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10,<11"},
+        "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
@@ -139,6 +139,8 @@ def test_requirement_specifiers_convention():
         "plotly": {"~=5.4, <5.12.0"},
         # used in tests
         "aioresponses": {"~=0.7"},
+        # conda requirements since conda does not support ~= operator
+        "lightgbm": {">=3.0"},
     }
 
     for (
@@ -169,6 +171,9 @@ def test_requirement_specifiers_inconsistencies():
         # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
         # scenario of requirements without version specifiers
         "python-dotenv": {"", "~=0.17.0"},
+        # conda requirements since conda does not support ~= operator and
+        # since platform condition is not required for docker
+        "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
     }
 
     for (

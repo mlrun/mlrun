@@ -51,7 +51,7 @@ def db() -> Generator:
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
-    _init_engine(config.httpdb.dsn)
+    _init_engine(dsn=config.httpdb.dsn)
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)

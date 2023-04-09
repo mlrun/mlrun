@@ -690,6 +690,21 @@ def my_func(context):
             == {}
         )
 
+    def test_build_config_commands_and_requirements_order(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+        runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
+        expected_commands = ["apt-get update", "python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+
     def test_build_config_with_images(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.build_config(base_image="mlrun/mlrun", image="target/mlrun")
@@ -740,6 +755,33 @@ def my_func(context):
                 f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
                 not in dockerfile
             )
+
+    @pytest.mark.parametrize(
+        "workdir, source, pull_at_runtime, target_dir, expected_workdir",
+        [
+            ("", "git://bla", True, None, None),
+            ("", "git://bla", False, None, None),
+            ("", "git://bla", False, "/a/b/c", "/a/b/c/"),
+            ("subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", True, "/a/b/c", None),
+            ("/abs/subdir", "git://bla", False, "/a/b/c", "/abs/subdir"),
+            ("/abs/subdir", "git://bla", False, None, "/abs/subdir"),
+        ],
+    )
+    def test_resolve_workdir(
+        self, workdir, source, pull_at_runtime, target_dir, expected_workdir
+    ):
+        runtime = self._generate_runtime()
+        runtime.with_source_archive(
+            source, workdir, pull_at_runtime=pull_at_runtime, target_dir=target_dir
+        )
+
+        # mock the build
+        runtime.spec.image = "some/image"
+        self.execute_function(runtime)
+        pod = self._get_pod_creation_args()
+        assert pod.spec.containers[0].working_dir == expected_workdir
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

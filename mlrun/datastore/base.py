@@ -551,7 +551,7 @@ class HttpStore(DataStore):
             self._headers.setdefault("Authorization", f"token {token}")
 
     def _validate_https_token(self):
-        if self._https_auth_token and self._schema not in ["https"]:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "For using HTTPS_AUTH_TOKEN please use https schema"
+        if self._https_auth_token and self._schema in ["http"]:
+            logger.warn(
+                f"It is not secure and not recommended to provide a AUTH TOKEN while using {self._schema} schema"
             )

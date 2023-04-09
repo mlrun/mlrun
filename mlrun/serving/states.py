@@ -135,17 +135,18 @@ class BaseStep(ModelObj):
                 self.after.append(name)
         return self
 
-    def error_handler(self,
-                      class_name=None,
-                      name=None,
-                      handler=None,
-                      before=None,
-                      function=None,
-                      full_event: bool = None,
-                      input_path: str = None,
-                      result_path: str = None,
-                      **class_args,
-                      ):
+    def error_handler(
+        self,
+        class_name=None,
+        name=None,
+        handler=None,
+        before=None,
+        function=None,
+        full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+        **class_args,
+    ):
         """
 
         :param class_name:
@@ -1162,7 +1163,9 @@ class FlowStep(BaseStep):
         :param step:
         :return:
         """
-        if not step.before and not all([step.name in other_step.after for other_step in self._steps]):
+        if not step.before and not all(
+            [step.name in other_step.after for other_step in self._steps]
+        ):
             step.responder = True
             return
 
@@ -1191,7 +1194,7 @@ classes_map = {
     "router": RouterStep,
     "flow": FlowStep,
     "queue": QueueStep,
-    "error_step": ErrorStep
+    "error_step": ErrorStep,
 }
 
 

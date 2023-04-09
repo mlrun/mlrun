@@ -161,7 +161,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         read_back_df_spark = None
         file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
         for file_entry in file_system.ls(out_path_spark):
-            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
             if not filepath.endswith("/_SUCCESS"):
                 read_back_df_spark = pd.read_parquet(filepath)
                 break
@@ -169,7 +169,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         read_back_df_storey = None
         for file_entry in file_system.ls(out_path_storey):
-            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
             read_back_df_storey = pd.read_parquet(filepath)
             break
         assert read_back_df_storey is not None
@@ -186,9 +186,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     @classmethod
     def read_csv(cls, csv_path: str) -> pd.DataFrame:
-        file_system = fsspec.filesystem("file" if self.run_local else "v3io")
+        file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
         for file_entry in file_system.ls(csv_path):
-            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
             if not filepath.endswith("/_SUCCESS"):
                 return pd.read_csv(filepath)
         raise AssertionError(f"No files found in {csv_path}")
@@ -230,7 +230,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             os.makedirs(result, exist_ok=True)
         return result
 
-    def set_targets(self, feature_set):
+    def set_targets(self, feature_set, also_in_remote=False):
         dir_name = (
             os.environ.get("PYTEST_CURRENT_TEST")
             .split(":")[-1]
@@ -238,7 +238,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             .replace("[", "__")
             .replace("]", "")
         )
-        if self.run_local:
+        if self.run_local or also_in_remote:
             target_path = f"{self.output_dir()}/{dir_name}"
             feature_set.set_targets(
                 [ParquetTarget(path=target_path)], with_defaults=False
@@ -1315,7 +1315,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         my_fv.spec.with_indexes = True
         my_fv.save()
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -1587,7 +1589,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
         df = self.read_csv(csv_path=csv_path_spark)
@@ -1829,7 +1831,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "managers",
             entities=[managers_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(managers_set, also_in_remote=True)
         fstore.ingest(managers_set, managers)
 
         classes_set_entity = fstore.Entity("c_id")
@@ -1837,7 +1839,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "classes",
             entities=[classes_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(classes_set, also_in_remote=True)
         fstore.ingest(classes_set, classes)
 
         departments_set_entity = fstore.Entity("d_id")
@@ -1846,7 +1848,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[departments_set_entity],
             relations={"manager_id": managers_set_entity},
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(departments_set, also_in_remote=True)
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -1855,7 +1857,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
         )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(employees_set, also_in_remote=True)
         fstore.ingest(employees_set, employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
@@ -1866,7 +1868,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "class_id": classes_set_entity,
             },
         )
-        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(mini_employees_set, also_in_remote=True)
         fstore.ingest(mini_employees_set, employees_with_class)
 
         features = ["employees.name"]
@@ -1876,7 +1878,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp = fstore.get_offline_features(
             vector,
             target=target,
@@ -1904,7 +1908,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1928,7 +1934,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp_2 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1948,7 +1956,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp_3 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1973,7 +1983,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp_4 = fstore.get_offline_features(
             vector,
             target=target,
@@ -2035,7 +2047,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         departments_set = fstore.FeatureSet(
             "departments", entities=[departments_set_entity], timestamp_key="time"
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(departments_set, also_in_remote=True)
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -2045,7 +2057,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             relations={"department_id": departments_set_entity},
             timestamp_key="time",
         )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        self.set_targets(employees_set, also_in_remote=True)
         fstore.ingest(employees_set, employees_with_department)
 
         features = ["employees.name as n", "departments.name as n2"]
@@ -2054,7 +2066,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "employees-vec", features, description="Employees feature vector"
         )
         vector.save()
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
@@ -2104,9 +2118,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df_right.to_parquet(path=right_path, filesystem=fsys)
 
         fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
-        fset1.set_targets(["parquet"], with_defaults=False)
+        self.set_targets(fset1, also_in_remote=True)
         fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
-        fset2.set_targets(["parquet"], with_defaults=False)
+        self.set_targets(fset2, also_in_remote=True)
 
         source_left = ParquetSource("pq1", path=left_path)
         source_right = ParquetSource("pq2", path=right_path)
@@ -2132,7 +2146,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
-        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",

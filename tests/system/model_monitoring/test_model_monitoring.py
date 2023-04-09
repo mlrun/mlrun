@@ -366,7 +366,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Train the model using the auto trainer from the marketplace
-        train = mlrun.import_function("hub://auto_trainer", new_name="train")
+        train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
         model_name = "diabetes_model"
@@ -530,7 +530,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         }
 
         # Import the auto trainer function from the marketplace (hub://)
-        train = mlrun.import_function("hub://auto_trainer")
+        train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
 

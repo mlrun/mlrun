@@ -52,7 +52,7 @@ def newpipe():
 
     # train with hyper-paremeters
     train = run_function(
-        "auto_trainer",
+        "auto-trainer",
         name="train",
         params={"label_columns": LABELS, "train_test_split_size": 0.10},
         hyperparams={
@@ -70,7 +70,7 @@ def newpipe():
 
     # test and visualize our model
     run_function(
-        "auto_trainer",
+        "auto-trainer",
         name="test",
         handler="evaluate",
         params={"label_columns": LABELS, "model": train.outputs["model"]},

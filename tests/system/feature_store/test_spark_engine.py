@@ -21,6 +21,7 @@ from datetime import datetime
 
 import fsspec
 import pandas as pd
+import pyspark.sql.utils
 import pytest
 import v3iofs
 from pandas._testing import assert_frame_equal
@@ -1271,7 +1272,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         source = ParquetSource("myparquet", path="wrong-path.pq")
-        with pytest.raises(mlrun.runtimes.utils.RunError):
+        with pytest.raises(
+            pyspark.sql.utils.AnalysisException
+            if self.run_local
+            else mlrun.runtimes.utils.RunError
+        ):
             fstore.ingest(
                 measurements,
                 source,

@@ -873,6 +873,7 @@ class FlowStep(BaseStep):
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         """initialize graph objects and classes"""
         self.context = context
+        self._insert_all_error_handlers()
         self.check_and_process_graph()
 
         for step in self._steps.values():
@@ -881,7 +882,6 @@ class FlowStep(BaseStep):
         self._set_error_handler()
         self._post_init(mode)
 
-        self._insert_all_error_handlers()
         if self.engine != "sync":
             self._build_async_flow()
 
@@ -916,7 +916,11 @@ class FlowStep(BaseStep):
 
         responders = []
         for step in self._steps.values():
-            if hasattr(step, "responder") and step.responder:
+            if (
+                hasattr(step, "responder")
+                and step.responder
+                and step.kind != "error_step"
+            ):
                 responders.append(step.name)
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
@@ -1029,6 +1033,10 @@ class FlowStep(BaseStep):
                 # never set a step as its own error handler
                 if step != error_step:
                     step.async_object.set_recovery_step(error_step.async_object)
+                    for next_step in error_step.next or []:
+                        next_state = self[next_step]
+                        if next_state.async_object and error_step.async_object:
+                            error_step.async_object.to(next_state.async_object)
 
         self._controller = source.run()
 
@@ -1163,8 +1171,8 @@ class FlowStep(BaseStep):
         :param step:
         :return:
         """
-        if not step.before and not all(
-            [step.name in other_step.after for other_step in self._steps]
+        if not step.before and not any(
+            [step.name in other_step.after for other_step in self._steps.values()]
         ):
             step.responder = True
             return
@@ -1178,8 +1186,7 @@ class FlowStep(BaseStep):
                 raise GraphError(
                     f"graph loop, step {step_name} is specified in before and/or after {name}"
                 )
-            if name not in self[step.name]:
-                self[step.name].after_step(name)
+            self[step_name].after_step(name)
 
 
 class RootFlowStep(FlowStep):

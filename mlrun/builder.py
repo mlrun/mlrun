@@ -321,14 +321,15 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-    if isinstance(requirements, list):
+    if requirements and isinstance(requirements, list):
         requirements_list = requirements
         requirements_path = "requirements.txt"
-        if source:
-            raise ValueError("requirements list only works with inline code")
+        # TODO: check whether `if source` is still needed
+        # if source:
+        #     raise ValueError("requirements list only works with inline code")
     else:
         requirements_list = None
-        requirements_path = requirements
+        requirements_path = requirements or ""
 
     commands = commands or []
     if with_mlrun:
@@ -343,7 +344,7 @@ def build_image(
         if mlrun_command:
             commands.append(mlrun_command)
 
-    if not inline_code and not source and not commands:
+    if not inline_code and not source and not commands and not requirements:
         logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -540,7 +541,13 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if not build.source and not build.commands and not build.extra and not with_mlrun:
+    if (
+        not build.source
+        and not build.commands
+        and not build.requirements
+        and not build.extra
+        and not with_mlrun
+    ):
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image

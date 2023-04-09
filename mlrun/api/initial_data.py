@@ -499,10 +499,12 @@ def _need_to_update_default_marketplace_source(
 ):
     sources = db.list_marketplace_sources(db_session)
     default = config.marketplace.default_source
+    need_to_update = True
     for source in sources:
         src = source.source
         index = source.index
         if index == mlrun.api.schemas.last_source_index:
+            logger.info("\nDEBUG YONI: found old default source\n")
             # Default source is the last index
             if (
                 default.url != src.spec.path
@@ -511,9 +513,10 @@ def _need_to_update_default_marketplace_source(
                 or default.object_type != src.spec.object_type
             ):
                 db.delete_marketplace_source(db_session, src.metadata.name)
-                return True
-            return False
-    return True
+                db_session.commit()
+                break
+            need_to_update = False
+    return need_to_update
 
 
 def _add_default_marketplace_source_if_needed(

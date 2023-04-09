@@ -52,7 +52,7 @@ class PackagersManager:
     # Optional packagers to be collected at initialization time:
     _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
 
-    def __init__(self, default_packager: Packager = None):
+    def __init__(self, default_packager: Type[Packager] = None):
         """
         Initialize a packagers manager.
 
@@ -65,7 +65,7 @@ class PackagersManager:
         self._default_packager = default_packager or DefaultPackager
 
         # Initialize the packagers list (with the default packager in it):
-        self._packagers: List[Packager] = [self._default_packager]
+        self._packagers: List[Type[Packager]] = [self._default_packager]
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
@@ -132,13 +132,14 @@ class PackagersManager:
                     # types to the method):
                     self.collect_packagers(
                         packagers=[
-                            member[1]
-                            for member in inspect.getmembers(
+                            member
+                            for _, member in inspect.getmembers(
                                 module,
-                                lambda member: (
-                                    hasattr(member, "__module__")
-                                    and member.__module__ == module.__name__
-                                    and isinstance(member, Packager)
+                                lambda m: (
+                                    hasattr(m, "__module__")
+                                    and m.__module__ == module.__name__
+                                    and isinstance(m, type)
+                                    and issubclass(m, Packager)
                                 ),
                             )
                         ]
@@ -154,7 +155,7 @@ class PackagersManager:
                         f"'{module.__name__}'."
                     ) from attribute_error
             # Validate the class given is a `Packager` type:
-            if not isinstance(packager, Packager):
+            if not issubclass(packager, Packager):
                 raise MLRunInvalidArgumentError(
                     f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
@@ -445,7 +446,7 @@ class PackagersManager:
                 packagers=[f"mlrun.package.packagers.{module_name}_packagers.*"],
             )
 
-    def _get_packager_by_name(self, name: str) -> Union[Packager, None]:
+    def _get_packager_by_name(self, name: str) -> Union[Type[Packager], None]:
         """
         Look for a packager with the given name and return it.
 
@@ -466,7 +467,7 @@ class PackagersManager:
 
     def _get_packager_by_type(
         self, object_type: Type, artifact_type: str = None
-    ) -> Union[Packager, None]:
+    ) -> Union[Type[Packager], None]:
         """
         Look for a packager that can handle the provided object type and can also pack it as the provided artifact type.
 
@@ -635,9 +636,12 @@ class PackagersManager:
 
         :return: The artifact or result with the same key or None if not found.
         """
+        # Look in the artifacts:
         for artifact in artifacts:
             if key == artifact.key:
                 return artifact
+
+        # Look in the results:
         return results.get(key, None)
 
     @staticmethod

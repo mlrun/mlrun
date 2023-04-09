@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Any, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 
 
-class _PackagerMeta(type(ABC)):
+class _PackagerMeta(ABCMeta):
     """
     Metaclass for `Packager` to override type class methods.
     """
 
     # TODO: When 3.7 is no longer supported, add "Packager" as reference type hint to cls (cls: "Packager")
-    @classmethod
     def __repr__(cls) -> str:
         """
         Get the string representation of a packager in the following format:
@@ -43,7 +42,7 @@ class _PackagerMeta(type(ABC)):
         supported_artifact_types = cls.get_supported_artifact_types()
 
         # Return the string representation in the format noted above:
-        return f"{packager_name} (packable_type={handled_type}, artifact_types={supported_artifact_types}"
+        return f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types})"
 
 
 class Packager(ABC, metaclass=_PackagerMeta):

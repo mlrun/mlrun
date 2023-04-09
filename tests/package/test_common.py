@@ -21,6 +21,10 @@ from mlrun.package.common import TypingUtils
 
 
 class SomeClass:
+    """
+    To add a custom type for the type hinting test.
+    """
+
     pass
 
 

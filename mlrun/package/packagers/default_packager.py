@@ -349,9 +349,8 @@ class DefaultPackager(Packager):
         # unpacked. Result has no unpacking so we add it separately.
         return [
             key[len("pack_") :]
-            for key in cls.__dict__
-            if key.startswith("pack_")
-            and f"unpack_{key[len('pack_'):]}" in cls.__dict__
+            for key in dir(cls)
+            if key.startswith("pack_") and f"unpack_{key[len('pack_'):]}" in dir(cls)
         ] + ["result"]
 
     @classmethod
@@ -565,7 +564,7 @@ class DefaultPackager(Packager):
         possible_arguments = inspect.signature(method).parameters
         mandatory_arguments = [
             name
-            for name, parameter in possible_arguments
+            for name, parameter in possible_arguments.items()
             if parameter.default is not inspect._empty
         ]
 

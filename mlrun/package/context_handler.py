@@ -100,7 +100,7 @@ class ContextHandler:
                 for custom_packager, is_mandatory in custom_packagers:
                     try:
                         self._packagers_manager.collect_packagers(
-                            packagers=custom_packagers
+                            packagers=[custom_packager]
                         )
                     except (
                         MLRunInvalidArgumentError,

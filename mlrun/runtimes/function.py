@@ -14,6 +14,7 @@
 
 import asyncio
 import json
+import shlex
 import typing
 import warnings
 from base64 import b64encode
@@ -1391,7 +1392,24 @@ def compile_function_config(
     nuclio_spec.cmd = function.spec.build.commands or []
 
     if function.spec.build.requirements:
-        pass
+        resolved_requirements = []
+        # wrap in single quote to ensure that the requirement is treated as a single string
+        # quote the requirement to avoid issues with special characters, double quotes, etc.
+        for requirement in function.spec.build.requirements:
+            # -r / --requirement are flags and should not be escaped
+            # we allow such flags (could be passed within the requirements.txt file) and do not
+            # try to open the file and include its content since it might be a remote file
+            # given on the base image.
+            for req_flag in ["-r", "--requirement"]:
+                if requirement.startswith(req_flag):
+                    requirement = requirement[len(req_flag) :].strip()
+                    resolved_requirements.append(req_flag)
+                    break
+
+            resolved_requirements.append(shlex.quote(requirement))
+
+        encoded_requirements = " ".join(resolved_requirements)
+        nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
 
     project = function.metadata.project or "default"
     tag = function.metadata.tag

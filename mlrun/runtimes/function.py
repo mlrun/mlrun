@@ -1389,6 +1389,10 @@ def compile_function_config(
         config=function.spec.config,
     )
     nuclio_spec.cmd = function.spec.build.commands or []
+
+    if function.spec.build.requirements:
+        pass
+
     project = function.metadata.project or "default"
     tag = function.metadata.tag
     handler = function.spec.function_handler

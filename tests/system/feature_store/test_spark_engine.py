@@ -1286,8 +1286,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
     # ML-3092
-    # @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
-    @pytest.mark.parametrize("timestamp_key", [None])
+    @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
     def test_get_offline_features_with_filter_and_indexes(self, timestamp_key):
         key = "patient_id"
         measurements = fstore.FeatureSet(
@@ -1316,7 +1315,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         my_fv.spec.with_indexes = True
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
@@ -1385,7 +1384,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         my_fv.save()
         target = target_type(
             "mytarget",
-            path=f"{self.output_dir()}/test_get_offline_features_with_spark_engine_testdata_target/",
+            path=f"{self.output_dir()}-get_offline_features",
         )
         resp = fstore.get_offline_features(
             fv_name,
@@ -1877,7 +1876,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp = fstore.get_offline_features(
             vector,
             target=target,
@@ -1905,7 +1904,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1929,7 +1928,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp_2 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1949,7 +1948,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp_3 = fstore.get_offline_features(
             vector,
             target=target,
@@ -1974,7 +1973,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp_4 = fstore.get_offline_features(
             vector,
             target=target,
@@ -2055,7 +2054,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "employees-vec", features, description="Employees feature vector"
         )
         vector.save()
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
@@ -2133,7 +2132,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
-        target = ParquetTarget("mytarget", path=self.output_dir())
+        target = ParquetTarget("mytarget", path=f"{self.output_dir()}-get_offline_features")
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",

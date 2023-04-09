@@ -28,7 +28,7 @@ def test_get_file_target_path():
     )
     assert (
         offline_parquet_relative
-        == os.environ["MLRUN_ARTIFACT_PATH"] + TEST_PROJECT + "/model-endpoints/parquet"
+        == os.environ["MLRUN_ARTIFACT_PATH"] + "model-endpoints/parquet"
     )
 
     # online target

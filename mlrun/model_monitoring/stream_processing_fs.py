@@ -46,6 +46,7 @@ class EventStreamProcessor:
         self,
         project: str,
         parquet_batching_max_events: int,
+        parquet_target: str,
         sample_window: int = 10,
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
         aggregate_count_windows: typing.Optional[typing.List[str]] = None,
@@ -63,9 +64,7 @@ class EventStreamProcessor:
         self.aggregate_avg_period = aggregate_avg_period
 
         # Parquet path and configurations
-        self.parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=project, kind=FileTargetKind.PARQUET, target="offline"
-        )
+        self.parquet_path = parquet_target
         self.parquet_batching_max_events = parquet_batching_max_events
         self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
 

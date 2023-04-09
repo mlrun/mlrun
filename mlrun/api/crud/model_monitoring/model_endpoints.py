@@ -170,8 +170,8 @@ class ModelEndpoints:
 
         return model_endpoint
 
-    @staticmethod
     def create_monitoring_feature_set(
+        self,
         model_endpoint: mlrun.api.schemas.ModelEndpoint,
         model_obj: mlrun.artifacts.ModelArtifact,
         db_session: sqlalchemy.orm.Session,
@@ -238,12 +238,12 @@ class ModelEndpoints:
             )
 
         # Define parquet target for this feature set
-        parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=model_endpoint.metadata.project,
-            kind=model_monitoring_constants.FileTargetKind.PARQUET,
-            target="offline",
+        parquet_path = (
+            self._get_monitoring_parquet_path(
+                db_session=db_session, project=model_endpoint.metadata.project
+            )
+            + f"/key={model_endpoint.metadata.uid}"
         )
-        parquet_path = parquet_path + f"/key={model_endpoint.metadata.uid}"
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
             model_monitoring_constants.FileTargetKind.PARQUET, parquet_path
@@ -266,6 +266,35 @@ class ModelEndpoints:
         )
 
         return feature_set
+
+    @staticmethod
+    def _get_monitoring_parquet_path(
+        db_session: sqlalchemy.orm.Session, project: str
+    ) -> str:
+        """Getting model monitoring parquet target for the current project. The parquet target path is based on the
+        project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
+        artifact path.
+
+        :param db_session: A session that manages the current dialog with the database. Will be used in this function
+                           to get the project record from DB.
+        :param project:    Project name.
+
+        :return:           Monitoring parquet target path.
+        """
+
+        # Get the artifact path from the project record that was stored in the DB
+        project_obj = mlrun.api.crud.projects.Projects().get_project(
+            session=db_session, name=project
+        )
+        artifact_path = project_obj.spec.artifact_path
+        # Generate monitoring parquet path value
+        parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.PARQUET,
+            target="offline",
+            artifact_path=artifact_path,
+        )
+        return parquet_path
 
     @staticmethod
     def _validate_length_features_and_labels(model_endpoint):
@@ -746,8 +775,8 @@ class ModelEndpoints:
         # Delete model endpoints resources from databases using the model endpoint store object
         endpoint_store.delete_model_endpoints_resources(endpoints)
 
-    @staticmethod
     def deploy_model_monitoring_stream_processing(
+        self,
         project: str,
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
@@ -788,11 +817,17 @@ class ModelEndpoints:
                 "Deploying model monitoring stream processing function", project=project
             )
 
+        # Get parquet target value for model monitoring stream function
+        parquet_target = self._get_monitoring_parquet_path(
+            db_session=db_session, project=project
+        )
+
         fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             tracking_policy=tracking_policy,
             auth_info=auth_info,
+            parquet_target=parquet_target,
         )
 
         mlrun.api.api.endpoints.functions._build_function(

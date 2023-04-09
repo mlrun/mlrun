@@ -989,26 +989,17 @@ class Config:
         if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
             file_path
         ):
-            if project not in file_path:
-                # Project name must be included
-                file_path = file_path.replace(kind, f"{project}/{kind}")
             return file_path
 
         # Relative path
         else:
-            artifact_path = (
-                artifact_path
-                or mlrun.utils.helpers.fill_artifact_path_template(
-                    artifact_path=config.artifact_path, project=project
-                )
-            )
+            artifact_path = artifact_path or config.artifact_path
             if artifact_path[-1] != "/":
                 artifact_path += "/"
-            if project not in file_path and project not in artifact_path:
-                # Project name must be included
-                artifact_path += f"{project}/"
 
-            return artifact_path + file_path
+            return mlrun.utils.helpers.fill_artifact_path_template(
+                artifact_path=artifact_path + file_path, project=project
+            )
 
     def is_ce_mode(self) -> bool:
         # True if the setup is in CE environment

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ["TaskStep", "RouterStep", "RootFlowStep"]
+__all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 
 import os
 import pathlib
@@ -49,6 +49,7 @@ class StepKinds:
     queue = "queue"
     choice = "choice"
     root = "root"
+    error_step = "error_step"
 
 
 _task_step_fields = [
@@ -134,12 +135,52 @@ class BaseStep(ModelObj):
                 self.after.append(name)
         return self
 
-    def error_handler(self, step_name: str = None):
-        """set error handler step (on failure/raise of this step)"""
-        if not step_name:
-            raise MLRunInvalidArgumentError("Must specify step_name")
-        self.on_error = step_name
-        return self
+    def error_handler(self,
+                      class_name=None,
+                      name=None,
+                      handler=None,
+                      before=None,
+                      function=None,
+                      full_event: bool = None,
+                      input_path: str = None,
+                      result_path: str = None,
+                      **class_args,
+                      ):
+        """
+
+        :param class_name:
+        :param name:
+        :param handler:
+        :param before:
+        :param function:
+        :param full_event:
+        :param input_path:
+        :param result_path:
+        :param class_args:
+        :return:
+        """
+        if class_name or handler:
+            name = get_name(name, class_name)
+            step = ErrorStep(
+                class_name,
+                class_args,
+                handler,
+                name=name,
+                function=function,
+                full_event=full_event,
+                input_path=input_path,
+                result_path=result_path,
+            )
+            self.on_error = name
+            before = [before] if isinstance(before, str) else before
+            step.before = before or []
+            step.base_step = self.name
+            step = self._parent._steps.update(name, step)
+            step.set_parent(self._parent)
+
+            return self
+        else:
+            raise MLRunInvalidArgumentError("class_name or handler must be provided")
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         """init the step class"""
@@ -327,6 +368,7 @@ class TaskStep(BaseStep):
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
+            self._set_error_handler()
             return
 
         self._class_object, self.class_name = self.get_step_class_object(
@@ -465,11 +507,17 @@ class TaskStep(BaseStep):
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             self._log_error(event, exc)
-            handled = self._call_error_handler(event, exc)
-            if not handled:
-                raise exc
-            event.terminated = True
-        return event
+            event.body = self._call_error_handler(event, exc)
+            return event, self.context.root.path_to_step(self.on_error)
+        return event, self
+
+
+class ErrorStep(TaskStep):
+    """error execution step, runs a class or handler"""
+
+    kind = "error_step"
+    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _default_class = ""
 
 
 class RouterStep(TaskStep):
@@ -832,6 +880,7 @@ class FlowStep(BaseStep):
         self._set_error_handler()
         self._post_init(mode)
 
+        self._insert_all_error_handlers()
         if self.engine != "sync":
             self._build_async_flow()
 
@@ -954,10 +1003,7 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
-            next_steps = state.next or []
-            if state.on_error:
-                next_steps.append(state.on_error)
-            for item in next_steps:
+            for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
@@ -1060,12 +1106,10 @@ class FlowStep(BaseStep):
         next_obj = self._start_steps[0]
         while next_obj:
             try:
-                event = next_obj.run(event, *args, **kwargs)
+                event, next_obj = next_obj.run(event, *args, **kwargs)
             except Exception as exc:
                 self._log_error(event, exc, failed_step=next_obj.name)
-                handled = self._call_error_handler(event, exc)
-                if not handled:
-                    raise exc
+                event.body = self._call_error_handler(event, exc)
                 event.terminated = True
                 return event
 
@@ -1106,6 +1150,34 @@ class FlowStep(BaseStep):
             **kw,
         )
 
+    def _insert_all_error_handlers(self):
+        for name, step in self._steps.items():
+            if step.kind == "error_step":
+                self._insert_error_step(name, step)
+
+    def _insert_error_step(self, name, step):
+        """
+
+        :param name:
+        :param step:
+        :return:
+        """
+        if not step.before and not all([step.name in other_step.after for other_step in self._steps]):
+            step.responder = True
+            return
+
+        for step_name in step.before:
+            if step_name not in self._steps.keys():
+                raise MLRunInvalidArgumentError(
+                    f"cant set before, there is no step named {step_name}"
+                )
+            if step_name == step.base_step:
+                raise GraphError(
+                    f"graph loop, step {step_name} is specified in before and/or after {name}"
+                )
+            if name not in self[step.name]:
+                self[step.name].after_step(name)
+
 
 class RootFlowStep(FlowStep):
     """root flow step"""
@@ -1119,6 +1191,7 @@ classes_map = {
     "router": RouterStep,
     "flow": FlowStep,
     "queue": QueueStep,
+    "error_step": ErrorStep
 }
 
 

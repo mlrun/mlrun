@@ -324,9 +324,6 @@ def build_image(
     if requirements and isinstance(requirements, list):
         requirements_list = requirements
         requirements_path = "requirements.txt"
-        # TODO: check whether `if source` is still needed
-        # if source:
-        #     raise ValueError("requirements list only works with inline code")
     else:
         requirements_list = None
         requirements_path = requirements or ""

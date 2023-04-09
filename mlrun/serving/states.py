@@ -228,10 +228,11 @@ class BaseStep(ModelObj):
 
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
-        if self._on_error_handler:
-            event.error = err_to_str(err)
-            event.origin_state = self.fullname
-            return self._on_error_handler(event)
+        if not event.error:
+            event.error = {}
+        event.error[self.name] = err_to_str(err)
+        event.origin_state = self.fullname
+        return self._on_error_handler(event)
 
     def path_to_step(self, path: str):
         """return step object from step relative/fullname"""
@@ -507,10 +508,13 @@ class TaskStep(BaseStep):
             )
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
-            self._log_error(event, exc)
-            event.body = self._call_error_handler(event, exc)
-            return event, self.context.root.path_to_step(self.on_error)
-        return event, self
+            if self._on_error_handler:
+                self._log_error(event, exc)
+                result = self._call_error_handler(event, exc)
+                event.body = _update_result_body(self.result_path, event.body, result)
+            else:
+                raise exc
+        return event
 
 
 class ErrorStep(TaskStep):
@@ -1115,15 +1119,24 @@ class FlowStep(BaseStep):
         next_obj = self._start_steps[0]
         while next_obj:
             try:
-                event, next_obj = next_obj.run(event, *args, **kwargs)
+                event = next_obj.run(event, *args, **kwargs)
             except Exception as exc:
-                self._log_error(event, exc, failed_step=next_obj.name)
-                event.body = self._call_error_handler(event, exc)
-                event.terminated = True
-                return event
+                if self._on_error_handler:
+                    self._log_error(event, exc, failed_step=next_obj.name)
+                    event.body = self._call_error_handler(event, exc)
+                    event.terminated = True
+                    return event
+                else:
+                    raise exc
 
             if hasattr(event, "terminated") and event.terminated:
                 return event
+            if (
+                hasattr(event, "error")
+                and isinstance(event.error, dict)
+                and next_obj.name in event.error
+            ):
+                next_obj = self._steps[next_obj.on_error]
             next = next_obj.next
             if next and len(next) > 1:
                 raise GraphError(

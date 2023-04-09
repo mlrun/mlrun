@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import pathlib
 import warnings
 from datetime import datetime
 from typing import List, Optional, Union
@@ -492,7 +493,21 @@ def ingest(
         featureset.spec.source = source
         featureset.spec.validate_no_processing_for_passthrough()
 
-    namespace = namespace or get_caller_globals()
+    if not namespace:
+        if run_config and run_config.local and run_config.function:
+            filename = run_config.function.spec.filename
+            if filename:
+                import importlib.util
+                import sys
+
+                module_name = pathlib.Path(filename).name.rsplit(".", maxsplit=1)[0]
+                spec = importlib.util.spec_from_file_location(module_name, filename)
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+                namespace = vars(__import__(module_name))
+        else:
+            namespace = get_caller_globals()
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
     targets_to_ingest = copy.deepcopy(targets_to_ingest)

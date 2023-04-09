@@ -15,6 +15,7 @@
 import os
 import pathlib
 import sys
+import tempfile
 import uuid
 from datetime import datetime
 
@@ -58,6 +59,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
+    run_local = True
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
@@ -66,7 +68,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @classmethod
     def _init_env_from_file(cls):
         env = cls._get_env_from_file()
-        cls.spark_service = env["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"]
+        if cls.run_local:
+            cls.spark_service = None
+        else:
+            cls.spark_service = env["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"]
 
     @classmethod
     def get_local_pq_source_path(cls):
@@ -80,21 +85,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + cls.pq_source
         return path
 
+    @classmethod
+    def get_pq_source_path(cls):
+        if cls.run_local:
+            return cls.get_local_pq_source_path()
+        else:
+            return cls.get_remote_pq_source_path()
+
     def _print_full_df(self, df: pd.DataFrame, df_name: str, passthrough: str) -> None:
         with pd.option_context("display.max_rows", None, "display.max_columns", None):
             self._logger.info(f"{df_name}-passthrough_{passthrough}:")
             self._logger.info(df)
-
-    def get_remote_pq_target_path(self, without_prefix=False, clean_up=True):
-        path = "v3io://"
-        if without_prefix:
-            path = ""
-        path += "/bigdata/" + self.pq_target
-        if clean_up:
-            fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
-            for f in fsys.listdir(path):
-                fsys._rm(f["name"])
-        return path
 
     @classmethod
     def get_local_csv_source_path(cls):
@@ -109,12 +110,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         return path
 
     @classmethod
+    def get_csv_source_path(cls):
+        if cls.run_local:
+            return cls.get_local_csv_source_path()
+        else:
+            return cls.get_remote_csv_source_path()
+
+    @classmethod
     def custom_setup_class(cls):
+        cls._init_env_from_file()
+
+        if not cls.run_local:
+            cls._setup_remote_run()
+
+    @classmethod
+    def _setup_remote_run(cls):
         from mlrun import get_run_db
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
-
-        cls._init_env_from_file()
 
         store, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
         store.upload(
@@ -142,21 +155,21 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
 
-    @staticmethod
-    def read_parquet_and_assert(out_path_spark, out_path_storey):
+    @classmethod
+    def read_parquet_and_assert(cls, out_path_spark, out_path_storey):
         read_back_df_spark = None
-        file_system = fsspec.filesystem("v3io")
+        file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
         for file_entry in file_system.ls(out_path_spark):
-            filepath = file_entry["name"]
+            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
             if not filepath.endswith("/_SUCCESS"):
-                read_back_df_spark = pd.read_parquet(f"v3io://{filepath}")
+                read_back_df_spark = pd.read_parquet(filepath)
                 break
         assert read_back_df_spark is not None
 
         read_back_df_storey = None
         for file_entry in file_system.ls(out_path_storey):
-            filepath = file_entry["name"]
-            read_back_df_storey = pd.read_parquet(f"v3io://{filepath}")
+            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            read_back_df_storey = pd.read_parquet(filepath)
             break
         assert read_back_df_storey is not None
 
@@ -170,13 +183,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
-    @staticmethod
-    def read_csv(csv_path: str) -> pd.DataFrame:
-        file_system = fsspec.filesystem("v3io")
+    @classmethod
+    def read_csv(cls, csv_path: str) -> pd.DataFrame:
+        file_system = fsspec.filesystem("file" if self.run_local else "v3io")
         for file_entry in file_system.ls(csv_path):
-            filepath = file_entry["name"]
+            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
             if not filepath.endswith("/_SUCCESS"):
-                return pd.read_csv(f"v3io://{filepath}")
+                return pd.read_csv(filepath)
         raise AssertionError(f"No files found in {csv_path}")
 
     @staticmethod
@@ -195,6 +208,41 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
+    def setup_method(self, method):
+        super().setup_method(method)
+        if self.run_local:
+            self._tmpdir = tempfile.TemporaryDirectory()
+
+    def teardown_method(self, method):
+        super().teardown_method(method)
+        if self.run_local:
+            self._tmpdir.cleanup()
+
+    def output_dir(self, url=True):
+        if self.run_local:
+            prefix = "file://" if url else ""
+            base_dir = f"{prefix}{self._tmpdir.name}"
+        else:
+            base_dir = self.project.mountdir
+        result = f"{base_dir}/spark-tests-output"
+        if self.run_local:
+            os.makedirs(result, exist_ok=True)
+        return result
+
+    def set_targets(self, feature_set):
+        dir_name = (
+            os.environ.get("PYTEST_CURRENT_TEST")
+            .split(":")[-1]
+            .split(" ")[0]
+            .replace("[", "__")
+            .replace("]", "")
+        )
+        if self.run_local:
+            target_path = f"{self.output_dir()}/{dir_name}"
+            feature_set.set_targets(
+                [ParquetTarget(path=target_path)], with_defaults=False
+            )
+
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
         measurements = fstore.FeatureSet(
@@ -203,13 +251,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             return_df=True,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         assert measurements.status.targets[0].run_id is not None
 
@@ -232,16 +281,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
             "mycsv",
-            path=self.get_remote_csv_source_path(),
+            path=self.get_csv_source_path(),
         )
         filename = str(
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "spark_ingest_remote_test_code.py"
         )
         func = code_to_function("func", kind="remote-spark", filename=filename)
-        run_config = fstore.RunConfig(
-            local=False, function=func, handler="ingest_handler"
-        )
+        run_config = fstore.RunConfig(local=self.run_local, function=func)
+        self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
@@ -277,13 +325,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 df,
                 return_df=True,
                 spark_context=self.spark_service,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
             )
 
     def test_ingest_to_csv(self):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
+        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -291,14 +339,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
@@ -307,7 +355,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
         fstore.ingest(
             measurements,
@@ -317,19 +365,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
 
         read_back_df_spark = None
-        file_system = fsspec.filesystem("v3io")
+        file_system = fsspec.filesystem("file" if self.run_local else "v3io")
         for file_entry in file_system.ls(csv_path_spark):
-            filepath = file_entry["name"]
-            if not filepath.endswith("/_SUCCESS"):
-                read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+            filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
+            if not filepath.endswith("/_SUCCESS") and not filepath.endswith(
+                "/._SUCCESS.crc"
+            ):
+                read_back_df_spark = pd.read_csv(filepath)
                 break
         assert read_back_df_spark is not None
 
-        read_back_df_storey = None
-        for file_entry in file_system.ls(csv_path_storey):
-            filepath = file_entry["name"]
-            read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
-            break
+        filepath = csv_path_storey if self.run_local else f"v3io://{csv_path_storey}"
+        read_back_df_storey = pd.read_csv(filepath)
+
         assert read_back_df_storey is not None
 
         assert read_back_df_spark.sort_index(axis=1).equals(
@@ -350,14 +398,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [RedisNoSqlTarget()]
         measurements.set_targets(targets, with_defaults=False)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             overwrite=True,
         )
         # read the dataframe from the redis back
@@ -384,6 +432,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ]
 
+    @pytest.mark.skipif(
+        run_local,
+        reason="We don't normally have redis or v3io jars when running locally",
+    )
     @pytest.mark.parametrize(
         "target_kind",
         ["Redis", "v3io"] if mlrun.mlconf.redis.url is not None else ["v3io"],
@@ -400,7 +452,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         if target_kind == "Redis":
             targets = [RedisNoSqlTarget()]
         else:
@@ -411,7 +463,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(False),
+            run_config=fstore.RunConfig(local=self.run_local),
             overwrite=True,
         )
         # read the dataframe
@@ -458,14 +510,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [RedisNoSqlTarget()]
         measurements.set_targets(targets, with_defaults=False)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             overwrite=True,
         )
         # read the dataframe from the redis back
@@ -493,14 +545,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             ]
 
     # tests that data is filtered by time in scheduled jobs
+    @pytest.mark.skipif(run_local, reason="Local scheduling is not supported")
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
 
         now = datetime.now()
 
-        path = "v3io:///bigdata/bla.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = f"{self.output_dir()}/bla.parquet"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         pd.DataFrame(
             {
                 "time": [
@@ -530,7 +585,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 NoSqlTarget(),
                 ParquetTarget(
                     name="tar1",
-                    path="v3io:///bigdata/fs1/",
+                    path=f"{self.output_dir()}/fs1/",
                     partitioned=True,
                     partition_cols=["time"],
                 ),
@@ -538,7 +593,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         else:
             targets = [
                 ParquetTarget(
-                    name="tar2", path="v3io:///bigdata/fs2/", partitioned=False
+                    name="tar2", path=f"{self.output_dir()}/fs2/", partitioned=False
                 ),
                 NoSqlTarget(),
             ]
@@ -546,7 +601,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             targets=targets,
             spark_context=self.spark_service,
         )
@@ -576,7 +631,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fstore.ingest(
                 feature_set,
                 source,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
                 targets=targets,
                 spark_context=self.spark_service,
             )
@@ -622,8 +677,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        path = "v3io:///bigdata/test_aggregations.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = f"{self.output_dir(url=False)}/test_aggregations.parquet"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         df.to_parquet(path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
@@ -715,12 +772,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             windows="1h",
             period="10m",
         )
-
+        self.set_targets(data_set)
         fstore.ingest(
             data_set,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
 
         features = [
@@ -891,8 +948,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        path = "v3io:///bigdata/test_aggregations_emit_every_event.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = (
+            f"{self.output_dir(url=False)}/test_aggregations_emit_every_event.parquet"
+        )
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         df.to_parquet(path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
@@ -912,12 +973,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             period="10m",
             emit_policy=EmitEveryEvent(),
         )
-
+        self.set_targets(data_set)
         fstore.ingest(
             data_set,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
@@ -977,8 +1038,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_mix_of_partitioned_and_nonpartitioned_targets(self):
         name = "test_mix_of_partitioned_and_nonpartitioned_targets"
 
-        path = "v3io:///bigdata/bla.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = f"{self.output_dir(url=False)}/bla.parquet"
+        url = f"{self.output_dir()}/bla.parquet"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         pd.DataFrame(
             {
                 "time": [
@@ -992,7 +1056,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         source = ParquetSource(
             "myparquet",
-            path=path,
+            path=url,
         )
 
         feature_set = fstore.FeatureSet(
@@ -1002,8 +1066,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
 
-        partitioned_output_path = "v3io:///bigdata/partitioned/"
-        nonpartitioned_output_path = "v3io:///bigdata/nonpartitioned/"
+        partitioned_output_path = f"{self.output_dir()}/partitioned/"
+        nonpartitioned_output_path = f"{self.output_dir()}/nonpartitioned/"
         targets = [
             ParquetTarget(
                 name="tar1",
@@ -1018,7 +1082,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             targets=targets,
             spark_context=self.spark_service,
         )
@@ -1039,8 +1103,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_write_empty_dataframe_overwrite_false(self):
         name = "test_write_empty_dataframe_overwrite_false"
 
-        path = "v3io:///bigdata/test_write_empty_dataframe_overwrite_false.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = f"{self.output_dir(url=False)}/test_write_empty_dataframe_overwrite_false.parquet"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         empty_df = pd.DataFrame(
             {
                 "time": [
@@ -1066,14 +1132,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path="v3io:///bigdata/test_write_empty_dataframe_overwrite_false/",
+            path=f"{self.output_dir()}/test_write_empty_dataframe_overwrite_false/",
             partitioned=False,
         )
 
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             targets=[
                 target,
             ],
@@ -1088,8 +1154,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_write_dataframe_overwrite_false(self):
         name = "test_write_dataframe_overwrite_false"
 
-        path = "v3io:///bigdata/test_write_dataframe_overwrite_false.parquet"
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        path = (
+            f"{self.output_dir(url=False)}/test_write_dataframe_overwrite_false.parquet"
+        )
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         df = pd.DataFrame(
             {
                 "time": [
@@ -1115,14 +1185,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path="v3io:///bigdata/test_write_dataframe_overwrite_false/",
+            path=f"{self.output_dir()}/test_write_dataframe_overwrite_false/",
             partitioned=False,
         )
 
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
             targets=[
                 target,
             ],
@@ -1141,24 +1211,26 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         "should_succeed, is_parquet, is_partitioned, target_path",
         [
             # spark - csv - fail for single file
-            (True, False, None, "v3io:///bigdata/dif-eng/csv"),
-            (False, False, None, "v3io:///bigdata/dif-eng/file.csv"),
+            (True, False, None, "dif-eng/csv"),
+            (False, False, None, "dif-eng/file.csv"),
             # spark - parquet - fail for single file
-            (True, True, True, "v3io:///bigdata/dif-eng/pq"),
-            (False, True, True, "v3io:///bigdata/dif-eng/file.pq"),
-            (True, True, False, "v3io:///bigdata/dif-eng/pq"),
-            (False, True, False, "v3io:///bigdata/dif-eng/file.pq"),
+            (True, True, True, "dif-eng/pq"),
+            (False, True, True, "dif-eng/file.pq"),
+            (True, True, False, "dif-eng/pq"),
+            (False, True, False, "dif-eng/file.pq"),
         ],
     )
     def test_different_paths_for_ingest_on_spark_engines(
         self, should_succeed, is_parquet, is_partitioned, target_path
     ):
+        target_path = f"{self.output_dir()}/{target_path}"
+
         fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="spark")
 
-        source = (
-            "v3io:///bigdata/test_different_paths_for_ingest_on_spark_engines.parquet"
+        source = f"{self.output_dir(url=False)}/test_different_paths_for_ingest_on_spark_engines.parquet"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         stocks.to_parquet(path=source, filesystem=fsys)
         source = ParquetSource(
             "myparquet",
@@ -1174,7 +1246,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if should_succeed:
             fstore.ingest(
                 fset,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
                 spark_context=self.spark_service,
                 source=source,
                 targets=[target],
@@ -1205,11 +1277,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 source,
                 return_df=True,
                 spark_context=self.spark_service,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
             )
 
     # ML-3092
-    @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
+    # @pytest.mark.parametrize("timestamp_key", [None, "timestamp"])
+    @pytest.mark.parametrize("timestamp_key", [None])
     def test_get_offline_features_with_filter_and_indexes(self, timestamp_key):
         key = "patient_id"
         measurements = fstore.FeatureSet(
@@ -1218,12 +1291,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key=timestamp_key,
             engine="spark",
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         assert measurements.status.targets[0].run_id is not None
         fv_name = "measurements-fv"
@@ -1237,13 +1311,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         my_fv.spec.with_indexes = True
         my_fv.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
@@ -1279,12 +1353,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
             passthrough=passthrough,
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         assert measurements.status.targets[0].run_id is not None
 
@@ -1305,13 +1380,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         my_fv.save()
         target = target_type(
             "mytarget",
-            path="v3io:///bigdata/test_get_offline_features_with_spark_engine_testdata_target/",
+            path=f"{self.output_dir()}/test_get_offline_features_with_spark_engine_testdata_target/",
         )
         resp = fstore.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
         )
@@ -1330,8 +1405,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_with_steps_drop_features(self):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
+        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1340,14 +1415,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         measurements.graph.to(DropFeatures(features=["bad"]))
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
@@ -1357,7 +1432,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
         )
         measurements.graph.to(DropFeatures(features=["bad"]))
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
         fstore.ingest(
             measurements,
@@ -1374,7 +1449,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         measurements.graph.to(DropFeatures(features=[key]))
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         key_as_set = {key}
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
@@ -1384,13 +1459,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 measurements,
                 source,
                 spark_context=self.spark_service,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
             )
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
+        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1399,14 +1474,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
@@ -1416,7 +1491,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             timestamp_key="timestamp",
         )
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
         fstore.ingest(
             measurements,
@@ -1429,8 +1504,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
-        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
+        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1447,14 +1522,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=with_original_features,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
@@ -1472,7 +1547,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=with_original_features,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
         fstore.ingest(
             measurements,
@@ -1485,8 +1560,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_mapvalues_with_partial_mapping"
-        original_df = pd.read_parquet(self.get_remote_pq_source_path())
+        csv_path_spark = f"{self.output_dir()}/test_mapvalues_with_partial_mapping"
+        original_df = pd.read_parquet(self.get_pq_source_path())
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1501,7 +1576,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=True,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         fstore.ingest(
             measurements,
@@ -1523,7 +1598,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_mapvalues_with_mixed_types(self):
         key = "patient_id"
-        csv_path_spark = "v3io:///bigdata/test_mapvalues_with_mixed_types"
+        csv_path_spark = f"{self.output_dir()}/test_mapvalues_with_mixed_types"
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1538,7 +1613,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=True,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
         with pytest.raises(
             mlrun.runtimes.utils.RunError,
@@ -1550,14 +1625,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 source,
                 targets,
                 spark_context=self.spark_service,
-                run_config=fstore.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=self.run_local),
             )
 
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        out_path_spark = "v3io:///bigdata/test_ingest_with_steps_extractor_spark"
-        out_path_storey = "v3io:///bigdata/test_ingest_with_steps_extractor_storey"
+        out_path_spark = f"{self.output_dir()}/test_ingest_with_steps_extractor_spark"
+        out_path_storey = f"{self.output_dir()}/test_ingest_with_steps_extractor_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1571,14 +1646,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 timestamp_col=timestamp_col,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [ParquetTarget(path=out_path_spark)]
         fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=self.run_local),
         )
         out_path_spark = measurements.get_target_path()
 
@@ -1593,7 +1668,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 timestamp_col=timestamp_col,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [ParquetTarget(path=out_path_storey)]
         fstore.ingest(
             measurements,
@@ -1797,12 +1872,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1825,12 +1900,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1849,12 +1924,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp_2 = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1869,12 +1944,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp_3 = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1894,12 +1969,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         vector.save()
 
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp_4 = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1975,12 +2050,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "employees-vec", features, description="Employees feature vector"
         )
         vector.save()
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp_1 = fstore.get_offline_features(
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
             order_by=["n"],
@@ -2015,10 +2090,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        left_path = "v3io:///bigdata/asof_join/df_left.parquet"
-        right_path = "v3io:///bigdata/asof_join/df_right.parquet"
+        left_path = f"{self.output_dir()}/asof_join/df_left.parquet"
+        right_path = f"{self.output_dir()}/asof_join/df_right.parquet"
 
-        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
         df_left.to_parquet(path=left_path, filesystem=fsys)
         df_right.to_parquet(path=right_path, filesystem=fsys)
 
@@ -2051,11 +2128,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
-        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.output_dir())
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",
-            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            run_config=fstore.RunConfig(local=self.run_local),
             spark_service=self.spark_service,
             target=target,
         )

@@ -381,7 +381,7 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_func_requirements():
+def test_set_function_requirements():
     project = mlrun.projects.project.MlrunProject.from_dict(
         {
             "metadata": {
@@ -393,16 +393,16 @@ def test_set_func_requirements():
         }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.commands == [
-        "python -m pip install x",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.commands == [
-        "python -m pip install y",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
     ]
 
 

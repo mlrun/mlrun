@@ -554,13 +554,11 @@ def my_func(context):
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
-        expected_commands = [
-            "python -m pip install faker python-dotenv 'chardet>=3.0.2, <4.0'"
-        ]
+        expected_requirements = ["faker", "python-dotenv", "chardet>=3.0.2, <4.0"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=True,
             )
             == {}
@@ -665,26 +663,34 @@ def my_func(context):
         )
 
         runtime.build_config(requirements=["pandas", "numpy"])
-        expected_commands = [
-            "python -m pip install scikit-learn",
-            "python -m pip install pandas numpy",
+        expected_requirements = [
+            "pandas",
+            "numpy",
         ]
-        print(runtime.spec.build.commands)
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=False,
             )
             == {}
         )
-
-        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
         expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
                 expected_commands,
                 runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        expected_requirements = ["scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=True,
             )
             == {}

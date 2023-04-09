@@ -15,7 +15,6 @@ import enum
 import getpass
 import http
 import os.path
-import shlex
 import traceback
 import typing
 import uuid

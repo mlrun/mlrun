@@ -76,6 +76,7 @@ def init_data(
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
 
     if is_migration_from_scratch or is_migration_needed:
+        logger.info("\nDEBUG YONI: Started migrations\n")
         try:
             _perform_schema_migrations(alembic_util)
 
@@ -97,11 +98,13 @@ def init_data(
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
     if not is_migration_from_scratch and is_migration_needed:
+        logger.info("\nDEBUG YONI: second condition\n")
         config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
     else:
+        logger.info("\nDEBUG YONI: in else\n")
         config.httpdb.state = mlrun.api.schemas.APIStates.online
     logger.info("Initial data created")
-
+    # TODO: try to run this option
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
 # This is because data version 1 points to to a data migration which was added back in 0.6.0, and

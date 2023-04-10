@@ -3422,7 +3422,9 @@ class SQLDB(DBInterface):
 
         current_order = source_record.index
         if current_order == schemas.marketplace.last_source_index:
-            logger.warn("Deleting default marketplace source.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Attempting to delete the global marketplace source."
+            )
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=None, move_from=current_order

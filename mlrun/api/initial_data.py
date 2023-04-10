@@ -76,7 +76,6 @@ def init_data(
     config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
 
     if is_migration_from_scratch or is_migration_needed:
-        logger.info("\nDEBUG YONI: Started migrations\n")
         try:
             _perform_schema_migrations(alembic_util)
 
@@ -98,19 +97,17 @@ def init_data(
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
     if not is_migration_from_scratch and is_migration_needed:
-        logger.info("\nDEBUG YONI: second condition\n")
         config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
     else:
-        logger.info("\nDEBUG YONI: in else\n")
         config.httpdb.state = mlrun.api.schemas.APIStates.online
     logger.info("Initial data created")
-    # TODO: try to run this option
+
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
-# This is because data version 1 points to to a data migration which was added back in 0.6.0, and
+# This is because data version 1 points to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
-latest_data_version = 2
+latest_data_version = 3
 
 
 def _resolve_needed_operations(
@@ -215,6 +212,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_1_data_migrations(db, db_session)
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)
+            if current_data_version < 3:
+                _perform_version_3_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -497,17 +496,18 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
-def _need_to_update_default_marketplace_source(
+def _delete_default_marketplace_source(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
+    """
+    Delete default marketplace source if it differs from the default marketplace source in the config
+    """
     sources = db.list_marketplace_sources(db_session)
     default = config.marketplace.default_source
-    need_to_update = True
     for source in sources:
         src = source.source
         index = source.index
         if index == mlrun.api.schemas.last_source_index:
-            logger.info("\nDEBUG YONI: found old default source\n")
             # Default source is the last index
             if (
                 default.url != src.spec.path
@@ -515,32 +515,62 @@ def _need_to_update_default_marketplace_source(
                 or default.name != src.metadata.name
                 or default.object_type != src.spec.object_type
             ):
-                db.delete_marketplace_source(db_session, src.metadata.name)
+                # Not using db.delete_marketplace_source()
+                # since it doesn't allow deleting the default marketplace source.
+                default_source_record = (
+                    db._transform_marketplace_source_schema_to_record(source)
+                )
+                db_session.delete(default_source_record)
                 db_session.commit()
-                break
-            need_to_update = False
-    return need_to_update
+                return
+
+
+def _update_default_marketplace_source(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    overwrite: bool = False,
+):
+    """
+    Updates default marketplace source in db.
+    overwrite=True will delete the current default marketplace source before creating a new one.
+    """
+    hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
+    # hub_source will be None if the configuration has marketplace.default_source.create=False
+    if hub_source:
+        if overwrite:
+            _delete_default_marketplace_source(db, db_session)
+        logger.info("Adding default marketplace source")
+        # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
+        hub_record = db._transform_marketplace_source_schema_to_record(
+            mlrun.api.schemas.IndexedMarketplaceSource(
+                index=mlrun.api.schemas.marketplace.last_source_index,
+                source=hub_source,
+            )
+        )
+        db_session.add(hub_record)
+        db_session.commit()
+    else:
+        logger.info("Not adding default marketplace source, per configuration")
 
 
 def _add_default_marketplace_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    if _need_to_update_default_marketplace_source(db, db_session):
-        hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
-        # hub_source will be None if the configuration has marketplace.default_source.create=False
-        if hub_source:
-            logger.info("Adding default marketplace source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
-            hub_record = db._transform_marketplace_source_schema_to_record(
-                mlrun.api.schemas.IndexedMarketplaceSource(
-                    index=mlrun.api.schemas.marketplace.last_source_index,
-                    source=hub_source,
-                )
-            )
-            db_session.add(hub_record)
-            db_session.commit()
-        else:
-            logger.info("Not adding default marketplace source, per configuration")
+    try:
+        hub_marketplace_source = db.get_marketplace_source(
+            db_session, config.marketplace.default_source.name
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        hub_marketplace_source = None
+
+    if not hub_marketplace_source:
+        _update_default_marketplace_source(db, db_session)
+
+
+def _perform_version_3_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _update_default_marketplace_source(db, db_session, overwrite=True)
 
 
 def _add_data_version(

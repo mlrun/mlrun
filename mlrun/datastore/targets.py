@@ -16,6 +16,7 @@ import datetime
 import os
 import random
 import time
+import hashlib
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -23,8 +24,6 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
-from storey.utils import hash_list, stringify_key
-
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
@@ -1133,7 +1132,13 @@ class NoSqlTarget(NoSqlBaseTarget):
                 df = df.withColumn(col_name, col(col_name).cast("double"))
         if len(key_columns) > 2:
             hash_and_concat_udf = udf(
-                lambda *x: hash_list([str(i) for i in x]), StringType()
+                # UDF has no access to all the hash_list(), so we do all inline in lambda:
+                # lambda *x: storey.hash_list([str(i) for i in x]), StringType()
+                lambda *x: (
+                    lambda l: (l := [str(e) for e in l])
+                    and hashlib.sha1("".join(l).encode("utf8")).hexdigest()
+                )(x),
+                StringType(),
             )
             return df.withColumn(
                 "_spark_object_sorting_key",
@@ -1204,8 +1209,24 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from pyspark.sql.types import StringType
 
         if len(key_columns) > 1:
+            # UDF has no access to all the stringify_key(), so we do all inline in lambda:
             hash_and_concat_udf = udf(
-                lambda *x: stringify_key([str(i) for i in x]) + "}:static", StringType()
+                # lambda *x: storey.stringify_key([str(i) for i in x]) + "}:static", StringType()
+                lambda *x: (
+                    lambda k: k
+                    if isinstance(k, str)
+                    else (
+                        str(k[0])
+                        + "."
+                        + (
+                            lambda l: (l := [str(e) for e in l])
+                            and hashlib.sha1("".join(l).encode("utf8")).hexdigest()
+                        )(k[1:])
+                        if len(k) >= 3
+                        else (str(k[1]) if len(k) == 2 else str(k[0]))
+                    )
+                )([str(i) for i in x])
+                + "}:static"
             )
             return df.withColumn(
                 "_spark_object_name",

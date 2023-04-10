@@ -214,7 +214,7 @@ jobs:
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
-        echo "unstable_version_prefix=$(cd /tmp && cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
+        echo "unstable_version_prefix=$(cd base/mlrun && cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
     - name: Set computed versions params
       id: computed_params
       run: |

@@ -96,7 +96,7 @@ def test_on_error():
     server = function.to_mock_server()
 
     # plot the graph for test & debug
-    # graph.plot(f"{results}/serving/on_error.png")
+    graph.plot(f"{results}/serving/on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
     if isinstance(resp, dict):

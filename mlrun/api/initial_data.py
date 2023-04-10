@@ -34,6 +34,7 @@ import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
+from mlrun.api.db.sqldb.models import MarketplaceSource
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import is_legacy_artifact, logger
@@ -496,28 +497,22 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
-def _delete_default_marketplace_source(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
+def _delete_default_marketplace_source(db_session: sqlalchemy.orm.Session):
     """
-    Delete default marketplace source if it differs from the default marketplace source in the config
+    Delete default marketplace source directly from db
     """
-    sources = db.list_marketplace_sources(db_session)
-    default = config.marketplace.default_source
-    for source in sources:
-        src = source.source
-        index = source.index
-        if index == mlrun.api.schemas.last_source_index:
-            # Default source is the last index
-            if (
-                default.url != src.spec.path
-                or default.channel != src.spec.channel
-                or default.name != src.metadata.name
-                or default.object_type != src.spec.object_type
-            ):
-                db_session.delete(source)
-                db_session.commit()
-                return
+    # Not using db.delete_marketplace_source() since it doesn't allow deleting the default marketplace source.
+    default_record = (
+        db_session.query(MarketplaceSource)
+        .filter(MarketplaceSource.index == mlrun.api.schemas.last_source_index)
+        .one_or_none()
+    )
+    if default_record:
+        logger.info(f"Deleting default marketplace source {default_record.name}")
+        db_session.delete(default_record)
+        db_session.commit()
+    else:
+        logger.info("Default marketplace source not found")
 
 
 def _update_default_marketplace_source(
@@ -533,7 +528,7 @@ def _update_default_marketplace_source(
     # hub_source will be None if the configuration has marketplace.default_source.create=False
     if hub_source:
         if overwrite:
-            _delete_default_marketplace_source(db, db_session)
+            _delete_default_marketplace_source(db_session)
         logger.info("Adding default marketplace source")
         # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
         hub_record = db._transform_marketplace_source_schema_to_record(

@@ -228,11 +228,11 @@ jobs:
       run: |
         action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
         upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
-        export mlrun_hash=${$upstream_mlrun_hash:-`echo action_mlrun_hash`}
+        export mlrun_hash=${upstream_mlrun_hash:-`echo $action_mlrun_hash`}
         echo "mlrun_hash=$(echo $mlrun_hash)" >> $GITHUB_OUTPUT
         action_mlrun_ui_hash=${{ steps.git_action_ui_info.outputs.ui_hash }} && \
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
-        export ui_hash=${$upstream_mlrun_ui_hash:-`echo action_mlrun_ui_hash`}
+        export ui_hash=${upstream_mlrun_ui_hash:-`echo $action_mlrun_ui_hash`}
         echo "ui_hash=$(echo $ui_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT

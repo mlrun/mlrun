@@ -1177,9 +1177,8 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
 ):
     task_name = "task_name"
     tests.api.api.utils.create_project(client, PROJECT)
-    print("1")
+
     _mock_import_function(monkeypatch)
-    print("-1")
     submit_job_body = {
         "task": {
             "spec": {"function": "hub://gen_class_data"},

@@ -137,8 +137,8 @@ class BaseStep(ModelObj):
 
     def error_handler(
         self,
-        class_name=None,
         name=None,
+        class_name=None,
         handler=None,
         before=None,
         function=None,
@@ -149,7 +149,9 @@ class BaseStep(ModelObj):
     ):
         """set error handler step (on failure/raise of this step)
 
-        use before to define the next steps, the default will end the graph after the error handler execution.
+        Use before to define the next steps (`before` steps have to be feature step).
+        The default will end the graph after the error handler execution.
+        For graph.error_handler it will always end the graph after the error handler execution.
 
         example:
             graph = function.set_topology('flow', engine='async')
@@ -190,8 +192,13 @@ class BaseStep(ModelObj):
                 result_path=result_path,
             )
             self.on_error = name
-            before = [before] if isinstance(before, str) else before
-            step.before = before or []
+            if isinstance(self, RootFlowStep) and before:
+                raise MLRunInvalidArgumentError(
+                    "`before` arg can't be specified for graph error handler"
+                )
+            else:
+                before = [before] if isinstance(before, str) else before
+                step.before = before or []
             step.base_step = self.name
             if hasattr(self, "_parent") and self._parent:
                 step = self._parent._steps.update(name, step)

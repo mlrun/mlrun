@@ -143,7 +143,10 @@ def test_on_error():
 
     server = fn.to_mock_server()
     resp = server.test(body=[])
-    assert resp.error and resp.origin_state == "raiser", "error wasn't caught"
+    if isinstance(resp, dict):
+        assert resp["error"] and resp["origin_state"] == "raiser", "error wasn't caught"
+    else:
+        assert resp.error and resp.origin_state == "raiser", "error wasn't caught"
 
 
 def return_type(event):

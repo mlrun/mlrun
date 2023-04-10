@@ -109,13 +109,13 @@ jobs:
     - uses: actions/checkout@v3
     - name: Copy state branch file from remote
       run: |
-        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected system-tests-branches-list
+        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt system-tests-branches-list.txt
 
     - name: resolve-current-branch
       id: current-branch
       run: |
         # Read branches from local file
-        branches=$(cat system-tests-branches-list)
+        branches=$(cat system-tests-branches-list.txt)
 
         # Split branches into an array
         IFS=',' read -ra branches_array <<< "$branches"
@@ -137,7 +137,7 @@ jobs:
         echo "$branches"
 
         # Write new branches order to a local file
-        echo "$branches" | cat > system-tests-branches-options
+        echo "$branches" | cat > system-tests-branches-list.txt
 
         # Set output
         echo "name=$(echo $first_branch)" >> $GITHUB_OUTPUT
@@ -145,7 +145,7 @@ jobs:
     - name: Override remote file from local resolved branch list
       run: |
         # Use sshpass to override the remote file with the new list of branches
-        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp system-tests-branches-list -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected
+        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp system-tests-branches-list.txt -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt
 
 #    - name: Select branch to work on
 #      id: select-branch

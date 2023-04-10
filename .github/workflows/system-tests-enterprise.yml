@@ -14,9 +14,6 @@
 #
 name: System Tests Enterprise
 
-env:
-  selectedbranch: 'development'
-
 on:
   push:
     branches:
@@ -112,59 +109,91 @@ jobs:
     - uses: actions/checkout@v3
     - name: Copy state branch file from remote
       run: |
-        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected branchselected
+        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected system-tests-branches-list
 
-
-    - name: Select next branch  parameter
-      id: select-parameter
+    - name: resolve-current-branch
+      id: current-branch
       run: |
-        IFS=',' read -ra selectedbranch_array <<< "$selectedbranch"
-        # Read the last used parameter from the cache
-        if [ ! -f branchselected ]
-        then
-           echo  "No last used parameter branchselected not  found"
-        else
-            last_parameter=$(cat  branchselected)
-            echo "Last used parameter: $last_parameter"
-        fi
-        # Find the index of the last used parameter in the array
-        if [ -n "$last_parameter" ]
-        then
-            for i in "${!selectedbranch_array[@]}"; do
-                if [[ "${selectedbranch_array[$i]}" == "$last_parameter" ]]; then
-                    last_index=$i
-                    break
-                fi
-            done
-        fi
-        # Print unique items from the list
-        echo "Unique items in the list:"
-        echo "${selectedbranch}" | tr ',' '\n' | sort -u
-        # Get the next item in the list
-        if [ -n "$last_index" ]
-        then
-            next_index=$((last_index + 1))
-            if [ "$next_index" -eq "${#selectedbranch_array[@]}" ]
-            then
-                next_index=0
-            fi
-        else
-            next_index=0
-        fi
-        next_parameter="${selectedbranch_array[$next_index]}"
-        echo "Next parameter: $next_parameter"
-        # Write the next parameter to the cache file
-        echo "$next_parameter" > last_parameter.txt
-        # Set the param output for the next step
-        echo "::set-output name=param::$next_parameter"
-        echo $next_parameter > branchselected
+        # Read branches from local file
+        branches=$(cat system-tests-branches-list)
+
+        # Split branches into an array
+        IFS=',' read -ra branche#s_array <<< "$branches"
+
+        # Get the first branch in the list
+        first_branch="${branches_array[0]}"
+
+        # Remove the first branch from the list
+        branches_array=("${branches_array[@]:1}")
+
+        # Add the first branch at the end of the list
+        branches_array+=("$first_branch")
+
+        # Join branches back into a string
+        branches=$(printf ",%s" "${branches_array[@]}")
+        branches=${branches:1}
+
+        # Output the new list of branches
+        echo "$branches"
+
+        # Write new branches order to a local file
+        echo "$branches" | cat > system-tests-branches-options
+
+        # Set output
+        echo "name=$(echo $first_branch)" >> $GITHUB_OUTPUT
+
+    - name: Override remote file from local resolved branch list
+      run: |
+        # Use sshpass to override the remote file with the new list of branches
+        sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp system-tests-branches-list -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected
+
+#    - name: Select branch to work on
+#      id: select-branch
+#      run: |
+#        IFS=',' read -ra selectedbranch_array <<< "$selectedbranch"
+#        # Read the last used parameter from the cache
+#        if [ ! -f branchselected ]
+#        then
+#           echo  "No last used parameter branchselected not  found"
+#        else
+#            last_parameter=$(cat  branchselected)
+#            echo "Last used parameter: $last_parameter"
+#        fi
+#        # Find the index of the last used parameter in the array
+#        if [ -n "$last_parameter" ]
+#        then
+#            for i in "${!selectedbranch_array[@]}"; do
+#                if [[ "${selectedbranch_array[$i]}" == "$last_parameter" ]]; then
+#                    last_index=$i
+#                    break
+#                fi
+#            done
+#        fi
+#        # Print unique items from the list
+#        echo "Unique items in the list:"
+#        echo "${selectedbranch}" | tr ',' '\n' | sort -u
+#        # Get the next item in the list
+#        if [ -n "$last_index" ]
+#        then
+#            next_index=$((last_index + 1))
+#            if [ "$next_index" -eq "${#selectedbranch_array[@]}" ]
+#            then
+#                next_index=0
+#            fi
+#        else
+#            next_index=0
+#        fi
+#        next_parameter="${selectedbranch_array[$next_index]}"
+#        echo "Next parameter: $next_parameter"
+#        # Write the next parameter to the cache file
+#        echo "$next_parameter" > last_parameter.txt
+#        # Set the param output for the next step
+#        echo "::set-output name=param::$next_parameter"
+#        echo $next_parameter > branchselected
 
 
     - name: Checkout PR Base (target) Branch
       uses: actions/checkout@v3
-      with:
-        ref: ${{ steps.select-parameter.outputs.param }}
-        path: base/mlrun
 
     - name: Set up python
       uses: actions/setup-python@v4
@@ -193,7 +222,7 @@ jobs:
       run: |
         echo "ui_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
@@ -203,21 +232,21 @@ jobs:
       run: |
         echo "mlrun_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
         echo "ui_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
         echo "unstable_version_prefix=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           cat automation/version/unstable_version_prefix && \
           cd .. && \

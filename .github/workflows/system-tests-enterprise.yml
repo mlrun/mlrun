@@ -179,6 +179,7 @@ jobs:
 #      id: git_info
 #      run: |
 #        echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
+#
     - name: Extract git hash from action mlrun version
       # by default when running as part of the CI this param doesn't get enriched meaning it will be empty.
       # we want the mlrun_hash to be set from the $GITHUB_SHA when running in CI

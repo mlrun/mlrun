@@ -549,7 +549,7 @@ def _add_default_marketplace_source_if_needed(
     try:
         hub_marketplace_source = db_session.query(MarketplaceSource).filter(
             MarketplaceSource.index == mlrun.api.schemas.marketplace.last_source_index
-        )
+        ).one_or_none()
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None
 

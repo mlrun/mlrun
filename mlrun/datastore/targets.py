@@ -13,10 +13,10 @@
 # limitations under the License.
 import ast
 import datetime
+import hashlib
 import os
 import random
 import time
-import hashlib
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
+
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
@@ -1135,8 +1136,9 @@ class NoSqlTarget(NoSqlBaseTarget):
                 # UDF has no access to all the hash_list(), so we do all inline in lambda:
                 # lambda *x: storey.hash_list([str(i) for i in x]), StringType()
                 lambda *x: (
-                    lambda l: (l := [str(e) for e in l])
-                    and hashlib.sha1("".join(l).encode("utf8")).hexdigest()
+                    lambda l: hashlib.sha1(
+                        "".join([str(e) for e in l]).encode("utf8")
+                    ).hexdigest()
                 )(x),
                 StringType(),
             )
@@ -1219,8 +1221,11 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                         str(k[0])
                         + "."
                         + (
-                            lambda l: (l := [str(e) for e in l])
-                            and hashlib.sha1("".join(l).encode("utf8")).hexdigest()
+                            lambda l: hashlib.sha1(
+                                "".join([str(e) for e in l]).encode("utf8")
+                            ).hexdigest()
+                            if l and len(l) >= 2
+                            else str(l[0])
                         )(k[1:])
                         if len(k) >= 3
                         else (str(k[1]) if len(k) == 2 else str(k[0]))

@@ -1040,10 +1040,7 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
-            next_steps = state.next or []
-            if state.on_error:
-                next_steps.append(state.on_error)
-            for item in next_steps:
+            for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
@@ -1068,6 +1065,10 @@ class FlowStep(BaseStep):
                 # never set a step as its own error handler
                 if step != error_step:
                     step.async_object.set_recovery_step(error_step.async_object)
+                    for next_step in error_step.next or []:
+                        next_state = self[next_step]
+                        if next_state.async_object and error_step.async_object:
+                            error_step.async_object.to(next_state.async_object)
 
         self._controller = source.run()
 

@@ -502,11 +502,36 @@ def _delete_default_marketplace_source(db_session: sqlalchemy.orm.Session):
     Delete default marketplace source directly from db
     """
     # Not using db.delete_marketplace_source() since it doesn't allow deleting the default marketplace source.
+    # default_record = (
+    #     db_session.query(MarketplaceSource)
+    #     .filter(MarketplaceSource.index == mlrun.api.schemas.last_source_index)
+    #     .one_or_none()
+    # )
     default_record = (
         db_session.query(MarketplaceSource)
         .filter(MarketplaceSource.index == mlrun.api.schemas.last_source_index)
-        .one_or_none()
     )
+    try:
+        print(default_record)
+    except Exception:
+        logger.info("failed")
+    logger.info(1)
+    try:
+        logger.info(default_record.values())
+    except Exception:
+        logger.info("failed")
+    logger.info(2)
+    try:
+        logger.info(default_record.one_or_none())
+    except Exception:
+        logger.info("failed")
+    logger.info(3)
+    try:
+        for r in default_record:
+            logger.info(r)
+    except Exception:
+        logger.info("failed")
+    logger.info(4)
     if default_record:
         logger.info(f"Deleting default marketplace source {default_record.name}")
         db_session.delete(default_record)

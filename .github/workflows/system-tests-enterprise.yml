@@ -116,12 +116,14 @@ jobs:
       run: |
         # Read branches from local file
         branches=$(cat system-tests-branches-list.txt)
+        echo "branches found in system-tests-branches-list.txt: $branches"
 
         # Split branches into an array
         IFS=',' read -ra branches_array <<< "$branches"
 
-        # Get the first branch in the list
+        # Get the first branch in the list to work on
         first_branch="${branches_array[0]}"
+        echo "working on $first_branch"
 
         # Remove the first branch from the list
         branches_array=("${branches_array[@]:1}")
@@ -147,51 +149,6 @@ jobs:
         # Use sshpass to override the remote file with the new list of branches
         sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no system-tests-branches-list.txt ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
 
-#    - name: Select branch to work on
-#      id: select-branch
-#      run: |
-#        IFS=',' read -ra selectedbranch_array <<< "$selectedbranch"
-#        # Read the last used parameter from the cache
-#        if [ ! -f branchselected ]
-#        then
-#           echo  "No last used parameter branchselected not  found"
-#        else
-#            last_parameter=$(cat  branchselected)
-#            echo "Last used parameter: $last_parameter"
-#        fi
-#        # Find the index of the last used parameter in the array
-#        if [ -n "$last_parameter" ]
-#        then
-#            for i in "${!selectedbranch_array[@]}"; do
-#                if [[ "${selectedbranch_array[$i]}" == "$last_parameter" ]]; then
-#                    last_index=$i
-#                    break
-#                fi
-#            done
-#        fi
-#        # Print unique items from the list
-#        echo "Unique items in the list:"
-#        echo "${selectedbranch}" | tr ',' '\n' | sort -u
-#        # Get the next item in the list
-#        if [ -n "$last_index" ]
-#        then
-#            next_index=$((last_index + 1))
-#            if [ "$next_index" -eq "${#selectedbranch_array[@]}" ]
-#            then
-#                next_index=0
-#            fi
-#        else
-#            next_index=0
-#        fi
-#        next_parameter="${selectedbranch_array[$next_index]}"
-#        echo "Next parameter: $next_parameter"
-#        # Write the next parameter to the cache file
-#        echo "$next_parameter" > last_parameter.txt
-#        # Set the param output for the next step
-#        echo "::set-output name=param::$next_parameter"
-#        echo $next_parameter > branchselected
-
-
     - name: Checkout PR Base (target) Branch
       uses: actions/checkout@v3
 
@@ -204,18 +161,13 @@ jobs:
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Install curl and jq
       run: sudo apt-get install curl jq
-#    - name: Extract git branch
-#      id: git_info
-#      run: |
-#        echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
-#
     - name: Extract git hash from action mlrun version
       # by default when running as part of the CI this param doesn't get enriched meaning it will be empty.
       # we want the mlrun_hash to be set from the $GITHUB_SHA when running in CI
       if: ${{ github.event.inputs.test_code_from_action != 'false' }}
       id: git_action_info
       run: |
-        echo "mlrun_hash=$(cd base/mlrun && git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
+        echo "mlrun_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
     - name: Extract git hash from action mlrun version
       if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
       id: git_action_ui_info
@@ -251,7 +203,6 @@ jobs:
           cat automation/version/unstable_version_prefix && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
-#        echo "unstable_version_prefix=$(cd base/mlrun && cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
     - name: Set computed versions params
       id: computed_params
       run: |
@@ -316,49 +267,51 @@ jobs:
 
     outputs:
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrunBranch: ${{ steps.current-branch.outputs.name }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
-#  run-system-tests-enterprise-ci:
-#    # When increasing the timeout make sure it's not larger than the schedule cron interval
-#    timeout-minutes: 360
-#    name: Run System Tests Enterprise
-#    # requires prepare to finish before starting
-#    needs: [prepare-system-tests-enterprise-ci]
-#    runs-on: ubuntu-latest
-#    # let's not run this on every fork, change to your fork when developing
-#    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
-#    strategy:
-#      fail-fast: false
-#      max-parallel: 1
-#      matrix:
-#        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
-#    steps:
-#    # checking out to the commit hash that the preparation step executed on
-#    - uses: actions/checkout@v3
-#    - name: Set up python
-#      uses: actions/setup-python@v4
-#      with:
-#        python-version: 3.9
-#        cache: pip
-#    - name: Install automation scripts dependencies and add mlrun to dev packages
-#      run: pip install -r automation/requirements.txt && pip install -e .
-#    - name: Install curl and jq
-#      run: sudo apt-get install curl jq
-#    - name: Prepare System Test env.yaml and MLRun installation from current branch
-#      timeout-minutes: 5
-#      run: |
-#        python automation/system_test/prepare.py env \
-#          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
-#          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}"
-#    - name: Run System Tests
-#      run: |
-#        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
-#        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
-#        MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
-#          make test-system-dockerized
+  run-system-tests-enterprise-ci:
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
+    timeout-minutes: 360
+    name: Run System Tests Enterprise
+    # requires prepare to finish before starting
+    needs: [prepare-system-tests-enterprise-ci]
+    runs-on: ubuntu-latest
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
+    - name: Set up python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+        cache: pip
+    - name: Install automation scripts dependencies and add mlrun to dev packages
+      run: pip install -r automation/requirements.txt && pip install -e .
+    - name: Install curl and jq
+      run: sudo apt-get install curl jq
+    - name: Prepare System Test env.yaml and MLRun installation from current branch
+      timeout-minutes: 5
+      run: |
+        python automation/system_test/prepare.py env \
+          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}"
+    - name: Run System Tests
+      run: |
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
+        MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
+          make test-system-dockerized

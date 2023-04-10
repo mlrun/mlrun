@@ -528,7 +528,7 @@ def _delete_default_marketplace_source(db_session: sqlalchemy.orm.Session):
     logger.info(3)
     try:
         for r in default_record:
-            logger.info(r)
+            logger.info(r.name)
     except Exception:
         logger.info("failed")
     logger.info(4)

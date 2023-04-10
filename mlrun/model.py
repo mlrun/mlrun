@@ -185,7 +185,8 @@ class ObjectDict:
         elif isinstance(child, dict):
             kind = child.get("kind", self._default_kind)
             if kind not in self._classes_map.keys():
-                raise ValueError(f"illegal object kind {kind}")
+                print()
+                raise ValueError(f"illegal object kind {kind}, possible kinds are :{self._classes_map.keys()}")
             child_obj = self._classes_map[kind].from_dict(child)
             child_obj.name = name
             return child_obj

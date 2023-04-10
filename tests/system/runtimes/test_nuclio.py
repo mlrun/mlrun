@@ -50,9 +50,9 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
         graph = function.set_topology("flow", engine="async")
 
         graph.to(name="step1", handler="inc")
-        graph.add_step(name="catcher", handler="catcher", full_event=True, after="")
+        # graph.add_step(name="catcher", handler="catcher", full_event=True, after="")
 
-        graph.error_handler("catcher")
+        graph.error_handler("catcher", handler="catcher", full_event=True,)
 
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()

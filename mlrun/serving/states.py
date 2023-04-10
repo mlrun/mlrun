@@ -193,8 +193,13 @@ class BaseStep(ModelObj):
             before = [before] if isinstance(before, str) else before
             step.before = before or []
             step.base_step = self.name
-            step = self._parent._steps.update(name, step)
-            step.set_parent(self._parent)
+            if hasattr(self, '_parent') and self._parent:
+                step = self._parent._steps.update(name, step)
+                step.set_parent(self._parent)
+            elif hasattr(self, '_steps'):
+                step = self._steps.update(name, step)
+                step.set_parent(self)
+
 
             return self
         else:

@@ -88,21 +88,18 @@ def test_on_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser").error_handler("catch").to("Chain", name="s3")
+    chain.to("Raiser").error_handler(name="catch", class_name="EchoError", full_event=True).to("Chain", name="s3")
 
-    graph.add_step(
-        name="catch", class_name="EchoError", after=""
-    ).respond().full_event = True
     function.verbose = True
     server = function.to_mock_server()
 
     # plot the graph for test & debug
-    graph.plot(f"{results}/serving/on_error.png")
+    # graph.plot(f"{results}/serving/on_error.png")
     resp = server.test(body=[])
     server.wait_for_completion()
     assert (
-        resp["error"] and resp["origin_state"] == "Raiser"
-    ), f"error wasnt caught, resp={resp}"
+        resp.error and resp.origin_state == "Raiser"
+    ), f"error wasn't caught, resp={resp}"
 
 
 def test_push_error():

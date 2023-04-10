@@ -507,9 +507,8 @@ def _delete_default_marketplace_source(db_session: sqlalchemy.orm.Session):
     #     .filter(MarketplaceSource.index == mlrun.api.schemas.last_source_index)
     #     .one_or_none()
     # )
-    default_record = (
-        db_session.query(MarketplaceSource)
-        .filter(MarketplaceSource.index == mlrun.api.schemas.last_source_index)
+    default_record = db_session.query(MarketplaceSource).filter(
+        MarketplaceSource.index == mlrun.api.schemas.last_source_index
     )
     try:
         print(default_record)
@@ -572,8 +571,13 @@ def _add_default_marketplace_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
-        hub_marketplace_source = db.get_marketplace_source(
-            db_session, config.marketplace.default_source.name
+        hub_marketplace_source = (
+            db_session.query(MarketplaceSource)
+            .filter(
+                MarketplaceSource.index
+                == mlrun.api.schemas.marketplace.last_source_index
+            )
+            .one_or_none()
         )
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None

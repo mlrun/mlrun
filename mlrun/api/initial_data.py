@@ -515,12 +515,7 @@ def _delete_default_marketplace_source(
                 or default.name != src.metadata.name
                 or default.object_type != src.spec.object_type
             ):
-                # Not using db.delete_marketplace_source()
-                # since it doesn't allow deleting the default marketplace source.
-                default_source_record = (
-                    db._transform_marketplace_source_schema_to_record(source)
-                )
-                db_session.delete(default_source_record)
+                db_session.delete(source)
                 db_session.commit()
                 return
 

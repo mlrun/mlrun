@@ -12,19 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from unittest import mock
 
 import mlrun.config
 import mlrun.utils.model_monitoring
 
 TEST_PROJECT = "test-model-endpoints"
-os.environ["MLRUN_ARTIFACT_PATH"] = "s3://some-bucket/"
 
 
+@mock.patch.dict(os.environ, {"MLRUN_ARTIFACT_PATH": "s3://some-bucket/"}, clear=True)
 def test_get_file_target_path():
 
     # offline target with relative path
     offline_parquet_relative = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=TEST_PROJECT, kind="parquet", target="offline"
+        project=TEST_PROJECT,
+        kind="parquet",
+        target="offline",
+        artifact_path=os.environ["MLRUN_ARTIFACT_PATH"],
     )
     assert (
         offline_parquet_relative

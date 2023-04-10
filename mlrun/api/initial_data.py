@@ -571,13 +571,8 @@ def _add_default_marketplace_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
-        hub_marketplace_source = (
-            db_session.query(MarketplaceSource)
-            .filter(
-                MarketplaceSource.index
-                == mlrun.api.schemas.marketplace.last_source_index
-            )
-            .one_or_none()
+        hub_marketplace_source = db_session.query(MarketplaceSource).filter(
+            MarketplaceSource.index == mlrun.api.schemas.marketplace.last_source_index
         )
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None

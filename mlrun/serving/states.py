@@ -1068,10 +1068,6 @@ class FlowStep(BaseStep):
                 # never set a step as its own error handler
                 if step != error_step:
                     step.async_object.set_recovery_step(error_step.async_object)
-                    # for next_step in error_step.next or []:
-                    #     next_state = self[next_step]
-                    #     if next_state.async_object and error_step.async_object:
-                    #         error_step.async_object.to(next_state.async_object)
 
         self._controller = source.run()
 

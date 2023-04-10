@@ -118,7 +118,7 @@ jobs:
         branches=$(cat system-tests-branches-list)
 
         # Split branches into an array
-        IFS=',' read -ra branche#s_array <<< "$branches"
+        IFS=',' read -ra branches_array <<< "$branches"
 
         # Get the first branch in the list
         first_branch="${branches_array[0]}"

@@ -48,7 +48,7 @@ on:
       test_code_from_action:
         description: 'Take tested code from action REF rather than upstream (default: true). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
         required: true
-        default: 'true'
+        default: 'false'
       ui_code_from_action:
         description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
         required: true

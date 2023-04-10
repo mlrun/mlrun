@@ -42,7 +42,7 @@ import mlrun.errors
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
 
-from ..config import config, is_running_as_api
+from ..config import config
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -623,10 +623,6 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     name = name.replace("-", "_")
     function_suffix = f"{name}/{tag}/src/function.yaml"
     if not source_name:
-        # try to get from default without db?
-        if not is_running_as_api():
-            marketplace_url = config.get_default_marketplace_source()
-            return marketplace_url + function_suffix, is_hub_uri
         # Searching item in all sources
         sources = db.list_marketplace_sources(item_name=name, tag=tag)
         if not sources:

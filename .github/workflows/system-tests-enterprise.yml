@@ -17,7 +17,7 @@ name: System Tests Enterprise
 on:
   push:
     branches:
-      - 'branch-system-tests'
+      - '.+-system-tests'
 
   schedule:
 
@@ -43,7 +43,7 @@ on:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
       test_code_from_action:
-        description: 'Take tested code from action REF rather than upstream (default: true). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
+        description: 'Take tested code from action from upstream rather than ref (default: false). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
         required: true
         default: 'false'
       ui_code_from_action:
@@ -111,8 +111,13 @@ jobs:
       run: |
         sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt system-tests-branches-list.txt
 
-    - name: resolve-current-branch
+    - name: Resolve Branch To Run System Tests
       id: current-branch
+      # we store a file named /tmp/system-tests-branches-list.txt which contains a list of branches to run system tests
+      # on the branches are separated with commas, so each run we pop the first branch in the list and append it to the
+      # end of the list.
+      # This mechanism allows us to run on multiple branches without the need to modify the file or secrets each time
+      # a new branch is added or removed
       run: |
         # Read branches from local file
         branches=$(cat system-tests-branches-list.txt)
@@ -146,10 +151,11 @@ jobs:
 
     - name: Override remote file from local resolved branch list
       run: |
-        # Use sshpass to override the remote file with the new list of branches
+        # Override the remote file with the new list of branches
         sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no system-tests-branches-list.txt ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
-
-    - name: Checkout PR Base (target) Branch
+      # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
+      # before merging the changes to upstream.
+    - name: Checkout base branch
       uses: actions/checkout@v3
 
     - name: Set up python
@@ -162,8 +168,9 @@ jobs:
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Extract git hash from action mlrun version
-      # by default when running as part of the CI this param doesn't get enriched meaning it will be empty.
-      # we want the mlrun_hash to be set from the $GITHUB_SHA when running in CI
+      # because it is being run mainly on CI and the code is of the development but can be run against multiple branches
+      # the default is false so it will use the code of the chosen branch
+      # TODO: remove - might not be relevant anymore due to multi branch system tests
       if: ${{ github.event.inputs.test_code_from_action != 'false' }}
       id: git_action_info
       run: |
@@ -286,6 +293,9 @@ jobs:
         test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
     - uses: actions/checkout@v3
+      # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
+      # the system tests of the branch that triggered the system tests as it might be in a different version
+      # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
       with:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
     - name: Set up python

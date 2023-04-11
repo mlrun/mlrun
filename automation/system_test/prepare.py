@@ -141,11 +141,13 @@ class SystemTestPreparer:
 
         self._override_mlrun_api_env()
 
+        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
+        # that run as part of the patch would succeed even if we move from a newer version to an older one
+        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
         if self._purge_db:
             self._purge_mlrun_db()
 
         self._patch_mlrun()
-
 
     def clean_up_remote_workdir(self):
         self._logger.info(
@@ -522,11 +524,10 @@ class SystemTestPreparer:
 
     def _purge_mlrun_db(self):
         """
-        Purge mlrun db - exec into mlrun-db pod, delete the database and restart mlrun pods
+        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
         """
         self._delete_mlrun_db()
         self._scale_down_mlrun_deployments()
-        # self._wait_for_mlrun_to_be_ready()
 
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
@@ -564,7 +565,8 @@ class SystemTestPreparer:
         )
 
     def _scale_down_mlrun_deployments(self):
-        self._logger.info("scaling down mlrun")
+        # scaling down to avoid automatically deployments restarts and failures
+        self._logger.info("scaling down mlrun deployments")
         self._run_kubectl_command(
             args=[
                 "scale",
@@ -574,22 +576,7 @@ class SystemTestPreparer:
                 "mlrun-api-chief",
                 "mlrun-api-worker",
                 "mlrun-db",
-                "--replicas=0"
-            ]
-        )
-
-    def _wait_for_mlrun_to_be_ready(self):
-        self._logger.info("Waiting for mlrun to be ready")
-        self._run_kubectl_command(
-            args=[
-                "wait",
-                "--for=condition=available",
-                "--timeout=300s",
-                "deployment",
-                "-n",
-                self.Constants.namespace,
-                "mlrun-api-chief",
-                "mlrun-db",
+                "--replicas=0",
             ]
         )
 

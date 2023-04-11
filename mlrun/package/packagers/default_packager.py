@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
-from mlrun.errors import MLRunPackageUnpackingError
+from mlrun.errors import MLRunPackagePackingError, MLRunPackageUnpackingError
 from mlrun.utils import logger
 
 from ..common import ArtifactType
@@ -286,8 +286,7 @@ class DefaultPackager(Packager):
     * The abstract class method ``is_packable``: The method is implemented to validate the object type and artifact type
       automatically by the following rules:
 
-      * Object type validation: Checking if the object type given is equal or a subclass of the class variable
-        ``PACKABLE_OBJECT_TYPE``.
+      * Object type validation: Checking if the object type given is equal to the variable ``PACKABLE_OBJECT_TYPE``.
       * Artifact type validation: Checking if the artifact type given is in the list returned from
         ``get_supported_artifact_types``.
 
@@ -308,6 +307,7 @@ class DefaultPackager(Packager):
 
           artifact = Artifact(key="my_artifact")
           artifact.spec.extra_data = {key: ... for key in extra_data}
+
     * Clearing outputs: Some packagers may produce files and temporary directories that should be deleted once done with
       logging the artifact. The packager can mark paths of files and directories to delete after logging using the class
       method ``future_clear``.
@@ -356,7 +356,7 @@ class DefaultPackager(Packager):
     @classmethod
     def pack(
         cls, obj: Any, artifact_type: Union[str, None], configurations: dict
-    ) -> Union[Tuple[Artifact, dict], dict, None]:
+    ) -> Union[Tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -375,12 +375,11 @@ class DefaultPackager(Packager):
         pack_method = getattr(cls, f"pack_{artifact_type}")
 
         # Validate correct configurations were passed:
-        if not cls._validate_method_arguments(
+        cls._validate_method_arguments(
             method=pack_method,
             arguments=configurations,
-            arguments_type=cls._ArgumentsType.CONFIGURATIONS,
-        ):
-            return None
+            is_packing=True,
+        )
 
         # Call the packing method and return the package:
         return pack_method(obj, **configurations)
@@ -411,15 +410,11 @@ class DefaultPackager(Packager):
         unpack_method = getattr(cls, f"unpack_{artifact_type}")
 
         # Validate correct instructions were passed:
-        if not cls._validate_method_arguments(
+        cls._validate_method_arguments(
             method=unpack_method,
             arguments=instructions,
-            arguments_type=cls._ArgumentsType.INSTRUCTIONS,
-        ):
-            raise MLRunPackageUnpackingError(
-                f"The packager '{cls.__name__}' could not unpack the package due to missing instructions. The artifact "
-                f"was probably packed with a different packager. Please read the warnings printed for more details."
-            )
+            is_packing=False,
+        )
 
         # Call the unpacking method and return the object:
         return unpack_method(data_item, **instructions)
@@ -435,8 +430,8 @@ class DefaultPackager(Packager):
         :return: True if packable and False otherwise.
         """
         # Check type (ellipses means any type):
-        if cls.PACKABLE_OBJECT_TYPE is not ... and not issubclass(
-            object_type, cls.PACKABLE_OBJECT_TYPE
+        if (cls.PACKABLE_OBJECT_TYPE is not ...) and (
+            object_type is not cls.PACKABLE_OBJECT_TYPE
         ):
             return False
 
@@ -536,29 +531,21 @@ class DefaultPackager(Packager):
             object_module_version=object_module_version,
         )
 
-    class _ArgumentsType:
-        """
-        Library class for the arguments type to send for `_validate_method_arguments`. Configurations is the term for
-        the kwargs sent to packing methods and instructions is the term for the kwargs sent in unpacking methods.
-        """
-
-        INSTRUCTIONS = "instructions"
-        CONFIGURATIONS = "configurations"
-
     @classmethod
     def _validate_method_arguments(
-        cls, method: MethodType, arguments: dict, arguments_type: str
-    ) -> bool:
+        cls, method: MethodType, arguments: dict, is_packing: bool
+    ):
         """
         Validate keyword arguments to pass to a method. Used for validating log hint configurations for packing methods
         and instructions for unpacking methods.
 
-        :param method:         The method to validate the arguments for.
-        :param arguments:      Keyword arguments to validate.
-        :param arguments_type: A string to use for the error message. Should be on of the `_ArgumentType` class
-                               variables.
+        :param method:     The method to validate the arguments for.
+        :param arguments:  Keyword arguments to validate.
+        :param is_packing: Flag to know if the arguments came from packing or unpacking, to raise the correct exception
+                           if validation failed.
 
-        :return: True if all mandatory arguments are given and False otherwise.
+        :raise MLRunPackagePackingError:   If there are missing configurations in the log hint.
+        :raise MLRunPackageUnpackingError: If there are missing instructions in the artifact's spec.
         """
         # Get the possible and mandatory (arguments that has no default value) arguments from the functions:
         possible_arguments = inspect.signature(method).parameters
@@ -575,20 +562,28 @@ class DefaultPackager(Packager):
             if mandatory_argument not in arguments
         ]
         if missing_arguments:
-            logger.warn(
-                f"Missing {arguments_type} for {cls.__name__}: {', '.join(missing_arguments)}. The packager won't "
-                f"handle the object."
+            if is_packing:
+                raise MLRunPackagePackingError(
+                    f"The packager '{cls.__name__}' could not pack the package due to missing configurations: "
+                    f"{', '.join(missing_arguments)}. Add the missing arguments to the log hint of this object in "
+                    f"order to pack it. Make sure you pass a dictionary log hint and not a string in order to pass "
+                    f"configurations in the log hint."
+                )
+            raise MLRunPackageUnpackingError(
+                f"The packager '{cls.__name__}' could not unpack the package due to missing instructions: "
+                f"{', '.join(missing_arguments)}. Missing instructions are likely due to an update in the packager's "
+                f"code that not support the old implementation. This backward compatibility should not occur. To "
+                f"overcome it, try to edit the instructions in the artifact's spec to enable unpacking it again."
             )
-            return False
 
         # Validate all given arguments are correct:
         incorrect_arguments = [
             argument for argument in arguments if argument not in possible_arguments
         ]
         if incorrect_arguments:
+            arguments_type = "configurations" if is_packing else "instructions"
             logger.warn(
                 f"Unexpected {arguments_type} given for {cls.__name__}: {', '.join(incorrect_arguments)}. "
                 f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}. The packager will try to "
                 f"continue by ignoring the incorrect arguments."
             )
-        return True

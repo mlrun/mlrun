@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import builtins
-import importlib
 import inspect
 import os
-import re
 from collections import OrderedDict
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Union
 
 from mlrun.datastore import DataItem
-from mlrun.errors import MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError
+from mlrun.errors import (
+    MLRunInvalidArgumentError,
+    MLRunPackagePackagerCollectionError,
+    MLRunPackagePackingError,
+)
 from mlrun.execution import MLClientCtx
 from mlrun.run import get_or_create_ctx
-from mlrun.utils import logger
 
-from .common import ArtifactType, LogHintKey
+from .common import ArtifactType, LogHintKey, LogHintUtils, TypeHintUtils
 from .packagers_manager import PackagersManager
 
 
@@ -39,18 +39,37 @@ class ContextHandler:
       2. Parse the user's inputs (MLRun `DataItem`) to the function.
       3. Log the function's outputs to MLRun.
 
-    The context handler uses a packagers manager to unpack (parse) the inputs and pack (log) the outputs.
+    The context handler uses a packagers manager to unpack (parse) the inputs and pack (log) the outputs. It sets up a
+    manager with all the packagers in the `mlrun.package.packagers` directory. Packagers whom are in charge of modules
+    that are in the MLRun requirements are mandatory and additional extensions packagers for non-required modules are
+    added if the modules are available in the user's interpreter. Once a context is found, project custom packagers will
+    be added as well.
     """
+
+    # Mandatory packagers to be collected at initialization time:
+    _MLRUN_REQUIREMENTS_PACKAGERS = [
+        "python_standard_library",
+        "pandas",
+        "numpy",
+        "mlrun",
+    ]
+    # Optional packagers to be collected at initialization time:
+    _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
+    # Optional packagers from the `mlrun.frameworks` package:
+    _MLRUN_FRAMEWORKS_PACKAGERS = []
 
     def __init__(self):
         """
         Initialize a context handler.
         """
+        # Set up a variable to hold the context:
+        self._context: MLClientCtx = None
+
         # Initialize a packagers manager:
         self._packagers_manager = PackagersManager()
 
-        # Set up a variable to hold the context:
-        self._context: MLClientCtx = None
+        # Prepare the manager (collect the MLRun builtin standard and optional packagers):
+        self._collect_mlrun_packagers()
 
     def look_for_context(self, args: tuple, kwargs: dict):
         """
@@ -95,24 +114,11 @@ class ContextHandler:
                 key="custom_packagers", default=[]
             )
             if custom_packagers:
-                # Packager added to collect may not be mandatory, so if it fails we will write a debugging message and
-                # continue, but if they are mandatory, we will raise an error:
+                # Add the custom packagers taking into account the mandatory flag:
                 for custom_packager, is_mandatory in custom_packagers:
-                    try:
-                        self._packagers_manager.collect_packagers(
-                            packagers=[custom_packager]
-                        )
-                    except (
-                        MLRunInvalidArgumentError,
-                        MLRunPackagePackagerCollectionError,
-                    ) as error:
-                        if is_mandatory:
-                            raise error
-                        else:
-                            self._context.logger.debug(
-                                f"The packager '{custom_packager}' could not be imported due to the following error:\n"
-                                f"'{error}'"
-                            )
+                    self._collect_packagers(
+                        packagers=[custom_packager], is_mandatory=is_mandatory
+                    )
 
     def is_context_available(self) -> bool:
         """
@@ -139,7 +145,7 @@ class ContextHandler:
         """
         # Parse the type hints (in case some were given as strings):
         type_hints = {
-            key: self.parse_type_hint(type_hint=value)
+            key: TypeHintUtils.parse_type_hint(type_hint=value)
             for key, value in type_hints.items()
         }
 
@@ -181,7 +187,8 @@ class ContextHandler:
         log_hints: List[Union[Dict[str, str], str, None]],
     ):
         """
-        Log the given outputs as artifacts with the stored context.
+        Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
+        be ignored to not fail a run. A warning with the error wil be printed.
 
         :param outputs:   List of outputs to log.
         :param log_hints: List of log hints (logging configurations) to use.
@@ -207,21 +214,26 @@ class ContextHandler:
 
         # Go over the outputs and pack them:
         for obj, log_hint in zip(outputs, log_hints):
-            # Check if needed to log (not None):
-            if log_hint is None:
-                continue
-            # Parse the log hint:
-            log_hint = self.parse_log_hint(log_hint=log_hint)
-            # Check if the object to log is None (None values are only logged if the artifact type is Result):
-            if (
-                obj is None
-                and log_hint.get(LogHintKey.ARTIFACT_TYPE, ArtifactType.RESULT)
-                != ArtifactType.RESULT
-            ):
-                continue
-            # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to enable
-            # linking extra data of some artifacts):
-            self._packagers_manager.pack(obj=obj, log_hint=log_hint)
+            try:
+                # Check if needed to log (not None):
+                if log_hint is None:
+                    continue
+                # Parse the log hint:
+                log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
+                # Check if the object to log is None (None values are only logged if the artifact type is Result):
+                if (
+                    obj is None
+                    and log_hint.get(LogHintKey.ARTIFACT_TYPE, ArtifactType.RESULT)
+                    != ArtifactType.RESULT
+                ):
+                    continue
+                # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
+                # enable linking extra data of some artifacts):
+                self._packagers_manager.pack(obj=obj, log_hint=log_hint)
+            except (MLRunInvalidArgumentError, MLRunPackagePackingError) as error:
+                self._context.logger.warn(
+                    f"Skipping logging an object with the log hint '{log_hint}' due to the following error:\n{error}"
+                )
 
         # Link packages:
         self._packagers_manager.link_packages(
@@ -247,158 +259,57 @@ class ContextHandler:
         for key, value in labels.items():
             self._context.set_label(key=key, value=value)
 
-    @staticmethod
-    def parse_type_hint(type_hint: Union[Type, str]) -> Type:
+    def _collect_packagers(self, packagers: List[str], is_mandatory: bool):
         """
-        Parse a given type hint from string to its actual hinted type class object. The string must be one of the
-        following:
+        Collect packagers with the stored manager. The collection can ignore errors raised by setting the mandatory flag
+        to False.
 
-        * Python builtin type - for example: `tuple`, `list`, `set`, `dict` and `bytearray`.
-        * Full module import path. An alias (if `import pandas as pd is used`, the type hint cannot be `pd.DataFrame`)
-          is not allowed.
-
-        The type class on its own (like `DataFrame`) cannot be used as the scope of this function is not the same as the
-        handler itself, hence modules and objects that were imported in the handler's scope are not available. This is
-        the same reason import aliases cannot be used as well.
-
-        If the provided type hint is not a string, it will simply be returned as is.
-
-        :param type_hint: The type hint to parse.
-
-        :return: The hinted type.
-
-        :raise MLRunInvalidArgumentError: In case the type hint is not following the 2 options mentioned above.
+        :param packagers:    The list of packagers to collect.
+        :param is_mandatory: Whether the packagers are mandatory for the context run.
         """
-        if not isinstance(type_hint, str):
-            return type_hint
-
-        # Validate the type hint is a valid module path:
-        if not bool(
-            re.fullmatch(
-                r"([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*", type_hint
-            )
-        ):
-            raise MLRunInvalidArgumentError(
-                f"Invalid type hint. An input type hint must be a valid python class name or its module import path. "
-                f"For example: 'list', 'pandas.DataFrame', 'numpy.ndarray', 'sklearn.linear_model.LinearRegression'. "
-                f"Type hint given: '{type_hint}'."
-            )
-
-        # Look for a builtin type (rest of the builtin types like `int`, `str`, `float` should be treated as results,
-        # hence not given as an input to an MLRun function, but as a parameter):
-        builtin_types = {
-            builtin_name: builtin_type
-            for builtin_name, builtin_type in builtins.__dict__.items()
-            if isinstance(builtin_type, type)
-        }
-        if type_hint in builtin_types:
-            return builtin_types[type_hint]
-
-        # If it's not a builtin, its should have a full module path, meaning at least one '.' to separate the module and
-        # the class. If it doesn't, we will try to get the class from the main module:
-        if "." not in type_hint:
-            logger.warn(
-                f"The type hint string given '{type_hint}' is not a `builtins` python type. MLRun will try to look for "
-                f"it in the `__main__` module instead."
-            )
-            type_hint = f"__main__.{type_hint}"
-
-        # Import the module to receive the hinted type:
         try:
-            # Get the module path and the type class (If we'll wish to support inner classes, the `rsplit` won't work):
-            module_path, type_hint = type_hint.rsplit(".", 1)
-            # Replace alias if needed (alias assumed to be imported already, hence we look in globals):
-            # For example:
-            # If in handler scope there was `import A.B.C as abc` and user gave a type hint "abc.Something" then:
-            # `module_path[0]` will be equal to "abc". Then, because it is an alias, it will appear in the globals, so
-            # we'll replace the alias with the full module name in order to import the module.
-            module_path = module_path.split(".")
-            if module_path[0] in globals():
-                module_path[0] = globals()[module_path[0]].__name__
-            module_path = ".".join(module_path)
-            # Import the module:
-            module = importlib.import_module(module_path)
-            # Get the class type from the module:
-            type_hint = getattr(module, type_hint)
-        except ModuleNotFoundError as module_not_found_error:
-            # May be raised from `importlib.import_module` in case the module does not exist.
-            if "__main__" in type_hint:
-                message = (
-                    f"MLRun tried to get the type hint '{type_hint.split('.')[1]}' but it can't as it is not a valid "
-                    f"builtin Python type (one of `list`, `dict`, `str`, `int`, etc.) nor a locally declared type "
-                    f"(from the `__main__` module). Pay attention using only the type as string is not allowed as the "
-                    f"handler's scope is different than MLRun's. To properly give a type hint as string, please "
-                    f"specify the full module path without aliases. For example: do not use `DataFrame` or "
-                    f"`pd.DataFrame`, use `pandas.DataFrame`."
-                )
+            self._packagers_manager.collect_packagers(packagers=packagers)
+        except (
+            MLRunInvalidArgumentError,
+            MLRunPackagePackagerCollectionError,
+        ) as error:
+            if is_mandatory:
+                raise error
             else:
-                message = (
-                    f"MLRun tried to get the type hint '{type_hint}' but the module '{module_path}' cannot be "
-                    f"imported. Keep in mind that using alias in the module path (meaning: import module as alias) is "
-                    f"not allowed. If the module path is correct, please make sure the module package is installed in "
-                    f"the python interpreter."
+                self._context.logger.debug(
+                    f"The given optional packagers '{packagers}' could not be imported due to the following error:\n"
+                    f"'{error}'"
                 )
-            raise MLRunInvalidArgumentError(message) from module_not_found_error
-        except AttributeError as attribute_error:
-            # May be raised from `getattr(module, type_hint)` in case the class type cannot be imported directly from
-            # the imported module.
-            raise MLRunInvalidArgumentError(
-                f"MLRun tried to get the type hint '{type_hint}' from the module '{module.__name__}' but it seems it "
-                f"doesn't exist. Make sure the class can be imported from the module with the exact module path you "
-                f"passed. Notice inner classes (a class inside of a class) are not supported."
-            ) from attribute_error
 
-        return type_hint
-
-    @staticmethod
-    def parse_log_hint(
-        log_hint: Union[Dict[str, str], str, None]
-    ) -> Union[Dict[str, str], None]:
+    def _collect_mlrun_packagers(self):
         """
-        Parse a given log hint from string to a logging configuration dictionary. The string will be read as the
-        artifact key ('key' in the dictionary) and if the string have a single colon, the following structure is
-        assumed: "<artifact_key> : <artifact_type>".
+        Collect MLRun's builtin packagers. That include all mandatory packagers whom in charge of MLRun's requirements
+        libraries, more optional commonly used libraries packagers and more `mlrun.frameworks` packagers. The priority
+        will be as follows (from higher to lower priority):
 
-        If a logging configuration dictionary is received, it will be validated to have a key field.
-
-        None will be returned as None.
-
-        :param log_hint: The log hint to parse.
-
-        :return: The hinted logging configuration.
-
-        :raise MLRunInvalidArgumentError: In case the log hint is not following the string structure or the dictionary
-                                          is missing the key field.
+        1. Optional `mlrun.frameworks` packagers
+        2. MLRun's optional packagers
+        3. MLRun's mandatory packagers (MLRun's requirements)
         """
-        # Check for None value:
-        if log_hint is None:
-            return None
+        # Collect MLRun's requirements packagers (mandatory):
+        self._collect_packagers(
+            packagers=[
+                f"mlrun.package.packagers.{module_name}_packagers.*"
+                for module_name in self._MLRUN_REQUIREMENTS_PACKAGERS
+            ],
+            is_mandatory=True,
+        )
 
-        # If the log hint was provided as a string, construct a dictionary out of it:
-        if isinstance(log_hint, str):
-            # Check if only key is given:
-            if ":" not in log_hint:
-                log_hint = {LogHintKey.KEY: log_hint}
-            # Check for valid "<key> : <artifact type>" pattern:
-            else:
-                if log_hint.count(":") > 1:
-                    raise MLRunInvalidArgumentError(
-                        f"Incorrect log hint pattern. Log hints can have only a single ':' in them to specify the "
-                        f"desired artifact type the returned value will be logged as: "
-                        f"'<artifact_key> : <artifact_type>', but given: {log_hint}"
-                    )
-                # Split into key and type:
-                key, artifact_type = log_hint.replace(" ", "").split(":")
-                log_hint = {
-                    LogHintKey.KEY: key,
-                    LogHintKey.ARTIFACT_TYPE: artifact_type,
-                }
-
-        # Validate the log hint dictionary has the mandatory key:
-        if LogHintKey.KEY not in log_hint:
-            raise MLRunInvalidArgumentError(
-                f"A log hint dictionary must include the 'key' - the artifact key (it's name). The following log hint "
-                f"is missing the key: {log_hint}."
+        # Add extra packagers for optional libraries:
+        for module_name in self._EXTENDED_PACKAGERS:
+            self._collect_packagers(
+                packagers=[f"mlrun.package.packagers.{module_name}_packagers.*"],
+                is_mandatory=False,
             )
 
-        return log_hint
+        # Add extra packagers from `mlrun.frameworks` package:
+        for module_name in self._MLRUN_FRAMEWORKS_PACKAGERS:
+            self._collect_packagers(
+                packagers=[f"mlrun.frameworks.{module_name}.packagers.*"],
+                is_mandatory=False,
+            )

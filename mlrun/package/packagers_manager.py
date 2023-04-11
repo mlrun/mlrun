@@ -30,7 +30,7 @@ from mlrun.package.packager import Packager
 from mlrun.package.packagers.default_packager import DefaultPackager
 from mlrun.utils import StorePrefix, logger
 
-from .common import LogHintKey, TypingUtils
+from .common import LogHintKey, TypeHintUtils
 
 
 class PackagersManager:
@@ -41,16 +41,6 @@ class PackagersManager:
     That's why when the manager collects its packagers, it first collects builtin MLRun packagers and only then the
     user's custom packagers, this way user's custom packagers will have higher priority.
     """
-
-    # Mandatory packagers to be collected at initialization time:
-    _MLRUN_REQUIREMENTS_PACKAGERS = [
-        "python_standard_library",
-        "pandas",
-        "numpy",
-        "mlrun",
-    ]
-    # Optional packagers to be collected at initialization time:
-    _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
 
     def __init__(self, default_packager: Type[Packager] = None):
         """
@@ -71,9 +61,6 @@ class PackagersManager:
         # data if noted by the user using the log hint key "extra_data")
         self._artifacts: List[Artifact] = []
         self._results = {}
-
-        # Collect the builtin standard packagers:
-        self._collect_packagers()
 
     @property
     def artifacts(self) -> List[Artifact]:
@@ -179,6 +166,10 @@ class PackagersManager:
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object. If
                  a prefix of dict or list unpacking was provided in the log hint key, a list of all the arbitrary number
                  of packaged objects will be returned.
+
+        :raise MLRunInvalidArgumentError: If the key in the log hint is noting to log an arbitrary amount of artifacts
+                                          but the object type does not match the "*" or "**" used in the key.
+        :raise MLRunPackagePackingError:  If there was an error during the packing.
         """
         # Get the key to see if needed to pack arbitrary number of objects via list or dict prefixes:
         log_hint_key = log_hint[LogHintKey.KEY]
@@ -186,30 +177,34 @@ class PackagersManager:
             # A dictionary unpacking prefix was given, validate the object is a dictionary and prepare the objects to
             # pack with their keys:
             if not isinstance(obj, dict):
-                logger.warn(
+                raise MLRunInvalidArgumentError(
                     f"The log hint key '{log_hint_key}' has a dictionary unpacking prefix ('**') to log arbitrary "
                     f"number of objects within the dictionary, but a dictionary was not provided, the given object is "
                     f"of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the "
                     f"'**' prefix from the key."
                 )
-                return None
             objects_to_pack = {
                 f"{log_hint_key[len('**'):]}{dict_key}": dict_obj
                 for dict_key, dict_obj in obj.items()
             }
         elif log_hint_key.startswith("*"):
-            # A list unpacking prefix was given, validate the object is a list and prepare the objects to pack with
-            # their keys:
-            if not isinstance(obj, list):
-                logger.warn(
-                    f"The log hint key '{log_hint_key}' has a list unpacking prefix ('*') to log arbitrary number of "
-                    f"objects within the list, but a list was not provided, the given object is of type "
-                    f"'{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the '*' "
-                    f"prefix from the key."
+            # An iterable unpacking prefix was given, validate the object is iterable and prepare the objects to pack
+            # with their keys:
+            is_iterable = True
+            try:
+                for _ in obj:
+                    break
+            except TypeError:
+                is_iterable = False
+            if not is_iterable:
+                raise MLRunInvalidArgumentError(
+                    f"The log hint key '{log_hint_key}' has an iterable unpacking prefix ('*') to log arbitrary number "
+                    f"of objects within it (like a `list` or `set`), but an iterable object was not provided, the "
+                    f"given object is of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, "
+                    f"please remove the '*' prefix from the key."
                 )
-                return None
             objects_to_pack = {
-                f"{log_hint_key[len('*'):]}{i}": obj[i] for i in range(len(obj))
+                f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)
             }
         else:
             # A single object is required to be packaged:
@@ -304,7 +299,9 @@ class PackagersManager:
                     if object_type in hinted_types:
                         matching_object_and_type_hint = True
                         break
-                    hinted_types = TypingUtils.reduce_type_hint(type_hint=hinted_types)
+                    hinted_types = TypeHintUtils.reduce_type_hint(
+                        type_hint=hinted_types
+                    )
                 if matching_object_and_type_hint:
                     # They are equal, so we will unpack the package as is:
                     unpack_as_package = True
@@ -406,46 +403,6 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
-    def _try_to_collect_packagers_from_module(
-        self, module_name: str, packagers: List[str]
-    ):
-        """
-        Collect a packagers of a given module only if it was successfully imported.
-
-        :param module_name: The module name to try to import.
-        :param packagers:   The packagers to collect.
-        """
-        try:
-            importlib.import_module(module_name)
-
-            self.collect_packagers(packagers=packagers)
-        except ModuleNotFoundError:
-            pass
-
-    def _collect_packagers(self):
-        """
-        Collect MLRun's builtin packagers. In addition, more `mlrun.frameworks` packagers are added if the interpreter
-        has the frameworks. The priority will be as follows (from higher to lower priority):
-
-        1. `mlrun.frameworks` packagers
-        2. MLRun's optional packagers
-        3. MLRun's mandatory packagers (MLRun's requirements)
-        """
-        # Collect MLRun's requirements packagers (mandatory):
-        self.collect_packagers(
-            packagers=[
-                f"mlrun.package.packagers.{module_name}_packagers.*"
-                for module_name in self._MLRUN_REQUIREMENTS_PACKAGERS
-            ]
-        )
-
-        # Add extra packagers for optional libraries:
-        for module_name in self._EXTENDED_PACKAGERS:
-            self._try_to_collect_packagers_from_module(
-                module_name=module_name,
-                packagers=[f"mlrun.package.packagers.{module_name}_packagers.*"],
-            )
-
     def _get_packager_by_name(self, name: str) -> Union[Type[Packager], None]:
         """
         Look for a packager with the given name and return it.
@@ -488,7 +445,7 @@ class PackagersManager:
                     ):
                         return packager
             # Reduce the type hint list and continue:
-            possible_type_hints = TypingUtils.reduce_type_hint(
+            possible_type_hints = TypeHintUtils.reduce_type_hint(
                 type_hint=possible_type_hints
             )
 

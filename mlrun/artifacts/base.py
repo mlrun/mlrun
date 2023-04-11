@@ -109,6 +109,7 @@ class ArtifactSpec(ModelObj):
         self.size = size
         self.db_key = db_key
         self.extra_data = extra_data or {}
+        self.packaging_instructions = packaging_instructions
 
         self._body = body
         self.encoding = None
@@ -116,7 +117,6 @@ class ArtifactSpec(ModelObj):
         self.sources = []
         self.producer = None
         self.license = ""
-        self.packaging_instructions = packaging_instructions
 
     def base_dict(self):
         return super().to_dict()

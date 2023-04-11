@@ -17,7 +17,8 @@ import typing
 
 import pytest
 
-from mlrun.package.common import TypingUtils
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.package.common import LogHintKey, LogHintUtils, TypeHintUtils
 
 
 class SomeClass:
@@ -36,6 +37,7 @@ class SomeClass:
         (typing.List, True),
         (typing.Tuple[int, str], True),
         (typing.TypeVar("A", int, str), True),
+        (typing.ForwardRef("pandas.DataFrame"), True),
         (list, False),
         (int, False),
         (SomeClass, False),
@@ -48,13 +50,54 @@ class SomeClass:
 )
 def test_is_typing_type(typing_type_test: typing.Tuple[typing.Type, bool]):
     """
-    Test the `TypingUtils.is_typing_type` function with multiple types.
+    Test the `TypeHintUtils.is_typing_type` function with multiple types.
 
     :param typing_type_test: A tuple of the type to check and the expected result.
     """
     assert (
-        TypingUtils.is_typing_type(type_hint=typing_type_test[0]) == typing_type_test[1]
+        TypeHintUtils.is_typing_type(type_hint=typing_type_test[0])
+        == typing_type_test[1]
     )
+
+
+@pytest.mark.parametrize(
+    "type_hint_test",
+    [
+        ("int", int),
+        ("list", list),
+        ("tests.package.test_common.SomeClass", SomeClass),
+        (
+            "fail",
+            "MLRun tried to get the type hint 'fail' but it can't as it is not a valid builtin Python type (one of "
+            "`list`, `dict`, `str`, `int`, etc.) nor a locally declared type (from the `__main__` module).",
+        ),
+        (
+            "tests.package.test_common.Fail",
+            "MLRun tried to get the type hint 'Fail' from the module 'tests.package.test_common' but it seems it "
+            "doesn't exist.",
+        ),
+        (
+            "module_not_exist.Fail",
+            "MLRun tried to get the type hint 'Fail' but the module 'module_not_exist' cannot be imported.",
+        ),
+    ],
+)
+def test_parse_type_hint(type_hint_test: typing.Tuple[str, typing.Union[str, type]]):
+    """
+    Test the `TypeHintUtils.parse_type_hint` function with multiple types.
+
+    :param type_hint_test: A tuple of the type to parse and the expected parsed type. String in the expected parsed type
+                           variable indicates the parsing should fail with the provided error message in the variable.
+    """
+    type_string, expected_type = type_hint_test
+    try:
+        parsed_type = TypeHintUtils.parse_type_hint(type_hint=type_string)
+        assert parsed_type is expected_type
+    except MLRunInvalidArgumentError as error:
+        if isinstance(expected_type, str):
+            assert expected_type in str(error)
+        else:
+            raise error
 
 
 @pytest.mark.parametrize(
@@ -66,6 +109,11 @@ def test_is_typing_type(typing_type_test: typing.Tuple[typing.Type, bool]):
         (typing.TypeVar, set()),
         # `typing.ForwardRef` usage:
         (typing.ForwardRef("SomeClass"), set()),
+        (
+            typing.ForwardRef("SomeClass", module="tests.package.test_common"),
+            {SomeClass},
+        ),
+        (typing.ForwardRef("tests.package.test_common.SomeClass"), {SomeClass}),
         (typing.ForwardRef, set()),
         # `typing.Callable` usages:
         (typing.Callable, {collections.abc.Callable}),
@@ -129,10 +177,70 @@ def test_reduce_type_hint(
     type_hint_test: typing.Tuple[typing.Type, typing.Set[typing.Type]]
 ):
     """
-    Test the `TypingUtils.reduce_type_hint` function with multiple type hints.
+    Test the `TypeHintUtils.reduce_type_hint` function with multiple type hints.
 
     :param type_hint_test: A tuple of the type hint to reduce and the expected result.
     """
     assert (
-        TypingUtils.reduce_type_hint(type_hint=type_hint_test[0]) == type_hint_test[1]
+        TypeHintUtils.reduce_type_hint(type_hint=type_hint_test[0]) == type_hint_test[1]
     )
+
+
+@pytest.mark.parametrize(
+    "log_hint_test",
+    [
+        ("some_key", {LogHintKey.KEY: "some_key"}),
+        (
+            "some_key:artifact",
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+        ),
+        (
+            "some_key :artifact",
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+        ),
+        (
+            "some_key: artifact",
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+        ),
+        (
+            "some_key : artifact",
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+        ),
+        (
+            "some_key:",
+            "Incorrect log hint pattern. The ':' in a log hint should specify",
+        ),
+        (
+            "some_key : artifact : error",
+            "Incorrect log hint pattern. Log hints can have only a single ':' in them",
+        ),
+        ({LogHintKey.KEY: "some_key"}, {LogHintKey.KEY: "some_key"}),
+        (
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+            {LogHintKey.KEY: "some_key", LogHintKey.ARTIFACT_TYPE: "artifact"},
+        ),
+        (
+            {LogHintKey.ARTIFACT_TYPE: "artifact"},
+            "A log hint dictionary must include the 'key'",
+        ),
+    ],
+)
+def test_parse_log_hint(
+    log_hint_test: typing.Tuple[typing.Union[str, dict], typing.Union[str, dict]]
+):
+    """
+    Test the `LogHintUtils.parse_log_hint` function with multiple types.
+
+    :param log_hint_test: A tuple of the log hint to parse and the expected parsed log hint dictionary. String in the
+                          expected parsed log hint variable indicates the parsing should fail with the provided error
+                          message in the variable.
+    """
+    log_hint, expected_log_hint = log_hint_test
+    try:
+        parsed_log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
+        assert parsed_log_hint == expected_log_hint
+    except MLRunInvalidArgumentError as error:
+        if isinstance(expected_log_hint, str):
+            assert expected_log_hint in str(error)
+        else:
+            raise error

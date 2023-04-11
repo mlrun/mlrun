@@ -16,13 +16,13 @@ import os
 import shutil
 import tempfile
 import zipfile
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, Dict, List, Tuple, Type, Union
 
 import pytest
 
 from mlrun import DataItem
 from mlrun.artifacts import Artifact
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError
 from mlrun.package import DefaultPackager, Packager, PackagersManager
 
 
@@ -43,7 +43,7 @@ class PackagerA(Packager):
 
     @classmethod
     def is_packable(cls, object_type: Type, artifact_type: str = None) -> bool:
-        return object_type is str and artifact_type == "result"
+        return object_type is cls.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     @classmethod
     def pack(
@@ -135,10 +135,17 @@ class PackagerB(DefaultPackager):
 
 class PackagerC(PackagerA):
     """
-    Another packager to test collecting an inherited class of `Packager`.
+    Another packager to test collecting an inherited class of `Packager`. In addition, it is used to test the arbitrary
+    log hint keys.
     """
 
     PACKABLE_OBJECT_TYPE = float
+
+    @classmethod
+    def pack(
+        cls, obj: float, artifact_type: Union[str, None], configurations: dict
+    ) -> dict:
+        return {configurations["key"]: round(obj, configurations["n_round"])}
 
 
 class NotAPackager:
@@ -147,15 +154,6 @@ class NotAPackager:
     """
 
     pass
-
-
-def test_init():
-    """
-    During the manager's initialization, it collects the default packagers found in the class variables
-    `_MLRUN_REQUIREMENTS_PACKAGERS` and `_EXTENDED_PACKAGERS` so this test is making sure there is no error raised
-    during the init collection of packagers when new ones are being added.
-    """
-    PackagersManager()
 
 
 @pytest.mark.parametrize(
@@ -174,36 +172,46 @@ def test_init():
             [PackagerA, PackagerB, PackagerC],
         ),
         (
+            ["tests.package.module_not_exist.PackagerA"],
+            "The packager 'PackagerA' could not be collected from the module 'tests.package.module_not_exist'",
+        ),
+        (
+            ["tests.package.test_packagers_manager.PackagerNotExist"],
+            "The packager 'PackagerNotExist' could not be collected as it does not exist in the module",
+        ),
+        (
             ["tests.package.test_packagers_manager.NotAPackager"],
-            [],
+            "The packager 'NotAPackager' could not be collected as it is not a `mlrun.Packager`",
         ),
     ],
 )
-def test_collect_packagers(collection_test: Tuple[List[str], List[Type[Packager]]]):
+def test_collect_packagers(
+    collection_test: Tuple[List[str], Union[List[Type[Packager]], str]]
+):
     """
     Test the manager's `collect_packagers` method.
 
     :param collection_test: A tuple of the packagers to collect and the packager classes that should have been
-                            collected. An empty list means an error should have been raised.
+                            collected. A string means an error should be raised.
     """
     # Prepare the test:
     packagers_to_collect, validation = collection_test
     packagers_manager = PackagersManager()
 
-    # Try to collect the packagers (we use try in order to catch an exception in case it should have been raised):
+    # Try to collect the packagers:
     try:
         packagers_manager.collect_packagers(packagers=packagers_to_collect)
-    except MLRunInvalidArgumentError as error:
-        if validation:
-            # If the validation list is not empty, the test failed:
-            raise error
-        # Make sure the correct error was raised:
-        assert NotAPackager.__name__ in str(error)
+    except (MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError) as error:
+        # Catch only if the validation is a string, otherwise it is a legitimate exception:
+        if isinstance(validation, str):
+            # Make sure the correct error was raised:
+            assert validation in str(error)
+            return
+        raise error
 
     # Validate only the required packagers were collected:
     for packager in validation:
         assert packager in packagers_manager._packagers
-    assert NotAPackager not in packagers_manager._packagers
 
 
 @pytest.mark.parametrize(
@@ -280,3 +288,71 @@ def test_clear_packagers_outputs():
     # Remove remained directory (we tested the clearance of a file and a directory, so we need to delete the directory
     # of the cleared file (it's directory was not marked as future clear)):
     shutil.rmtree(a_temp_dir)
+
+
+@pytest.mark.parametrize(
+    "arbitrary_log_hint_test",
+    [
+        (
+            "*list_",
+            [0.12111, 0.56111],
+            {"list_0": 0.12, "list_1": 0.56},
+        ),
+        (
+            "*set_",
+            {0.12111, 0.56111},
+            {"set_0": 0.12, "set_1": 0.56},
+        ),
+        (
+            "*",
+            (0.12111, 0.56111),
+            {"0": 0.12, "1": 0.56},
+        ),
+        (
+            "*error",
+            0.12111,
+            "The log hint key '*error' has an iterable unpacking prefix ('*')",
+        ),
+        (
+            "**dict_",
+            {"a": 0.12111, "b": 0.56111},
+            {"dict_a": 0.12, "dict_b": 0.56},
+        ),
+        ("**", {"a": 0.12111, "b": 0.56111}, {"a": 0.12, "b": 0.56}),
+        (
+            "**error",
+            0.12111,
+            "The log hint key '**error' has a dictionary unpacking prefix ('**')",
+        ),
+    ],
+)
+def test_arbitrary_log_hint(
+    arbitrary_log_hint_test: Tuple[
+        str, Union[List[float], Dict[str, float]], Union[Dict[str, float], str]
+    ]
+):
+    """
+    Test the arbitrary log hint key prefixes "*" and "**".
+
+    :param arbitrary_log_hint_test: A tuple of the key to use in the log hint, the object to pack and the expected
+                                    results that should be packed. A string means an error should be raised.
+    """
+    # Prepare the test:
+    key, obj, expected_results = arbitrary_log_hint_test
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers(packagers=[PackagerC])
+
+    # Pack an arbitrary amount of objects:
+    try:
+        packagers_manager.pack(
+            obj=obj, log_hint={"key": key, "artifact_type": "result", "n_round": 2}
+        )
+    except MLRunInvalidArgumentError as error:
+        # Catch only if the expected results is a string, otherwise it is a legitimate exception:
+        if isinstance(expected_results, str):
+            assert expected_results in str(error)
+            return
+        raise error
+
+    # Validate multiple packages were packed:
+    assert packagers_manager.results == expected_results

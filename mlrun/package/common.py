@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import builtins
+import importlib
 import itertools
+import re
 import sys
 import typing
+
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.utils import logger
 
 
 class ArtifactType:
@@ -41,7 +47,7 @@ class LogHintKey:
     METRICS = "metrics"
 
 
-class TypingUtils:
+class TypeHintUtils:
     """
     Static class for utilities functions to process type hints.
     """
@@ -65,6 +71,108 @@ class TypingUtils:
         )
 
     @staticmethod
+    def parse_type_hint(type_hint: typing.Union[typing.Type, str]) -> typing.Type:
+        """
+        Parse a given type hint from string to its actual hinted type class object. The string must be one of the
+        following:
+
+        * Python builtin type - for example: `tuple`, `list`, `set`, `dict` and `bytearray`.
+        * Full module import path. An alias (if `import pandas as pd is used`, the type hint cannot be `pd.DataFrame`)
+          is not allowed.
+
+        The type class on its own (like `DataFrame`) cannot be used as the scope of this function is not the same as the
+        handler itself, hence modules and objects that were imported in the handler's scope are not available. This is
+        the same reason import aliases cannot be used as well.
+
+        If the provided type hint is not a string, it will simply be returned as is.
+
+        :param type_hint: The type hint to parse.
+
+        :return: The hinted type.
+
+        :raise MLRunInvalidArgumentError: In case the type hint is not following the 2 options mentioned above.
+        """
+        if not isinstance(type_hint, str):
+            return type_hint
+
+        # Validate the type hint is a valid module path:
+        if not bool(
+            re.fullmatch(
+                r"([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*", type_hint
+            )
+        ):
+            raise MLRunInvalidArgumentError(
+                f"Invalid type hint. An input type hint must be a valid python class name or its module import path. "
+                f"For example: 'list', 'pandas.DataFrame', 'numpy.ndarray', 'sklearn.linear_model.LinearRegression'. "
+                f"Type hint given: '{type_hint}'."
+            )
+
+        # Look for a builtin type (rest of the builtin types like `int`, `str`, `float` should be treated as results,
+        # hence not given as an input to an MLRun function, but as a parameter):
+        builtin_types = {
+            builtin_name: builtin_type
+            for builtin_name, builtin_type in builtins.__dict__.items()
+            if isinstance(builtin_type, type)
+        }
+        if type_hint in builtin_types:
+            return builtin_types[type_hint]
+
+        # If it's not a builtin, its should have a full module path, meaning at least one '.' to separate the module and
+        # the class. If it doesn't, we will try to get the class from the main module:
+        if "." not in type_hint:
+            logger.warn(
+                f"The type hint string given '{type_hint}' is not a `builtins` python type. MLRun will try to look for "
+                f"it in the `__main__` module instead."
+            )
+            try:
+                return TypeHintUtils.parse_type_hint(type_hint=f"__main__.{type_hint}")
+            except MLRunInvalidArgumentError:
+                raise MLRunInvalidArgumentError(
+                    f"MLRun tried to get the type hint '{type_hint}' but it can't as it is not a valid builtin Python "
+                    f"type (one of `list`, `dict`, `str`, `int`, etc.) nor a locally declared type (from the "
+                    f"`__main__` module). Pay attention using only the type as string is not allowed as the handler's "
+                    f"scope is different than MLRun's. To properly give a type hint as string, please specify the full "
+                    f"module path without aliases. For example: do not use `DataFrame` or `pd.DataFrame`, use "
+                    f"`pandas.DataFrame`."
+                )
+
+        # Import the module to receive the hinted type:
+        try:
+            # Get the module path and the type class (If we'll wish to support inner classes, the `rsplit` won't work):
+            module_path, type_hint = type_hint.rsplit(".", 1)
+            # Replace alias if needed (alias assumed to be imported already, hence we look in globals):
+            # For example:
+            # If in handler scope there was `import A.B.C as abc` and user gave a type hint "abc.Something" then:
+            # `module_path[0]` will be equal to "abc". Then, because it is an alias, it will appear in the globals, so
+            # we'll replace the alias with the full module name in order to import the module.
+            module_path = module_path.split(".")
+            if module_path[0] in globals():
+                module_path[0] = globals()[module_path[0]].__name__
+            module_path = ".".join(module_path)
+            # Import the module:
+            module = importlib.import_module(module_path)
+            # Get the class type from the module:
+            type_hint = getattr(module, type_hint)
+        except ModuleNotFoundError as module_not_found_error:
+            # May be raised from `importlib.import_module` in case the module does not exist.
+            raise MLRunInvalidArgumentError(
+                f"MLRun tried to get the type hint '{type_hint}' but the module '{module_path}' cannot be imported. "
+                f"Keep in mind that using alias in the module path (meaning: import module as alias) is not allowed. "
+                f"If the module path is correct, please make sure the module package is installed in the python "
+                f"interpreter."
+            ) from module_not_found_error
+        except AttributeError as attribute_error:
+            # May be raised from `getattr(module, type_hint)` in case the class type cannot be imported directly from
+            # the imported module.
+            raise MLRunInvalidArgumentError(
+                f"MLRun tried to get the type hint '{type_hint}' from the module '{module.__name__}' but it seems it "
+                f"doesn't exist. Make sure the class can be imported from the module with the exact module path you "
+                f"passed. Notice inner classes (a class inside of a class) are not supported."
+            ) from attribute_error
+
+        return type_hint
+
+    @staticmethod
     def reduce_type_hint(
         type_hint: typing.Union[typing.Type, typing.Set[typing.Type]],
     ) -> typing.Set[typing.Type]:
@@ -75,7 +183,7 @@ class TypingUtils:
 
         :return: The reduced type hints set or an empty set if the type hint could not be reduced.
         """
-        # Wrap in a list if provided a single type hint:
+        # Wrap in a set if provided a single type hint:
         type_hints = {type_hint} if not isinstance(type_hint, set) else type_hint
 
         # Iterate over the type hints and reduce each one:
@@ -83,7 +191,7 @@ class TypingUtils:
             list(
                 itertools.chain(
                     *[
-                        TypingUtils._reduce_type_hint(type_hint=type_hint)
+                        TypeHintUtils._reduce_type_hint(type_hint=type_hint)
                         for type_hint in type_hints
                     ]
                 )
@@ -109,20 +217,33 @@ class TypingUtils:
             return []
 
         # If it's not a typing type (meaning it's an actual object type) then we can't reduce it further:
-        if not TypingUtils.is_typing_type(type_hint=type_hint):
+        if not TypeHintUtils.is_typing_type(type_hint=type_hint):
             return []
 
         # If it's a type var, take its constraints (e.g. A = TypeVar("A", int, str) meaning an object of type A should
-        # be an integer ot a string). If it doesn't have constraints, return an empty list:
+        # be an integer or a string). If it doesn't have constraints, return an empty list:
         if isinstance(type_hint, typing.TypeVar):
             if len(type_hint.__constraints__) == 0:
                 return []
             return list(type_hint.__constraints__)
 
-        # If it's a forward reference, that means the user could not import the class to type hint it (so we can't
-        # either):
+        # If it's a forward reference, we will try to import the reference:
         if isinstance(type_hint, typing.ForwardRef):
-            return []
+            try:
+                # ForwardRef is initialized with the string type it represents and optionally a module path, so we
+                # construct a full module path and try to parse it:
+                arg = type_hint.__forward_arg__
+                if type_hint.__forward_module__:
+                    arg = f"{type_hint.__forward_module__}.{arg}"
+                return [TypeHintUtils.parse_type_hint(type_hint=arg)]
+            except MLRunInvalidArgumentError:  # May be raised from `TypeHintUtils.parse_type_hint`
+                logger.warn(
+                    f"Could not reduce the type hint '{type_hint}' as it is a forward reference to a class without "
+                    f"it's full module path. To enable importing forward references, please provide the full module "
+                    f"path to them. For example: use `ForwardRef('pandas.DataFrame')` instead of "
+                    f"`ForwardRef('DataFrame')`."
+                )
+                return []
 
         # Get the origin of the typing type. An origin is the subscripted typing type (origin of Union[str, int] is
         # Union). The origin can be one of Callable, Tuple, Union, Literal, Final, ClassVar, Annotated or the actual
@@ -135,7 +256,7 @@ class TypingUtils:
 
         # If the origin is a type of one of `builtins`, `contextlib` or `collections` (for example: List's origin is
         # list) then we can be sure there is nothing to reduce as it's a regular type:
-        if not TypingUtils.is_typing_type(type_hint=origin):
+        if not TypeHintUtils.is_typing_type(type_hint=origin):
             return [origin]
 
         # Get the type's subscriptions - arguments, in order to reduce it to them (we know for sure there are arguments,
@@ -162,3 +283,68 @@ class TypingUtils:
 
         # For Generic types we return an empty list:
         return []
+
+
+class LogHintUtils:
+    """
+    Static class for utilities functions to process log hints.
+    """
+
+    @staticmethod
+    def parse_log_hint(
+        log_hint: typing.Union[typing.Dict[str, str], str, None]
+    ) -> typing.Union[typing.Dict[str, str], None]:
+        """
+        Parse a given log hint from string to a logging configuration dictionary. The string will be read as the
+        artifact key ('key' in the dictionary) and if the string have a single colon, the following structure is
+        assumed: "<artifact_key> : <artifact_type>".
+
+        If a logging configuration dictionary is received, it will be validated to have a key field.
+
+        None will be returned as None.
+
+        :param log_hint: The log hint to parse.
+
+        :return: The hinted logging configuration.
+
+        :raise MLRunInvalidArgumentError: In case the log hint is not following the string structure or the dictionary
+                                          is missing the key field.
+        """
+        # Check for None value:
+        if log_hint is None:
+            return None
+
+        # If the log hint was provided as a string, construct a dictionary out of it:
+        if isinstance(log_hint, str):
+            # Check if only key is given:
+            if ":" not in log_hint:
+                log_hint = {LogHintKey.KEY: log_hint}
+            # Check for valid "<key> : <artifact type>" pattern:
+            else:
+                if log_hint.count(":") > 1:
+                    raise MLRunInvalidArgumentError(
+                        f"Incorrect log hint pattern. Log hints can have only a single ':' in them to specify the "
+                        f"desired artifact type the returned value will be logged as: "
+                        f"'<artifact_key> : <artifact_type>', but given: {log_hint}"
+                    )
+                # Split into key and type:
+                key, artifact_type = log_hint.replace(" ", "").split(":")
+                if artifact_type == "":
+                    raise MLRunInvalidArgumentError(
+                        f"Incorrect log hint pattern. The ':' in a log hint should specify the desired artifact type "
+                        f"the returned value will be logged as in the following pattern: "
+                        f"'<artifact_key> : <artifact_type>', but no artifact type was given: {log_hint}"
+                    )
+                log_hint = {
+                    LogHintKey.KEY: key,
+                    LogHintKey.ARTIFACT_TYPE: artifact_type,
+                }
+
+        # Validate the log hint dictionary has the mandatory key:
+        if LogHintKey.KEY not in log_hint:
+            raise MLRunInvalidArgumentError(
+                f"A log hint dictionary must include the 'key' - the artifact key (it's name). The following log hint "
+                f"is missing the key: {log_hint}."
+            )
+
+        return log_hint

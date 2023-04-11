@@ -484,11 +484,11 @@ class SystemTestPreparer:
                 self._app_cluster_ssh_password,
                 "--data-cluster-password",
                 self._data_cluster_ssh_password,
+                "patch",
+                "appservice",
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
-                "patch",
-                "appservice",
                 "mlrun",
                 mlrun_archive,
             ],

@@ -141,10 +141,11 @@ class SystemTestPreparer:
 
         self._override_mlrun_api_env()
 
-        self._patch_mlrun()
-
         if self._purge_db:
             self._purge_mlrun_db()
+
+        self._patch_mlrun()
+
 
     def clean_up_remote_workdir(self):
         self._logger.info(

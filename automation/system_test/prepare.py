@@ -524,8 +524,8 @@ class SystemTestPreparer:
         Purge mlrun db - exec into mlrun-db pod, delete the database and restart mlrun pods
         """
         self._delete_mlrun_db()
-        self._rollout_restart_mlrun()
-        self._wait_for_mlrun_to_be_ready()
+        self._scale_down_mlrun_deployments()
+        # self._wait_for_mlrun_to_be_ready()
 
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
@@ -562,18 +562,18 @@ class SystemTestPreparer:
             namespace=namespace, labels_selector=labels_selector
         )
 
-    def _rollout_restart_mlrun(self):
-        self._logger.info("Restarting mlrun")
+    def _scale_down_mlrun_deployments(self):
+        self._logger.info("scaling down mlrun")
         self._run_kubectl_command(
             args=[
-                "rollout",
-                "restart",
+                "scale",
                 "deployment",
                 "-n",
                 self.Constants.namespace,
                 "mlrun-api-chief",
                 "mlrun-api-worker",
                 "mlrun-db",
+                "--replicas=0"
             ]
         )
 

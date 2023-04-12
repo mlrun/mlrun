@@ -92,7 +92,7 @@ def run_function(
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://auto-trainer")
         run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                       inputs={"dataset": DATA_PATH})
 
@@ -101,7 +101,7 @@ def run_function(
         # create a project with two functions (local and from marketplace)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        project.set_function("hub://auto_trainer", "train")
+        project.set_function("hub://auto-trainer", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})

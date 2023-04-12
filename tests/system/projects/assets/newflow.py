@@ -87,7 +87,7 @@ def newpipe():
 
     # test out new model server (via REST API calls), use imported function
     run_function(
-        "hub://v2_model_tester",
+        "hub://v2-model-tester",
         name="model-tester",
         params={"addr": deploy.outputs["endpoint"], "model": f"{DATASET}:v1"},
         inputs={"table": train.outputs["test_set"]},

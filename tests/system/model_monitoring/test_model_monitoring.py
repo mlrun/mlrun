@@ -253,7 +253,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=self.project_name
+            "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
@@ -396,7 +396,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Set the serving topology to simple model routing
         # with data enrichment and imputing from the feature vector
-        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+        serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
         serving_fn.set_topology(
             "router",
             mlrun.serving.routers.EnrichmentModelRouter(
@@ -512,7 +512,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=self.project_name
+            "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
 
         serving_fn.set_topology(

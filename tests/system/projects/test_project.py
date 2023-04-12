@@ -87,7 +87,7 @@ class TestProject(TestMLRunSystem):
         )
         proj.set_function("hub://describe")
         proj.set_function("hub://auto-trainer", "auto-trainer")
-        proj.set_function("hub://v2_model_server", "serving")
+        proj.set_function("hub://v2-model-server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(

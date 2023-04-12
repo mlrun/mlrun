@@ -53,8 +53,8 @@ class TestSKLearn(TestDemo):
         demo_project.set_function(iris_generator_function)
         demo_project.set_function("hub://describe", "describe")
         demo_project.set_function("hub://auto-trainer", "auto-trainer")
-        demo_project.set_function("hub://model_server", "serving")
-        demo_project.set_function("hub://model_server_tester", "live-tester")
+        demo_project.set_function("hub://model-server", "serving")
+        demo_project.set_function("hub://model-server-tester", "live-tester")
 
         self._logger.debug("Setting project workflow")
         demo_project.set_workflow(

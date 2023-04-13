@@ -40,7 +40,7 @@ def hash_and_concat_v3io_udf(*x):
     return udf(hash_list([str(i) for i in x]), StringType())
 
 
-def hash_and_concat_redis_multiple_udf(*x):
+def hash_and_concat_redis_multiple_keys_udf(*x):
     return udf(stringify_key([str(i) for i in x]) + "}:static", StringType())
 
 

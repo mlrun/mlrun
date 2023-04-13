@@ -1125,7 +1125,7 @@ class NoSqlTarget(NoSqlBaseTarget):
     def prepare_spark_df(self, df, key_columns):
         from pyspark.sql.functions import col
 
-        import spark_udf
+        from . import spark_udf
 
         df.rdd.context.addFile(spark_udf.__file__)
 
@@ -1136,7 +1136,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         if len(key_columns) > 2:
             return df.withColumn(
                 "_spark_object_name",
-                hash_and_concat_v3io_udf(*[col(c) for c in key_columns[1:]]),
+                spark_udf.hash_and_concat_v3io_udf(*[col(c) for c in key_columns[1:]]),
             )
         return df
 
@@ -1201,18 +1201,21 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def prepare_spark_df(self, df, key_columns):
         from pyspark.sql.functions import col
 
-        import spark_udf
+        from . import spark_udf
 
         df.rdd.context.addFile(spark_udf.__file__)
 
         if len(key_columns) > 1:
             return df.withColumn(
                 "_spark_object_name",
-                hash_and_concat_redis_multiple_keys_udf(*[col(c) for c in key_columns[1:]]),
+                spark_udf.hash_and_concat_redis_multiple_keys_udf(
+                    *[col(c) for c in key_columns[1:]]
+                ),
             )
         else:
             return df.withColumn(
-                "_spark_object_name", hash_and_concat_redis_udf(key_columns[0])
+                "_spark_object_name",
+                spark_udf.hash_and_concat_redis_udf(key_columns[0]),
             )
 
 

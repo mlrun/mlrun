@@ -101,7 +101,7 @@ async def list_sources(
         return filtered_sources
     elif tag or version:
         raise mlrun.errors.MLRunBadRequestError(
-            "Tag or version params must be provide with item-name param"
+            "Tag or version params must be provided with item-name param"
         )
     return marketplace_sources
 

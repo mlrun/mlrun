@@ -28,6 +28,7 @@ from mlrun.api.schemas.marketplace import (
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
+from mlrun.utils.helpers import normalize_name
 
 from ..schemas import SecretProviderName
 from .secrets import Secrets, SecretsClientType
@@ -161,6 +162,9 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
                 assets = object_details_dict.pop("assets", {})
+                object_details_dict.update(
+                    {"name": normalize_name(object_name, verbose=False)}
+                )
                 metadata = MarketplaceItemMetadata(
                     tag=version_tag, **object_details_dict
                 )
@@ -267,7 +271,8 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
         :return:   list of item objects from catalog
         """
-        return [item for item in catalog if item.metadata.name == item_name]
+        normalized_name = normalize_name(item_name, verbose=False)
+        return [item for item in catalog if item.metadata.name == normalized_name]
 
     def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
         credentials = self._get_source_credentials(source.metadata.name)

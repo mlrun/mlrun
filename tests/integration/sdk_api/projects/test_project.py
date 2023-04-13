@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import pathlib
+import tempfile
+import zipfile
 
 import deepdiff
 import pytest
@@ -58,7 +61,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert fn.metadata.name == "describe", "func did not return"
 
         # test that functions can be fetched from the DB (w/o set_function)
-        mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+        mlrun.import_function("hub://auto_trainer", new_name="train").save()
         fn = project.get_function("train")
         assert fn.metadata.name == "train", "train func did not return"
 
@@ -240,6 +243,128 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert project.spec.workflows == []
         assert project.spec.artifacts == []
         assert project.spec.conda == ""
+
+    @pytest.mark.parametrize(
+        "sync,expected_num_of_funcs, save",
+        [
+            (
+                False,
+                0,
+                False,
+            ),
+            (
+                True,
+                5,
+                False,
+            ),
+            (
+                True,
+                5,
+                True,
+            ),
+        ],
+    )
+    def test_load_project_and_sync_functions(self, sync, expected_num_of_funcs, save):
+        url = "git://github.com/mlrun/project-demo.git"
+        temp_dir = tempfile.TemporaryDirectory()
+        project = mlrun.load_project(
+            context=temp_dir.name, url=url, sync_functions=sync, save=save
+        )
+        assert len(project.spec._function_objects) == expected_num_of_funcs
+
+        if sync:
+            function_names = project.get_function_names()
+            assert len(function_names) == expected_num_of_funcs
+            for func in function_names:
+                fn = project.get_function(func)
+                normalized_name = mlrun.utils.helpers.normalize_name(func)
+                assert fn.metadata.name == normalized_name, "func did not return"
+
+        temp_dir.cleanup()
+
+    def test_export_to_zip(self):
+        project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
+        project = mlrun.new_project(
+            "tozip", context=str(project_dir_path / "code"), save=False
+        )
+        project.set_function("hub://describe", "desc")
+        with (project_dir_path / "code" / "f.py").open("w") as f:
+            f.write("print(1)\n")
+
+        zip_path = str(project_dir_path / "proj.zip")
+        project.export(zip_path)
+
+        assert os.path.isfile(str(project_dir_path / "code" / "project.yaml"))
+        assert os.path.isfile(zip_path)
+
+        zipf = zipfile.ZipFile(zip_path, "r")
+        assert set(zipf.namelist()) == {"./", "f.py", "project.yaml"}
+
+        # check upload to (remote) DataItem
+        project.export("memory://x.zip")
+        assert mlrun.get_dataitem("memory://x.zip").stat().size
+
+    def test_project_db(self):
+        db = mlrun.get_run_db()
+
+        project_name = "project-name"
+        description = "project description"
+        goals = "project goals"
+        desired_state = mlrun.api.schemas.ProjectState.archived
+        params = {"param_key": "param value"}
+        artifact_path = "/tmp"
+        conda = "conda"
+        source = "source"
+        subpath = "subpath"
+        origin_url = "origin_url"
+        labels = {"key": "value"}
+        annotations = {"annotation-key": "annotation-value"}
+        project_metadata = mlrun.projects.project.ProjectMetadata(
+            project_name,
+            labels=labels,
+            annotations=annotations,
+        )
+        project_spec = mlrun.projects.project.ProjectSpec(
+            description,
+            params,
+            artifact_path=artifact_path,
+            conda=conda,
+            source=source,
+            subpath=subpath,
+            origin_url=origin_url,
+            goals=goals,
+            desired_state=desired_state,
+        )
+        project = mlrun.projects.project.MlrunProject(
+            metadata=project_metadata, spec=project_spec
+        )
+        function_name = "trainer-function"
+        function = mlrun.new_function(function_name, project_name)
+        project.set_function(function, function_name)
+        project.set_function("hub://describe", "describe")
+        workflow_name = "workflow-name"
+        workflow_file_path = pathlib.Path(__file__).absolute().parent / "workflow.py"
+        project.set_workflow(workflow_name, str(workflow_file_path))
+        artifact_dict = {
+            "key": "raw-data",
+            "kind": "",
+            "iter": 0,
+            "tree": "latest",
+            "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/"
+            "customer-churn-prediction/WA_Fn-UseC_-Telco-Customer-Churn.csv",
+            "db_key": "raw-data",
+        }
+        project.artifacts = [artifact_dict]
+        created_project = db.create_project(project)
+        _assert_projects(project, created_project)
+        stored_project = db.store_project(project_name, project)
+        _assert_projects(project, stored_project)
+        patched_project = db.patch_project(project_name, {})
+        _assert_projects(project, patched_project)
+        get_project = db.get_project(project_name)
+        _assert_projects(project, get_project)
+        list_projects = db.list_projects()
+        _assert_projects(project, list_projects[0])
 
 
 def _assert_projects(expected_project, project):

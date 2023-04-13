@@ -2829,7 +2829,13 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of indexed marketplace sources.
         """
         path = "marketplace/sources"
-        params = {"item-name": item_name, "tag": tag, "version": version}
+        params = {}
+        if item_name:
+            params["item_name"] = normalize_name(item_name)
+        if item_name:
+            params["tag"] = tag
+        if item_name:
+            params["version"] = version
         response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:

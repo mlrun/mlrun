@@ -43,8 +43,7 @@ def test_workflow_does_not_exist(db: Session, client: TestClient):
     wrong_name = "not-" + PROJECT_NAME
     resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
     assert (
-        resp.json()["detail"]["reason"]["reason"]
-        == f"workflow {wrong_name} not found in project"
+        resp.json()["detail"]["reason"] == f"workflow {wrong_name} not found in project"
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
@@ -60,7 +59,7 @@ def test_bad_schedule_format(db: Session, client: TestClient):
     )
     assert (
         "Wrong number of fields in crontab expression"
-        in resp.json()["detail"]["reason"]["reason"]
+        in resp.json()["detail"]["reason"]
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 

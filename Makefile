@@ -40,7 +40,6 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
-MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
@@ -108,6 +107,10 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
+
+.PHONY: install-conda-requirements
+install-conda-requirements: install-requirements ## Install all requirements needed for development with specific conda packages for arm64
+	conda install --yes --file conda-arm64-requirements.txt
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
@@ -223,6 +226,10 @@ push-mlrun: mlrun ## Push mlrun docker image
 	docker push $(MLRUN_IMAGE_NAME_TAGGED)
 	$(MLRUN_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-mlrun
+pull-mlrun: ## Pull mlrun docker image
+	docker pull $(MLRUN_IMAGE_NAME_TAGGED)
+
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
 MLRUN_BASE_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
@@ -258,6 +265,9 @@ push-base: base ## Push base docker image
 	docker push $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 	$(MLRUN_BASE_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-base
+pull-base: ## Pull base docker image
+	docker pull $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
 MLRUN_MODELS_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
@@ -266,6 +276,9 @@ MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_IMAGE_NAME_TAGGED)$(MLRUN_
 MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED),)
+# The following CFLAGS resolves anaconda issue on top of python 3.7 - https://github.com/cocodataset/cocoapi/issues/94
+# TODO: remove when we drop support for python 3.7
+MLRUN_CFLAGS ?= $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{if($$2==7) {print "-L/usr/lib/x86_64-linux-gnu/"}}')
 DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 
 .PHONY: models-core
@@ -275,13 +288,13 @@ models-core: base-core ## Build models core docker image
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
+		--build-arg MLRUN_CFLAGS=$(MLRUN_CFLAGS) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: models
 models: models-core ## Build models docker image
-	$(MLRUN_MODELS_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
@@ -293,6 +306,10 @@ models: models-core ## Build models docker image
 push-models: models ## Push models docker image
 	docker push $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-models
+pull-models: ## Pull models docker image
+	docker pull $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 
 
 MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
@@ -323,6 +340,10 @@ models-gpu: update-version-file ## Build models-gpu docker image
 push-models-gpu: models-gpu ## Push models gpu docker image
 	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-models-gpu
+pull-models-gpu: ## Pull models gpu docker image
+	docker pull $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 
 .PHONY: prebake-models-gpu
 prebake-models-gpu: ## Build prebake models GPU docker image
@@ -368,25 +389,36 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
 
+.PHONY: pull-jupyter
+pull-jupyter: ## Pull mlrun jupyter docker image
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+
 .PHONY: log-collector
 log-collector: update-version-file
-	cd go && \
-		MLRUN_VERSION=$(MLRUN_VERSION) \
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make log-collector
+		make --no-print-directory -C $(shell pwd)/go log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
-	cd go && \
-		MLRUN_VERSION=$(MLRUN_VERSION) \
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make push-log-collector
+		make --no-print-directory -C $(shell pwd)/go push-log-collector
+
+.PHONY: pull-log-collector
+pull-log-collector:
+	@MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make --no-print-directory -C $(shell pwd)/go pull-log-collector
 
 
 .PHONY: compile-schemas
@@ -423,6 +455,9 @@ push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
 	$(MLRUN_API_CACHE_IMAGE_PUSH_COMMAND)
 
+.PHONY: pull-api
+pull-api: ## Pull api docker image
+	docker pull $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test
@@ -496,7 +531,6 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
-		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
@@ -520,7 +554,6 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/test_notebooks.py \
 		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
@@ -750,7 +783,7 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	targets="$(MAKECMDGOALS)" ; \
 	for target in $$targets; do \
 		image_name=$${target#"push-"} ; \
-		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG) ; \
+		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) ; \
 		case "$$image_name" in \
 		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \

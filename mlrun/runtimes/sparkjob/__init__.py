@@ -15,5 +15,4 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .abstract import SparkRuntimeHandler
-from .spark2job import Spark2Runtime
 from .spark3job import Spark3Runtime

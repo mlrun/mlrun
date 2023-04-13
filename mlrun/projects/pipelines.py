@@ -19,6 +19,7 @@ import tempfile
 import traceback
 import typing
 import uuid
+import warnings
 
 import kfp.compiler
 from kfp import dsl
@@ -31,13 +32,13 @@ from mlrun.errors import err_to_str
 from mlrun.utils import (
     get_ui_url,
     logger,
-    new_pipe_meta,
+    new_pipe_metadata,
     parse_versioned_object_uri,
     retry_until_successful,
 )
 
 from ..config import config
-from ..run import run_pipeline, wait_for_pipeline_completion
+from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
@@ -75,24 +76,33 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args=None,
         name=None,
         handler=None,
+        # TODO: deprecated, remove in 1.5.0
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        override: bool = None,
+        cleanup_ttl: int = None,
         image: str = None,
     ):
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
+
         self.engine = engine
         self.code = code
         self.path = path
         self.args = args
         self.name = name
         self.handler = handler
-        self.ttl = ttl
+        self.ttl = cleanup_ttl or ttl
+        self.cleanup_ttl = cleanup_ttl or ttl
         self.args_schema = args_schema
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.override = override
         self.image = image
 
     def get_source_file(self, context=""):
@@ -541,7 +551,10 @@ class _KFPRunner(_PipelineRunner):
         )
         artifact_path = artifact_path or project.spec.artifact_path
 
-        conf = new_pipe_meta(artifact_path, ttl=workflow_spec.ttl)
+        conf = new_pipe_metadata(
+            artifact_path=artifact_path,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
+        )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
         pipeline_context.clear()
@@ -566,14 +579,14 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
-        id = run_pipeline(
+        id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,
             experiment=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
-            ttl=workflow_spec.ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
@@ -694,7 +707,7 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -747,12 +760,10 @@ class _RemoteRunner(_PipelineRunner):
         source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
-        workflow_action = "schedule" if workflow_spec.schedule else "run"
-        logger.info(
-            f"submitting {workflow_action} request for '{workflow_name}' workflow"
-        )
-
         workflow_id = None
+
+        # The returned engine for this runner is the engine of the workflow.
+        # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
@@ -762,7 +773,7 @@ class _RemoteRunner(_PipelineRunner):
                 workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
                 source=source,
-                run_name=mlrun.mlconf.workflows.default_workflow_runner_name.format(
+                run_name=config.workflows.default_workflow_runner_name.format(
                     workflow_name
                 ),
                 namespace=namespace,
@@ -791,7 +802,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} {workflow_action} failed!, error: {e}\n{trace}",
+                f":x: Submitting workflow {workflow_name} failed!, error: {e}\n{trace}",
                 "error",
             )
             state = mlrun.run.RunStatuses.failed
@@ -828,6 +839,13 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     setattr(mod, "this_project", project)
 
     if hasattr(mod, "init_functions"):
+
+        # TODO: remove in 1.5.0
+        warnings.warn(
+            "'init_functions' is deprecated in 1.3.0 and will be removed in 1.5.0. "
+            "Place function initialization in the pipeline code.",
+            FutureWarning,
+        )
         getattr(mod, "init_functions")(functions, project, secrets)
 
     # verify all functions are in this project (init_functions may add new functions)
@@ -874,11 +892,13 @@ def load_and_run(
     namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
+    # TODO: deprecated, remove in 1.5.0
     ttl: int = None,
     engine: str = None,
     local: bool = None,
     load_only: bool = False,
     schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    cleanup_ttl: int = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -901,13 +921,24 @@ def load_and_run(
     :param namespace:           kubernetes namespace if other than default
     :param sync:                force functions sync before run
     :param dirty:               allow running the workflow when the git repo is dirty
-    :param ttl:                 pipeline ttl in secs (after that the pods will be removed)
+    :param ttl:                 pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
     :param load_only:           for just loading the project, inner use.
     :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
+    :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted)
     """
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+            "This will be removed in 1.5.0",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
+
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",
@@ -934,7 +965,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+                    severity=mlrun.api.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:
@@ -959,7 +990,7 @@ def load_and_run(
         sync=sync,
         watch=False,  # Required for fetching the workflow_id
         dirty=dirty,
-        ttl=ttl,
+        cleanup_ttl=cleanup_ttl or ttl,
         engine=engine,
         local=local,
     )

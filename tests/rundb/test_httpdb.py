@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import codecs
+import io
+import unittest.mock
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -25,6 +27,7 @@ from uuid import uuid4
 
 import deepdiff
 import pytest
+import requests_mock
 
 import mlrun.artifacts.base
 import mlrun.errors
@@ -293,22 +296,28 @@ def test_bearer_auth(create_server):
     db.list_runs()
 
 
+def _generate_runtime(name) -> mlrun.runtimes.KubejobRuntime:
+    runtime = mlrun.runtimes.KubejobRuntime()
+    runtime.metadata.name = name
+    return runtime
+
+
 def test_set_get_function(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
-
-    func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
+    name = "test"
+    project = "project"
+    func = _generate_runtime(name)
+    func.set_label("new", "label")
     tag = uuid4().hex
-    proj_obj = mlrun.new_project(proj, save=False)
+    proj_obj = mlrun.new_project(project, save=False)
     db.create_project(proj_obj)
 
-    db.store_function(func, name, proj, tag=tag)
-    db_func = db.get_function(name, proj, tag=tag)
+    db.store_function(func.to_dict(), name, project, tag=tag)
+    db_func = db.get_function(name, project, tag=tag)
 
-    # db methods enriches metadata and status
-    del db_func["metadata"]
-    del db_func["status"]
-    assert db_func == func, "wrong func"
+    assert db_func["metadata"]["name"] == name
+    assert db_func["metadata"]["labels"]["new"] == "label"
 
 
 def test_list_functions(create_server):
@@ -337,36 +346,39 @@ def test_list_functions(create_server):
     assert len(functions) == count, "bad list"
 
 
-def test_version_compatibility_validation():
-    cases = [
-        {
-            "server_version": "unstable",
-            "client_version": "unstable",
-            "compatible": True,
-        },
-        {"server_version": "0.5.3", "client_version": "unstable", "compatible": True},
-        {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
-        {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
-        {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
-        {"server_version": "0.6.0-rc1", "client_version": "0.5.4", "compatible": True},
-        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
-        {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
-        {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},
-        {
-            "server_version": "0.7.1",
-            "client_version": "0.0.0+unstable",
-            "compatible": True,
-        },
-        {
-            "server_version": "0.0.0+unstable",
-            "client_version": "0.7.1",
-            "compatible": True,
-        },
-    ]
-    for case in cases:
-        assert case["compatible"] == HTTPRunDB._validate_version_compatibility(
-            case["server_version"], case["client_version"]
-        )
+@pytest.mark.parametrize(
+    "server_version,client_version,compatible",
+    [
+        # Unstable client or server, not parsing, and assuming compatibility
+        ("unstable", "unstable", True),
+        ("0.5.3", "unstable", True),
+        ("unstable", "0.6.1", True),
+        # Server and client versions are not the same but compatible
+        ("0.5.3", "0.5.1", True),
+        ("0.6.0-rc1", "0.6.1", True),
+        ("0.6.0-rc1", "0.5.4", True),
+        ("0.6.3", "0.4.8", True),
+        ("1.3.0", "1.1.0", True),
+        # Majors on the server and client versions are not the same
+        ("1.0.0", "0.5.0", False),
+        ("0.5.0", "1.0.0", False),
+        ("2.0.0", "1.3.0", False),
+        ("2.0.0", "1.9.0", False),
+        # Server version much higher than client
+        ("1.3.0", "1.0.0", False),
+        ("1.9.0", "1.3.0", False),
+        # Client version higher than server, not supported
+        ("1.3.0", "1.9.0", False),
+        ("1.3.0", "1.4.0", False),
+        # Server or client version is unstable, assuming compatibility
+        ("0.7.1", "0.0.0+unstable", True),
+        ("0.0.0+unstable", "0.7.1", True),
+    ],
+)
+def test_version_compatibility_validation(server_version, client_version, compatible):
+    assert compatible == HTTPRunDB._validate_version_compatibility(
+        server_version, client_version
+    )
 
 
 def _create_feature_set(name):
@@ -497,7 +509,7 @@ def test_remove_labels_from_feature_set(create_server):
     feature_set.metadata.labels = {}
     db.store_feature_set(feature_set.to_dict(), project=project)
     feature_sets = db.list_feature_sets(project=project, tag="latest")
-    assert feature_sets[0].metadata.labels is None, "labels were not removed correctly"
+    assert feature_sets[0].metadata.labels == {}, "labels were not removed correctly"
 
 
 def _create_feature_vector(name):
@@ -738,3 +750,61 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+def test_watch_logs_continue():
+    mlrun.mlconf.httpdb.logs.decode.errors = "replace"
+
+    # create logs with invalid utf-8 byte
+    log_lines = [
+        b"Firstrow",
+        b"Secondrow",
+        b"Thirdrow",
+        b"Smiley\xf0\x9f\x98\x86",
+        b"\xf0",  # invalid utf-8 - should be replaced with U+FFFD (�)
+        b"LastRow",
+    ]
+    log_contents = b"".join(log_lines)
+    db = mlrun.db.httpdb.HTTPRunDB("http+mock://wherever.com")
+    run_uid = "some-uid"
+    project = "some-project"
+    adapter = requests_mock.Adapter()
+    current_log_line = 0
+
+    # assert that the log contents are invalid utf-8
+    with pytest.raises(UnicodeDecodeError):
+        for log_line in log_lines:
+            log_line.decode()
+
+    def callback(request, context):
+        nonlocal current_log_line
+        offset = int(request.qs["offset"][0])
+        current_log_line += 1
+
+        # when offset is 0 -> return first log line
+        # when offset is len(log_lines[i]) -> return second log line, and so on
+        # the idea is to always return the next log line, extracted by the log contents
+        # to test offset calculation is valid from the client set
+        context.status_code = 200
+        if current_log_line < len(log_lines):
+            context.headers["x-mlrun-run-state"] = "running"
+        len_next_word = len(log_lines[current_log_line - 1])
+        contents = log_contents[offset : offset + len_next_word]
+        return contents
+
+    adapter.register_uri(
+        "GET",
+        f"http+mock://wherever.com/api/v1/log/{project}/{run_uid}",
+        content=callback,
+    )
+    db.session = db._init_session()
+    db.session.mount("http+mock", adapter)
+    mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
+    with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
+        db.watch_log(run_uid, project=project)
+        # the first log line is printed with a newline
+        assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
+
+    assert adapter.call_count == len(
+        log_lines
+    ), "should have called the adapter once per log line"

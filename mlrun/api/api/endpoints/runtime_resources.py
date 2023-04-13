@@ -29,17 +29,6 @@ import mlrun.api.utils.auth.verifier
 router = fastapi.APIRouter()
 
 
-@router.get("/runtimes", response_model=mlrun.api.schemas.RuntimeResourcesOutput)
-# TODO: remove when 0.6.6 is no longer relevant
-async def list_runtime_resources_legacy(
-    label_selector: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-):
-    await _list_runtime_resources("*", auth_info, label_selector)
-
-
 @router.get(
     "/projects/{project}/runtime-resources",
     response_model=typing.Union[
@@ -63,26 +52,6 @@ async def list_runtime_resources(
     return await _list_runtime_resources(
         project, auth_info, label_selector, group_by, kind, object_id
     )
-
-
-@router.get("/runtimes/{kind}", response_model=mlrun.api.schemas.KindRuntimeResources)
-# TODO: remove when 0.6.6 is no longer relevant
-async def list_runtime_resources_by_kind_legacy(
-    kind: str,
-    label_selector: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-):
-    runtime_resources_output = await _list_runtime_resources(
-        "*", auth_info, label_selector, kind_filter=kind
-    )
-    if runtime_resources_output:
-        return runtime_resources_output[0]
-    else:
-        return mlrun.api.schemas.KindRuntimeResources(
-            kind=kind, resources=mlrun.api.schemas.RuntimeResources()
-        )
 
 
 @router.delete(
@@ -114,86 +83,6 @@ async def delete_runtime_resources(
         object_id,
         force,
         grace_period,
-    )
-
-
-@router.delete("/runtimes", status_code=http.HTTPStatus.NO_CONTENT.value)
-# TODO: remove when 0.6.6 is no longer relevant
-async def delete_runtimes_legacy(
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return await _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        force=force,
-        grace_period=grace_period,
-        return_body=False,
-    )
-
-
-@router.delete("/runtimes/{kind}", status_code=http.HTTPStatus.NO_CONTENT.value)
-# TODO: remove when 0.6.6 is no longer relevant
-async def delete_runtime_legacy(
-    kind: str,
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return await _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        kind,
-        force=force,
-        grace_period=grace_period,
-        return_body=False,
-    )
-
-
-@router.delete(
-    "/runtimes/{kind}/{object_id}", status_code=http.HTTPStatus.NO_CONTENT.value
-)
-# TODO: remove when 0.6.6 is no longer relevant
-async def delete_runtime_object_legacy(
-    kind: str,
-    object_id: str,
-    label_selector: str = None,
-    force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        mlrun.api.api.deps.get_db_session
-    ),
-):
-    return await _delete_runtime_resources(
-        db_session,
-        auth_info,
-        "*",
-        label_selector,
-        kind,
-        object_id,
-        force,
-        grace_period,
-        return_body=False,
     )
 
 

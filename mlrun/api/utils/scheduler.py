@@ -57,8 +57,8 @@ class Scheduler:
         self._scheduler = AsyncIOScheduler(gconfig=scheduler_config, prefix=None)
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
-        # we don't allow to schedule a job to run more then one time per X
-        # NOTE this cannot be less then one minute - see _validate_cron_trigger
+        # we don't allow to schedule a job to run more than one time per X
+        # NOTE this cannot be less than one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
         self._secrets_provider = schemas.SecretProviderName.kubernetes
 
@@ -591,9 +591,8 @@ class Scheduler:
         now: datetime = None,
     ):
         """
-        Enforce no more then one job per min_allowed_interval
+        Enforce no more than one job per min_allowed_interval
         """
-        logger.debug("Validating cron trigger")
         apscheduler_cron_trigger = (
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
                 cron_trigger
@@ -602,7 +601,7 @@ class Scheduler:
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
         second_next_run_time = now
 
-        # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less then one minute validation
+        # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less than one minute validation
         # won't fail in certain scenarios that it should. See test_validate_cron_trigger_multi_checks for detailed
         # explanation
         for index in range(60):

@@ -45,7 +45,7 @@ from ..model import (
     VersionedObjMetadata,
 )
 from ..runtimes.function_reference import FunctionReference
-from ..serving.states import BaseStep, RootFlowStep, previous_step
+from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
 from .common import verify_feature_set_permissions
@@ -118,7 +118,7 @@ class FeatureSetSpec(ModelObj):
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
-        self.relations: Dict[str, Entity] = relations or {}
+        self.relations: Dict[str, Union[Entity, str]] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -144,6 +144,19 @@ class FeatureSetSpec(ModelObj):
             for i, entity in enumerate(entities):
                 if isinstance(entity, str):
                     entities[i] = Entity(entity)
+                elif isinstance(entity, Entity) and entity.name is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
+                elif isinstance(entity, dict) and (
+                    "name" not in entity
+                    or ("name" in entity and entity["name"] is None)
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "You have to provide an "
+                        "Entity with valid name of string type"
+                    )
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
@@ -219,6 +232,9 @@ class FeatureSetSpec(ModelObj):
 
     @relations.setter
     def relations(self, relations: Dict[str, Entity]):
+        for col, ent in relations.items():
+            if isinstance(ent, str):
+                relations[col] = Entity(ent)
         self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
@@ -311,7 +327,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Entity] = None,
+        relations: Dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
@@ -391,7 +407,7 @@ class FeatureSet(ModelObj):
 
     @property
     def fullname(self) -> str:
-        """full name in the form {project}/{name}[:{tag}]"""
+        """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -444,9 +460,10 @@ class FeatureSet(ModelObj):
         """
         if default_final_state:
             warnings.warn(
-                "The default_final_state parameter is deprecated. Use default_final_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
+                "The 'default_final_state' parameter is deprecated in 1.3.0 and will be remove in 1.5.0. "
+                "Use 'default_final_step' instead.",
+                # TODO: remove in 1.5.0
+                FutureWarning,
             )
             default_final_step = default_final_step or default_final_state
 
@@ -473,6 +490,34 @@ class FeatureSet(ModelObj):
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step
+
+    def validate_steps(self, namespace):
+        if not self.spec:
+            return
+        if not self.spec.graph:
+            return
+        for step in self.spec.graph.steps.values():
+            if (
+                step.class_name in queue_class_names
+                or step.class_name is None
+                or "." not in step.class_name
+            ):
+                #  we are not checking none class names or queue class names.
+                continue
+            class_object, class_name = step.get_step_class_object(namespace=namespace)
+            if not hasattr(class_object, "validate_args"):
+                continue
+            class_args = step.get_full_class_args(
+                namespace=namespace, class_object=class_object
+            )
+            if class_name.startswith("storey"):
+                class_object.validate_args(
+                    **(class_args if class_args is not None else {})
+                )
+            else:
+                class_object.validate_args(
+                    self, **(class_args if class_args is not None else {})
+                )
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets
@@ -615,7 +660,7 @@ class FeatureSet(ModelObj):
         self._spec.analysis[name] = uri
 
     @property
-    def graph(self):
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
@@ -668,7 +713,8 @@ class FeatureSet(ModelObj):
                            They are reserved for internal use, and the data does not ingest correctly.
                            When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names;
                            they cause errors in the ingestion.
-        :param operations: aggregation operations, e.g. ['sum', 'std']
+        :param operations: aggregation operations. Supported operations:
+                             count, sum, sqr, max, min, first, last, avg, stdvar, stddev
         :param windows:    time windows, can be a single window, e.g. '1h', '1d',
                             or a list of same unit windows e.g. ['1h', '6h']
                             windows are transformed to fixed windows or
@@ -706,9 +752,10 @@ class FeatureSet(ModelObj):
             )
         if state_name:
             warnings.warn(
-                "The state_name parameter is deprecated. Use step_name instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
+                "The 'state_name' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "Use 'step_name' instead.",
+                # TODO: remove in 1.5.0
+                FutureWarning,
             )
             step_name = step_name or state_name
 
@@ -938,6 +985,19 @@ class FeatureSet(ModelObj):
 
 
 class SparkAggregateByKey(StepToDict):
+    _supported_operations = [
+        "count",
+        "sum",
+        "sqr",
+        "max",
+        "min",
+        "first",
+        "last",
+        "avg",
+        "stdvar",
+        "stddev",
+    ]
+
     def __init__(
         self,
         key_columns: List[str],
@@ -970,10 +1030,21 @@ class SparkAggregateByKey(StepToDict):
             raise ValueError(f"Invalid duration '{duration}'")
         return f"{num} {unit}"
 
+    @staticmethod
+    def _verify_operation(op):
+        if op not in SparkAggregateByKey._supported_operations:
+            error_string = (
+                f"operation {op} is unsupported. Supported operations: "
+                + ", ".join(SparkAggregateByKey._supported_operations)
+            )
+            raise mlrun.errors.MLRunInvalidArgumentError(error_string)
+
     def _extract_fields_from_aggregate_dict(self, aggregate):
         name = aggregate["name"]
         column = aggregate["column"]
         operations = aggregate["operations"]
+        for op in operations:
+            self._verify_operation(op)
         windows = aggregate["windows"]
         spark_period = (
             self._duration_to_spark_format(aggregate["period"])
@@ -981,6 +1052,18 @@ class SparkAggregateByKey(StepToDict):
             else None
         )
         return name, column, operations, windows, spark_period
+
+    @staticmethod
+    def _get_aggr(operation, column):
+        import pyspark.sql.functions as funcs
+
+        if operation == "sqr":
+            return funcs.sum(funcs.expr(f"{column} * {column}"))
+        elif operation == "stdvar":
+            return funcs.variance(column)
+        else:
+            func = getattr(funcs, operation)
+            return func(column)
 
     def do(self, event):
         import pyspark.sql.functions as funcs
@@ -1010,9 +1093,9 @@ class SparkAggregateByKey(StepToDict):
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        agg = func(column).alias(agg_name)
+                        agg = agg.alias(agg_name)
                         aggs.append(agg)
                     window_column = funcs.window(
                         time_column, spark_window, spark_period
@@ -1069,11 +1152,9 @@ class SparkAggregateByKey(StepToDict):
                     window_counter += 1
 
                     for operation in operations:
-                        func = getattr(funcs, operation)
+                        agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
-                        win_df = win_df.withColumn(
-                            agg_name, func(column).over(function_window)
-                        )
+                        win_df = win_df.withColumn(agg_name, agg.over(function_window))
 
                     union_df = (
                         union_df.unionByName(win_df, allowMissingColumns=True)

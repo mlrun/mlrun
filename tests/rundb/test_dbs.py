@@ -23,13 +23,12 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
-from mlrun.db import SQLDB, FileRunDB, sqldb
+from mlrun.db import SQLDB, sqldb
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
 
 dbs = [
     "sql",
-    "file",
     # TODO: 'httpdb',
 ]
 
@@ -42,13 +41,11 @@ def db(request):
         db_file = f"{path}/mlrun.db"
         dsn = f"sqlite:///{db_file}?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()
         db = SQLDB(dsn, session=db_session)
-    elif request.param == "file":
-        db = FileRunDB(path)
     else:
         assert False, f"unknown db type - {request.param}"
 
@@ -59,35 +56,12 @@ def db(request):
     return db
 
 
-def test_save_get_function(db: RunDBInterface):
-    func, name, proj, tag = {"data": {"x": 1, "y": 2}}, "f1", "p2", "t3u"
-    db.store_function(func, name, proj, tag)
-    db_func = db.get_function(name, proj, tag)
-
-    # db methods enriches metadata
-    assert func["data"] == db_func["data"]
-
-
 def new_func(labels, **kw):
     obj = {
         "metadata": {"labels": labels},
     }
     obj.update(kw)
     return obj
-
-
-def test_list_functions(db: RunDBInterface):
-    name = "fn"
-    fn1 = new_func({"l1": "v1", "l2": "v2"}, x=1)
-    db.store_function(fn1, name)
-    fn2 = new_func({"l2": "v2", "l3": "v3"}, x=2)
-    db.store_function(fn2, name, tag="t1")
-    fn3 = new_func({"l3": "v3"}, x=3)
-    db.store_function(fn3, name, tag="t2")
-
-    funcs = db.list_functions(name, labels={"l2": "v2"})
-    assert 2 == len(funcs), "num of funcs"
-    assert {1, 2} == {fn["x"] for fn in funcs}, "xs"
 
 
 def test_runs(db: RunDBInterface):
@@ -162,8 +136,6 @@ def test_artifacts(db: RunDBInterface):
 
 
 def test_list_runs(db: RunDBInterface):
-    if isinstance(db, FileRunDB):
-        pytest.skip("FIXME")
     uid = "u183"
     run = new_run("s1", {"l1": "v1", "l2": "v2"}, uid, x=1)
     count = 5

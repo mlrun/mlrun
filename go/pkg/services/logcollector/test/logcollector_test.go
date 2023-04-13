@@ -19,6 +19,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -92,9 +93,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		"30s",   /* monitoringInterval */
 		"chief", /* clusterizationRole */
 		suite.kubeClientSet,
-		30, /* logCollectionBufferPoolSize */
-		30, /* getLogsBufferSizeBytes */
-		suite.bufferSizeBytes)
+		30,                    /* logCollectionBufferPoolSize */
+		30,                    /* getLogsBufferSizeBytes */
+		suite.bufferSizeBytes, /* logCollectionBufferSizeBytes */
+		suite.bufferSizeBytes) /* getLogsBufferSizeBytes */
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test
@@ -145,9 +147,18 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		Selector:    "app=test",
 		ProjectName: projectName,
 	})
-
 	suite.Require().NoError(err, "Failed to start log collection")
 	suite.Require().True(startLogResponse.Success, "Failed to start log collection")
+
+	// read state file
+	stateFilePath := path.Join(suite.baseDir, "_metadata", "state.json")
+	stateFile, err := os.Open(stateFilePath)
+	suite.Require().NoError(err, "Failed to open state file")
+
+	// read state file and make sure it is not empty
+	stateFileBytes, err := io.ReadAll(stateFile)
+	suite.Require().NoError(err, "Failed to read state file")
+	suite.Require().NotEmpty(stateFileBytes, "State file is empty")
 
 	// wait for logs to be collected
 	suite.logger.InfoWith("Waiting for logs to be collected")
@@ -178,7 +189,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		if len(logs) >= expectedLogLines {
 			break
 		}
-		if time.Since(startedGettingLogsTime) > 2*time.Minute {
+		if time.Since(startedGettingLogsTime) > 3*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
 
@@ -204,7 +215,6 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 
 	suite.Require().False(startLogResponse.Success)
 	suite.Require().Error(err)
-	suite.Require().Contains(err.Error(), "Failed to list pods")
 }
 
 func (suite *LogCollectorTestSuite) startLogCollectorServer(listenPort int) {

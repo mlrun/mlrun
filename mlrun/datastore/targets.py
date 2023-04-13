@@ -16,7 +16,6 @@ import datetime
 import os
 import random
 import time
-import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -24,6 +23,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
+from storey.utils import hash_list, stringify_key
 
 import mlrun
 import mlrun.utils.helpers
@@ -269,15 +269,6 @@ def validate_target_placement(graph, final_step, targets):
             )
 
 
-def add_target_states(graph, resource, targets, to_df=False, final_state=None):
-    warnings.warn(
-        "This method is deprecated. Use add_target_steps instead",
-        # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-        PendingDeprecationWarning,
-    )
-    return add_target_steps(graph, resource, targets, to_df, final_state)
-
-
 def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     """add the target steps to the graph"""
     targets = targets or []
@@ -287,7 +278,6 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     table = None
 
     for target in targets:
-
         # if fset is in passthrough mode, ingest skips writing the data to offline targets
         if resource.spec.passthrough and kind_to_driver[target.kind].is_offline:
             continue
@@ -388,7 +378,6 @@ class BaseStoreTarget(DataTargetBase):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
@@ -407,16 +396,9 @@ class BaseStoreTarget(DataTargetBase):
             time_partitioning_granularity,
             max_events,
             flush_after_seconds,
-            after_state,
             schema=schema,
+            credentials_prefix=credentials_prefix,
         )
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
 
         self.name = name or self.kind
         self.path = str(path) if path is not None else None
@@ -431,22 +413,24 @@ class BaseStoreTarget(DataTargetBase):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.schema = schema or {}
+        self.credentials_prefix = credentials_prefix
 
         self._target = None
         self._resource = None
         self._secrets = {}
-        self._credentials_prefix = credentials_prefix
 
     def _get_credential(self, key, default_value=None):
         return mlrun.get_secret_or_env(
             key,
             secret_provider=self._secrets,
             default=default_value,
-            prefix=self._credentials_prefix,
+            prefix=self.credentials_prefix,
         )
 
     def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
+        store, _ = mlrun.store_manager.get_or_create_store(
+            self.get_target_path_with_credentials()
+        )
         return store
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
@@ -542,8 +526,8 @@ class BaseStoreTarget(DataTargetBase):
                     ("minute", "%M"),
                 ]:
                     partition_cols.append(unit)
-                    target_df[unit] = getattr(
-                        pd.DatetimeIndex(target_df[timestamp_key]), unit
+                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
+                        date_format=fmt
                     )
                     if unit == time_partitioning_granularity:
                         break
@@ -578,9 +562,13 @@ class BaseStoreTarget(DataTargetBase):
         driver.path = spec.path
         driver.attributes = spec.attributes
         driver.schema = spec.schema
+        driver.credentials_prefix = spec.credentials_prefix
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
+
+        if hasattr(spec, "_secrets"):
+            driver._secrets = spec._secrets
 
         driver.partitioned = spec.partitioned
 
@@ -591,6 +579,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.max_events = spec.max_events
         driver.flush_after_seconds = spec.flush_after_seconds
         driver.storage_options = spec.storage_options
+        driver.credentials_prefix = spec.credentials_prefix
 
         driver._resource = resource
         driver.run_id = spec.run_id
@@ -603,6 +592,9 @@ class BaseStoreTarget(DataTargetBase):
     def get_target_path(self):
         path_object = self._target_path_object
         return path_object.get_absolute_path() if path_object else None
+
+    def get_target_path_with_credentials(self):
+        return self.get_target_path()
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -642,6 +634,7 @@ class BaseStoreTarget(DataTargetBase):
         target.key_bucketing_number = self.key_bucketing_number
         target.partition_cols = self.partition_cols
         target.time_partitioning_granularity = self.time_partitioning_granularity
+        target.credentials_prefix = self.credentials_prefix
 
         self._resource.status.update_target(target)
         return target
@@ -656,17 +649,6 @@ class BaseStoreTarget(DataTargetBase):
         featureset_status=None,
     ):
         raise NotImplementedError()
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def purge(self):
         self._get_store().rm(self.get_target_path(), recursive=True)
@@ -745,19 +727,10 @@ class ParquetTarget(BaseStoreTarget):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = 10000,
         flush_after_seconds: Optional[int] = 900,
         storage_options: Dict[str, str] = None,
     ):
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
-
         self.path = path
         if partitioned is None:
             partitioned = not self.is_single_file()
@@ -798,17 +771,6 @@ class ParquetTarget(BaseStoreTarget):
             storage_options=storage_options,
             **kwargs,
         )
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -964,17 +926,6 @@ class CSVTarget(BaseStoreTarget):
             kwargs["index"] = kwargs.get("index", False)
         df.to_csv(target_path, storage_options=storage_options, **kwargs)
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,
@@ -1032,9 +983,14 @@ class CSVTarget(BaseStoreTarget):
         **kwargs,
     ):
         df = super().as_df(
-            columns=columns, df_module=df_module, entities=entities, **kwargs
+            columns=columns,
+            df_module=df_module,
+            entities=entities,
+            format="csv",
+            **kwargs,
         )
-        df.set_index(keys=entities, inplace=True)
+        if entities:
+            df.set_index(keys=entities, inplace=True)
         return df
 
     def is_single_file(self):
@@ -1057,17 +1013,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_table_object(self):
         raise NotImplementedError()
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1106,39 +1051,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
             **self.attributes,
         )
 
+    def prepare_spark_df(self, df, key_columns):
+        raise NotImplementedError()
+
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "io.iguaz.v3io.spark.sql.kv",
-        }
-        if isinstance(key_column, list) and len(key_column) >= 1:
-            if len(key_column) > 2:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Spark supports maximun of 2 keys and {key_column} are provided"
-                )
-            spark_options["key"] = key_column[0]
-            if len(key_column) > 1:
-                spark_options["sorting-key"] = key_column[1]
-        else:
-            spark_options["key"] = key_column
-        if not overwrite:
-            spark_options["columnUpdate"] = True
-        return spark_options
+        raise NotImplementedError()
 
     def get_dask_options(self):
         return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
-
-    def prepare_spark_df(self, df, key_columns):
-        import pyspark.sql.functions as funcs
-
-        for col_name, col_type in df.dtypes:
-            if col_type.startswith("decimal("):
-                # V3IO does not support this level of precision
-                df = df.withColumn(col_name, funcs.col(col_name).cast("double"))
-        return df
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1151,7 +1074,10 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
-            df = df.groupby(df.index).last()
+            if len(df.index.names) and df.index.names[0] is not None:
+                df = df.groupby(df.index.names).last()
+            else:
+                df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())
@@ -1179,6 +1105,41 @@ class NoSqlTarget(NoSqlBaseTarget):
             V3ioDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        spark_options = {
+            "path": store_path_to_spark(self.get_target_path()),
+            "format": "io.iguaz.v3io.spark.sql.kv",
+        }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 2:
+                spark_options["sorting-key"] = "_spark_object_sorting_key"
+            if len(key_column) == 2:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        if not overwrite:
+            spark_options["columnUpdate"] = True
+        return spark_options
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import col, udf
+        from pyspark.sql.types import StringType
+
+        for col_name, col_type in df.dtypes:
+            if col_type.startswith("decimal("):
+                # V3IO does not support this level of precision
+                df = df.withColumn(col_name, col(col_name).cast("double"))
+        if len(key_columns) > 2:
+            hash_and_concat_udf = udf(
+                lambda *x: hash_list([str(i) for i in x]), StringType()
+            )
+            return df.withColumn(
+                "_spark_object_sorting_key",
+                hash_and_concat_udf(*[col(c) for c in key_columns[1:]]),
+            )
+        return df
 
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
@@ -1221,7 +1182,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-
         endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
 
@@ -1235,12 +1195,25 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
 
+    def get_target_path_with_credentials(self):
+        endpoint, uri = self._get_server_endpoint()
+        return endpoint
+
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import udf
+        from pyspark.sql.functions import col, udf
         from pyspark.sql.types import StringType
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
-        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
+        if len(key_columns) > 1:
+            hash_and_concat_udf = udf(
+                lambda *x: stringify_key([str(i) for i in x]) + "}:static", StringType()
+            )
+            return df.withColumn(
+                "_spark_object_name",
+                hash_and_concat_udf(*[col(c) for c in key_columns]),
+            )
+        else:
+            udf1 = udf(lambda x: str(x) + "}:static", StringType())
+            return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
 class StreamTarget(BaseStoreTarget):
@@ -1250,17 +1223,6 @@ class StreamTarget(BaseStoreTarget):
     support_spark = False
     support_storey = True
     support_append = True
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1358,17 +1320,6 @@ class TSDBTarget(BaseStoreTarget):
     support_storey = True
     support_append = True
 
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
     def add_writer_step(
         self,
         graph,
@@ -1443,31 +1394,11 @@ class CustomTarget(BaseStoreTarget):
         class_name: str,
         name: str = "",
         after_step=None,
-        after_state=None,
         **attributes,
     ):
-        if after_state:
-            warnings.warn(
-                "The after_state parameter is deprecated. Use after_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            after_step = after_step or after_state
-
         attributes = attributes or {}
         attributes["class_name"] = class_name
         super().__init__(name, "", attributes, after_step=after_step)
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1500,19 +1431,8 @@ class DFTarget(BaseStoreTarget):
     def set_df(self, df):
         self._df = df
 
-    def update_resource_status(self, status="", producer=None):
+    def update_resource_status(self, status="", producer=None, size=None):
         pass
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def add_writer_step(
         self,
@@ -1563,7 +1483,6 @@ class SQLTarget(BaseStoreTarget):
         key_bucketing_number: Optional[int] = None,
         partition_cols: Optional[List[str]] = None,
         time_partitioning_granularity: Optional[str] = None,
-        after_state=None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
@@ -1593,7 +1512,6 @@ class SQLTarget(BaseStoreTarget):
         :param key_bucketing_number:
         :param partition_cols:
         :param time_partitioning_granularity:
-        :param after_state:
         :param max_events:
         :param flush_after_seconds:
         :param storage_options:
@@ -1654,20 +1572,8 @@ class SQLTarget(BaseStoreTarget):
             max_events=max_events,
             flush_after_seconds=flush_after_seconds,
             storage_options=storage_options,
-            after_state=after_state,
             schema=schema,
         )
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
         from storey import SQLDriver, Table
@@ -1698,6 +1604,11 @@ class SQLTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         self._create_sql_table()
+        for step in graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,

@@ -16,6 +16,7 @@ import http
 import tempfile
 import time
 import traceback
+import typing
 import warnings
 from datetime import datetime
 from os import path, remove
@@ -26,17 +27,24 @@ import requests
 import semver
 
 import mlrun
+import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
-from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
+from ..utils import (
+    datetime_to_iso,
+    dict_to_json,
+    logger,
+    new_pipe_metadata,
+    normalize_name,
+    version,
+)
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -155,9 +163,6 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
-        :param stream: If True, the response will be streamed, otherwise it will be read into memory
-        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
-           and returned as a string
 
         :return: Python HTTP response object
         """
@@ -206,10 +211,7 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = mlrun.utils.HTTPSessionWithRetry(
-                retry_on_exception=config.httpdb.retry_api_call_on_exception
-                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
-            )
+            self.session = self._init_session()
 
         try:
             response = self.session.request(
@@ -236,6 +238,12 @@ class HTTPRunDB(RunDBInterface):
             mlrun.errors.raise_for_status(response, error)
 
         return response
+
+    def _init_session(self):
+        return mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=config.httpdb.retry_api_call_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
+        )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
@@ -452,7 +460,7 @@ class HTTPRunDB(RunDBInterface):
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
-            print(text.decode())
+            print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
         if watch:
             nil_resp = 0
             while state in ["pending", "running"]:
@@ -470,7 +478,10 @@ class HTTPRunDB(RunDBInterface):
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
-                    print(text.decode(), end="")
+                    print(
+                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                        end="",
+                    )
                 else:
                     nil_resp += 1
         else:
@@ -554,6 +565,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ) -> RunList:
         """Retrieve a list of runs, filtered by various options.
         Example::
@@ -587,6 +599,7 @@ class HTTPRunDB(RunDBInterface):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
             limit.
+        :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
         """
 
         project = project or config.default_project
@@ -602,6 +615,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "with_notifications": with_notifications,
         }
 
         if partition_by:
@@ -794,8 +808,18 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()["tags"]
 
-    def store_function(self, function, name, project="", tag=None, versioned=False):
+    def store_function(
+        self,
+        function: typing.Union[mlrun.runtimes.BaseRuntime, dict],
+        name,
+        project="",
+        tag=None,
+        versioned=False,
+    ):
         """Store a function object. Function is identified by its name and tag, and can be versioned."""
+        name = mlrun.utils.normalize_name(name)
+        if hasattr(function, "to_dict"):
+            function = function.to_dict()
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
@@ -911,33 +935,6 @@ class HTTPRunDB(RunDBInterface):
                 f"Provided group by field is not supported. group_by={group_by}"
             )
 
-    def list_runtimes(self, label_selector: str = None) -> List:
-        """Deprecated use :py:func:`~list_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        error = "list runtimes"
-        resp = self.api_call("GET", "runtimes", error, params=params)
-        return resp.json()
-
-    def get_runtime(self, kind: str, label_selector: str = None) -> Dict:
-        """Deprecated use :py:func:`~list_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use list_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        params = {"label_selector": label_selector}
-        path = f"runtimes/{kind}"
-        error = f"get runtime {kind}"
-        resp = self.api_call("GET", path, error, params=params)
-        return resp.json()
-
     def delete_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -959,13 +956,17 @@ class HTTPRunDB(RunDBInterface):
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
             period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-            the moment they moved to terminal state.
+            the moment they moved to terminal state (defaults to mlrun.mlconf.runtime_resources_deletion_grace_period).
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+            logger.info(
+                "Using default grace period for runtime resources deletion",
+                grace_period=grace_period,
+            )
 
         params = {
             "label-selector": label_selector,
@@ -989,83 +990,6 @@ class HTTPRunDB(RunDBInterface):
                     kind
                 ] = mlrun.api.schemas.RuntimeResources(**runtime_resources)
         return structured_dict
-
-    def delete_runtimes(
-        self,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        error = "delete runtimes"
-        self.api_call("DELETE", "runtimes", error, params=params)
-
-    def delete_runtime(
-        self,
-        kind: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}"
-        error = f"delete runtime {kind}"
-        self.api_call("DELETE", path, error, params=params)
-
-    def delete_runtime_object(
-        self,
-        kind: str,
-        object_id: str,
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """Deprecated use :py:func:`~delete_runtime_resources` (with kind and object_id filter) instead"""
-        warnings.warn(
-            "This method is deprecated, use delete_runtime_resources (with kind and object_id filter) instead"
-            "This will be removed in 0.9.0",
-            # TODO: Remove in 0.9.0
-            DeprecationWarning,
-        )
-
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-        params = {
-            "label_selector": label_selector,
-            "force": force,
-            "grace_period": grace_period,
-        }
-        path = f"runtimes/{kind}/{object_id}"
-        error = f"delete runtime object {kind} {object_id}"
-        self.api_call("DELETE", path, error, params=params)
 
     def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
@@ -1235,7 +1159,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             params = {
-                "name": func.metadata.name,
+                "name": normalize_name(func.metadata.name),
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
@@ -1393,7 +1317,9 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
+        # TODO: deprecated, remove in 1.5.0
         ttl=None,
+        cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
 
@@ -1405,14 +1331,29 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: Set the TTL for the pipeline after its completion.
+        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
+                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
+        :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                            workflow and all its resources are deleted)
         """
+
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-            conf = new_pipe_meta(artifact_path, ttl, ops)
+            conf = new_pipe_metadata(
+                artifact_path=artifact_path,
+                cleanup_ttl=cleanup_ttl or ttl,
+                op_transformers=ops,
+            )
             kfp.compiler.Compiler().compile(
                 pipeline, pipe_file, type_check=False, pipeline_conf=conf
             )
@@ -1487,9 +1428,9 @@ class HTTPRunDB(RunDBInterface):
         :param page_size: Size of a single page when applying pagination.
         """
 
-        if project != "*" and (page_token or page_size or sort_by):
+        if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, or sorting"
+                "Filtering by project can not be used together with pagination"
             )
         params = {
             "namespace": namespace,
@@ -2564,9 +2505,24 @@ class HTTPRunDB(RunDBInterface):
                 parsed_client_version=parsed_client_version,
             )
             return False
+        if parsed_server_version.minor > parsed_client_version.minor + 2:
+            logger.info(
+                "Backwards compatibility might not apply between the server and client version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
+        if parsed_client_version.minor > parsed_server_version.minor:
+            logger.warning(
+                "Client version with higher version than server version isn't supported,"
+                " align your client to the server version",
+                parsed_server_version=parsed_server_version,
+                parsed_client_version=parsed_client_version,
+            )
+            return False
         if parsed_server_version.minor != parsed_client_version.minor:
             logger.info(
-                "Server and client versions are not the same",
+                "Server and client versions are not the same but compatible",
                 parsed_server_version=parsed_server_version,
                 parsed_client_version=parsed_client_version,
             )
@@ -2576,7 +2532,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         """
         Creates a DB record with the given model_endpoint record.
@@ -2586,11 +2544,16 @@ class HTTPRunDB(RunDBInterface):
         :param model_endpoint: An object representing the model endpoint.
         """
 
+        if isinstance(
+            model_endpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint
+        ):
+            model_endpoint = model_endpoint.to_dict()
+
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="POST",
             path=path,
-            body=model_endpoint.json(),
+            body=dict_to_json(model_endpoint),
         )
 
     def delete_model_endpoint(
@@ -2599,7 +2562,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_id: str,
     ):
         """
-        Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
+        Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
@@ -2622,7 +2585,7 @@ class HTTPRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
-    ) -> schemas.ModelEndpointList:
+    ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
         This functions supports filtering by the following parameters:
@@ -2638,8 +2601,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
-            (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
+         label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
@@ -2650,10 +2613,14 @@ class HTTPRunDB(RunDBInterface):
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
                                  days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
+        :param uids: if passed will return `ModelEndpointList` of endpoints with uid in uids
         """
 
         path = f"projects/{project}/model-endpoints"
+
+        if labels and isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         response = self.api_call(
             method="GET",
             path=path,
@@ -2668,7 +2635,15 @@ class HTTPRunDB(RunDBInterface):
                 "uid": uids,
             },
         )
-        return schemas.ModelEndpointList(**response.json())
+
+        # Generate a list of a model endpoint dictionaries
+        model_endpoints = response.json()["endpoints"]
+        if model_endpoints:
+            return [
+                mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(obj)
+                for obj in model_endpoints
+            ]
+        return []
 
     def get_model_endpoint(
         self,
@@ -2678,21 +2653,29 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-    ) -> schemas.ModelEndpoint:
+    ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
-        Returns a ModelEndpoint object with additional metrics and feature related data.
+        Returns a single `ModelEndpoint` object with additional metrics and feature related data.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the model endpoint
-        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-            the output of the resulting object
+        :param project:                    The name of the project
+        :param endpoint_id:                The unique id of the model endpoint.
+        :param start:                      The start time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param end:                        The end time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
+                                           metrics for model endpoints such as predictions_per_second and
+                                           latency_avg_5m but also custom metrics defined by the user. Please note that
+                                           these metrics are stored in the time series DB and the results will be
+                                           appeared under model_endpoint.spec.metrics.
+        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
+                                           be added to the output of the resulting object.
+
+        :return: A `ModelEndpoint` object.
         """
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
@@ -2706,7 +2689,10 @@ class HTTPRunDB(RunDBInterface):
                 "feature_analysis": feature_analysis,
             },
         )
-        return schemas.ModelEndpoint(**response.json())
+
+        return mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(
+            response.json()
+        )
 
     def patch_model_endpoint(
         self,
@@ -2720,9 +2706,9 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. The values should be
-                           from type string or from a valid numerical type such as int or float. More details
-                           about the model endpoint available attributes can be found under
+                           of this dictionary should exist in the target table. Note that the values should be
+                           from type string or from a valid numerical type such as int or float.
+                            More details about the model endpoint available attributes can be found under
                            :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
                            Example::
@@ -2864,7 +2850,6 @@ class HTTPRunDB(RunDBInterface):
     def get_marketplace_catalog(
         self,
         source_name: str,
-        channel: str = None,
         version: str = None,
         tag: str = None,
         force_refresh: bool = False,
@@ -2874,7 +2859,6 @@ class HTTPRunDB(RunDBInterface):
         The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
-        :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
         :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
@@ -2886,7 +2870,6 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
@@ -2898,7 +2881,6 @@ class HTTPRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        channel: str = "development",
         version: str = None,
         tag: str = "latest",
         force_refresh: bool = False,
@@ -2908,7 +2890,6 @@ class HTTPRunDB(RunDBInterface):
 
         :param source_name: Name of source.
         :param item_name: Name of the item to retrieve, as it appears in the catalog.
-        :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
         :param force_refresh: Make the server fetch the information from the actual marketplace
@@ -2918,13 +2899,41 @@ class HTTPRunDB(RunDBInterface):
         """
         path = (f"marketplace/sources/{source_name}/items/{item_name}",)
         params = {
-            "channel": channel,
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
         return schemas.MarketplaceItem(**response.json())
+
+    def get_marketplace_asset(
+        self,
+        source_name: str,
+        item_name: str,
+        asset_name: str,
+        version: str = None,
+        tag: str = "latest",
+    ):
+        """
+        Get marketplace asset from item.
+
+        :param source_name: Name of source.
+        :param item_name:   Name of the item which holds the asset.
+        :param asset_name:  Name of the asset to retrieve.
+        :param version: Get a specific version of the item. Default is ``None``.
+        :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
+
+        :return: http response with the asset in the content attribute
+        """
+        path = (
+            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",
+        )
+        params = {
+            "version": version,
+            "tag": tag,
+        }
+        response = self.api_call(method="GET", path=path, params=params)
+        return response
 
     def verify_authorization(
         self, authorization_verification_input: schemas.AuthorizationVerificationInput

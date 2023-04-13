@@ -18,7 +18,6 @@ import asyncio
 import json
 import os
 import socket
-import sys
 import traceback
 import uuid
 from typing import Optional, Union
@@ -32,7 +31,7 @@ from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
-from ..utils import create_logger, get_caller_globals, parse_versioned_object_uri
+from ..utils import get_caller_globals, parse_versioned_object_uri
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import event_id_key, event_path_key
 
@@ -306,18 +305,27 @@ def v2_serving_init(context, namespace=None):
     if not data:
         raise MLRunInvalidArgumentError("failed to find spec env var")
     spec = json.loads(data)
+    context.logger.info("Initializing server from spec")
     server = GraphServer.from_dict(spec)
     if config.log_level.lower() == "debug":
         server.verbose = True
     if hasattr(context, "trigger"):
         server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
+    context.logger.info_with(
+        "Setting current function",
+        current_functiton=os.environ.get("SERVING_CURRENT_FUNCTION", ""),
+    )
     server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
+    context.logger.info_with(
+        "Initializing states", namespace=namespace or get_caller_globals()
+    )
     server.init_states(context, namespace or get_caller_globals())
+    context.logger.info("Initializing graph steps")
     serving_handler = server.init_object(namespace or get_caller_globals())
     # set the handler hook to point to our handler
     setattr(context, "mlrun_handler", serving_handler)
     setattr(context, "_server", server)
-    context.logger.info(f"serving was initialized, verbose={server.verbose}")
+    context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
         context.logger.info(server.to_yaml())
 
@@ -436,7 +444,7 @@ class GraphContext:
             self.Response = nuclio_context.Response
             self.worker_id = nuclio_context.worker_id
         elif not logger:
-            self.logger = create_logger(level, "human", "flow", sys.stdout)
+            self.logger = mlrun.utils.helpers.logger
 
         self._server = server
         self.current_function = None

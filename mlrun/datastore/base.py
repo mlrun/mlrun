@@ -152,6 +152,30 @@ class DataStore:
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
+            filesystem = self.get_filesystem()
+            if filesystem:
+                if filesystem.isdir(url):
+
+                    def reader(*args, **kwargs):
+                        base_path = args[0]
+                        file_entries = filesystem.listdir(base_path)
+                        filenames = []
+                        for file_entry in file_entries:
+                            if (
+                                file_entry["name"].endswith(".csv")
+                                and file_entry["size"] > 0
+                                and file_entry["type"] == "file"
+                            ):
+                                filename = file_entry["name"]
+                                filename = filename.split("/")[-1]
+                                filenames.append(filename)
+                        dfs = []
+                        for filename in filenames:
+                            updated_args = [f"{base_path}/{filename}"]
+                            updated_args.extend(args[1:])
+                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        return pd.concat(dfs)
+
         elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
             if columns:
                 kwargs["columns"] = columns
@@ -359,7 +383,7 @@ class DataItem:
         return self._store.listdir(self._path)
 
     def local(self):
-        """get the local path of the file, download to tmp first if its a remote object"""
+        """get the local path of the file, download to tmp first if it's a remote object"""
         if self.kind == "file":
             return self._path
         if self._local_path:
@@ -372,6 +396,15 @@ class DataItem:
         logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)
         return self._local_path
+
+    def remove_local(self):
+        """remove the local file if it exists and was downloaded from a remote object"""
+        if self.kind == "file":
+            return
+
+        if self._local_path:
+            remove(self._local_path)
+            self._local_path = ""
 
     def as_df(
         self,

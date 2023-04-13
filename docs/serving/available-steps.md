@@ -1,7 +1,7 @@
 (available-steps)=
 # Built-in steps
 
-MlRun provides you with many built-in steps that you can use when building your graph. 
+MlRun provides you with many built-in steps that you can use when building your graph. All steps are supported by the storey engine. Support by any other engines is included in the step description, as relevant.
 
 Click on the step names in the following sections to see the full usage.
 
@@ -35,14 +35,19 @@ Click on the step names in the following sections to see the full usage.
 
 ## Data Transformations
 
-| Class name            | Description                           |  
-|----------------------------|--------------------------------------------------------------|   
-| [storey.AggregateByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.AggregateByKey) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. |
-| [DateExtractor](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DateExtractor)  | Extract a date-time component. |
-| [mlrun.feature_store.Imputer](../api/mlrun.feature_store.html#mlrun.feature_store.steps.Imputer) | Replace None values with default values.   |
-| [mlrun.feature_store.MapValues](../api/mlrun.feature_store.html#mlrun.feature_store.steps.MapValues) | Map column values to new values.   |
-| [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.html#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded).  | 
-| [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.html#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body. |
+The following table lists the available data-transformation steps. The next table details the ingestion engines support of these steps.
+
+| Class name            | Description                           | Storey | Spark | Pandas | 
+|----------------------------|----------------------------------| ---- | ---- | ---- | 
+| [mlrun.feature_store.add_aggregation](../api/mlrun.feature_store.html#mlrun.feature_store.FeatureSet.add_aggregation) | Aggregates the data into the table object provided for later persistence, and outputs an event enriched with the requested aggregation features. | Y  <br>Not supported with online target SQLTarget | Y  | N  | 
+| [mlrun.feature_store.DateExtractor](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DateExtractor)  | Extract a date-time component. | Y | N  <br>Supports part extract (ex. day_of_week) but does not support boolean (ex. is_leap_year) | Y | 
+| [mlrun.feature_store.DropFeatures](../api/mlrun.feature_store.html#mlrun.feature_store.steps.DropFeatures) | Drop features from feature list.  | Y      | Y     | Y      | 
+| [mlrun.feature_store.Imputer](../api/mlrun.feature_store.html#mlrun.feature_store.steps.Imputer) | Replace None values with default values. | Y      | Y     | Y      | 
+| [mlrun.feature_store.MapValues](../api/mlrun.feature_store.html#mlrun.feature_store.steps.MapValues) | Map column values to new values.  | Y      | Y     | Y      | 
+| [mlrun.feature_store.OneHotEncoder](../api/mlrun.feature_store.html#mlrun.feature_store.steps.OneHotEncoder) | Create new binary fields, one per category (one hot encoded).  |  Y      | Y     | Y      | 
+| [mlrun.feature_store.SetEventMetadata](../api/mlrun.feature_store.html#mlrun.feature_store.steps.SetEventMetadata) | Set the event metadata (id, key, timestamp) from the event body. | Y      | N     | N      | 
+| [mlrun.feature_store.steps.FeaturesetValidator](../../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy | Y      | N     | Y      | 
+
 
 
 ## External IO and data enrichment
@@ -58,26 +63,27 @@ Click on the step names in the following sections to see the full usage.
  
 
 ## Sources
-| Class name                                       | Description                                   |   
-|--------------------------------------------------|---------------------------------|
-| [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource) | Reads Google BigQuery query results as input source for a flow.  |
-| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource) | Reads a CSV file as input source for a flow.   |
-| [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow. | 
-| [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource) |             |
-| [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource) | Sets the kafka source for the flow. |
-| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource) | Reads the Parquet file/dir as the input source for a flow.  |
-| [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource) | Sets the stream source for the flow. If the stream doesn’t exist it creates it.  | 
-
+| Class name                                                                                                        | Description                                                                     | storey | spark | pandas |
+| --------------------------------------------------                                                                | ---------------------------------                                               | ---    | ---   | ---    |
+| [mlrun.datastore.BigQuerySource](../api/mlrun.datastore.html#mlrun.datastore.BigQuerySource)                      | Reads Google BigQuery query results as input source for a flow.                 | N      | Y     | Y      |
+| mlrun.datastore.SnowFlakeSource                                                                                 | Reads Snowflake query results as input source for a flow.                       | N      | Y     | N      |
+| mlrun.datastore.SQLSource                                                                                       | Reads SQL query results as input source for a flow.                             | Y      | N     | Y      |
+| [mlrun.datastore.CSVSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.CSVSource)            | Reads a CSV file as input source for a flow.                                    | Y      | Y     | Y      |
+| [storey.sources.DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Reads data frame as input source for a flow.                                    | Y      | N     | N      |
+| [mlrun.datastore.HttpSource](../api/mlrun.datastore.html#mlrun.datastore.HttpSource)                              | Sets the HTTP-endpoint source for the flow.                                     | Y      | N     | N      |
+| [mlrun.datastore.KafkaSource](../api/mlrun.datastore.html#mlrun.datastore.KafkaSource)                            | Sets the kafka source for the flow.                                             | Y      | N     | N      |
+| [mlrun.datastore.ParquetSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.ParquetSource)    | Reads the Parquet file/dir as the input source for a flow.                      | Y      | Y     | Y      |
+| [mlrun.datastore.StreamSource](../api/mlrun.datastore.html#mlrun.datastore.StreamSource)                          | Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Targets
-| Class name                                       | Description                                   |   
-|--------------------------------------------------|-------------------------------------------------------|
-| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget) | Writes events to a CSV file. |
-| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)  | Persists the data in *table* to its associated storage by key. |
-| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget) | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. |
-| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget) | Writes all incoming events into a V3IO stream. |
-| [storey.transformations.ToDataFrame](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.ToDataFrame)  | Create pandas data frame from events. Can appear in the middle of the flow, as opposed to ReduceToDataFrame.| 
-| [mlrun.datastore.TSBDTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.TSDBTarget) | Writes incoming events to TSDB table. | 
+| Class name                                                                                                                | Description                                                                                        | storey | spark | pandas |
+| --------------------------------------------------                                                                        | -------------------------------------------------------                                            | ---    | ---   | ---    |
+| [mlrun.datastore.CSVTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.CSVTarget)                    | Writes events to a CSV file.                                                                       | Y      | Y     | Y      |
+| [mlrun.datastore.NoSqlTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.NoSqlTarget)                | Persists the data in V3IO table to its associated storage by key.                                  | Y      | Y     | Y      |
+| mlrun.datastore.RedisNoSqlTarget                                                                                        | Persists the data in Redis table to its associated storage by key.                                 | Y      | Y     | N      |
+| mlrun.datastore.SqlTarget                                                                                              | Persists the data in SQL table to its associated storage by key.                                   | Y      | N     | Y      |
+| [mlrun.datastore.ParquetTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget)            | The Parquet target storage driver, used to materialize feature set/vector data into parquet files. | Y      | Y     | Y      |
+| [mlrun.datastore.StreamTarget](https://storey.readthedocs.io/en/latest/api.html#storey.targets.StreamTarget)              | Writes all incoming events into a V3IO stream.                                                     | Y      | N     | N      |
 
 ## Models
 | Class name                                       | Description                                   |   
@@ -101,5 +107,5 @@ Click on the step names in the following sections to see the full usage.
 ## Other
 | Class name                                       | Description                                   |   
 |--------------------------------------------------|-----------------------------------------------------------|
-| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. | 
+| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
 | ReduceToDataFrame | Builds a pandas DataFrame from events and returns that DataFrame on flow termination. |

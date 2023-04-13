@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import math
 import re
 import uuid
 import warnings
@@ -55,7 +56,7 @@ class MLRunStep(MapClass):
         engine = get_engine(event)
         self.do = self._engine_to_do_method.get(engine, None)
         if self.do is None:
-            raise mlrun.errors.InvalidArgummentError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"
             )
 
@@ -136,7 +137,7 @@ class MapValues(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        mapping: Dict[str, Dict[str, Any]],
+        mapping: Dict[str, Dict[Union[str, int, bool], Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,
@@ -226,34 +227,130 @@ class MapValues(StepToDict, MLRunStep):
     def _do_spark(self, event):
         from itertools import chain
 
-        from pyspark.sql.functions import col, create_map, lit, when
+        from pyspark.sql.functions import col, create_map, isnan, isnull, lit, when
+        from pyspark.sql.types import DecimalType, DoubleType, FloatType
+        from pyspark.sql.utils import AnalysisException
 
+        df = event
+        source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
-            if "ranges" not in column_map:
+            if not self.get_ranges_key() in column_map:
+                if column not in source_column_names:
+                    continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
-                event = event.withColumn(
-                    new_column_name, mapping_expr.getItem(col(column))
-                )
+                try:
+                    df = df.withColumn(
+                        new_column_name,
+                        when(
+                            col(column).isin(list(column_map.keys())),
+                            mapping_expr.getItem(col(column)),
+                        ).otherwise(col(column)),
+                    )
+                #  if failed to use otherwise it is probably because the new column has different type
+                #  then the original column.
+                #  we will try to replace the values without using 'otherwise'.
+                except AnalysisException:
+                    df = df.withColumn(
+                        new_column_name, mapping_expr.getItem(col(column))
+                    )
+                    col_type = df.schema[column].dataType
+                    new_col_type = df.schema[new_column_name].dataType
+                    #  in order to avoid exception at isna on non-decimal/float columns -
+                    #  we need to check their types before filtering.
+                    if isinstance(col_type, (FloatType, DoubleType, DecimalType)):
+                        column_filter = (~isnull(col(column))) & (~isnan(col(column)))
+                    else:
+                        column_filter = ~isnull(col(column))
+                    if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
+                        new_column_filter = isnull(col(new_column_name)) | isnan(
+                            col(new_column_name)
+                        )
+                    else:
+                        #  we need to check that every value replaced if we changed column type - except None or NaN.
+                        new_column_filter = isnull(col(new_column_name))
+                    mapping_to_null = [
+                        k
+                        for k, v in column_map.items()
+                        if v is None
+                        or (
+                            isinstance(v, (float, np.float64, np.float32, np.float16))
+                            and math.isnan(v)
+                        )
+                    ]
+                    turned_to_none_values = df.filter(
+                        column_filter & new_column_filter
+                    ).filter(~col(column).isin(mapping_to_null))
+
+                    if len(turned_to_none_values.head(1)) > 0:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"MapValues - mapping that changes column type must change all values accordingly,"
+                            f" which is not the case for column '{column}'"
+                        )
             else:
                 for val, val_range in column_map["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""
-                    if new_column_name in event.columns:
-                        otherwise = event[new_column_name]
-                    event = event.withColumn(
+                    if new_column_name in df.columns:
+                        otherwise = df[new_column_name]
+                    df = df.withColumn(
                         new_column_name,
                         when(
-                            (event[column] < max_val) & (event[column] >= min_val),
+                            (df[column] < max_val) & (df[column] >= min_val),
                             lit(val),
                         ).otherwise(otherwise),
                     )
 
         if not self.with_original_features:
-            event = event.select(*self.mapping.keys())
+            df = df.select(*self.mapping.keys())
 
-        return event
+        return df
+
+    @classmethod
+    def validate_args(cls, feature_set, **kwargs):
+        mapping = kwargs.get("mapping", [])
+        for column, column_map in mapping.items():
+            if not cls.get_ranges_key() in column_map:
+                types = set(
+                    type(val)
+                    for val in column_map.values()
+                    if type(val) is not None
+                    and not (
+                        isinstance(val, (float, np.float64, np.float32, np.float16))
+                        and math.isnan(val)
+                    )
+                )
+            else:
+                if len(column_map) > 1:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"MapValues - mapping values of the same column can not combine ranges and "
+                        f"single replacement, which is the case for column '{column}'"
+                    )
+                ranges_dict = column_map[cls.get_ranges_key()]
+                types = set()
+                for ranges_mapping_values in ranges_dict.values():
+                    range_types = set(
+                        type(val)
+                        for val in ranges_mapping_values
+                        if type(val) is not None
+                        and val != "-inf"
+                        and val != "inf"
+                        and not (
+                            isinstance(val, (float, np.float64, np.float32, np.float16))
+                            and math.isnan(val)
+                        )
+                    )
+                    types = types.union(range_types)
+            if len(types) > 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"MapValues - mapping values of the same column must be in the"
+                    f" same type, which was not the case for Column '{column}'"
+                )
+
+    @staticmethod
+    def get_ranges_key():
+        return "ranges"
 
 
 class Imputer(StepToDict, MLRunStep):
@@ -457,18 +554,6 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
-        self.fstore_date_format_to_spark_date_format = {
-            "day_of_year": "DD",
-            "day_of_month": "dd",
-            "dayofyear": "DD",
-            "dayofmonth": "dd",
-            "month": "MM",
-            "year": "yyyy",
-            "quarter": "Q",
-            "hour": "hh",
-            "minute": "mm",
-            "second": "ss",
-        }
 
     def _get_key_name(self, part: str):
         return f"{self.timestamp_col}_{part}"
@@ -505,16 +590,18 @@ class DateExtractor(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import date_format
+        import pyspark.sql.functions
 
         for part in self.parts:
-            if part in self.fstore_date_format_to_spark_date_format:
+            func = part
+            # spark's naming for these functions is without underscores
+            if func in ("day_of_year", "day_of_month"):
+                func = func.replace("_", "")
+            func = getattr(pyspark.sql.functions, func, None)
+            if func:
                 event = event.withColumn(
                     self._get_key_name(part),
-                    date_format(
-                        self.timestamp_col,
-                        self.fstore_date_format_to_spark_date_format[part],
-                    ),
+                    func(self.timestamp_col).cast("long"),
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(
@@ -560,8 +647,9 @@ class SetEventMetadata(MapClass):
         """
         if time_path:
             warnings.warn(
-                "SetEventMetadata's time_path parameter is deprecated and has no effect",
-                PendingDeprecationWarning,
+                "SetEventMetadata's 'time_path' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "It has no effect.",
+                FutureWarning,
             )
 
         kwargs["full_event"] = True
@@ -633,3 +721,13 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         return event.drop(*self.features)
+
+    @classmethod
+    def validate_args(cls, feature_set, **kwargs):
+        features = kwargs.get("features", [])
+        entity_names = list(feature_set.spec.entities.keys())
+        dropped_entities = set(features).intersection(entity_names)
+        if dropped_entities:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"DropFeatures can only drop features, not entities: {dropped_entities}"
+            )

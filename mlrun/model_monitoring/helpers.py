@@ -67,7 +67,7 @@ def initial_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image=tracking_policy[model_monitoring_constants.EventFieldType.STREAM_IMAGE],
+        image=tracking_policy.stream_image,
     )
 
     # Create monitoring serving graph
@@ -86,11 +86,11 @@ def initial_model_monitoring_stream_processing_function(
 
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
-        "MODEL_MONITORING_ACCESS_KEY",
+        model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-            "MODEL_MONITORING_ACCESS_KEY",
+            model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         ),
     )
 
@@ -130,9 +130,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image=tracking_policy[
-            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_IMAGE
-        ],
+        image=tracking_policy.default_batch_image,
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
@@ -142,11 +140,11 @@ def get_model_monitoring_batch_function(
 
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
-        "MODEL_MONITORING_ACCESS_KEY",
+        model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-            "MODEL_MONITORING_ACCESS_KEY",
+            model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         ),
     )
 

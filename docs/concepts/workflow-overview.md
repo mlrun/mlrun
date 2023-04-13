@@ -23,7 +23,7 @@ Refer to the **{ref}`tutorial`** for complete examples.
 
 ## Composing workflows
 
-Workflows are written as python functions that make use of {ref}` function <using-functions>` operations (run, build, deploy)
+Workflows are written as python functions that make use of {ref}` function <functions>` operations (run, build, deploy)
 and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
 
 For workflows to work in Kubeflow you need to add a decorator (`@dsl.pipeline(..)`) as shown below.
@@ -103,6 +103,10 @@ def newpipe():
     )
 ```
 
+```{admonition} Note
+For defining the steps order you can either use steps outputs as written above, or use `.after(step_1,step_2,..)` method, that allows the user to define the order of the workflow steps without the need to forward the outputs from the previous steps.
+```
+
 ## Saving workflows
 
 If you want to use workflows as part of an automated flow, save them and register them in the project. 
@@ -169,8 +173,7 @@ Instead of waiting for completion, you can set up a notification in Slack with a
 
 Use one of:
 ```
-# If you want to get slack notification after the run with the results summary, use
-# project.notifiers.slack(webhook="https://<webhook>")
+project.notifiers.add_notification(notification_type="slack",params={"webhook":"<user-slack-webhook>"})
 ```
 or in a Jupyter notebook with the` %env` magic command:
 ```

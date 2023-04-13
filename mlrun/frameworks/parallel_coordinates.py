@@ -14,7 +14,6 @@
 #
 import datetime
 import os
-import warnings
 from typing import List, Union
 
 import numpy as np
@@ -23,10 +22,7 @@ from IPython.core.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 import mlrun
-from mlrun.utils import flatten
-
-warnings.simplefilter(action="ignore", category=FutureWarning)
-
+from mlrun.utils import filter_warnings, flatten
 
 max_table_rows = 50
 
@@ -106,6 +102,7 @@ def _get_column_names(df: pd.DataFrame):
     return params, outputs
 
 
+@filter_warnings("ignore", FutureWarning)
 def gen_pcp_plot(
     source_df: pd.DataFrame,
     index_col: str,
@@ -239,6 +236,7 @@ def _runs_list_to_df(runs_list, extend_iterations=False):
     return runs_df
 
 
+@filter_warnings("ignore", FutureWarning)
 def compare_run_objects(
     runs_list: Union[mlrun.model.RunObject, List[mlrun.model.RunObject]],
     hide_identical: bool = True,
@@ -288,6 +286,7 @@ def compare_run_objects(
     return _show_and_export_html(plot_as_html, show, filename, runs_list=runs_list)
 
 
+@filter_warnings("ignore", FutureWarning)
 def compare_db_runs(
     project_name=None,
     run_name=None,

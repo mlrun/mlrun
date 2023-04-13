@@ -47,9 +47,9 @@ class Pipelines(
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
-        if project != "*" and (page_token or page_size or sort_by):
+        if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, or sorting"
+                "Filtering by project can not be used together with pagination"
             )
         if format_ == mlrun.api.schemas.PipelinesFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
@@ -73,6 +73,7 @@ class Pipelines(
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
+                    sort_by=sort_by,
                     filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])

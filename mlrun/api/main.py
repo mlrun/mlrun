@@ -15,27 +15,28 @@
 import asyncio
 import concurrent.futures
 import datetime
-import time
 import traceback
 import typing
-import uuid
 
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 import uvicorn
-import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.api.db.base
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.log_collector
 import mlrun.errors
+import mlrun.lists
 import mlrun.utils
+import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
+from mlrun.api.middlewares import init_middlewares
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -57,6 +58,14 @@ from mlrun.utils import logger
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 
+# When pushing notifications, push notifications only for runs that entered a terminal state
+# since the last time we pushed notifications.
+# On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+# and their notifications haven't been sent yet.
+# TODO: find better solution than a global variable for chunking the list of runs
+#      for which to push notifications
+_last_notification_push_time: datetime.datetime = None
+
 
 app = fastapi.FastAPI(
     title="MLRun",
@@ -72,8 +81,10 @@ app = fastapi.FastAPI(
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api
-# TODO: remove when 0.9.x versions are no longer relevant
+# TODO: remove in 1.4.0
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
+
+init_middlewares(app)
 
 
 @app.exception_handler(Exception)
@@ -83,10 +94,8 @@ async def generic_error_handler(request: fastapi.Request, exc: Exception):
         # we have no specific knowledge on what was the exception and what status code fits so we simply use 500
         # This handler is mainly to put the error message in the right place in the body so the client will be able to
         # show it
-        # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-        #  version can be changed to detail=error_message
         request,
-        fastapi.HTTPException(status_code=500, detail={"reason": error_message}),
+        fastapi.HTTPException(status_code=500, detail=error_message),
     )
 
 
@@ -102,79 +111,10 @@ async def http_status_error_handler(
         status_code=status_code,
         traceback=traceback.format_exc(),
     )
-    # TODO: 0.6.6 is the last version expecting the error details to be under reason, when it's no longer a relevant
-    #  version can be changed to detail=error_message
     return await http_exception_handler(
         request,
-        fastapi.HTTPException(
-            status_code=status_code, detail={"reason": error_message}
-        ),
+        fastapi.HTTPException(status_code=status_code, detail=error_message),
     )
-
-
-def get_client_address(scope):
-    # uvicorn expects this to be a tuple while starlette test client sets it to be a list
-    if isinstance(scope.get("client"), list):
-        scope["client"] = tuple(scope.get("client"))
-    return uvicorn.protocols.utils.get_client_addr(scope)
-
-
-@app.middleware("http")
-async def log_request_response(request: fastapi.Request, call_next):
-    request_id = str(uuid.uuid4())
-    silent_logging_paths = [
-        "healthz",
-    ]
-    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-        request.scope
-    )
-    start_time = time.perf_counter_ns()
-    if not any(
-        silent_logging_path in path_with_query_string
-        for silent_logging_path in silent_logging_paths
-    ):
-        logger.debug(
-            "Received request",
-            headers=request.headers,
-            method=request.method,
-            client_address=get_client_address(request.scope),
-            http_version=request.scope["http_version"],
-            request_id=request_id,
-            uri=path_with_query_string,
-        )
-    try:
-        response = await call_next(request)
-    except Exception as exc:
-        logger.warning(
-            "Request handling failed. Sending response",
-            # User middleware (like this one) runs after the exception handling middleware, the only thing running after
-            # it is starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
-            # and transforming it to 500 response. therefore we can statically assign status code to 500
-            status_code=500,
-            request_id=request_id,
-            uri=path_with_query_string,
-            method=request.method,
-            exc=exc,
-            traceback=traceback.format_exc(),
-        )
-        raise
-    else:
-        # convert from nanoseconds to milliseconds
-        elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
-        if not any(
-            silent_logging_path in path_with_query_string
-            for silent_logging_path in silent_logging_paths
-        ):
-            logger.debug(
-                "Sending response",
-                status_code=response.status_code,
-                request_id=request_id,
-                elapsed_time=elapsed_time_in_ms,
-                uri=path_with_query_string,
-                method=request.method,
-                headers=response.headers,
-            )
-        return response
 
 
 @app.on_event("startup")
@@ -231,6 +171,7 @@ async def move_api_to_online():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
             await _start_logs_collection()
+            await _start_periodic_stop_logs()
 
 
 async def _start_logs_collection():
@@ -264,9 +205,9 @@ async def _verify_log_collection_started_on_startup(
     start_logs_limit: asyncio.Semaphore,
 ):
     """
-    Verifies that log collection was started on startup for all runs which might started before the API initialization
-    or after upgrade.
-    In that case we want to make sure that all runs which are in non terminal state will have their logs collected
+    Verifies that log collection was started on startup for all runs which might have started before the API
+    initialization or after upgrade.
+    In that case we want to make sure that all runs which are in non-terminal state will have their logs collected
     with the new log collection method and runs which might have reached terminal state while the API was down will
     have their logs collected as well.
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
@@ -283,7 +224,7 @@ async def _verify_log_collection_started_on_startup(
         states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
     )
     logger.debug(
-        "Getting all runs which are might have reached terminal state while the API was down",
+        "Getting all runs which might have reached terminal state while the API was down",
         api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
     )
     runs.extend(
@@ -292,9 +233,15 @@ async def _verify_log_collection_started_on_startup(
             db_session,
             requested_logs_modes=[None, False],
             only_uids=False,
-            last_start_time_from=datetime.datetime.now(datetime.timezone.utc)
+            # We take the minimum between the api_downtime_grace_period and the runtime_resources_deletion_grace_period
+            # because we want to make sure that we don't miss any runs which might have reached terminal state while the
+            # API was down, and their runtime resources are not deleted
+            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(
-                hours=int(config.log_collector.api_downtime_grace_period)
+                seconds=min(
+                    int(config.log_collector.api_downtime_grace_period),
+                    int(config.runtime_resources_deletion_grace_period),
+                )
             ),
             states=mlrun.runtimes.constants.RunStates.terminal_states(),
         )
@@ -302,9 +249,15 @@ async def _verify_log_collection_started_on_startup(
     if runs:
         logger.debug(
             "Found runs which require logs collection",
-            runs_uids=runs,
+            runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
         )
-        await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+
+        # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
+        # where the log collection failed (e.g. when the pod is not found for runs that might have reached terminal
+        # state while the API was down)
+        await _start_log_and_update_runs(
+            start_logs_limit, db_session, runs, best_effort=True
+        )
 
 
 async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
@@ -325,7 +278,7 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         if runs:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=runs,
+                runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
             )
             await _start_log_and_update_runs(start_logs_limit, db_session, runs)
 
@@ -337,16 +290,19 @@ async def _start_log_and_update_runs(
     start_logs_limit: asyncio.Semaphore,
     db_session: sqlalchemy.orm.Session,
     runs: list,
+    best_effort: bool = False,
 ):
     if not runs:
         return
 
     # each result contains either run_uid or None
-    # if it's None it means something went wrong and we should skip it
+    # if it's None it means something went wrong, and we should skip it
     # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
     results = await asyncio.gather(
         *[
-            _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+            _start_log_for_run(
+                run, start_logs_limit, raise_on_error=False, best_effort=best_effort
+            )
             for run in runs
         ]
     )
@@ -369,8 +325,11 @@ async def _start_log_and_update_runs(
 
 
 async def _start_log_for_run(
-    run: dict, start_logs_limit: asyncio.Semaphore = None, raise_on_error: bool = True
-) -> typing.Union[str, None]:
+    run: dict,
+    start_logs_limit: asyncio.Semaphore = None,
+    raise_on_error: bool = True,
+    best_effort: bool = False,
+) -> typing.Optional[typing.Union[str, None]]:
     """
     Starts log collection for a specific run
     :param run: run object
@@ -388,23 +347,32 @@ async def _start_log_for_run(
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)
-        # if local run, the log collector doesn't support it
-        # we mark the run as requested logs collection so we won't iterate over it again
-        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind):
+
+        # information for why runtime isn't log collectable is inside the method
+        if not mlrun.runtimes.RuntimeKinds.is_log_collectable_runtime(run_kind):
+            # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler = await fastapi.concurrency.run_in_threadpool(
-                get_runtime_handler, run_kind
+            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+                await fastapi.concurrency.run_in_threadpool(
+                    get_runtime_handler, run_kind
+                )
             )
+            object_id = runtime_handler.resolve_object_id(run)
             label_selector = runtime_handler.resolve_label_selector(
                 project=project_name,
-                object_id=run_uid,
+                object_id=object_id,
                 class_mode=RuntimeClassMode.run,
+                # when collecting logs for runtimes we only collect for the main runtime resource, as there could be
+                # runtimes that the user will create with hundreds of resources (e.g mpi job can have multiple workers
+                # which aren't really important for log collection
+                with_main_runtime_resource_label_selector=True,
             )
             success, _ = await logs_collector_client.start_logs(
                 run_uid=run_uid,
                 selector=label_selector,
                 project=project_name,
+                best_effort=best_effort,
                 raise_on_error=True,
             )
             if success:
@@ -418,8 +386,7 @@ async def _start_log_for_run(
             logger.warning(
                 "Failed to start logs for run",
                 run_uid=run_uid,
-                exc=exc,
-                traceback=traceback.format_exc(),
+                exc=mlrun.errors.err_to_str(exc),
             )
             return None
 
@@ -440,6 +407,51 @@ def _start_periodic_runs_monitoring():
         run_function_periodically(
             interval, _monitor_runs.__name__, False, _monitor_runs
         )
+
+
+async def _start_periodic_stop_logs():
+    if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+        logger.info(
+            "Using legacy logs collection method, skipping stop logs periodic function",
+            mode=config.log_collector.mode,
+        )
+        return
+
+    await _verify_log_collection_stopped_on_startup()
+
+    interval = int(config.log_collector.stop_logs_interval)
+    if interval > 0:
+        logger.info("Starting periodic stop logs", interval=interval)
+        run_function_periodically(interval, _stop_logs.__name__, False, _stop_logs)
+
+
+async def _verify_log_collection_stopped_on_startup():
+    """
+    Pulls runs from DB that are in terminal state and have logs requested, and call stop logs for them.
+    This is done so that the log collector won't keep trying to collect logs for runs that are already
+    in terminal state.
+    """
+    logger.debug(
+        "Getting all runs which have reached terminal state and have logs requested",
+    )
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    try:
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        )
+
+        if len(runs) > 0:
+            logger.debug(
+                "Stopping logs for runs which reached terminal state before startup",
+                runs_count=len(runs),
+            )
+            await _stop_logs_for_runs(runs)
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 def _start_chief_clusterization_spec_sync_loop():
@@ -510,18 +522,20 @@ async def _align_worker_state_with_chief_state(
 
 
 def _monitor_runs():
+    db = get_db()
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(get_db(), db_session)
+                runtime_handler.monitor_runs(db, db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring",
                     exc=err_to_str(exc),
                     kind=kind,
                 )
+        _push_terminal_run_notifications(db, db_session)
     finally:
         close_session(db_session)
 
@@ -541,6 +555,95 @@ def _cleanup_runtimes():
                 )
     finally:
         close_session(db_session)
+
+
+def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+    """
+    Get all runs with notification configs which became terminal since the last call to the function
+    and push their notifications if they haven't been pushed yet.
+    """
+
+    # Import here to avoid circular import
+    import mlrun.api.api.utils
+
+    # When pushing notifications, push notifications only for runs that entered a terminal state
+    # since the last time we pushed notifications.
+    # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+    # and their notifications haven't been sent yet.
+    global _last_notification_push_time
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        last_update_time_from=_last_notification_push_time,
+        with_notifications=True,
+    )
+
+    # Unmasking the run parameters from secrets before handing them over to the notification handler
+    # as importing the `Secrets` crud in the notification handler will cause a circular import
+    unmasked_runs = [
+        mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)
+        for run in runs
+    ]
+
+    logger.debug(
+        "Got terminal runs with configured notifications", runs_amount=len(runs)
+    )
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
+
+    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
+
+
+async def _stop_logs():
+    """
+    Stop logs for runs that are in terminal state and last updated in the previous interval
+    """
+    logger.debug(
+        "Getting all runs which reached terminal state in the previous interval and have logs requested",
+        interval_seconds=int(config.log_collector.stop_logs_interval),
+    )
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    try:
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[True],
+            only_uids=False,
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=1.5 * config.log_collector.stop_logs_interval),
+        )
+
+        if len(runs) > 0:
+            logger.debug(
+                "Stopping logs for runs which reached terminal state in the previous interval",
+                runs_count=len(runs),
+            )
+            await _stop_logs_for_runs(runs)
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+
+async def _stop_logs_for_runs(runs: list):
+    project_to_run_uids = {}
+    for run in runs:
+        project_name = run.get("metadata", {}).get("project", None)
+        run_uid = run.get("metadata", {}).get("uid", None)
+        project_to_run_uids.setdefault(project_name, []).append(run_uid)
+
+    for project_name, run_uids in project_to_run_uids.items():
+        try:
+            await mlrun.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
+                project_name, run_uids
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed stopping logs for runs. Ignoring",
+                exc=err_to_str(exc),
+                project=project_name,
+                run_uids=run_uids,
+            )
 
 
 def main():

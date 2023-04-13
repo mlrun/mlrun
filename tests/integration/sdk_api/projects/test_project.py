@@ -42,6 +42,26 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             in str(exc.value)
         )
 
+    def test_sync_functions(self):
+        project_name = "project-name"
+        project = mlrun.new_project(project_name)
+        project.set_function("hub://describe", "describe")
+        project_function_object = project.spec._function_objects
+        project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+        project.export(str(project_file_path))
+        imported_project = mlrun.load_project("./", str(project_file_path))
+        assert imported_project.spec._function_objects == {}
+        imported_project.sync_functions()
+        _assert_project_function_objects(imported_project, project_function_object)
+
+        fn = project.get_function("describe")
+        assert fn.metadata.name == "describe", "func did not return"
+
+        # test that functions can be fetched from the DB (w/o set_function)
+        mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+        fn = project.get_function("train")
+        assert fn.metadata.name == "train", "train func did not return"
+
     def test_overwrite_project(self):
         project_name = "some-project"
 
@@ -54,18 +74,16 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             "name": "value",
             "name2": "value2",
         }
-        function = {
-            "test": "function",
-            "metadata": {"labels": labels},
-            "spec": {"asd": "asdasd"},
-            "status": {"bla": "blabla"},
-        }
-        function_names = ["function_name_1", "function_name_2", "function_name_3"]
+        function = mlrun.runtimes.KubejobRuntime()
+        for label_name, label_value in labels.items():
+            function.set_label(label_name, label_value)
+
+        function_names = ["function-name-1", "function-name-2", "function-name-3"]
         function_tags = ["some-tag", "some-tag2", "some-tag3"]
         for function_name in function_names:
             for function_tag in function_tags:
                 db.store_function(
-                    function,
+                    function.to_dict(),
                     function_name,
                     project.metadata.name,
                     tag=function_tag,
@@ -74,8 +92,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # create several artifacts
         artifact = {
-            "test": "artifact",
-            "labels": labels,
+            "kind": "artifact",
+            "metadata": {"labels": labels},
+            "spec": {"src_path": "/some/path"},
             "status": {"bla": "blabla"},
         }
         artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
@@ -95,7 +114,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         # verify artifacts and functions were created
         project_artifacts = project.list_artifacts()
         loaded_project_artifacts = projects[0].list_artifacts()
-        assert len(project_artifacts) == len(artifact_keys)
+        assert (
+            len(project_artifacts) == len(artifact_keys) * 2
+        )  # project artifacts include "latest"
         assert len(project_artifacts) == len(loaded_project_artifacts)
         assert project_artifacts == loaded_project_artifacts
 
@@ -203,6 +224,23 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         _assert_projects(expected_project, loaded_project_from_db)
 
+    def test_get_project(self):
+        project_name = "some-project"
+        # create an empty project
+        mlrun.get_or_create_project(project_name)
+        # get it from the db
+        project = mlrun.get_or_create_project(project_name)
+
+        # verify default values
+        assert project.metadata.name == project_name
+        assert project.metadata.labels == {}
+        assert project.metadata.annotations == {}
+        assert project.spec.params == {}
+        assert project.spec.functions == []
+        assert project.spec.workflows == []
+        assert project.spec.artifacts == []
+        assert project.spec.conda == ""
+
 
 def _assert_projects(expected_project, project):
     assert (
@@ -220,3 +258,19 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+def _assert_project_function_objects(project, expected_function_objects):
+    project_function_objects = project.spec._function_objects
+    assert len(project_function_objects) == len(expected_function_objects)
+    for function_name, function_object in expected_function_objects.items():
+        assert function_name in project_function_objects
+        assert (
+            deepdiff.DeepDiff(
+                project_function_objects[function_name].to_dict(),
+                function_object.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['build']['code_origin']"],
+            )
+            == {}
+        )

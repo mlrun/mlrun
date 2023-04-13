@@ -31,7 +31,9 @@ from sqlalchemy.orm import Session, aliased
 import mlrun
 import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.singletons.k8s
 import mlrun.errors
+import mlrun.model
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -53,6 +55,7 @@ from mlrun.api.db.sqldb.models import (
     Function,
     Log,
     MarketplaceSource,
+    Notification,
     Project,
     Run,
     Schedule,
@@ -73,6 +76,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_artifact_key_name,
     validate_tag_name,
 )
 
@@ -235,7 +239,7 @@ class SQLDB(DBInterface):
         project: str = None,
         requested_logs_modes: typing.List[bool] = None,
         only_uids=True,
-        last_start_time_from: datetime = None,
+        last_update_time_from: datetime = None,
         states: typing.List[str] = None,
     ) -> typing.Union[typing.List[str], RunList]:
         """
@@ -245,7 +249,7 @@ class SQLDB(DBInterface):
         :param requested_logs_modes: If not `None`, will return only runs with the given requested logs modes
         :param only_uids: If True, will return only the uids of the runs as list of strings
                           If False, will return the full run objects as RunList
-        :param last_start_time_from: If not `None`, will return only runs created after this time
+        :param last_update_time_from: If not `None`, will return only runs updated after this time
         :param states: If not `None`, will return only runs with the given states
         :return: List of runs uids or RunList
         """
@@ -261,8 +265,8 @@ class SQLDB(DBInterface):
         if states:
             query = query.filter(Run.state.in_(states))
 
-        if last_start_time_from is not None:
-            query = query.filter(Run.start_time >= last_start_time_from)
+        if last_update_time_from is not None:
+            query = query.filter(Run.updated >= last_update_time_from)
 
         if requested_logs_modes is not None:
             query = query.filter(Run.requested_logs.in_(requested_logs_modes))
@@ -324,6 +328,7 @@ class SQLDB(DBInterface):
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
+        with_notifications: bool = False,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -368,9 +373,28 @@ class SQLDB(DBInterface):
         if not return_as_run_structs:
             return query.all()
 
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
+            query = query.join(Notification, Run.id == Notification.run)
+
         runs = RunList()
         for run in query:
-            runs.append(run.struct)
+            run_struct = run.struct
+            if with_notifications:
+                run_struct.setdefault("spec", {}).setdefault("notifications", [])
+                run_struct.setdefault("status", {}).setdefault("notifications", {})
+                for notification in run.notifications:
+                    (
+                        notification_spec,
+                        notification_status,
+                    ) = self._transform_notification_record_to_spec_and_status(
+                        notification
+                    )
+                    run_struct["spec"]["notifications"].append(notification_spec)
+                    run_struct["status"]["notifications"][
+                        notification.name
+                    ] = notification_status
+            runs.append(run_struct)
 
         return runs
 
@@ -506,7 +530,7 @@ class SQLDB(DBInterface):
             # indication that the tag which is passed is uid
             # 2. if uid wasn't passed as part of the identifiers then
             # we will ask for tag "*" and in that case we don't want to use the tag as uid
-            use_tag_as_uid=True if identifier.uid else False,
+            use_tag_as_uid=bool(identifier.uid),
         )
 
     @retry_on_conflict
@@ -596,6 +620,8 @@ class SQLDB(DBInterface):
         existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
+            # for backwards compatibility only validating key name on new artifacts
+            validate_artifact_key_name(key, "artifact.key")
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
             existed = False
 
@@ -703,9 +729,7 @@ class SQLDB(DBInterface):
                 "best-iteration cannot be used when iter is specified"
             )
         # TODO: Refactor this area
-        # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
-        # old way - by the updated field
-        ids = "latest"
+        ids = "*"
         if tag:
             # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
             # producer and not by context, this because when were logging artifacts using the project producer we were
@@ -796,15 +820,12 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            # ids = "latest" and not tag means that it was not given by the user, so we will not set the tag in the
-            # artifact struct
-            if ids != "latest" or tag:
-                artifacts_with_tag = self._add_tags_to_artifact_struct(
-                    session, artifact_struct, artifact.id, tag
-                )
-                artifacts.extend(artifacts_with_tag)
-            else:
-                artifacts.append(artifact_struct)
+
+            # set the tags in the artifact struct
+            artifacts_with_tag = self._add_tags_to_artifact_struct(
+                session, artifact_struct, artifact.id, tag
+            )
+            artifacts.extend(artifacts_with_tag)
 
         return artifacts
 
@@ -940,7 +961,8 @@ class SQLDB(DBInterface):
         body_name = function.get("metadata", {}).get("name")
         if body_name and body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested name and name in function body"
+                f"Conflict between requested name and name in function body, function name is {name} while body_name is"
+                f" {body_name}"
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
@@ -1026,16 +1048,23 @@ class SQLDB(DBInterface):
         for tagged_class in _tagged:
             self._delete(session, tagged_class, project=project)
 
-    def _delete_resources_labels(self, session: Session, project: str):
-        for labeled_class in _labeled:
-            if hasattr(labeled_class, "project"):
-                self._delete(session, labeled_class, project=project)
-
-    def list_functions(self, session, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self,
+        session: Session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        labels: List[str] = None,
+        hash_key: str = None,
+    ) -> typing.Union[FunctionList, List[dict]]:
         project = project or config.default_project
         uids = None
         if tag:
             uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
+            if hash_key:
+                uids = [uid for uid in uids if uid == hash_key] or None
+        if not tag and hash_key:
+            uids = [hash_key]
         functions = FunctionList()
         for function in self._find_functions(session, name, project, uids, labels):
             function_dict = function.struct
@@ -1065,6 +1094,11 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = tag
                 functions.append(function_dict)
         return functions
+
+    def _delete_resources_labels(self, session: Session, project: str):
+        for labeled_class in _labeled:
+            if hasattr(labeled_class, "project"):
+                self._delete(session, labeled_class, project=project)
 
     def _delete_function_tags(self, session, project, function_name, commit=True):
         query = session.query(Function.Tag).filter(
@@ -1289,10 +1323,10 @@ class SQLDB(DBInterface):
         ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
-        # found a bug in here, which is being exposed for when have multi-param execution, this because each
-        # artifact key is being concatenated with the key and the iteration, this because problemtic in this query
+        # found a bug in here, which is being exposed for when have multi-param execution.
+        # each artifact key is being concatenated with the key and the iteration, this is problematic in this query
         # because we are filtering by the key+iteration and not just the key ( which would require some regex )
-        # this would be fixed as part of the refactoring of the new artifact table structure where we would have
+        # it would be fixed as part of the refactoring of the new artifact table structure where we would have
         # column for iteration as well.
         for artifact in artifacts:
             query = (
@@ -1682,6 +1716,10 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
+        notifications = self._get_db_notifications(session, project=name)
+        self._verify_empty_list_of_project_related_resources(
+            name, notifications, "notifications"
+        )
         schedules = self.list_schedules(session, project=name)
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
@@ -1702,6 +1740,7 @@ class SQLDB(DBInterface):
     def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
+        self.delete_run_notifications(session, project=name)
         self.del_runs(session, project=name)
         self.delete_schedules(session, name)
         self._delete_functions(session, name)
@@ -2825,6 +2864,13 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
+    def _get_db_notifications(
+        self, session, name: str = None, run_id: int = None, project: str = None
+    ):
+        return self._query(
+            session, Notification, name=name, run=run_id, project=project
+        ).all()
+
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
@@ -3160,6 +3206,35 @@ class SQLDB(DBInterface):
             return project
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
+
+    def _transform_notification_record_to_spec_and_status(
+        self,
+        notification_record: Notification,
+    ) -> typing.Tuple[dict, dict]:
+        notification_spec = self._transform_notification_record_to_schema(
+            notification_record
+        ).to_dict()
+        notification_status = {
+            "status": notification_spec.pop("status", None),
+            "sent_time": notification_spec.pop("sent_time", None),
+        }
+        return notification_spec, notification_status
+
+    @staticmethod
+    def _transform_notification_record_to_schema(
+        notification_record: Notification,
+    ) -> mlrun.model.Notification:
+        return mlrun.model.Notification(
+            kind=notification_record.kind,
+            name=notification_record.name,
+            message=notification_record.message,
+            severity=notification_record.severity,
+            when=notification_record.when.split(","),
+            condition=notification_record.condition,
+            params=notification_record.params,
+            status=notification_record.status,
+            sent_time=notification_record.sent_time,
+        )
 
     def _move_and_reorder_table_items(
         self, session, moved_object, move_to=None, move_from=None
@@ -3536,3 +3611,100 @@ class SQLDB(DBInterface):
         ):
             return True
         return False
+
+    def store_run_notifications(
+        self,
+        session,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str,
+    ):
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+        run = self._get_run(session, run_uid, project, 0)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: uid={run_uid}, project={project}"
+            )
+
+        run_notifications = {
+            notification.name: notification
+            for notification in self._get_db_notifications(session, run_id=run.id)
+        }
+        notifications = []
+        for notification_model in notification_objects:
+            new_notification = False
+            notification = run_notifications.get(notification_model.name, None)
+            if not notification:
+                new_notification = True
+                notification = Notification(
+                    name=notification_model.name, run=run.id, project=project
+                )
+
+            notification.kind = notification_model.kind
+            notification.message = notification_model.message
+            notification.severity = notification_model.severity
+            notification.when = ",".join(notification_model.when)
+            notification.condition = notification_model.condition
+            notification.params = notification_model.params
+            notification.status = (
+                notification_model.status
+                or mlrun.api.schemas.NotificationStatus.PENDING
+            )
+            notification.sent_time = notification_model.sent_time
+
+            logger.debug(
+                f"Storing {'new' if new_notification else 'existing'} notification",
+                notification_name=notification.name,
+                run_uid=run_uid,
+                project=project,
+            )
+            notifications.append(notification)
+
+        self._upsert(session, notifications)
+
+    def list_run_notifications(
+        self,
+        session,
+        run_uid: str,
+        project: str = "",
+    ) -> typing.List[mlrun.model.Notification]:
+
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+        run = self._get_run(session, run_uid, project, 0)
+        if not run:
+            return []
+
+        return [
+            self._transform_notification_record_to_schema(notification)
+            for notification in self._query(session, Notification, run=run.id).all()
+        ]
+
+    def delete_run_notifications(
+        self,
+        session,
+        name: str = None,
+        run_uid: str = None,
+        project: str = None,
+        commit: bool = True,
+    ):
+        run_id = None
+        if run_uid:
+
+            # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+            run = self._get_run(session, run_uid, project, 0)
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Run not found: uid={run_uid}, project={project}"
+                )
+            run_id = run.id
+
+        project = project or config.default_project
+        if project == "*":
+            project = None
+
+        query = self._get_db_notifications(session, name, run_id, project)
+        for notification in query:
+            session.delete(notification)
+
+        if commit:
+            session.commit()

@@ -37,6 +37,10 @@ class DBBackupUtil(object):
 
     def backup_database(self, backup_file_name: str = None) -> None:
         backup_file_name = backup_file_name or self._generate_backup_file_name()
+
+        # ensure the backup directory exists
+        self._get_db_dir_path().mkdir(parents=True, exist_ok=True)
+
         if ":memory:" in mlconf.httpdb.dsn:
             return
         elif "mysql" in mlconf.httpdb.dsn:

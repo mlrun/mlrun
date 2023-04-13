@@ -68,14 +68,16 @@ def post_report_session_finish_to_slack(
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
     total_executed_tests = session.testscollected
     total_failed_tests = session.testsfailed
+    text = ""
+    if mlrun_current_branch:
+        text += f"[{mlrun_current_branch}] "
+
     if exitstatus == ExitCode.OK:
         text = f"All {total_executed_tests} tests passed successfully"
     else:
         text = f"{total_failed_tests} out of {total_executed_tests} tests failed"
 
     test_session_info = ""
-    if mlrun_current_branch:
-        test_session_info += f" on branch: {mlrun_current_branch}"
     if mlrun_system_tests_component:
         test_session_info += f"Component: {mlrun_system_tests_component}"
     else:

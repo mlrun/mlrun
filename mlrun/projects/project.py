@@ -1536,7 +1536,6 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
-        name = mlrun.utils.normalize_name(name) if name else name
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):

@@ -194,7 +194,13 @@ class KubejobRuntime(KubeResource):
                     or "/mlrun/" in build.base_image
                 )
 
-        if not build.source and not build.commands and not build.extra and with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"

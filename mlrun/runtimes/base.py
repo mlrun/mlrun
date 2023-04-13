@@ -1330,8 +1330,10 @@ class BaseRuntime(ModelObj):
 
     def verify_base_image(self):
         build = self.spec.build
-        require_build = build.commands or (
-            build.source and not build.load_source_on_run
+        require_build = (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
         )
         image = self.spec.image
         # we allow users to not set an image, in that case we'll use the default

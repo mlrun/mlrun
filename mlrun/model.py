@@ -338,6 +338,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
+        requirements: list = None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -355,6 +356,7 @@ class ImageBuilder(ModelObj):
         self.with_mlrun = with_mlrun  #: with_mlrun
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
+        self.requirements = requirements or []  #: pip requirements
 
     @property
     def source(self):

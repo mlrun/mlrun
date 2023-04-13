@@ -83,7 +83,20 @@ def test_build_config_preserve_order():
         assert function.spec.build.commands == commands
 
 
-def test_build_runtime_insecure_registries(monkeypatch):
+@pytest.mark.parametrize(
+    "pull_mode,push_mode,secret,flags_expected",
+    [
+        ("auto", "auto", "", True),
+        ("auto", "auto", "some-secret-name", False),
+        ("enabled", "enabled", "some-secret-name", True),
+        ("enabled", "enabled", "", True),
+        ("disabled", "disabled", "some-secret-name", False),
+        ("disabled", "disabled", "", False),
+    ],
+)
+def test_build_runtime_insecure_registries(
+    monkeypatch, pull_mode, push_mode, secret, flags_expected
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
@@ -96,62 +109,24 @@ def test_build_runtime_insecure_registries(monkeypatch):
     )
 
     insecure_flags = {"--insecure", "--insecure-pull"}
-    for case in [
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "some-secret-name",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "",
-            "flags_expected": False,
-        },
-    ]:
-        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = case["pull_mode"]
-        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
-        mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
-        mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(),
-            function,
-        )
-        assert (
-            insecure_flags.issubset(
-                set(
-                    mlrun.builder.get_k8s_helper()
-                    .create_pod.call_args[0][0]
-                    .pod.spec.containers[0]
-                    .args
-                )
+    mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = pull_mode
+    mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        insecure_flags.issubset(
+            set(
+                mlrun.builder.get_k8s_helper()
+                .create_pod.call_args[0][0]
+                .pod.spec.containers[0]
+                .args
             )
-            == case["flags_expected"]
         )
+        == flags_expected
+    )
 
 
 def test_build_runtime_target_image(monkeypatch):

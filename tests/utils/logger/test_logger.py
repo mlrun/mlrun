@@ -92,3 +92,17 @@ def test_exception_with_stack(make_stream_logger):
         test_logger.exception("This is just a test")
     assert str(err) in stream.getvalue()
     assert "This is just a test" in stream.getvalue()
+
+
+# Regression test for duplicate logs bug fixed in PR #3381
+def test_redundant_logger_creation():
+    stream = StringIO()
+    logger1 = create_logger("debug", name="test-logger", stream=stream)
+    logger2 = create_logger("debug", name="test-logger", stream=stream)
+    logger3 = create_logger("debug", name="test-logger", stream=stream)
+    logger1.info("1")
+    assert stream.getvalue().count("[info] 1\n") == 1
+    logger2.info("2")
+    assert stream.getvalue().count("[info] 2\n") == 1
+    logger3.info("3")
+    assert stream.getvalue().count("[info] 3\n") == 1

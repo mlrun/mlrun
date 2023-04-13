@@ -13,7 +13,6 @@
 # limitations under the License.
 import ast
 import datetime
-import hashlib
 import os
 import random
 import time
@@ -1114,7 +1113,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         if isinstance(key_column, list) and len(key_column) >= 1:
             spark_options["key"] = key_column[0]
             if len(key_column) > 2:
-                spark_options["sorting-key"] = "_spark_object_sorting_key"
+                spark_options["sorting-key"] = "_spark_object_name"
             if len(key_column) == 2:
                 spark_options["sorting-key"] = key_column[1]
         else:
@@ -1124,27 +1123,20 @@ class NoSqlTarget(NoSqlBaseTarget):
         return spark_options
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import col, udf
-        from pyspark.sql.types import StringType
+        from pyspark.sql.functions import col
+
+        import spark_udf
+
+        df.rdd.context.addFile(spark_udf.__file__)
 
         for col_name, col_type in df.dtypes:
             if col_type.startswith("decimal("):
                 # V3IO does not support this level of precision
                 df = df.withColumn(col_name, col(col_name).cast("double"))
         if len(key_columns) > 2:
-            hash_and_concat_udf = udf(
-                # UDF has no access to all the hash_list(), so we do all inline in lambda:
-                # lambda *x: storey.hash_list([str(i) for i in x]), StringType()
-                lambda *x: (
-                    lambda l: hashlib.sha1(
-                        "".join([str(e) for e in l]).encode("utf8")
-                    ).hexdigest()
-                )(x),
-                StringType(),
-            )
             return df.withColumn(
-                "_spark_object_sorting_key",
-                hash_and_concat_udf(*[col(c) for c in key_columns[1:]]),
+                "_spark_object_name",
+                hash_and_concat_v3io_udf(*[col(c) for c in key_columns[1:]]),
             )
         return df
 
@@ -1207,39 +1199,21 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return endpoint
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import col, udf
-        from pyspark.sql.types import StringType
+        from pyspark.sql.functions import col
+
+        import spark_udf
+
+        df.rdd.context.addFile(spark_udf.__file__)
 
         if len(key_columns) > 1:
-            # UDF has no access to all the stringify_key(), so we do all inline in lambda:
-            hash_and_concat_udf = udf(
-                # lambda *x: storey.stringify_key([str(i) for i in x]) + "}:static", StringType()
-                lambda *x: (
-                    lambda k: k
-                    if isinstance(k, str)
-                    else (
-                        str(k[0])
-                        + "."
-                        + (
-                            lambda l: hashlib.sha1(
-                                "".join([str(e) for e in l]).encode("utf8")
-                            ).hexdigest()
-                            if l and len(l) >= 2
-                            else str(l[0])
-                        )(k[1:])
-                        if len(k) >= 3
-                        else (str(k[1]) if len(k) == 2 else str(k[0]))
-                    )
-                )([str(i) for i in x])
-                + "}:static"
-            )
             return df.withColumn(
                 "_spark_object_name",
-                hash_and_concat_udf(*[col(c) for c in key_columns]),
+                hash_and_concat_redis_multiple_keys_udf(*[col(c) for c in key_columns[1:]]),
             )
         else:
-            udf1 = udf(lambda x: str(x) + "}:static", StringType())
-            return df.withColumn("_spark_object_name", udf1(key_columns[0]))
+            return df.withColumn(
+                "_spark_object_name", hash_and_concat_redis_udf(key_columns[0])
+            )
 
 
 class StreamTarget(BaseStoreTarget):

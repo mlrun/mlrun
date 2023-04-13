@@ -383,7 +383,7 @@ class DataItem:
         return self._store.listdir(self._path)
 
     def local(self):
-        """get the local path of the file, download to tmp first if its a remote object"""
+        """get the local path of the file, download to tmp first if it's a remote object"""
         if self.kind == "file":
             return self._path
         if self._local_path:
@@ -396,6 +396,15 @@ class DataItem:
         logger.info(f"downloading {self.url} to local temp file")
         self.download(self._local_path)
         return self._local_path
+
+    def remove_local(self):
+        """remove the local file if it exists and was downloaded from a remote object"""
+        if self.kind == "file":
+            return
+
+        if self._local_path:
+            remove(self._local_path)
+            self._local_path = ""
 
     def as_df(
         self,

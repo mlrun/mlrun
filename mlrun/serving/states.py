@@ -28,7 +28,7 @@ from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
-from .utils import _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -206,7 +206,7 @@ class BaseStep(ModelObj):
 
     def to(
         self,
-        class_name: Union[str, type] = None,
+        class_name: Union[str, StepToDict] = None,
         name: str = None,
         handler: str = None,
         graph_shape: str = None,
@@ -828,7 +828,6 @@ class FlowStep(BaseStep):
 
         for step in self._steps.values():
             step.set_parent(self)
-            context.logger.info_with("Initializing step", step=step.name)
             step.init_object(context, namespace, mode, reset=reset)
         self._set_error_handler()
         self._post_init(mode)
@@ -955,7 +954,10 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
-            for item in state.next or []:
+            next_steps = state.next or []
+            if state.on_error:
+                next_steps.append(state.on_error)
+            for item in next_steps:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)

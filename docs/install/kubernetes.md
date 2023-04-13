@@ -1,6 +1,10 @@
 (install-on-kubernetes)=
 # Install MLRun on Kubernetes
 
+```{admonition} Note
+These instructions install the community edition, which currently includes MLRun 1.2.1. See the [release documentation](https://docs.mlrun.org/en/v1.2.1/index.html).
+```
+
 **In this section**
 - [Prerequisites](#prerequisites)
 - [Community Edition Flavors](#community-edition-flavors)
@@ -28,7 +32,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
-The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
+The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
 ```
 
 ## Community Edition flavors
@@ -289,8 +293,25 @@ In order to upgrade to the latest version of the chart, first make sure you have
 helm repo update
 ```
 
-Then upgrade the chart:
+Then try to upgrade the chart:
 
 ```bash
-helm upgrade --install --reuse-values mlrun-ce mlrun-ce/mlrun-ce
+helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
+```
+
+If it fails, you should reinstall the chart:
+
+1. remove current mlrun-ce
+```bash
+mkdir ~/tmp
+helm get values -n mlrun mlrun-ce > ~/tmp/mlrun-ce-values.yaml
+helm uninstall mlrun-ce
+```
+2.  reinstall mlrun-ce, reuse values
+```bash
+helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlrun-ce --devel
+```
+
+```{admonition} Note
+If your values have fixed mlrun service versions (e..g: mlrun:1.2.1) then you might want to remove it from the values file to allow newer chart defaults to kick in
 ```

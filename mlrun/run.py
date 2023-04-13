@@ -57,7 +57,6 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     get_runtime_class,
 )
@@ -127,6 +126,7 @@ def run_local(
     artifact_path: str = "",
     mode: str = None,
     allow_empty_resources=None,
+    notifications: List[mlrun.model.Notification] = None,
     returns: list = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
@@ -216,6 +216,7 @@ def run_local(
         inputs=inputs,
         returns=returns,
         artifact_path=artifact_path,
+        notifications=notifications,
     )
 
 
@@ -700,7 +701,6 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     RemoteSparkRuntime,
 ]:

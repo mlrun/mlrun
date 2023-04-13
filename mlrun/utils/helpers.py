@@ -139,13 +139,17 @@ class run_keys:
 
 
 def verify_field_regex(
-    field_name, field_value, patterns, raise_on_failure: bool = True
+    field_name,
+    field_value,
+    patterns,
+    raise_on_failure: bool = True,
+    log_message: str = "Field is malformed. Does not match required pattern",
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
             log_func(
-                "Field is malformed. Does not match required pattern",
+                log_message,
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
@@ -172,6 +176,19 @@ def validate_tag_name(
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
+        log_message="Special characters are not permitted in tag names",
+    )
+
+
+def validate_artifact_key_name(
+    artifact_key: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        artifact_key,
+        mlrun.utils.regex.artifact_key,
+        raise_on_failure=raise_on_failure,
+        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
 
 

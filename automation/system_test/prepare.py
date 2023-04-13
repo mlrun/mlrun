@@ -42,6 +42,7 @@ class SystemTestPreparer:
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
         system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+        namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
 
@@ -69,6 +70,9 @@ class SystemTestPreparer:
         spark_service: str = None,
         password: str = None,
         slack_webhook_url: str = None,
+        mysql_user: str = None,
+        mysql_password: str = None,
+        purge_db: bool = False,
         debug: bool = False,
     ):
         self._logger = logger
@@ -91,6 +95,9 @@ class SystemTestPreparer:
         self._provctl_download_s3_access_key = provctl_download_s3_access_key
         self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
+        self._mysql_user = mysql_user
+        self._mysql_password = mysql_password
+        self._purge_db = purge_db
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -133,6 +140,12 @@ class SystemTestPreparer:
         self._download_provctl()
 
         self._override_mlrun_api_env()
+
+        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
+        # that run as part of the patch would succeed even if we move from a newer version to an older one
+        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
+        if self._purge_db:
+            self._purge_mlrun_db()
 
         self._patch_mlrun()
 
@@ -334,7 +347,10 @@ class SystemTestPreparer:
             "apiVersion": "v1",
             "data": data,
             "kind": "ConfigMap",
-            "metadata": {"name": "mlrun-override-env", "namespace": "default-tenant"},
+            "metadata": {
+                "name": "mlrun-override-env",
+                "namespace": self.Constants.namespace,
+            },
         }
         manifest_file_name = "override_mlrun_registry.yml"
         self._run_command(
@@ -473,6 +489,9 @@ class SystemTestPreparer:
                 self._data_cluster_ssh_password,
                 "patch",
                 "appservice",
+                # we force because by default provctl doesn't allow downgrading between version but due to system tests
+                # running on multiple branches this might occur.
+                "--force",
                 "mlrun",
                 mlrun_archive,
             ],
@@ -501,6 +520,71 @@ class SystemTestPreparer:
             self._iguazio_version = self._iguazio_version.decode("utf-8")
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
+        )
+
+    def _purge_mlrun_db(self):
+        """
+        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
+        """
+        self._delete_mlrun_db()
+        self._scale_down_mlrun_deployments()
+
+    def _delete_mlrun_db(self):
+        self._logger.info("Deleting mlrun db")
+
+        get_mlrun_db_pod_name_cmd = self._get_pod_name_command(
+            labels={
+                "app.kubernetes.io/component": "db",
+                "app.kubernetes.io/instance": "mlrun",
+            },
+        )
+
+        password = ""
+        if self._mysql_password:
+            password = f"-p {self._mysql_password} "
+
+        drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
+        self._run_kubectl_command(
+            args=[
+                "exec",
+                "-n",
+                self.Constants.namespace,
+                "-it",
+                f"$({get_mlrun_db_pod_name_cmd})",
+                "--",
+                drop_db_cmd,
+            ],
+            verbose=False,
+        )
+
+    def _get_pod_name_command(self, labels, namespace=None):
+        namespace = namespace or self.Constants.namespace
+        labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
+        return "kubectl get pods -n {namespace} -l {labels_selector} | tail -n 1 | awk '{{print $1}}'".format(
+            namespace=namespace, labels_selector=labels_selector
+        )
+
+    def _scale_down_mlrun_deployments(self):
+        # scaling down to avoid automatically deployments restarts and failures
+        self._logger.info("scaling down mlrun deployments")
+        self._run_kubectl_command(
+            args=[
+                "scale",
+                "deployment",
+                "-n",
+                self.Constants.namespace,
+                "mlrun-api-chief",
+                "mlrun-api-worker",
+                "mlrun-db",
+                "--replicas=0",
+            ]
+        )
+
+    def _run_kubectl_command(self, args, verbose=True):
+        self._run_command(
+            command="kubectl",
+            args=args,
+            verbose=verbose,
         )
 
 
@@ -552,6 +636,9 @@ def main():
 @click.argument("spark-service", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
 @click.argument("slack-webhook-url", type=str, default=None, required=False)
+@click.argument("mysql-user", type=str, default=None, required=False)
+@click.argument("mysql-password", type=str, default=None, required=False)
+@click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
 @click.option(
     "--debug",
     "-d",
@@ -581,6 +668,9 @@ def run(
     spark_service: str,
     password: str,
     slack_webhook_url: str,
+    mysql_user: str,
+    mysql_password: str,
+    purge_db: bool,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
@@ -606,6 +696,9 @@ def run(
         spark_service,
         password,
         slack_webhook_url,
+        mysql_user,
+        mysql_password,
+        purge_db,
         debug,
     )
     try:

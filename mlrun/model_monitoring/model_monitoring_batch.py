@@ -31,11 +31,12 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring
+import mlrun.model_monitoring.stores
 import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
 
 
@@ -461,6 +462,7 @@ def calculate_inputs_statistics(
 
     :returns: The calculated statistics of the inputs data.
     """
+
     # Use `DFDataInfer` to calculate the statistics over the inputs:
     inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
         df=inputs,
@@ -567,7 +569,10 @@ class BatchProcessor:
         )
 
         # Get a runtime database
-        self.db = mlrun.get_run_db()
+        # self.db = mlrun.get_run_db()
+        self.db = mlrun.model_monitoring.stores.get_model_endpoint_store(
+            project=project
+        )
 
         # Get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
@@ -584,7 +589,9 @@ class BatchProcessor:
         self.exception = None
 
         # Get the batch interval range
-        self.batch_dict = context.parameters[EventFieldType.BATCH_INTERVALS_DICT]
+        self.batch_dict = context.parameters[
+            mlrun.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+        ]
 
         # TODO: This will be removed in 1.2.0 once the job params can be parsed with different types
         # Convert batch dict string into a dictionary
@@ -614,231 +621,244 @@ class BatchProcessor:
         """
         # Get model endpoints (each deployed project has at least 1 serving model):
         try:
-            endpoints = self.db.list_model_endpoints(self.project)
+            endpoints = self.db.list_model_endpoints()
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
 
-        active_endpoints = set()
-        for endpoint in endpoints.endpoints:
+        for endpoint in endpoints:
             if (
-                endpoint.spec.active
-                and endpoint.spec.monitoring_mode
-                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+                endpoint[mlrun.model_monitoring.EventFieldType.ACTIVE]
+                and endpoint[mlrun.model_monitoring.EventFieldType.MONITORING_MODE]
+                == mlrun.model_monitoring.ModelMonitoringMode.enabled.value
             ):
-                active_endpoints.add(endpoint.metadata.uid)
-
-        # perform drift analysis for each model endpoint
-        for endpoint_id in active_endpoints:
-            try:
-
-                # Get model endpoint object:
-                endpoint = self.db.get_model_endpoint(
-                    project=self.project, endpoint_id=endpoint_id
-                )
-
                 # Skip router endpoint:
                 if (
-                    endpoint.status.endpoint_type
-                    == mlrun.utils.model_monitoring.EndpointType.ROUTER
+                    int(endpoint[mlrun.model_monitoring.EventFieldType.ENDPOINT_TYPE])
+                    == mlrun.model_monitoring.EndpointType.ROUTER
                 ):
-                    # endpoint.status.feature_stats is None
-                    logger.info(f"{endpoint_id} is router skipping")
-                    continue
-
-                # convert feature set into dataframe and get the latest dataset
-                (
-                    _,
-                    serving_function_name,
-                    _,
-                    _,
-                ) = mlrun.utils.helpers.parse_versioned_object_uri(
-                    endpoint.spec.function_uri
-                )
-
-                model_name = endpoint.spec.model.replace(":", "-")
-
-                m_fs = fstore.get_feature_set(
-                    f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
-                )
-
-                # Getting batch interval start time and end time
-                start_time, end_time = self.get_interval_range()
-
-                try:
-                    df = m_fs.to_dataframe(
-                        start_time=start_time,
-                        end_time=end_time,
-                        time_column="timestamp",
+                    # Router endpoint has no feature stats
+                    logger.info(
+                        f"{endpoint[mlrun.model_monitoring.EventFieldType.UID]} is router skipping"
                     )
+                    continue
+                self.update_drift_metrics(endpoint=endpoint)
 
-                    if len(df) == 0:
-                        logger.warn(
-                            "Not enough model events since the beginning of the batch interval",
-                            parquet_target=m_fs.status.targets[0].path,
-                            endpoint=endpoint_id,
-                            min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                            start_time=str(
-                                datetime.datetime.now() - datetime.timedelta(hours=1)
-                            ),
-                            end_time=str(datetime.datetime.now()),
-                        )
-                        continue
+    def update_drift_metrics(self, endpoint: dict):
+        try:
+            # Convert feature set into dataframe and get the latest dataset
+            (
+                _,
+                serving_function_name,
+                _,
+                _,
+            ) = mlrun.utils.helpers.parse_versioned_object_uri(
+                endpoint[mlrun.model_monitoring.EventFieldType.FUNCTION_URI]
+            )
 
-                # TODO: The below warn will be removed once the state of the Feature Store target is updated
-                #       as expected. In that case, the existence of the file will be checked before trying to get
-                #       the offline data from the feature set.
-                # Continue if not enough events provided since the deployment of the model endpoint
-                except FileNotFoundError:
+            model_name = endpoint[mlrun.model_monitoring.EventFieldType.MODEL].replace(
+                ":", "-"
+            )
+
+            m_fs = fstore.get_feature_set(
+                f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
+            )
+
+            # Getting batch interval start time and end time
+            start_time, end_time = self.get_interval_range()
+
+            try:
+                df = m_fs.to_dataframe(
+                    start_time=start_time,
+                    end_time=end_time,
+                    time_column="timestamp",
+                )
+
+                if len(df) == 0:
                     logger.warn(
-                        "Parquet not found, probably due to not enough model events",
+                        "Not enough model events since the beginning of the batch interval",
                         parquet_target=m_fs.status.targets[0].path,
-                        endpoint=endpoint_id,
+                        endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                        start_time=str(
+                            datetime.datetime.now() - datetime.timedelta(hours=1)
+                        ),
+                        end_time=str(datetime.datetime.now()),
                     )
-                    continue
+                    return
 
-                # Get feature names from monitoring feature set
-                feature_names = [
-                    feature_name["name"]
-                    for feature_name in m_fs.spec.features.to_dict()
-                ]
+            # TODO: The below warn will be removed once the state of the Feature Store target is updated
+            #       as expected. In that case, the existence of the file will be checked before trying to get
+            #       the offline data from the feature set.
+            # Continue if not enough events provided since the deployment of the model endpoint
+            except FileNotFoundError:
+                logger.warn(
+                    "Parquet not found, probably due to not enough model events",
+                    parquet_target=m_fs.status.targets[0].path,
+                    endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                    min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                )
+                return
 
-                # Create DataFrame based on the input features
-                stats_columns = [
-                    "timestamp",
-                    *feature_names,
-                ]
+            # Get feature names from monitoring feature set
+            feature_names = [
+                feature_name["name"] for feature_name in m_fs.spec.features.to_dict()
+            ]
+            # Create DataFrame based on the input features
+            stats_columns = [
+                "timestamp",
+                *feature_names,
+            ]
+            # Add label names if provided
+            if endpoint[mlrun.model_monitoring.EventFieldType.LABEL_NAMES]:
+                labels = endpoint[mlrun.model_monitoring.EventFieldType.LABEL_NAMES]
+                if isinstance(labels, str):
+                    labels = json.loads(labels)
+                stats_columns.extend(labels)
 
-                # Add label names if provided
-                if endpoint.spec.label_names:
-                    stats_columns.extend(endpoint.spec.label_names)
+            named_features_df = df[stats_columns].copy()
 
-                named_features_df = df[stats_columns].copy()
+            # Infer feature set stats and schema
+            fstore.api._infer_from_static_df(
+                named_features_df,
+                m_fs,
+                options=mlrun.data_types.infer.InferOptions.all_stats(),
+            )
 
-                # Infer feature set stats and schema
-                fstore.api._infer_from_static_df(
-                    named_features_df,
-                    m_fs,
-                    options=mlrun.data_types.infer.InferOptions.all_stats(),
+            # Save feature set to apply changes
+            m_fs.save()
+
+            # Get the timestamp of the latest request:
+            timestamp = df["timestamp"].iloc[-1]
+
+            # Get the feature stats from the model endpoint for reference data
+            feature_stats = json.loads(
+                endpoint[mlrun.model_monitoring.EventFieldType.FEATURE_STATS]
+            )
+
+            # Get the current stats:
+            current_stats = calculate_inputs_statistics(
+                sample_set_statistics=feature_stats,
+                inputs=named_features_df,
+            )
+
+            # Compute the drift based on the histogram of the current stats and the histogram of the original
+            # feature stats that can be found in the model endpoint object:
+            drift_result = self.virtual_drift.compute_drift_from_histograms(
+                feature_stats=feature_stats,
+                current_stats=current_stats,
+            )
+            logger.info("Drift result", drift_result=drift_result)
+
+            # Get drift thresholds from the model configuration:
+            monitor_configuration = (
+                json.loads(
+                    endpoint[
+                        mlrun.model_monitoring.EventFieldType.MONITOR_CONFIGURATION
+                    ]
+                )
+                or {}
+            )
+            possible_drift = monitor_configuration.get(
+                "possible_drift", self.default_possible_drift_threshold
+            )
+            drift_detected = monitor_configuration.get(
+                "drift_detected", self.default_drift_detected_threshold
+            )
+
+            # Check for possible drift based on the results of the statistical metrics defined above:
+            drift_status, drift_measure = self.virtual_drift.check_for_drift(
+                metrics_results_dictionary=drift_result,
+                possible_drift_threshold=possible_drift,
+                drift_detected_threshold=drift_detected,
+            )
+            logger.info(
+                "Drift status",
+                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                drift_status=drift_status.value,
+                drift_measure=drift_measure,
+            )
+
+            # If drift was detected, add the results to the input stream
+            if (
+                drift_status == DriftStatus.POSSIBLE_DRIFT
+                or drift_status == DriftStatus.DRIFT_DETECTED
+            ):
+                self.v3io.stream.put_records(
+                    container=self.stream_container,
+                    stream_path=self.stream_path,
+                    records=[
+                        {
+                            "data": json.dumps(
+                                {
+                                    "endpoint_id": endpoint[
+                                        mlrun.model_monitoring.EventFieldType.UID
+                                    ],
+                                    "drift_status": drift_status.value,
+                                    "drift_measure": drift_measure,
+                                    "drift_per_feature": {**drift_result},
+                                }
+                            )
+                        }
+                    ],
                 )
 
-                # Save feature set to apply changes
-                m_fs.save()
+            attributes = {
+                "current_stats": json.dumps(current_stats),
+                "drift_measures": json.dumps(drift_result),
+                "drift_status": drift_status.value,
+            }
 
-                # Get the timestamp of the latest request:
-                timestamp = df["timestamp"].iloc[-1]
+            self.db.update_model_endpoint(
+                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                attributes=attributes,
+            )
 
-                # Get the current stats:
-                current_stats = calculate_inputs_statistics(
-                    sample_set_statistics=endpoint.status.feature_stats,
-                    inputs=named_features_df,
+            # Update the results in tsdb:
+            tsdb_drift_measures = {
+                "endpoint_id": endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                "timestamp": pd.to_datetime(
+                    timestamp,
+                    format=mlrun.model_monitoring.EventFieldType.TIME_FORMAT,
+                ),
+                "record_type": "drift_measures",
+                "tvd_mean": drift_result["tvd_mean"],
+                "kld_mean": drift_result["kld_mean"],
+                "hellinger_mean": drift_result["hellinger_mean"],
+            }
+
+            try:
+                self.frames.write(
+                    backend="tsdb",
+                    table=self.tsdb_path,
+                    dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                    index_cols=["timestamp", "endpoint_id", "record_type"],
+                )
+            except v3io_frames.errors.Error as err:
+                logger.warn(
+                    "Could not write drift measures to TSDB",
+                    err=err,
+                    tsdb_path=self.tsdb_path,
+                    endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
                 )
 
-                # Compute the drift based on the histogram of the current stats and the histogram of the original
-                # feature stats that can be found in the model endpoint object:
-                drift_result = self.virtual_drift.compute_drift_from_histograms(
-                    feature_stats=endpoint.status.feature_stats,
-                    current_stats=current_stats,
-                )
-                logger.info("Drift result", drift_result=drift_result)
+            logger.info(
+                "Done updating drift measures",
+                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+            )
 
-                # Get drift thresholds from the model configuration:
-                monitor_configuration = endpoint.spec.monitor_configuration or {}
-                possible_drift = monitor_configuration.get(
-                    "possible_drift", self.default_possible_drift_threshold
-                )
-                drift_detected = monitor_configuration.get(
-                    "drift_detected", self.default_drift_detected_threshold
-                )
-
-                # Check for possible drift based on the results of the statistical metrics defined above:
-                drift_status, drift_measure = self.virtual_drift.check_for_drift(
-                    metrics_results_dictionary=drift_result,
-                    possible_drift_threshold=possible_drift,
-                    drift_detected_threshold=drift_detected,
-                )
-                logger.info(
-                    "Drift status",
-                    endpoint_id=endpoint_id,
-                    drift_status=drift_status.value,
-                    drift_measure=drift_measure,
-                )
-
-                # If drift was detected, add the results to the input stream
-                if (
-                    drift_status == DriftStatus.POSSIBLE_DRIFT
-                    or drift_status == DriftStatus.DRIFT_DETECTED
-                ):
-                    self.v3io.stream.put_records(
-                        container=self.stream_container,
-                        stream_path=self.stream_path,
-                        records=[
-                            {
-                                "data": json.dumps(
-                                    {
-                                        "endpoint_id": endpoint_id,
-                                        "drift_status": drift_status.value,
-                                        "drift_measure": drift_measure,
-                                        "drift_per_feature": {**drift_result},
-                                    }
-                                )
-                            }
-                        ],
-                    )
-
-                attributes = {
-                    "current_stats": json.dumps(current_stats),
-                    "drift_measures": json.dumps(drift_result),
-                    "drift_status": drift_status.value,
-                }
-
-                self.db.patch_model_endpoint(
-                    project=self.project,
-                    endpoint_id=endpoint_id,
-                    attributes=attributes,
-                )
-
-                # Update the results in tsdb:
-                tsdb_drift_measures = {
-                    "endpoint_id": endpoint_id,
-                    "timestamp": pd.to_datetime(
-                        timestamp,
-                        format=EventFieldType.TIME_FORMAT,
-                    ),
-                    "record_type": "drift_measures",
-                    "tvd_mean": drift_result["tvd_mean"],
-                    "kld_mean": drift_result["kld_mean"],
-                    "hellinger_mean": drift_result["hellinger_mean"],
-                }
-
-                try:
-                    self.frames.write(
-                        backend="tsdb",
-                        table=self.tsdb_path,
-                        dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
-                        index_cols=["timestamp", "endpoint_id", "record_type"],
-                    )
-                except v3io_frames.errors.Error as err:
-                    logger.warn(
-                        "Could not write drift measures to TSDB",
-                        err=err,
-                        tsdb_path=self.tsdb_path,
-                        endpoint=endpoint_id,
-                    )
-
-                logger.info("Done updating drift measures", endpoint_id=endpoint_id)
-
-            except Exception as e:
-                logger.error(f"Exception for endpoint {endpoint_id}")
-                self.exception = e
+        except Exception as e:
+            logger.error(
+                f"Exception for endpoint {endpoint[mlrun.model_monitoring.EventFieldType.UID]}"
+            )
+            self.exception = e
 
     def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            self.batch_dict[EventFieldType.MINUTES],
-            self.batch_dict[EventFieldType.HOURS],
-            self.batch_dict[EventFieldType.DAYS],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.MINUTES],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.HOURS],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.DAYS],
         )
         start_time = datetime.datetime.now() - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
@@ -863,7 +883,9 @@ def handler(context: mlrun.run.MLClientCtx):
     batch_processor = BatchProcessor(
         context=context,
         project=context.project,
-        model_monitoring_access_key=os.environ.get("MODEL_MONITORING_ACCESS_KEY"),
+        model_monitoring_access_key=os.environ.get(
+            mlrun.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+        ),
         v3io_access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
     batch_processor.post_init()

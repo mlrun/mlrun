@@ -144,7 +144,7 @@ def test_log_dataset_without_mlrun():
     assert isinstance(my_list, list)
 
 
-def test_log_dataset_with_mlrun():
+def test_log_dataset_with_mlrun(rundb_mock):
     """
     Run the `log_dataset` function with MLRun to see the wrapper is logging the returned values as datasets artifacts.
     """
@@ -454,7 +454,7 @@ def test_log_as_default_artifact_types_without_mlrun():
     assert isinstance(my_imputer, SimpleImputer)
 
 
-def test_log_as_default_artifact_types_with_mlrun():
+def test_log_as_default_artifact_types_with_mlrun(rundb_mock):
     """
     Run the `log_as_default_artifact_types` function with MLRun to see the wrapper is logging the returned values
     as the correct default artifact types as the artifact types are not provided to the decorator.
@@ -518,7 +518,7 @@ def test_log_with_none_values_without_mlrun():
 @pytest.mark.parametrize("is_none_result", [True, False])
 @pytest.mark.parametrize("is_none_no_type", [True, False])
 def test_log_with_none_values_with_mlrun(
-    is_none_dataset: bool, is_none_result: bool, is_none_no_type: bool
+    rundb_mock, is_none_dataset: bool, is_none_result: bool, is_none_no_type: bool
 ):
     """
     Run the `log_with_none_values` function with MLRun to see the wrapper is logging and ignoring the returned values
@@ -574,7 +574,7 @@ def test_log_from_function_and_wrapper_without_mlrun():
     assert isinstance(my_result, str)
 
 
-def test_log_from_function_and_wrapper_with_mlrun():
+def test_log_from_function_and_wrapper_with_mlrun(rundb_mock):
     """
     Run the `log_from_function_and_wrapper` function with MLRun to see the wrapper is logging the returned values
     among the other values logged via the context manually inside the function.
@@ -634,7 +634,7 @@ def test_parse_inputs_from_type_hints_without_mlrun():
     assert result == [[2], [3], [4]]
 
 
-def test_parse_inputs_from_type_hints_with_mlrun():
+def test_parse_inputs_from_type_hints_with_mlrun(rundb_mock):
     """
     Run the `parse_inputs_from_type_hints` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written type hints.
@@ -708,7 +708,7 @@ def test_parse_inputs_from_wrapper_using_types_without_mlrun():
     assert result == [[2], [3], [4]]
 
 
-def test_parse_inputs_from_wrapper_using_types_with_mlrun():
+def test_parse_inputs_from_wrapper_using_types_with_mlrun(rundb_mock):
     """
     Run the `parse_inputs_from_wrapper_using_types` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written configuration provided to the wrapper.
@@ -786,7 +786,7 @@ def test_parse_inputs_from_wrapper_using_strings_without_mlrun():
     assert result == 402
 
 
-def test_parse_inputs_from_wrapper_using_strings_with_mlrun():
+def test_parse_inputs_from_wrapper_using_strings_with_mlrun(rundb_mock):
     """
     Run the `parse_inputs_from_wrapper_using_strings` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written configuration provided to the wrapper.
@@ -836,7 +836,7 @@ def raise_error_while_logging():
     return np.ones(shape=(7, 7, 7))
 
 
-def test_raise_error_while_logging_with_mlrun():
+def test_raise_error_while_logging_with_mlrun(db):
     """
     Run the `raise_error_while_logging` function with MLRun to see the wrapper is raising the relevant error.
     """
@@ -860,7 +860,7 @@ def test_raise_error_while_logging_with_mlrun():
     artifact_path.cleanup()
 
 
-def test_raise_error_while_parsing_with_mlrun():
+def test_raise_error_while_parsing_with_mlrun(db):
     """
     Run the `parse_inputs_from_wrapper_using_types` function with MLRun and send it wrong types to see the wrapper is
     raising the relevant exception.
@@ -978,7 +978,7 @@ def test_class_methods_without_mlrun():
     temp_dir.cleanup()
 
 
-def test_class_methods_with_mlrun():
+def test_class_methods_with_mlrun(rundb_mock):
     """
     Run the `log_dataset` function with MLRun to see the wrapper is logging the returned values as datasets artifacts.
     """

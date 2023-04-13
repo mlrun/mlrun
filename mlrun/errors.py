@@ -129,7 +129,10 @@ def err_to_str(err):
     error_strings = []
     while err and err not in errors:
         errors.append(err)
-        error_strings.append(str(err))
+        err_msg = str(err)
+        if not err_msg:
+            err_msg = repr(err)
+        error_strings.append(err_msg)
         err = err.__cause__
 
     return ", caused by: ".join(error_strings)
@@ -176,6 +179,10 @@ class MLRunInternalServerError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
+class MLRunServiceUnavailableError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.SERVICE_UNAVAILABLE.value
+
+
 class MLRunRuntimeError(MLRunHTTPStatusError, RuntimeError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
 
@@ -210,4 +217,5 @@ STATUS_ERRORS = {
     HTTPStatus.CONFLICT.value: MLRunConflictError,
     HTTPStatus.PRECONDITION_FAILED.value: MLRunPreconditionFailedError,
     HTTPStatus.INTERNAL_SERVER_ERROR.value: MLRunInternalServerError,
+    HTTPStatus.SERVICE_UNAVAILABLE.value: MLRunServiceUnavailableError,
 }

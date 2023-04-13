@@ -16,6 +16,7 @@ import http
 import unittest.mock
 
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 import mlrun.api.initial_data
@@ -31,35 +32,47 @@ def test_offline_state(
 ) -> None:
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.offline
     response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
 
     response = client.get("projects")
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "API is in offline state" in response.text
 
 
-def test_migrations_states(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+@pytest.mark.parametrize(
+    "state, expected_healthz_status_code",
+    [
+        (mlrun.api.schemas.APIStates.waiting_for_migrations, http.HTTPStatus.OK.value),
+        (mlrun.api.schemas.APIStates.migrations_in_progress, http.HTTPStatus.OK.value),
+        (mlrun.api.schemas.APIStates.migrations_failed, http.HTTPStatus.OK.value),
+        (
+            mlrun.api.schemas.APIStates.waiting_for_chief,
+            http.HTTPStatus.SERVICE_UNAVAILABLE.value,
+        ),
+    ],
+)
+def test_api_states(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    state,
+    expected_healthz_status_code,
 ) -> None:
-    expected_message_map = {
-        mlrun.api.schemas.APIStates.waiting_for_migrations: "API is waiting for migrations to be triggered",
-        mlrun.api.schemas.APIStates.migrations_in_progress: "Migrations are in progress",
-        mlrun.api.schemas.APIStates.migrations_failed: "Migrations failed",
-    }
-    for state, expected_message in expected_message_map.items():
-        mlrun.mlconf.httpdb.state = state
-        response = client.get("healthz")
-        assert response.status_code == http.HTTPStatus.OK.value
+    mlrun.mlconf.httpdb.state = state
+    response = client.get("healthz")
+    assert response.status_code == expected_healthz_status_code
 
-        response = client.get("projects/some-project/background-tasks/some-task")
-        assert response.status_code == http.HTTPStatus.NOT_FOUND.value
+    response = client.get("projects/some-project/background-tasks/some-task")
+    assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
-        response = client.get("client-spec")
-        assert response.status_code == http.HTTPStatus.OK.value
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
 
-        response = client.get("projects")
-        assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-        assert expected_message in response.text
+    response = client.get("projects")
+    expected_message = mlrun.api.schemas.APIStates.description(state)
+    assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
+    assert (
+        expected_message in response.text
+    ), f"Expected message: {expected_message}, actual: {response.text}"
 
 
 def test_init_data_migration_required_recognition(monkeypatch) -> None:

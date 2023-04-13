@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import http
 import pathlib
 import random
 from http import HTTPStatus
@@ -38,7 +39,7 @@ def _generate_source_dict(index, name, credentials=None):
             "metadata": {"name": name, "description": "A test", "labels": None},
             "spec": {
                 "path": path,
-                "channel": "catalog",
+                "channel": "channel",
                 "credentials": credentials or {},
             },
             "status": {"state": "created"},
@@ -50,6 +51,7 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
     exclude_paths = exclude_paths or [
         "root['metadata']['updated']",
         "root['metadata']['created']",
+        "root['spec']['object_type']",
     ]
     response = client.get("marketplace/sources")
     assert response.status_code == HTTPStatus.OK.value
@@ -92,7 +94,11 @@ def test_marketplace_source_apis(
     source_1["source"]["metadata"]["something_new"] = 42
     response = client.put("marketplace/sources/source_1", json=source_1)
     assert response.status_code == HTTPStatus.OK.value
-    exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
+    exclude_paths = [
+        "root['metadata']['updated']",
+        "root['metadata']['created']",
+        "root['spec']['object_type']",
+    ]
     assert (
         deepdiff.DeepDiff(
             response.json()["source"], source_1["source"], exclude_paths=exclude_paths
@@ -165,7 +171,11 @@ def test_marketplace_credentials_removed_from_db(
 
     expected_response = source_1["source"]
     expected_response["spec"]["credentials"] = {}
-    exclude_paths = ["root['metadata']['updated']", "root['metadata']['created']"]
+    exclude_paths = [
+        "root['metadata']['updated']",
+        "root['metadata']['created']",
+        "root['spec']['object_type']",
+    ]
     assert (
         deepdiff.DeepDiff(
             expected_response, object_dict["source"], exclude_paths=exclude_paths
@@ -222,20 +232,15 @@ def test_marketplace_source_manager(
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) == 5
 
-    catalog = manager.get_source_catalog(source_object, channel="dev")
-    assert len(catalog.catalog) == 1
-    for item in catalog.catalog:
-        assert item.metadata.name == "dev_function"
+    catalog = manager.get_source_catalog(source_object, tag="latest")
+    assert len(catalog.catalog) == 3
 
-    catalog = manager.get_source_catalog(source_object, channel="prod")
-    assert len(catalog.catalog) == 4
+    catalog = manager.get_source_catalog(source_object, version="0.0.1")
+    assert len(catalog.catalog) == 3
     for item in catalog.catalog:
-        assert item.metadata.name in [
-            "prod_function",
-            "prod_function_2",
-        ] and item.metadata.version in ["0.0.1", "1.0.0"]
+        assert item.metadata.version == "0.0.1"
 
-    catalog = manager.get_source_catalog(source_object, channel="prod", version="1.0.0")
+    catalog = manager.get_source_catalog(source_object, version="1.0.0")
     assert len(catalog.catalog) == 2
     for item in catalog.catalog:
         assert (
@@ -243,22 +248,15 @@ def test_marketplace_source_manager(
             and item.metadata.version == "1.0.0"
         )
 
-    item = manager.get_item(source_object, "prod_function", "prod", "1.0.0")
-    assert (
-        item.metadata.name == "prod_function"
-        and item.metadata.version == "1.0.0"
-        and item.metadata.channel == "prod"
-    )
+    item = manager.get_item(source_object, "prod_function", "1.0.0")
+    assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
 
 
-# TODO: Unskip when fixed
-@pytest.mark.skip("fails intermittently in CI")
 def test_marketplace_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
     manager = mlrun.api.crud.Marketplace()
-
     source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
@@ -267,7 +265,7 @@ def test_marketplace_default_source(
     for i in range(10):
         function = random.choice(catalog.catalog)
         print(
-            f"Selected the following: function = {function.metadata.name}, channel = {function.metadata.channel},"
+            f"Selected the following: function = {function.metadata.name},"
             + f" tag = {function.metadata.tag}, version = {function.metadata.version}"
         )
 
@@ -307,3 +305,63 @@ def test_marketplace_catalog_apis(
     function_modified_name = item["metadata"]["name"].replace("_", "-")
 
     assert yaml_function_name == function_modified_name
+
+
+def test_marketplace_get_asset_from_default_source(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+) -> None:
+    possible_assets = [
+        ("docs", "text/html; charset=utf-8"),
+        ("source", "text/x-python; charset=utf-8"),
+        ("example", "application/octet-stream"),
+        ("function", "application/octet-stream"),
+    ]
+    sources = client.get("marketplace/sources").json()
+    source_name = sources[0]["source"]["metadata"]["name"]
+    catalog = client.get(f"marketplace/sources/{source_name}/items").json()
+    for _ in range(10):
+        item = random.choice(catalog["catalog"])
+        asset_name, expected_content_type = random.choice(possible_assets)
+        response = client.get(
+            f"marketplace/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.headers["content-type"] == expected_content_type
+
+
+def test_marketplace_get_asset(
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    manager = mlrun.api.crud.Marketplace()
+
+    # Adding marketplace source with credentials:
+    credentials = {"secret": "value"}
+
+    source_dict = _generate_source_dict(1, "source", credentials)
+    expected_credentials = {
+        mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+            "source", "secret"
+        ): credentials["secret"]
+    }
+    source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+    manager.add_source(source_object)
+    k8s_secrets_mock.assert_project_secrets(
+        config.marketplace.k8s_secrets_project_name, expected_credentials
+    )
+    # getting asset:
+    catalog = manager.get_source_catalog(source_object)
+    item = catalog.catalog[0]
+    # verifying item contain the asset:
+    assert item.spec.assets.get("html_asset", "") == "static/my_html.html"
+
+    asset_object, url = manager.get_asset(source_object, item, "html_asset")
+    relative_asset_path = "functions/channel/dev_function/latest/static/my_html.html"
+    asset_path = pathlib.Path(__file__).absolute().parent / relative_asset_path
+    with open(asset_path, "r") as f:
+        expected_content = f.read()
+    # Validating content and url:
+    assert expected_content == asset_object.decode("utf-8") and url == str(asset_path)
+
+    # Verify not-found assets are handled properly
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        manager.get_asset(source_object, item, "not-found")

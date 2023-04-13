@@ -14,6 +14,7 @@
 
 import asyncio
 import json
+import shlex
 import typing
 import warnings
 from base64 import b64encode
@@ -141,6 +142,8 @@ class NuclioSpec(KubeResourceSpec):
         "function_handler",
         "nuclio_runtime",
         "base_image_pull",
+        "service_type",
+        "add_templated_ingress_host_mode",
     ]
 
     def __init__(
@@ -179,6 +182,9 @@ class NuclioSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        service_type=None,
+        add_templated_ingress_host_mode=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -208,6 +214,7 @@ class NuclioSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self.base_spec = base_spec or {}
@@ -218,6 +225,8 @@ class NuclioSpec(KubeResourceSpec):
         self.nuclio_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
+        self.service_type = service_type
+        self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4
@@ -693,6 +702,22 @@ class RemoteRuntime(KubeResource):
     def with_priority_class(self, name: typing.Optional[str] = None):
         """k8s priority class"""
         super().with_priority_class(name)
+
+    def with_service_type(
+        self, service_type: str, add_templated_ingress_host_mode: str = None
+    ):
+        """
+        Enables to control the service type of the pod and the addition of templated ingress host
+
+        :param service_type:                      service type (ClusterIP, NodePort), defaults to
+                                                  mlrun.mlconf.httpdb.nuclio.service_type
+        :param add_templated_ingress_host_mode:   add templated ingress host mode (never, always, onClusterIP),
+                                                  see mlrun.mlconf.httpdb.nuclio.add_templated_ingress_host_mode
+                                                  for the default and more information
+
+        """
+        self.spec.service_type = service_type
+        self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 
     def _get_state(
         self,
@@ -1210,8 +1235,9 @@ def deploy_nuclio_function(
     # if mode allows it, enrich function http trigger with an ingress
     enrich_function_with_ingress(
         function_config,
-        mlconf.httpdb.nuclio.add_templated_ingress_host_mode,
-        mlconf.httpdb.nuclio.default_service_type,
+        function.spec.add_templated_ingress_host_mode
+        or mlconf.httpdb.nuclio.add_templated_ingress_host_mode,
+        function.spec.service_type or mlconf.httpdb.nuclio.default_service_type,
     )
 
     try:
@@ -1364,6 +1390,27 @@ def compile_function_config(
         config=function.spec.config,
     )
     nuclio_spec.cmd = function.spec.build.commands or []
+
+    if function.spec.build.requirements:
+        resolved_requirements = []
+        # wrap in single quote to ensure that the requirement is treated as a single string
+        # quote the requirement to avoid issues with special characters, double quotes, etc.
+        for requirement in function.spec.build.requirements:
+            # -r / --requirement are flags and should not be escaped
+            # we allow such flags (could be passed within the requirements.txt file) and do not
+            # try to open the file and include its content since it might be a remote file
+            # given on the base image.
+            for req_flag in ["-r", "--requirement"]:
+                if requirement.startswith(req_flag):
+                    requirement = requirement[len(req_flag) :].strip()
+                    resolved_requirements.append(req_flag)
+                    break
+
+            resolved_requirements.append(shlex.quote(requirement))
+
+        encoded_requirements = " ".join(resolved_requirements)
+        nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
+
     project = function.metadata.project or "default"
     tag = function.metadata.tag
     handler = function.spec.function_handler
@@ -1377,7 +1424,8 @@ def compile_function_config(
 
     # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
     nuclio_spec.set_config(
-        "spec.serviceType", mlconf.httpdb.nuclio.default_service_type
+        "spec.serviceType",
+        function.spec.service_type or mlconf.httpdb.nuclio.default_service_type,
     )
     if function.spec.readiness_timeout:
         nuclio_spec.set_config(

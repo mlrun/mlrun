@@ -159,7 +159,6 @@ async def store_source(
 )
 async def get_catalog(
     source_name: str,
-    channel: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
@@ -180,7 +179,6 @@ async def get_catalog(
     return await run_in_threadpool(
         mlrun.api.crud.Marketplace().get_source_catalog,
         ordered_source.source,
-        channel,
         version,
         tag,
         force_refresh,
@@ -194,7 +192,6 @@ async def get_catalog(
 async def get_item(
     source_name: str,
     item_name: str,
-    channel: Optional[str] = Query("development"),
     version: Optional[str] = Query(None),
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
@@ -216,7 +213,6 @@ async def get_item(
         mlrun.api.crud.Marketplace().get_item,
         ordered_source.source,
         item_name,
-        channel,
         version,
         tag,
         force_refresh,
@@ -255,3 +251,60 @@ async def get_object(
     if not ctype:
         ctype = "application/octet-stream"
     return Response(content=object_data, media_type=ctype)
+
+
+@router.get("/marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}")
+async def get_asset(
+    source_name: str,
+    item_name: str,
+    asset_name: str,
+    tag: Optional[str] = Query("latest"),
+    version: Optional[str] = Query(None),
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+):
+    """
+    Retrieve asset from a specific item in specific marketplace source.
+
+    :param source_name: marketplace source name
+    :param item_name:   the name of the item
+    :param asset_name:  the name of the asset to retrieve
+    :param tag:         tag of item - latest or version number
+    :param version:     item version
+    :param db_session:  a session that manages the current dialog with the database
+    :param auth_info:   the auth info of the request
+
+    :return: fastapi response with the asset in content
+    """
+    source = await run_in_threadpool(
+        get_db().get_marketplace_source, db_session, source_name
+    )
+
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        AuthorizationAction.read,
+        auth_info,
+    )
+    # Getting the relevant item which hold the asset information
+    item = await run_in_threadpool(
+        mlrun.api.crud.Marketplace().get_item,
+        source.source,
+        item_name,
+        version,
+        tag,
+    )
+
+    # Getting the asset from the item
+    asset, url = await run_in_threadpool(
+        mlrun.api.crud.Marketplace().get_asset,
+        source.source,
+        item,
+        asset_name,
+    )
+
+    ctype, _ = mimetypes.guess_type(url)
+    if not ctype:
+        ctype = "application/octet-stream"
+    return Response(content=asset, media_type=ctype)

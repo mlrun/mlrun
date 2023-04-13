@@ -14,7 +14,7 @@
 import enum
 import getpass
 import http
-import shlex
+import os.path
 import traceback
 import typing
 import uuid
@@ -32,8 +32,11 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.sqldb.session
+import mlrun.api.utils.singletons.db
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun.utils.notifications
 import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
@@ -89,6 +92,7 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
+    "clone_target_dir",
 ]
 
 
@@ -129,6 +133,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        clone_target_dir=None,
     ):
 
         self.command = command or ""
@@ -147,6 +152,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        # the build.source is cloned/extracted to the specified clone_target_dir
+        # if a relative path is specified, it will be enriched with a temp dir path
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:
@@ -339,6 +347,7 @@ class BaseRuntime(ModelObj):
         local_code_path=None,
         auto_build=None,
         param_file_secrets: Dict[str, str] = None,
+        notifications: List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         """
@@ -373,6 +382,7 @@ class BaseRuntime(ModelObj):
                            function run, use only if you dont plan on changing the build config between runs
         :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
                             These secrets are only used locally and will not be stored anywhere
+        :param notifications: list of notifications to push when the run is completed
         :param returns: List of log hints - configurations for how to log the returning values from the handler's run
                         (as artifacts or results). The list's length must be equal to the amount of returning objects. A
                         log hint may be given as:
@@ -396,9 +406,14 @@ class BaseRuntime(ModelObj):
         run = self._create_run_object(runspec)
 
         if local:
-            return self._run_local(
+
+            # do not allow local function to be scheduled
+            if schedule is not None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "local and schedule cannot be used together"
+                )
+            result = self._run_local(
                 run,
-                schedule,
                 local_code_path,
                 project,
                 name,
@@ -408,7 +423,10 @@ class BaseRuntime(ModelObj):
                 inputs,
                 returns,
                 artifact_path,
+                notifications=notifications,
             )
+            self._save_or_push_notifications(result, local)
+            return result
 
         run = self._enrich_run(
             run,
@@ -425,19 +443,9 @@ class BaseRuntime(ModelObj):
             out_path,
             artifact_path,
             workdir,
+            notifications,
         )
-
-        if is_local(run.spec.output_path):
-            logger.warning(
-                "artifact path is not defined or is local,"
-                " artifacts will not be visible in the UI"
-            )
-            if self.kind not in ["", "local", "handler", "dask"]:
-                raise ValueError(
-                    "absolute artifact_path must be specified"
-                    " when running remote tasks"
-                )
-
+        self._validate_output_path(run)
         db = self._get_db()
 
         if not self.is_deployed():
@@ -458,6 +466,13 @@ class BaseRuntime(ModelObj):
             run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
+            db_str = "self" if self._is_api_server else self.spec.rundb
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=db_str,
+            )
             self._store_function(run, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
@@ -526,6 +541,8 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
 
+        self._save_or_push_notifications(run)
+
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(result, run, schedule=schedule, err=last_err)
@@ -573,7 +590,9 @@ class BaseRuntime(ModelObj):
                 logger.info("Or click for UI", ui_url=ui_url)
         if result:
             run = RunObject.from_dict(result)
-            logger.info(f"run executed, status={run.status.state}")
+            logger.info(
+                f"run executed, status={run.status.state}", name=run.metadata.name
+            )
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
                     logger.error(f"runtime error: {run.status.error}")
@@ -612,7 +631,6 @@ class BaseRuntime(ModelObj):
     def _run_local(
         self,
         runspec,
-        schedule,
         local_code_path,
         project,
         name,
@@ -622,11 +640,8 @@ class BaseRuntime(ModelObj):
         inputs,
         returns,
         artifact_path,
+        notifications: List[mlrun.model.Notification] = None,
     ):
-        if schedule is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "local and schedule cannot be used together"
-            )
         # allow local run simulation with a flip of a flag
         command = self
         if local_code_path:
@@ -646,6 +661,7 @@ class BaseRuntime(ModelObj):
             artifact_path=artifact_path,
             mode=self.spec.mode,
             allow_empty_resources=self.spec.allow_empty_resources,
+            notifications=notifications,
             returns=returns,
         )
 
@@ -684,6 +700,7 @@ class BaseRuntime(ModelObj):
         out_path,
         artifact_path,
         workdir,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         runspec.spec.handler = (
             handler or runspec.spec.handler or self.spec.default_handler or ""
@@ -705,7 +722,7 @@ class BaseRuntime(ModelObj):
             # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
             # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
             # from the handler(function) name then we replace the underscore without warning the user.
-            # most of the times handlers will have `_` in the handler name (python convention is to separate function
+            # most of the time handlers will have `_` in the handler name (python convention is to separate function
             # words with `_`), therefore we don't want to be noisy when normalizing the run name
             verbose=bool(name or runspec.metadata.name),
         )
@@ -785,6 +802,8 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
                 runspec.spec.output_path, runspec.metadata.project
             )
+
+        runspec.spec.notifications = notifications or runspec.spec.notifications or []
         return runspec
 
     def _submit_job(self, run: RunObject, schedule, db, watch):
@@ -793,7 +812,8 @@ class BaseRuntime(ModelObj):
         try:
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
-                logger.info(f"task scheduled, {resp}")
+                action = resp.pop("action", "created")
+                logger.info(f"task schedule {action}", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:
@@ -855,8 +875,6 @@ class BaseRuntime(ModelObj):
             )
 
     def _store_function(self, runspec, meta, db):
-        db_str = "self" if self._is_api_server else self.spec.rundb
-        logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
         meta.labels["kind"] = self.kind
         if "owner" not in meta.labels:
             meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -1046,6 +1064,47 @@ class BaseRuntime(ModelObj):
 
         return resp
 
+    def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
+
+        if not runobj.spec.notifications:
+            logger.debug(
+                "No notifications to push for run", run_uid=runobj.metadata.uid
+            )
+            return
+
+        # TODO: add support for other notifications per run iteration
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            logger.debug(
+                "Notifications per iteration are not supported, skipping",
+                run_uid=runobj.metadata.uid,
+            )
+            return
+
+        # If the run is remote, and we are in the SDK, we let the api deal with the notifications
+        # so there's nothing to do here.
+        # Otherwise, we continue on.
+        if is_running_as_api():
+
+            # import here to avoid circular imports and to avoid importing api requirements
+            from mlrun.api.crud import Notifications
+
+            # If in the api server, we can assume that watch=False, so we save notification
+            # configs to the DB, for the run monitor to later pick up and push.
+            session = mlrun.api.db.sqldb.session.create_session()
+            Notifications().store_run_notifications(
+                session,
+                runobj.spec.notifications,
+                runobj.metadata.uid,
+                runobj.metadata.project,
+            )
+
+        elif local:
+            # If the run is local, we can assume that watch=True, therefore this code runs
+            # once the run is completed, and we can just push the notifications.
+            # TODO: add store_notifications API endpoint so we can store notifications pushed from the
+            #       SDK for documentation purposes.
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()
+
     def _force_handler(self, handler):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
@@ -1217,15 +1276,19 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        encoded_requirements = self._encode_requirements(requirements)
-        commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = f"python -m pip install {encoded_requirements}"
-        # make sure we dont append the same line twice
-        if new_command not in commands:
-            commands.append(new_command)
-        self.spec.build.commands = commands
+        resolved_requirements = self._resolve_requirements(requirements)
+        requirements = self.spec.build.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in resolved_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.spec.build.requirements = requirements
+
         if verify_base_image:
             self.verify_base_image()
+
         return self
 
     def with_commands(
@@ -1393,15 +1456,16 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
-    def _encode_requirements(self, requirements_to_encode):
-
+    @staticmethod
+    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
         # if a string, read the file then encode
-        if isinstance(requirements_to_encode, str):
-            with open(requirements_to_encode, "r") as fp:
-                requirements_to_encode = fp.read().splitlines()
+        if isinstance(requirements_to_resolve, str):
+            with open(requirements_to_resolve, "r") as fp:
+                requirements_to_resolve = fp.read().splitlines()
 
         requirements = []
-        for requirement in requirements_to_encode:
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
             requirement = requirement.strip()
 
             # ignore empty lines
@@ -1409,27 +1473,42 @@ class BaseRuntime(ModelObj):
             if not requirement or requirement.startswith("#"):
                 continue
 
-            # -r / --requirement are flags and should not be escaped
-            # we allow such flags (could be passed within the requirements.txt file) and do not
-            # try to open the file and include its content since it might be a remote file
-            # given on the base image.
-            for req_flag in ["-r", "--requirement"]:
-                if requirement.startswith(req_flag):
-                    requirement = requirement[len(req_flag) :].strip()
-                    requirements.append(req_flag)
-                    break
+            # ignore inline comments as well
+            inline_comment = requirement.split(" #")
+            if len(inline_comment) > 1:
+                requirement = inline_comment[0].strip()
 
-            # wrap in single quote to ensure that the requirement is treated as a single string
-            # quote the requirement to avoid issues with special characters, double quotes, etc.
-            requirements.append(shlex.quote(requirement))
+            requirements.append(requirement)
 
-        return " ".join(requirements)
+        return requirements
+
+    def _validate_output_path(self, run):
+        if is_local(run.spec.output_path):
+            message = ""
+            if not os.path.isabs(run.spec.output_path):
+                message = (
+                    "artifact/output path is not defined or is local and relative,"
+                    " artifacts will not be visible in the UI"
+                )
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
+                    self.kind
+                ):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                    )
+            elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
+                message = (
+                    "artifact output path is local while no volume mount is specified. "
+                    "artifacts would not be visible via UI."
+                )
+            if message:
+                logger.warning(message, output_path=run.spec.output_path)
 
 
 def is_local(url):
     if not url:
         return True
-    return "://" not in url and not url.startswith("/")
+    return "://" not in url
 
 
 class BaseRuntimeHandler(ABC):
@@ -1779,7 +1858,7 @@ class BaseRuntimeHandler(ABC):
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
     ):
         """
-        Override this to add runtime resources other then pods or CRDs (which are handled by the base class) to the
+        Override this to add runtime resources other than pods or CRDs (which are handled by the base class) to the
         output
         """
         return response

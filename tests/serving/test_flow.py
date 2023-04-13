@@ -19,7 +19,6 @@ import pytest
 import mlrun
 from mlrun.serving import GraphContext, V2ModelServer
 from mlrun.serving.states import TaskStep
-from mlrun.utils import logger
 
 from .demo_states import *  # noqa
 
@@ -70,7 +69,6 @@ def test_basic_flow():
 
     server = fn.to_mock_server()
     # graph.plot("flow.png")
-    print("\nFlow1:\n", graph.to_yaml())
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow1 result is incorrect"
 
@@ -82,7 +80,6 @@ def test_basic_flow():
     graph.add_step(name="s3", class_name="Chain", after="s2")
 
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow2 result is incorrect"
 
@@ -92,7 +89,6 @@ def test_basic_flow():
     graph.add_step(name="s2", class_name="Chain", after="s1", before="s3")
 
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp == ["s1", "s2", "s3"], "flow3 result is incorrect"
     assert server.context.project == "x", "context.project was not set"
@@ -122,7 +118,7 @@ def test_handler_with_context():
     )
     server = fn.to_mock_server()
     resp = server.test(body=5)
-    # expext 5 * 2 * 2 * 2 = 40
+    # expect 5 * 2 * 2 * 2 = 40
     assert resp == 40, f"got unexpected result {resp}"
 
 
@@ -147,7 +143,6 @@ def test_on_error():
     graph.add_step(name="catch", class_name="EchoError").full_event = True
 
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test(body=[])
     assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"
 
@@ -205,7 +200,6 @@ def test_add_model():
     graph = fn.set_topology("flow", engine="sync")
     graph.to("Echo", "e1").to("*", "router").to("Echo", "e2")
     fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
-    print(graph.to_yaml())
 
     assert "m1" in graph["router"].routes, "model was not added to router"
 
@@ -214,7 +208,6 @@ def test_add_model():
     graph = fn.set_topology("flow", engine="sync")
     graph.to("Echo", "e1").to("*", "r1").to("Echo", "e2").to("*", "r2")
     fn.add_model("m1", class_name="ModelTestingClass", model_path=".", router_step="r2")
-    print(graph.to_yaml())
 
     assert "m1" in graph["r2"].routes, "model was not added to proper router"
 
@@ -273,7 +266,6 @@ def test_path_control_routers():
         "*", name="r1", input_path="x", result_path="y"
     ).to(name="s3", class_name="Echo").respond()
     function.add_model("m1", class_name="ModelClass", model_path=".")
-    logger.info(graph.to_yaml())
     server = function.to_mock_server()
 
     resp = server.test("/v2/models/m1/infer", body={"x": {"inputs": [5]}})
@@ -292,7 +284,6 @@ def test_path_control_routers():
     ).to(name="s3", class_name="Echo").respond()
     function.add_model("m1", class_name="ModelClassList", model_path=".", multiplier=10)
     function.add_model("m2", class_name="ModelClassList", model_path=".", multiplier=20)
-    logger.info(graph.to_yaml())
     server = function.to_mock_server()
 
     resp = server.test("/v2/models/infer", body={"x": {"inputs": [[5]]}})

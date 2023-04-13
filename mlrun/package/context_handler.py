@@ -107,15 +107,13 @@ class ContextHandler:
                     self._context = get_or_create_ctx("context")
                     break
 
-        # Give the packagers manager custom packagers to collect (if available):
-        if self._context is not None:
+        # Give the packagers manager custom packagers to collect (if a context is found and a project is available):
+        if self._context is not None and self._context.project:
             # Get the custom packagers property from the project's spec:
-            custom_packagers = self._context.get_project_param(
-                key="custom_packagers", default=[]
-            )
-            if custom_packagers:
+            project = self._context.get_project_object()
+            if project and project.spec.custom_packagers:
                 # Add the custom packagers taking into account the mandatory flag:
-                for custom_packager, is_mandatory in custom_packagers:
+                for custom_packager, is_mandatory in project.spec.custom_packagers:
                     self._collect_packagers(
                         packagers=[custom_packager], is_mandatory=is_mandatory
                     )
@@ -242,8 +240,7 @@ class ContextHandler:
         )
 
         # Log the packed results and artifacts:
-        for result in self._packagers_manager.results:
-            self._context.log_results(results=result)
+        self._context.log_results(results=self._packagers_manager.results)
         for artifact in self._packagers_manager.artifacts:
             self._context.log_artifact(item=artifact)
 
@@ -269,10 +266,7 @@ class ContextHandler:
         """
         try:
             self._packagers_manager.collect_packagers(packagers=packagers)
-        except (
-            MLRunInvalidArgumentError,
-            MLRunPackagePackagerCollectionError,
-        ) as error:
+        except MLRunPackagePackagerCollectionError as error:
             if is_mandatory:
                 raise error
             else:

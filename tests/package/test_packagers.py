@@ -13,12 +13,14 @@
 # limitations under the License.
 #
 import inspect
+import shutil
 from typing import List, Tuple, Type, Union
 
 import pytest
 
 import mlrun
 from mlrun.package import ArtifactType, LogHintKey
+from mlrun.package.common import LogHintUtils
 from mlrun.runtimes import KubejobRuntime
 
 from .packager_tester import PackagerTester, PackTest, PackToUnpackTest, UnpackTest
@@ -41,14 +43,35 @@ def _get_tests_tuples(
 
 def _setup_test(tester: Type[PackagerTester]) -> KubejobRuntime:
     # Create a project for this tester:
-    project = mlrun.get_or_create_project(name=f"{tester.__name__.lower()}-project")
+    project = mlrun.get_or_create_project(name="default")
 
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
         func=inspect.getfile(tester),
-        name=f"{tester.__name__.lower()}-function",
+        name=tester.__name__.lower(),
         kind="job",
+        image="mlrun/mlrun",
     )
+
+
+def _get_key_and_artifact_type(
+    tester: Type[PackagerTester], test: Union[PackTest, PackToUnpackTest]
+) -> Tuple[str, str]:
+    # Parse the log hint (in case it is a string):
+    log_hint = LogHintUtils.parse_log_hint(log_hint=test.log_hint)
+
+    # Extract the key:
+    key = log_hint[LogHintKey.KEY]
+
+    # Get the artifact type (either from the log hint of from the packager - the default artifact type):
+    artifact_type = log_hint.get(
+        LogHintKey.ARTIFACT_TYPE,
+        tester.PACKAGER_IN_TEST.get_default_artifact_type(
+            obj=test.default_artifact_type_object
+        ),
+    )
+
+    return key, artifact_type
 
 
 @pytest.mark.parametrize(
@@ -79,14 +102,13 @@ def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackT
     )
 
     # Verify the packaged output:
-    if test.log_hint[LogHintKey.ARTIFACT_TYPE] == ArtifactType.RESULT:
-        assert test.log_hint[LogHintKey.KEY] in pack_run.status.results
-        assert test.validation_function(
-            pack_run.status.results[test.log_hint[LogHintKey.KEY]]
-        )
+    key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
+    if artifact_type == ArtifactType.RESULT:
+        assert key in pack_run.status.results
+        assert test.validation_function(pack_run.status.results[key])
     else:
-        assert test.log_hint[LogHintKey.KEY] in pack_run.outputs
-        assert test.validation_function(pack_run.outputs[test.log_hint[LogHintKey.KEY]])
+        assert key in pack_run.outputs
+        assert test.validation_function(pack_run._artifact(key=key))
 
 
 @pytest.mark.parametrize(
@@ -107,7 +129,7 @@ def test_packager_unpack(
     tester, test = test_tuple
 
     # Create the input path to send for unpacking:
-    input_path = test.prepare_input_function()
+    temp_directory, input_path = test.prepare_input_function()
 
     # Set up the test, creating a project and a MLRun function:
     mlrun_function = _setup_test(tester=tester)
@@ -119,6 +141,9 @@ def test_packager_unpack(
         inputs={"obj": input_path},
         local=True,
     )
+
+    # Delete the temporary directory created:
+    shutil.rmtree(temp_directory)
 
 
 @pytest.mark.parametrize(
@@ -152,21 +177,26 @@ def test_packager_pack_to_unpack(
     )
 
     # Verify the outputs are logged (artifact type as "result" will stop the test here as it cannot be unpacked):
-    if test.log_hint[LogHintKey.ARTIFACT_TYPE] == ArtifactType.RESULT:
-        assert test.log_hint[LogHintKey.KEY] in pack_run.status.results
+    key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
+    if artifact_type == ArtifactType.RESULT:
+        assert key in pack_run.status.results
         return
-    assert test.log_hint[LogHintKey.KEY] in pack_run.outputs
+    assert key in pack_run.outputs
 
     # Validate the packager instructions noted:
-    instructions = pack_run.outputs[
-        test.log_hint[LogHintKey.KEY]
-    ].spec.packaging_instructions
-    assert instructions == test.expected_instructions
+    instructions = pack_run._artifact(key=key)["spec"]["packaging_instructions"][
+        "instructions"
+    ]
+    for (
+        expected_instruction_key,
+        expected_instruction_value,
+    ) in test.expected_instructions.items():
+        assert instructions[expected_instruction_key] == expected_instruction_value
 
     # Run the unpacking handler:
     mlrun_function.run(
         name="unpack",
         handler=test.unpack_handler,
-        inputs={"obj": pack_run.outputs[test.log_hint[LogHintKey.KEY]]},
+        inputs={"obj": pack_run.outputs[key]},
         local=True,
     )

@@ -157,7 +157,7 @@ class NotAPackager:
 
 
 @pytest.mark.parametrize(
-    "collection_test",
+    "test_tuple",
     [
         (["tests.package.test_packagers_manager.PackagerA"], [PackagerA]),
         (
@@ -186,22 +186,22 @@ class NotAPackager:
     ],
 )
 def test_collect_packagers(
-    collection_test: Tuple[List[str], Union[List[Type[Packager]], str]]
+    test_tuple: Tuple[List[str], Union[List[Type[Packager]], str]]
 ):
     """
     Test the manager's `collect_packagers` method.
 
-    :param collection_test: A tuple of the packagers to collect and the packager classes that should have been
-                            collected. A string means an error should be raised.
+    :param test_tuple: A tuple of the packagers to collect and the packager classes that should have been collected.
+                       A string means an error should be raised.
     """
     # Prepare the test:
-    packagers_to_collect, validation = collection_test
+    packagers_to_collect, validation = test_tuple
     packagers_manager = PackagersManager()
 
     # Try to collect the packagers:
     try:
         packagers_manager.collect_packagers(packagers=packagers_to_collect)
-    except (MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError) as error:
+    except MLRunPackagePackagerCollectionError as error:
         # Catch only if the validation is a string, otherwise it is a legitimate exception:
         if isinstance(validation, str):
             # Make sure the correct error was raised:
@@ -215,21 +215,21 @@ def test_collect_packagers(
 
 
 @pytest.mark.parametrize(
-    "priority_test",
+    "test_tuple",
     [
         ([PackagerA, PackagerB], "_from_PackagerB"),
         ([PackagerB, PackagerA], "_from_PackagerA"),
     ],
 )
-def test_packagers_priority(priority_test: Tuple[List[Type[Packager]], str]):
+def test_packagers_priority(test_tuple: Tuple[List[Type[Packager]], str]):
     """
     Test the priority of the collected packagers (last collected - highest priority).
 
-    :param priority_test: A tuple of the packagers to collect and the suffix the result key should have if it was
-                          collected by the right packager.
+    :param test_tuple: A tuple of the packagers to collect and the suffix the result key should have if it was
+                       collected by the right packager.
     """
     # Prepare the test:
-    packagers_to_collect, result_key_suffix = priority_test
+    packagers_to_collect, result_key_suffix = test_tuple
     packagers_manager = PackagersManager()
     packagers_manager.collect_packagers(packagers=packagers_to_collect)
 
@@ -291,7 +291,7 @@ def test_clear_packagers_outputs():
 
 
 @pytest.mark.parametrize(
-    "arbitrary_log_hint_test",
+    "test_tuple",
     [
         (
             "*list_",
@@ -327,18 +327,18 @@ def test_clear_packagers_outputs():
     ],
 )
 def test_arbitrary_log_hint(
-    arbitrary_log_hint_test: Tuple[
+    test_tuple: Tuple[
         str, Union[List[float], Dict[str, float]], Union[Dict[str, float], str]
     ]
 ):
     """
     Test the arbitrary log hint key prefixes "*" and "**".
 
-    :param arbitrary_log_hint_test: A tuple of the key to use in the log hint, the object to pack and the expected
-                                    results that should be packed. A string means an error should be raised.
+    :param test_tuple: A tuple of the key to use in the log hint, the object to pack and the expected results that
+                       should be packed. A string means an error should be raised.
     """
     # Prepare the test:
-    key, obj, expected_results = arbitrary_log_hint_test
+    key, obj, expected_results = test_tuple
     packagers_manager = PackagersManager()
     packagers_manager.collect_packagers(packagers=[PackagerC])
 

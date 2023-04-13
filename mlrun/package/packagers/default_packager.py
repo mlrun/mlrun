@@ -18,7 +18,7 @@ import os
 import sys
 import tempfile
 import warnings
-from types import MethodType, ModuleType
+from types import MethodType
 from typing import Any, Dict, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
@@ -52,12 +52,11 @@ class _Pickler:
         :return: A tuple of the path of the 'pkl' file and the instructions the pickler noted.
         """
         # Get the modules and versions:
-        pickle_module = _Pickler._get_module(source=pickle_module_name)
+        pickle_module = importlib.import_module(pickle_module_name)
         pickle_module_version = _Pickler._get_module_version(
             module_name=pickle_module_name
         )
-        object_module = _Pickler._get_module(source=obj)
-        object_module_name = _Pickler._get_module_name(module=object_module)
+        object_module_name = obj.__module__.split(".")[0]
         object_module_version = _Pickler._get_module_version(
             module_name=object_module_name
         )
@@ -122,7 +121,7 @@ class _Pickler:
                 )
 
         # Get the pickle module:
-        pickle_module = _Pickler._get_module(source=pickle_module_name)
+        pickle_module = importlib.import_module(pickle_module_name)
 
         # Check the pickle module against the pickled object (only if the version is given):
         if pickle_module_version is not None:
@@ -156,31 +155,6 @@ class _Pickler:
             obj = pickle_module.load(pickle_file)
 
         return obj
-
-    @staticmethod
-    def _get_module(source: Union[Any, str]) -> ModuleType:
-        """
-        Get the module from the provided source. The source can be a python object or a module name (string).
-
-        :param source: The source from which to get the module. If python object, the module of the object is returned.
-                       If string - meaning module name, the module with this exact name.
-
-        :return: The imported module object.
-        """
-        if isinstance(source, str):
-            return importlib.import_module(source)
-        return inspect.getmodule(source)
-
-    @staticmethod
-    def _get_module_name(module: ModuleType) -> str:
-        """
-        Get a module name.
-
-        :param module: A module object to get its name. Only the main module name is returned.
-
-        :return: The module's name.
-        """
-        return module.__name__.split(".")[0]
 
     @staticmethod
     def _get_module_version(module_name: str) -> Union[str, None]:
@@ -552,8 +526,9 @@ class DefaultPackager(Packager):
         mandatory_arguments = [
             name
             for name, parameter in possible_arguments.items()
-            if parameter.default is not inspect._empty
+            if parameter.default is inspect._empty
         ]
+        mandatory_arguments.remove("obj" if is_packing else "data_item")
 
         # Validate there are no missing arguments (only mandatory ones):
         missing_arguments = [

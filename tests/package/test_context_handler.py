@@ -13,12 +13,14 @@
 # limitations under the License.
 #
 from types import FunctionType
+from typing import Any, Tuple, Union
 
 import pytest
 
 import mlrun
 from mlrun import MLClientCtx
 from mlrun.package import ContextHandler
+from mlrun.runtimes import RunError
 
 
 def test_init():
@@ -47,29 +49,59 @@ def _look_for_context_via_header(context: MLClientCtx):
     "func",
     [_look_for_context_via_get_or_create, _look_for_context_via_header],
 )
-@pytest.mark.parametrize("result", [True, False])
-def test_look_for_context(rundb_mock, func: FunctionType, result: bool):
+@pytest.mark.parametrize("run_via_mlrun", [True, False])
+def test_look_for_context(rundb_mock, func: FunctionType, run_via_mlrun: bool):
     """
     Test the `look_for_context` method of the context handler. The method should find or create a context only when it
     is being ran through MLRun.
 
-    :param rundb_mock: A runDB mock fixture.
-    :param func:       The function to run in the test.
-    :param result:     Boolean flag to expect to find a context (run via MLRun) as True and to not find a context as
-                       False.
+    :param rundb_mock:        A runDB mock fixture.
+    :param func:              The function to run in the test.
+    :param run_via_mlrun:     Boolean flag to expect to find a context (run via MLRun) as True and to not find a context
+                              as False.
     """
-    if result:
+    if not run_via_mlrun:
         assert not func(None)
         return
     run = mlrun.new_function().run(handler=func, returns=["result:result"])
     assert run.status.results["result"]
 
 
-# TODO: finish test.
-def test_custom_packagers(rundb_mock):
+def collect_custom_packagers():
+    return
+
+
+@pytest.mark.parametrize(
+    "test_tuple",
+    [
+        ("tests.package.test_packagers_manager.PackagerA", True),
+        ("tests.package.packagers_testers.default_packager_tester.SomeClass", False),
+    ],
+)
+@pytest.mark.parametrize("is_mandatory", [True, False])
+def test_custom_packagers(
+    rundb_mock, test_tuple: Tuple[str, Union[str, Any]], is_mandatory: bool
+):
     """
     Test the custom packagers collection from a project during the `look_for_context` method.
 
     :param rundb_mock: A runDB mock fixture.
     """
-    pass
+    packager, expected_result = test_tuple
+    project = mlrun.get_or_create_project(name="default")
+    project.add_custom_packager(
+        packager=packager,
+        is_mandatory=is_mandatory,
+    )
+    project.save_to_db()
+    mlrun_function = project.set_function(
+        func=__file__, name="test_custom_packagers", image="mlrun/mlrun"
+    )
+    if expected_result or not is_mandatory:
+        mlrun_function.run(handler="collect_custom_packagers", local=True)
+        return
+    try:
+        mlrun_function.run(handler="collect_custom_packagers", local=True)
+        assert False
+    except RunError:
+        pass

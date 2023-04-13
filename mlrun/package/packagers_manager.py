@@ -98,7 +98,6 @@ class PackagersManager:
 
         :param packagers: List of packagers to add.
 
-        :raise MLRunInvalidArgumentError:   In case one of the classes provided was not of type `Packager`.
         :raise MLRunPackageCollectingError: In case the packager could not be collected.
         """
         for packager in packagers:
@@ -111,7 +110,7 @@ class PackagersManager:
                 except ModuleNotFoundError as module_not_found_error:
                     raise MLRunPackagePackagerCollectionError(
                         f"The packager '{class_name}' could not be collected from the module '{module_name}' as it "
-                        f"cannot be imported."
+                        f"cannot be imported: {module_not_found_error}"
                     ) from module_not_found_error
                 # Check if needed to import all packagers from the given module:
                 if class_name == "*":
@@ -139,11 +138,11 @@ class PackagersManager:
                 except AttributeError as attribute_error:
                     raise MLRunPackagePackagerCollectionError(
                         f"The packager '{class_name}' could not be collected as it does not exist in the module "
-                        f"'{module.__name__}'."
+                        f"'{module.__name__}': {attribute_error}"
                     ) from attribute_error
             # Validate the class given is a `Packager` type:
             if not issubclass(packager, Packager):
-                raise MLRunInvalidArgumentError(
+                raise MLRunPackagePackagerCollectionError(
                     f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
             # Collect the packager (putting him first in the list for highest priority:
@@ -221,7 +220,7 @@ class PackagersManager:
                 packages.append(self._pack(obj=per_key_obj, log_hint=per_key_log_hint))
             except Exception as exception:
                 raise MLRunPackagePackingError(
-                    f"An exception was raised during the packing of '{per_key_log_hint}'."
+                    f"An exception was raised during the packing of '{per_key_log_hint}': {exception}"
                 ) from exception
 
         # If multiple packages were packed, return a list, otherwise return the single package:
@@ -334,7 +333,7 @@ class PackagersManager:
             )
         except Exception as exception:
             raise MLRunPackageUnpackingError(
-                f"An exception was raised during the unpacking of '{data_item.key}'."
+                f"An exception was raised during the unpacking of '{data_item.key}': {exception}"
             ) from exception
 
     def link_packages(

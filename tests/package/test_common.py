@@ -30,7 +30,7 @@ class SomeClass:
 
 
 @pytest.mark.parametrize(
-    "typing_type_test",
+    "test_tuple",
     [
         (typing.Optional[int], True),
         (typing.Union[str, int], True),
@@ -48,20 +48,17 @@ class SomeClass:
         # (str | int, True),
     ],
 )
-def test_is_typing_type(typing_type_test: typing.Tuple[typing.Type, bool]):
+def test_is_typing_type(test_tuple: typing.Tuple[typing.Type, bool]):
     """
     Test the `TypeHintUtils.is_typing_type` function with multiple types.
 
-    :param typing_type_test: A tuple of the type to check and the expected result.
+    :param test_tuple: A tuple of the type to check and the expected result.
     """
-    assert (
-        TypeHintUtils.is_typing_type(type_hint=typing_type_test[0])
-        == typing_type_test[1]
-    )
+    assert TypeHintUtils.is_typing_type(type_hint=test_tuple[0]) == test_tuple[1]
 
 
 @pytest.mark.parametrize(
-    "type_hint_test",
+    "test_tuple",
     [
         ("int", int),
         ("list", list),
@@ -82,14 +79,14 @@ def test_is_typing_type(typing_type_test: typing.Tuple[typing.Type, bool]):
         ),
     ],
 )
-def test_parse_type_hint(type_hint_test: typing.Tuple[str, typing.Union[str, type]]):
+def test_parse_type_hint(test_tuple: typing.Tuple[str, typing.Union[str, type]]):
     """
     Test the `TypeHintUtils.parse_type_hint` function with multiple types.
 
-    :param type_hint_test: A tuple of the type to parse and the expected parsed type. String in the expected parsed type
-                           variable indicates the parsing should fail with the provided error message in the variable.
+    :param test_tuple: A tuple of the type to parse and the expected parsed type. String in the expected parsed type
+                       variable indicates the parsing should fail with the provided error message in the variable.
     """
-    type_string, expected_type = type_hint_test
+    type_string, expected_type = test_tuple
     try:
         parsed_type = TypeHintUtils.parse_type_hint(type_hint=type_string)
         assert parsed_type is expected_type
@@ -101,7 +98,7 @@ def test_parse_type_hint(type_hint_test: typing.Tuple[str, typing.Union[str, typ
 
 
 @pytest.mark.parametrize(
-    "type_hint_test",
+    "test_tuple",
     [
         # `typing.TypeVar` usages:
         (typing.TypeVar("A", int, str, typing.List[int]), {int, str, typing.List[int]}),
@@ -174,20 +171,18 @@ def test_parse_type_hint(type_hint_test: typing.Tuple[str, typing.Union[str, typ
     ],
 )
 def test_reduce_type_hint(
-    type_hint_test: typing.Tuple[typing.Type, typing.Set[typing.Type]]
+    test_tuple: typing.Tuple[typing.Type, typing.Set[typing.Type]]
 ):
     """
     Test the `TypeHintUtils.reduce_type_hint` function with multiple type hints.
 
-    :param type_hint_test: A tuple of the type hint to reduce and the expected result.
+    :param test_tuple: A tuple of the type hint to reduce and the expected result.
     """
-    assert (
-        TypeHintUtils.reduce_type_hint(type_hint=type_hint_test[0]) == type_hint_test[1]
-    )
+    assert TypeHintUtils.reduce_type_hint(type_hint=test_tuple[0]) == test_tuple[1]
 
 
 @pytest.mark.parametrize(
-    "log_hint_test",
+    "test_tuple",
     [
         ("some_key", {LogHintKey.KEY: "some_key"}),
         (
@@ -226,16 +221,16 @@ def test_reduce_type_hint(
     ],
 )
 def test_parse_log_hint(
-    log_hint_test: typing.Tuple[typing.Union[str, dict], typing.Union[str, dict]]
+    test_tuple: typing.Tuple[typing.Union[str, dict], typing.Union[str, dict]]
 ):
     """
     Test the `LogHintUtils.parse_log_hint` function with multiple types.
 
-    :param log_hint_test: A tuple of the log hint to parse and the expected parsed log hint dictionary. String in the
-                          expected parsed log hint variable indicates the parsing should fail with the provided error
-                          message in the variable.
+    :param test_tuple: A tuple of the log hint to parse and the expected parsed log hint dictionary. String in the
+                       expected parsed log hint variable indicates the parsing should fail with the provided error
+                       message in the variable.
     """
-    log_hint, expected_log_hint = log_hint_test
+    log_hint, expected_log_hint = test_tuple
     try:
         parsed_log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
         assert parsed_log_hint == expected_log_hint

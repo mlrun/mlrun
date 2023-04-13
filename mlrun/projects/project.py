@@ -117,7 +117,7 @@ def new_project(
         # create a project with local and marketplace functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://auto_trainer', 'train')
+        project.set_function('hub://auto-trainer', 'train')
         project.set_artifact('data', Artifact(target_path=data_url))
         project.set_workflow('main', "./myflow.py")
         project.save()
@@ -1525,7 +1525,7 @@ class MlrunProject(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto_trainer:master
+            functions hub/market: e.g. hub://auto-trainer:master
 
         examples::
 
@@ -2198,7 +2198,7 @@ class MlrunProject(ModelObj):
             # create a project with two functions (local and from marketplace)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-            project.set_function("hub://auto_trainer", "train")
+            project.set_function("hub://auto-trainer", "train")
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})

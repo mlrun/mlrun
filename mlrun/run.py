@@ -236,7 +236,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
         mod.my_job(context, p1=1, p2='x')
         print(context.to_yaml())
 
-        fn = mlrun.import_function('hub://open_archive')
+        fn = mlrun.import_function('hub://open-archive')
         mod = mlrun.function_to_module(fn)
         data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
         context = mlrun.get_or_create_ctx('myfunc')
@@ -458,7 +458,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     examples::
 
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://auto-trainer")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 

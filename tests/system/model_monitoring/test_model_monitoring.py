@@ -256,7 +256,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=self.project_name
+            "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
@@ -369,7 +369,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         # Train the model using the auto trainer from the marketplace
-        train = mlrun.import_function("hub://auto_trainer", new_name="train")
+        train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
         model_name = "diabetes_model"
@@ -399,7 +399,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Set the serving topology to simple model routing
         # with data enrichment and imputing from the feature vector
-        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+        serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
         serving_fn.set_topology(
             "router",
             mlrun.serving.routers.EnrichmentModelRouter(
@@ -512,7 +512,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=self.project_name
+            "hub://v2-model-server", project=self.project_name
         ).apply(mlrun.auto_mount())
 
         serving_fn.set_topology(
@@ -530,7 +530,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         }
 
         # Import the auto trainer function from the marketplace (hub://)
-        train = mlrun.import_function("hub://auto_trainer")
+        train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
 

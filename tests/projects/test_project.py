@@ -61,7 +61,7 @@ def test_sync_functions(rundb_mock):
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 

@@ -13,6 +13,8 @@
 # limitations under the License.
 import pathlib
 
+import pytest
+
 from mlrun.runtimes.local import run_exec
 
 
@@ -23,8 +25,14 @@ def test_run_exec_basic():
 
 
 # ML-3710
-def test_run_exec_verbose_stderr():
-    script_path = str(pathlib.Path(__file__).parent / "assets" / "verbose_stderr.py")
+@pytest.mark.parametrize("return_code", [0, 1])
+def test_run_exec_verbose_stderr(return_code):
+    script_path = str(
+        pathlib.Path(__file__).parent
+        / "assets"
+        / f"verbose_stderr_return_code_{return_code}.py"
+    )
     out, err = run_exec(["python"], [script_path])
     assert out == "some output\n"
-    assert len(err) == 100000
+    expected_err_length = 100000 if return_code else 0
+    assert len(err) == expected_err_length

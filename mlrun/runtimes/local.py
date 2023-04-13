@@ -430,6 +430,11 @@ def run_exec(cmd, args, env=None, cwd=None):
 
         stderr_consumer_thread.join()
         err = stderr.getvalue()
+
+    # if we return anything for err, the caller will assume that the process failed
+    code = process.poll()
+    err = "" if code == 0 else err
+
     return out, err
 
 

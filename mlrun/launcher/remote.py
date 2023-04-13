@@ -11,28 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.runtimes.kubejob
 from mlrun.launcher.base import _BaseLauncher
 
 
 class ClientRemoteLauncher(_BaseLauncher):
     @staticmethod
-    def verify_base_image(runtime):
+    def verify_base_image(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass
 
     @staticmethod
-    def save(runtime):
+    def save(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass
 
     @staticmethod
-    def run(runtime):
+    def run(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass
 
     @staticmethod
-    def _enrich_runtime(runtime):
+    def _enrich_runtime(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass
 
     @staticmethod
-    def _validate_runtime(runtime):
+    def _validate_runtime(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass
 
     def _submit_job(self, runtime):

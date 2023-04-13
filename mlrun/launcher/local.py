@@ -11,29 +11,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.runtimes.base
 from mlrun.launcher.base import _BaseLauncher
 
 
 class ClientLocalLauncher(_BaseLauncher):
     @staticmethod
-    def verify_base_image(runtime):
+    def verify_base_image(runtime: mlrun.runtimes.base.BaseRuntime):
         pass
 
     @staticmethod
-    def save(runtime):
+    def save(runtime: mlrun.runtimes.base.BaseRuntime):
         pass
 
     @staticmethod
-    def run(runtime):
+    def run(runtime: mlrun.runtimes.base.BaseRuntime):
         pass
 
     @staticmethod
-    def _enrich_runtime(runtime):
+    def _enrich_runtime(runtime: mlrun.runtimes.base.BaseRuntime):
         pass
 
     @staticmethod
-    def _validate_runtime(runtime):
+    def _validate_runtime(runtime: mlrun.runtimes.base.BaseRuntime):
         pass
 
-    def _run_local(self, runtime):
+    def _run_local(self, runtime: mlrun.runtimes.base.BaseRuntime):
         pass

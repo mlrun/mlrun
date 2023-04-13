@@ -444,7 +444,7 @@ default_config = {
             "create": True,
             "name": "default",
             "description": "MLRun global function hub",
-            "url": "https://mlrun.github.io/marketplace/",
+            "url": "https://mlrun.github.io/marketplace",
             "object_type": "functions",
             "channel": "master",
         },

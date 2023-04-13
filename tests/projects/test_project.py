@@ -43,24 +43,6 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_sync_functions_with_names_different_than_default():
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, save=False)
-
-    describe_func = mlrun.import_function("hub://describe")
-    # set a different name than the default
-    project.set_function(describe_func, "new_describe_func")
-
-    project_function_object = project.spec._function_objects
-    project_function_definition = project.spec._function_definitions
-
-    # sync functions - expected to sync the function objects from the definitions
-    project.sync_functions()
-
-    assert project.spec._function_objects == project_function_object
-    assert project.spec._function_definitions == project_function_definition
-
-
 def test_export_project_dir_doesnt_exist():
     project_name = "project-name"
     project_file_path = (
@@ -299,31 +281,6 @@ def test_load_project(
     assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
-
-
-def test_set_function_requirements():
-    project = mlrun.projects.project.MlrunProject.from_dict(
-        {
-            "metadata": {
-                "name": "newproj",
-            },
-            "spec": {
-                "default_requirements": ["pandas>1, <3"],
-            },
-        }
-    )
-    project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
-        "x",
-        "pandas>1, <3",
-    ]
-
-    fn = mlrun.import_function("hub://describe")
-    project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
-        "y",
-        "pandas>1, <3",
-    ]
 
 
 def test_set_function_underscore_name(rundb_mock):

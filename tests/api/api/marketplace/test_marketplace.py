@@ -244,12 +244,12 @@ def test_marketplace_source_manager(
     assert len(catalog.catalog) == 2
     for item in catalog.catalog:
         assert (
-            item.metadata.name in ["prod_function", "prod_function_2"]
+            item.metadata.name in ["prod-function", "prod-function-2"]
             and item.metadata.version == "1.0.0"
         )
 
-    item = manager.get_item(source_object, "prod_function", "1.0.0")
-    assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
+    item = manager.get_item(source_object, "prod-function", "1.0.0")
+    assert item.metadata.name == "prod-function" and item.metadata.version == "1.0.0"
 
 
 def test_marketplace_default_source(
@@ -373,6 +373,8 @@ def test_list_sources_with_filters(
     credentials = {"secret1": "value1", "another-secret": "42"}
     source_1 = _generate_source_dict(-1, "source_1", credentials)
     response = client.post("marketplace/sources", json=source_1)
+    good_name = "auto-trainer"
+    bad_name = "blah-blah"
     assert response.status_code == HTTPStatus.CREATED.value
 
     # verifying source and default source in db:
@@ -380,39 +382,35 @@ def test_list_sources_with_filters(
     assert len(sources) == 2
 
     # verifying filtering by good item name:
-    sources = client.get(
-        "marketplace/sources", params={"item_name": "auto_trainer"}
-    ).json()
+    sources = client.get("marketplace/sources", params={"item_name": good_name}).json()
     assert len(sources) == 1
 
     # verifying filtering by bad item name:
-    sources = client.get(
-        "marketplace/sources", params={"item_name": "blah-blah"}
-    ).json()
+    sources = client.get("marketplace/sources", params={"item_name": bad_name}).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and bad tag:
     sources = client.get(
-        "marketplace/sources", params={"item_name": "auto_trainer", "tag": "bad-tag"}
+        "marketplace/sources", params={"item_name": good_name, "tag": "bad-tag"}
     ).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and good tag:
     sources = client.get(
-        "marketplace/sources", params={"item_name": "auto_trainer", "tag": "latest"}
+        "marketplace/sources", params={"item_name": good_name, "tag": "latest"}
     ).json()
     assert len(sources) == 1
 
     # verifying filtering by item name and bad version:
     sources = client.get(
         "marketplace/sources",
-        params={"item_name": "auto_trainer", "version": "99.99.99"},
+        params={"item_name": good_name, "version": "99.99.99"},
     ).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and good version:
     sources = client.get(
-        "marketplace/sources", params={"item_name": "auto_trainer", "version": "1.1.0"}
+        "marketplace/sources", params={"item_name": good_name, "version": "1.1.0"}
     ).json()
     assert len(sources) == 1
 

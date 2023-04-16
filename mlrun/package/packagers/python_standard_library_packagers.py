@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
 import os
 import pathlib
-import tarfile
-import zipfile
-from enum import Enum
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 
-from ..common import ArtifactType
+from ..utils import ArchiveFormat, ArtifactType
 from .default_packager import DefaultPackager
 
 
@@ -43,13 +39,14 @@ class BytesPackager(DefaultPackager):
     DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
 
+class BoolPackager(DefaultPackager):
+    PACKABLE_OBJECT_TYPE = bool
+    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
+
+
 class StrPackager(DefaultPackager):
     PACKABLE_OBJECT_TYPE = str
     DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
-
-    class ArchiveFormats(Enum):
-        ZIP = "zip"
-        TAR_GZ = "tar.gz"
 
     @classmethod
     def pack_file(cls, obj: str, key: str):
@@ -65,7 +62,7 @@ class StrPackager(DefaultPackager):
         return artifact, None
 
     @classmethod
-    def pack_directory(cls, obj: str, key: str, fmt: str = "zip"):
+    def pack_directory(cls, obj: str, key: str, archive_format: str = "zip"):
         pass
 
     @classmethod
@@ -73,30 +70,41 @@ class StrPackager(DefaultPackager):
         cls,
         data_item: DataItem,
     ) -> str:
-        return data_item.local()
+        file_path = data_item.local()
+
+        cls.future_clear(path=file_path)
+
+        return file_path
 
     @classmethod
-    def unpack_directory(cls, data_item: DataItem, fmt: str = None):
+    def unpack_directory(cls, data_item: DataItem, archive_format: str = None):
         archive_file = data_item.local()
-        if fmt is None:
-            archive_formats = [
-                archive_format.value
-                for archive_format in cls.ArchiveFormats.__members__.values()
-            ]
+
+        if archive_format is None:
+            archive_formats = ArchiveFormat.get_formats()
             for archive_format in archive_formats:
                 if archive_file.endswith(archive_format):
-                    fmt = archive_format
+                    archive_format = archive_format
                     break
-        if fmt is None:
+        if archive_format is None:
             raise MLRunInvalidArgumentError(
                 f"Could not get the archive format of {data_item.key}."
             )
+
+        archiver = ArchiveFormat.get_archiver(archive_format=archive_format)
+        directory_path = archiver.extract_archive(
+            archive_path=archive_file, output_path=os.path.dirname(archive_file)
+        )
+
+        cls.future_clear(path=archive_file)
+        cls.future_clear(path=directory_path)
+
+        return directory_path
 
 
 # pathlib packagers:
 class PathPackager(StrPackager):
     PACKABLE_OBJECT_TYPE = pathlib.Path
-    DEFAULT_ARTIFACT_TYPE = ArtifactType.RESULT
 
     @classmethod
     def pack_result(cls, obj: pathlib.Path, key: str) -> dict:
@@ -107,5 +115,7 @@ class PathPackager(StrPackager):
         return super().pack_file(obj=str(obj), key=key)
 
     @classmethod
-    def pack_directory(cls, obj: pathlib.Path, key: str, fmt: str = "zip"):
-        return super().pack_directory(obj=str(obj), key=key, fmt=fmt)
+    def pack_directory(cls, obj: pathlib.Path, key: str, archive_format: str = "zip"):
+        return super().pack_directory(
+            obj=str(obj), key=key, archive_format=archive_format
+        )

@@ -14,13 +14,14 @@
 #
 import inspect
 import shutil
+import tempfile
 from typing import List, Tuple, Type, Union
 
 import pytest
 
 import mlrun
 from mlrun.package import ArtifactType, LogHintKey
-from mlrun.package.common import LogHintUtils
+from mlrun.package.utils import LogHintUtils
 from mlrun.runtimes import KubejobRuntime
 
 from .packager_tester import PackagerTester, PackTest, PackToUnpackTest, UnpackTest
@@ -41,9 +42,9 @@ def _get_tests_tuples(
     ]
 
 
-def _setup_test(tester: Type[PackagerTester]) -> KubejobRuntime:
+def _setup_test(tester: Type[PackagerTester], test_directory: str) -> KubejobRuntime:
     # Create a project for this tester:
-    project = mlrun.get_or_create_project(name="default")
+    project = mlrun.get_or_create_project(name="default", context=test_directory)
 
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
@@ -90,7 +91,8 @@ def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackT
     tester, test = test_tuple
 
     # Set up the test, creating a project and a MLRun function:
-    mlrun_function = _setup_test(tester=tester)
+    test_directory = tempfile.TemporaryDirectory()
+    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
 
     # Run the packing handler:
     pack_run = mlrun_function.run(
@@ -98,6 +100,7 @@ def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackT
         handler=test.pack_handler,
         params=test.parameters,
         returns=[test.log_hint],
+        artifact_path=test_directory.name,
         local=True,
     )
 
@@ -109,6 +112,9 @@ def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackT
     else:
         assert key in pack_run.outputs
         assert test.validation_function(pack_run._artifact(key=key))
+
+    # Clear the tests outputs:
+    test_directory.cleanup()
 
 
 @pytest.mark.parametrize(
@@ -132,18 +138,21 @@ def test_packager_unpack(
     temp_directory, input_path = test.prepare_input_function()
 
     # Set up the test, creating a project and a MLRun function:
-    mlrun_function = _setup_test(tester=tester)
+    test_directory = tempfile.TemporaryDirectory()
+    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
 
     # Run the packing handler:
     mlrun_function.run(
         name="unpack",
         handler=test.unpack_handler,
         inputs={"obj": input_path},
+        artifact_path=test_directory.name,
         local=True,
     )
 
-    # Delete the temporary directory created:
+    # Clear the tests outputs:
     shutil.rmtree(temp_directory)
+    test_directory.cleanup()
 
 
 @pytest.mark.parametrize(
@@ -165,7 +174,8 @@ def test_packager_pack_to_unpack(
     tester, test = test_tuple
 
     # Set up the test, creating a project and a MLRun function:
-    mlrun_function = _setup_test(tester=tester)
+    test_directory = tempfile.TemporaryDirectory()
+    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
 
     # Run the packing handler:
     pack_run = mlrun_function.run(
@@ -173,6 +183,7 @@ def test_packager_pack_to_unpack(
         handler=test.pack_handler,
         params=test.parameters,
         returns=[test.log_hint],
+        artifact_path=test_directory.name,
         local=True,
     )
 
@@ -198,5 +209,9 @@ def test_packager_pack_to_unpack(
         name="unpack",
         handler=test.unpack_handler,
         inputs={"obj": pack_run.outputs[key]},
+        artifact_path=test_directory.name,
         local=True,
     )
+
+    # Clear the tests outputs:
+    test_directory.cleanup()

@@ -17,7 +17,7 @@ import pandas as pd
 from mlrun.artifacts import DatasetArtifact
 from mlrun.datastore import DataItem
 
-from ..common import ArtifactType
+from ..utils import ArtifactType
 from .default_packager import DefaultPackager
 
 

@@ -22,8 +22,13 @@ import pytest
 
 from mlrun import DataItem
 from mlrun.artifacts import Artifact
-from mlrun.errors import MLRunInvalidArgumentError, MLRunPackagePackagerCollectionError
-from mlrun.package import DefaultPackager, Packager, PackagersManager
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.package import (
+    DefaultPackager,
+    MLRunPackagePackagerCollectionError,
+    Packager,
+    PackagersManager,
+)
 
 
 class PackagerA(Packager):

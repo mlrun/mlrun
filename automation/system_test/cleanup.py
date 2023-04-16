@@ -88,7 +88,7 @@ async def _collect_image_tags(
     return tags
 
 
-async def _remove_image_from_datanode_docker():
+def _remove_image_from_datanode_docker():
     """Remove image from datanode docker"""
     subprocess.run(
         [

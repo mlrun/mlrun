@@ -15,6 +15,7 @@ import ast
 import datetime
 import os
 import random
+import sys
 import time
 from collections import Counter
 from copy import copy
@@ -1123,27 +1124,28 @@ class NoSqlTarget(NoSqlBaseTarget):
         return spark_options
 
     def prepare_spark_df(self, df, key_columns):
-        import sys
-
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
 
-        import spark_udf
+            df.rdd.context.addFile(spark_udf.__file__)
 
-        df.rdd.context.addFile(spark_udf.__file__)
-
-        for col_name, col_type in df.dtypes:
-            if col_type.startswith("decimal("):
-                # V3IO does not support this level of precision
-                df = df.withColumn(col_name, col(col_name).cast("double"))
-        if len(key_columns) > 2:
-            return df.withColumn(
-                "_spark_object_name",
-                spark_udf.hash_and_concat_v3io_udf(*[col(c) for c in key_columns[1:]]),
-            )
-        sys.path.remove(spark_udf_directory)
+            for col_name, col_type in df.dtypes:
+                if col_type.startswith("decimal("):
+                    # V3IO does not support this level of precision
+                    df = df.withColumn(col_name, col(col_name).cast("double"))
+            if len(key_columns) > 2:
+                return df.withColumn(
+                    "_spark_object_name",
+                    spark_udf.hash_and_concat_v3io_udf(
+                        *[col(c) for c in key_columns[1:]]
+                    ),
+                )
+        finally:
+            sys.path.remove(spark_udf_directory)
         return df
 
 
@@ -1205,23 +1207,21 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return endpoint
 
     def prepare_spark_df(self, df, key_columns):
-        import sys
-
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
 
-        import spark_udf
+            df.rdd.context.addFile(spark_udf.__file__)
 
-        df.rdd.context.addFile(spark_udf.__file__)
-
-        df = df.withColumn(
-            "_spark_object_name",
-            spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
-        )
-
-        sys.path.remove(spark_udf_directory)
+            df = df.withColumn(
+                "_spark_object_name",
+                spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
+            )
+        finally:
+            sys.path.remove(spark_udf_directory)
 
         return df
 

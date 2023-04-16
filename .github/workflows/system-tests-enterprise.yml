@@ -102,6 +102,7 @@ jobs:
     name: Prepare System Tests Enterprise
     runs-on: ubuntu-latest
 
+    needs: [system-test-cleanup]
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 

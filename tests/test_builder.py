@@ -472,13 +472,17 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
+    project = mlrun.new_project("some-project")
+    project.set_secrets(
+        secrets={
+            "AWS_ACCESS_KEY_ID": "test-a",
+            "AWS_SECRET_ACCESS_KEY": "test-b",
+        }
+    )
+    function = project.set_function(
+        "hub://describe",
+        name="some-function",
         kind="job",
-        requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -488,6 +492,19 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
         env.to_dict() for env in pod_spec.containers[0].env
     ]
+
+    # ensure both envvars are set without values so they wont interfere with the iam policy
+    for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
+        assert {"name": env_name, "value": "", "value_from": None} in [
+            env.to_dict() for env in pod_spec.containers[0].env
+        ]
+
+    # 1 for the AWS_SDK_LOAD_CONFIG=true
+    # 2 for the AWS_ACCESS_KEY_ID="" and AWS_SECRET_ACCESS_KEY=""
+    # 1 for the project secret
+    # == 4
+    assert len(pod_spec.containers[0].env) == 4, "expected 4 env items"
+
     assert len(pod_spec.init_containers) == 2
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":

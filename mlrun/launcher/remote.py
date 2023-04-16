@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.runtimes.kubejob
-from mlrun.launcher.base import _BaseLauncher
+from mlrun.launcher.base import BaseLauncher
 
 
-class ClientRemoteLauncher(_BaseLauncher):
+class ClientRemoteLauncher(BaseLauncher):
     @staticmethod
     def verify_base_image(runtime: mlrun.runtimes.kubejob.KubeResource):
         pass

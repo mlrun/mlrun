@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.runtimes.base
-from mlrun.launcher.base import _BaseLauncher
+from mlrun.launcher.base import BaseLauncher
 
 
-class ServerSideLauncher(_BaseLauncher):
+class ServerSideLauncher(BaseLauncher):
     @staticmethod
     def run(runtime):
         pass

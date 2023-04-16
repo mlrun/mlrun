@@ -13,8 +13,11 @@
 # limitations under the License.
 import abc
 
+import mlrun.run
+from mlrun.utils import logger
 
-class _BaseLauncher(abc.ABC):
+
+class BaseLauncher(abc.ABC):
     """
     Abstract class for managing and running functions in different contexts
     This class is designed to encapsulate the logic of running a function in different contexts
@@ -48,3 +51,25 @@ class _BaseLauncher(abc.ABC):
     @abc.abstractmethod
     def _validate_runtime(runtime):
         pass
+
+    @abc.abstractmethod
+    def _save_or_push_notifications(self, runobj: mlrun.run.RunObject):
+        pass
+
+    @staticmethod
+    def _are_validate_notifications(runobj: mlrun.run.RunObject) -> bool:
+        if not runobj.spec.notifications:
+            logger.debug(
+                "No notifications to push for run", run_uid=runobj.metadata.uid
+            )
+            return False
+
+        # TODO: add support for other notifications per run iteration
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            logger.debug(
+                "Notifications per iteration are not supported, skipping",
+                run_uid=runobj.metadata.uid,
+            )
+            return False
+
+        return True

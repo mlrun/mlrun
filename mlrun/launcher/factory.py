@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.errors
-from mlrun.launcher import ClientLocalLauncher, ClientRemoteLauncher, _BaseLauncher
+from mlrun.launcher import ClientLocalLauncher, ClientRemoteLauncher, BaseLauncher
 
 
 class LauncherFactory(object):
     @staticmethod
-    def create_launcher(local: bool = False) -> _BaseLauncher:
+    def create_launcher(local: bool = False) -> BaseLauncher:
         """
         Creates a ServerSideLauncher if running as API.
         Otherwise, ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified.

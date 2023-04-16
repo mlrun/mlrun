@@ -547,7 +547,7 @@ class SQLDB(DBInterface):
         data_key = artifact.get("metadata", {}).get("key")
         if (key and data_key) and data_key != key:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Artifact with conflicting key name - {data_key} while request key : {key}."
+                f"Conflict between requested key ({key}) and key in artifact metadata ({data_key})"
             )
         if iter:
             key = f"{iter}-{key}"

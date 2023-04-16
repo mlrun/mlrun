@@ -38,3 +38,5 @@ echo "$next_parameter" > last_parameter.txt
 # Set the param output for the next step
 echo "param=$next_parameter" >> $GITHUB_OUTPUT
 echo $next_parameter > branchselected
+
+sshpass -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no branchselected   ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/branchselected

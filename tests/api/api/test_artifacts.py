@@ -133,7 +133,10 @@ def test_update_artifact_with_conflicted_key_names(db: Session, client: TestClie
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key="test", tag=TAG),
         data=artifact.to_json(),
     )
-    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+    assert (
+        resp.status_code == HTTPStatus.BAD_REQUEST.value
+        and "Artifact with conflicting key name" in resp.json()["detail"]
+    )
 
 
 def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):

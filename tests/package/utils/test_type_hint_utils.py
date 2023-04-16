@@ -30,7 +30,7 @@ class SomeClass:
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "type_hint, expected_result",
     [
         (typing.Optional[int], True),
         (typing.Union[str, int], True),
@@ -48,17 +48,18 @@ class SomeClass:
         # (str | int, True),
     ],
 )
-def test_is_typing_type(test_tuple: typing.Tuple[typing.Type, bool]):
+def test_is_typing_type(type_hint: typing.Type, expected_result: bool):
     """
     Test the `TypeHintUtils.is_typing_type` function with multiple types.
 
-    :param test_tuple: A tuple of the type to check and the expected result.
+    :param type_hint:       The type to check.
+    :param expected_result: The expected result.
     """
-    assert TypeHintUtils.is_typing_type(type_hint=test_tuple[0]) == test_tuple[1]
+    assert TypeHintUtils.is_typing_type(type_hint=type_hint) == expected_result
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "type_string, expected_type",
     [
         ("int", int),
         ("list", list),
@@ -79,14 +80,14 @@ def test_is_typing_type(test_tuple: typing.Tuple[typing.Type, bool]):
         ),
     ],
 )
-def test_parse_type_hint(test_tuple: typing.Tuple[str, typing.Union[str, type]]):
+def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type]):
     """
     Test the `TypeHintUtils.parse_type_hint` function with multiple types.
 
-    :param test_tuple: A tuple of the type to parse and the expected parsed type. String in the expected parsed type
-                       variable indicates the parsing should fail with the provided error message in the variable.
+    :param type_string:   The type to parse and
+    :param expected_type: The expected parsed type. A string value indicates the parsing should fail with the provided
+                          error message in the variable.
     """
-    type_string, expected_type = test_tuple
     try:
         parsed_type = TypeHintUtils.parse_type_hint(type_hint=type_string)
         assert parsed_type is expected_type
@@ -98,7 +99,7 @@ def test_parse_type_hint(test_tuple: typing.Tuple[str, typing.Union[str, type]])
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "type_hint, expected_result",
     [
         # `typing.TypeVar` usages:
         (typing.TypeVar("A", int, str, typing.List[int]), {int, str, typing.List[int]}),
@@ -176,11 +177,12 @@ def test_parse_type_hint(test_tuple: typing.Tuple[str, typing.Union[str, type]])
     ],
 )
 def test_reduce_type_hint(
-    test_tuple: typing.Tuple[typing.Type, typing.Set[typing.Type]]
+    type_hint: typing.Type, expected_result: typing.Set[typing.Type]
 ):
     """
     Test the `TypeHintUtils.reduce_type_hint` function with multiple type hints.
 
-    :param test_tuple: A tuple of the type hint to reduce and the expected result.
+    :param type_hint:       The type hint to reduce.
+    :param expected_result: The expected result.
     """
-    assert TypeHintUtils.reduce_type_hint(type_hint=test_tuple[0]) == test_tuple[1]
+    assert TypeHintUtils.reduce_type_hint(type_hint=type_hint) == expected_result

@@ -52,16 +52,20 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
     :param archive_format:   The archive format to use.
     :param directory_layout: The layout to archive.
     """
+    # Create a temporary directory for the test outputs:
     test_directory = tempfile.TemporaryDirectory()
 
+    # Generate random array for the content of the files:
     files_content: np.ndarray = np.random.random(size=100)
 
+    # Set up the main directory to archive and the output path for the archive file:
     directory_name = "my_dir"
     directory_path = Path(test_directory.name) / directory_name
     output_path = Path(test_directory.name) / "output_path"
     os.makedirs(directory_path)
     os.makedirs(output_path)
 
+    # Create the files according to the layout provided:
     for path in directory_layout:
         full_path = directory_path / path
         if "." in path:
@@ -73,6 +77,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
         assert full_path.exists()
     assert len(list(directory_path.rglob("*"))) == len(directory_layout)
 
+    # Archive the files:
     archiver = ArchiveFormat.get_archiver(archive_format=archive_format)
     archive_path = Path(
         archiver.create_archive(
@@ -82,6 +87,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
     assert archive_path.exists()
     assert archive_path == output_path / f"{directory_name}.{archive_format}"
 
+    # Extract the files:
     extracted_dir_path = Path(
         archiver.extract_archive(
             archive_path=str(archive_path), output_path=str(output_path)
@@ -90,6 +96,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
     assert extracted_dir_path.exists()
     assert extracted_dir_path == output_path / directory_name
 
+    # Validate all files were extracted as they originally were:
     for path in directory_layout:
         full_path = extracted_dir_path / path
         assert full_path.exists()
@@ -100,4 +107,5 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
             assert full_path.is_dir()
     assert len(list(extracted_dir_path.rglob("*"))) == len(directory_layout)
 
+    # Clean the test outputs:
     test_directory.cleanup()

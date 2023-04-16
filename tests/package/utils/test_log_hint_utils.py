@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Tuple, Union
+from typing import Union
 
 import pytest
 
@@ -21,7 +21,7 @@ from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "log_hint, expected_log_hint",
     [
         ("some_key", {LogHintKey.KEY: "some_key"}),
         (
@@ -59,15 +59,16 @@ from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
         ),
     ],
 )
-def test_parse_log_hint(test_tuple: Tuple[Union[str, dict], Union[str, dict]]):
+def test_parse_log_hint(
+    log_hint: Union[str, dict], expected_log_hint: Union[str, dict]
+):
     """
     Test the `LogHintUtils.parse_log_hint` function with multiple types.
 
-    :param test_tuple: A tuple of the log hint to parse and the expected parsed log hint dictionary. String in the
-                       expected parsed log hint variable indicates the parsing should fail with the provided error
-                       message in the variable.
+    :param log_hint:          The log hint to parse.
+    :param expected_log_hint: The expected parsed log hint dictionary. A string value indicates the parsing should fail
+                              with the provided error message in the variable.
     """
-    log_hint, expected_log_hint = test_tuple
     try:
         parsed_log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
         assert parsed_log_hint == expected_log_hint

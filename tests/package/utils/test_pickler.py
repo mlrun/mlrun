@@ -14,7 +14,7 @@
 #
 import tempfile
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Union
 
 import cloudpickle
 import numpy as np
@@ -25,7 +25,7 @@ from mlrun.package.utils import Pickler
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "pickle_module_name, expected_notes",
     [
         (
             "pickle",
@@ -49,16 +49,14 @@ from mlrun.package.utils import Pickler
         ("numpy", "A pickle module is expected to have a"),
     ],
 )
-def test_pickler(test_tuple: Tuple[str, Union[dict, str]]):
+def test_pickler(pickle_module_name: str, expected_notes: Union[dict, str]):
     """
     Test the `Pickler` with multiple pickling modules.
 
-    :param test_tuple: A tuple of the pickle module name to use and the expected pickling notes. String in the expected
-                       notes indicates the `Pickler` should fail with the provided error message in the variable.
+    :param pickle_module_name: The pickle module name to use.
+    :param expected_notes:     The expected pickling notes. A string value indicates the `Pickler` should fail with the
+                               provided error message in the variable.
     """
-    # Unpack the test arguments:
-    pickle_module_name, expected_notes = test_tuple
-
     # Create the test temporary directory:
     test_directory = tempfile.TemporaryDirectory()
 

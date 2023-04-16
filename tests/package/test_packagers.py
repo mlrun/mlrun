@@ -76,20 +76,17 @@ def _get_key_and_artifact_type(
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "tester, test",
     _get_tests_tuples(test_type=PackTest),
 )
-def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackTest]):
+def test_packager_pack(rundb_mock, tester: Type[PackagerTester], test: PackTest):
     """
     Test a packager's packing.
 
     :param rundb_mock: A runDB mock fixture.
-    :param test_tuple: A tuple of the `PackagerTester` class to get the functions to run from and the `PackTest`
-                       tuple with the test parameters.
+    :param tester: The `PackagerTester` class to get the functions to run from.
+    :param test:   The `PackTest` tuple with the test parameters.
     """
-    # Unpack the test tuple:
-    tester, test = test_tuple
-
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
     mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
@@ -118,22 +115,17 @@ def test_packager_pack(rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackT
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "tester, test",
     _get_tests_tuples(test_type=UnpackTest),
 )
-def test_packager_unpack(
-    rundb_mock, test_tuple: Tuple[Type[PackagerTester], UnpackTest]
-):
+def test_packager_unpack(rundb_mock, tester: Type[PackagerTester], test: UnpackTest):
     """
     Test a packager's unpacking.
 
     :param rundb_mock: A runDB mock fixture.
-    :param test_tuple: A tuple of the `PackagerTester` class to get the functions to run from and the `UnpackTest`
-                       tuple with the test parameters.
+    :param tester: The `PackagerTester` class to get the functions to run from.
+    :param test:   The `UnpackTest` tuple with the test parameters.
     """
-    # Unpack the test tuple:
-    tester, test = test_tuple
-
     # Create the input path to send for unpacking:
     temp_directory, input_path = test.prepare_input_function()
 
@@ -156,23 +148,20 @@ def test_packager_unpack(
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "tester, test",
     _get_tests_tuples(test_type=PackToUnpackTest),
 )
 def test_packager_pack_to_unpack(
-    rundb_mock, test_tuple: Tuple[Type[PackagerTester], PackToUnpackTest]
+    rundb_mock, tester: Type[PackagerTester], test: PackToUnpackTest
 ):
     """
     Test a packager's packing and unpacking by running two MLRun functions one after the other, one will return the
     value the packager should pack and the other should get the data item to make the packager unpack.
 
     :param rundb_mock: A runDB mock fixture.
-    :param test_tuple: A tuple of the `PackagerTester` class to get the functions to run from and the `PackToUnpackTest`
-                       tuple with the test parameters.
+    :param tester: The `PackagerTester` class to get the functions to run from.
+    :param test:   The `PackToUnpackTest` tuple with the test parameters.
     """
-    # Unpack the test tuple:
-    tester, test = test_tuple
-
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
     mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from types import FunctionType
-from typing import Any, Tuple, Union
 
 import pytest
 
@@ -53,7 +52,7 @@ def _look_for_context_via_header(context: MLClientCtx):
 def test_look_for_context(rundb_mock, func: FunctionType, run_via_mlrun: bool):
     """
     Test the `look_for_context` method of the context handler. The method should find or create a context only when it
-    is being ran through MLRun.
+    is being run through MLRun.
 
     :param rundb_mock:        A runDB mock fixture.
     :param func:              The function to run in the test.
@@ -72,7 +71,7 @@ def collect_custom_packagers():
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "packager, expected_result",
     [
         ("tests.package.test_packagers_manager.PackagerA", True),
         ("tests.package.packagers_testers.default_packager_tester.SomeClass", False),
@@ -80,14 +79,17 @@ def collect_custom_packagers():
 )
 @pytest.mark.parametrize("is_mandatory", [True, False])
 def test_custom_packagers(
-    rundb_mock, test_tuple: Tuple[str, Union[str, Any]], is_mandatory: bool
+    rundb_mock, packager: str, expected_result: bool, is_mandatory: bool
 ):
     """
     Test the custom packagers collection from a project during the `look_for_context` method.
 
-    :param rundb_mock: A runDB mock fixture.
+    :param rundb_mock:      A runDB mock fixture.
+    :param packager:        The custom packager to collect.
+    :param expected_result: Whether the packager collection should succeed.
+    :param is_mandatory:    If the packager is mandatory for the run or not. Mandatory packagers will always raise
+                            exception if they couldn't be collected.
     """
-    packager, expected_result = test_tuple
     project = mlrun.get_or_create_project(name="default")
     project.add_custom_packager(
         packager=packager,

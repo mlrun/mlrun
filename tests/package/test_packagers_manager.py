@@ -162,7 +162,7 @@ class NotAPackager:
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "packagers_to_collect, validation",
     [
         (["tests.package.test_packagers_manager.PackagerA"], [PackagerA]),
         (
@@ -191,16 +191,16 @@ class NotAPackager:
     ],
 )
 def test_collect_packagers(
-    test_tuple: Tuple[List[str], Union[List[Type[Packager]], str]]
+    packagers_to_collect: List[str], validation: Union[List[Type[Packager]], str]
 ):
     """
     Test the manager's `collect_packagers` method.
 
-    :param test_tuple: A tuple of the packagers to collect and the packager classes that should have been collected.
-                       A string means an error should be raised.
+    :param packagers_to_collect: The packagers to collect.
+    :param validation:           The packager classes that should have been collected. A string means an error should
+                                 be raised.
     """
     # Prepare the test:
-    packagers_to_collect, validation = test_tuple
     packagers_manager = PackagersManager()
 
     # Try to collect the packagers:
@@ -220,21 +220,22 @@ def test_collect_packagers(
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "packagers_to_collect, result_key_suffix",
     [
         ([PackagerA, PackagerB], "_from_PackagerB"),
         ([PackagerB, PackagerA], "_from_PackagerA"),
     ],
 )
-def test_packagers_priority(test_tuple: Tuple[List[Type[Packager]], str]):
+def test_packagers_priority(
+    packagers_to_collect: List[Type[Packager]], result_key_suffix: str
+):
     """
     Test the priority of the collected packagers (last collected - highest priority).
 
-    :param test_tuple: A tuple of the packagers to collect and the suffix the result key should have if it was
-                       collected by the right packager.
+    :param packagers_to_collect: The packagers to collect
+    :param result_key_suffix: The suffix the result key should have if it was collected by the right packager.
     """
     # Prepare the test:
-    packagers_to_collect, result_key_suffix = test_tuple
     packagers_manager = PackagersManager()
     packagers_manager.collect_packagers(packagers=packagers_to_collect)
 
@@ -296,7 +297,7 @@ def test_clear_packagers_outputs():
 
 
 @pytest.mark.parametrize(
-    "test_tuple",
+    "key, obj, expected_results",
     [
         (
             "*list_",
@@ -332,18 +333,18 @@ def test_clear_packagers_outputs():
     ],
 )
 def test_arbitrary_log_hint(
-    test_tuple: Tuple[
-        str, Union[List[float], Dict[str, float]], Union[Dict[str, float], str]
-    ]
+    key: str,
+    obj: Union[list, dict, tuple, set],
+    expected_results: Union[Dict[str, float], str],
 ):
     """
     Test the arbitrary log hint key prefixes "*" and "**".
 
-    :param test_tuple: A tuple of the key to use in the log hint, the object to pack and the expected results that
-                       should be packed. A string means an error should be raised.
+    :param key:              The key to use in the log hint
+    :param obj:              The object to pack
+    :param expected_results: The expected results that should be packed. A string means an error should be raised.
     """
     # Prepare the test:
-    key, obj, expected_results = test_tuple
     packagers_manager = PackagersManager()
     packagers_manager.collect_packagers(packagers=[PackagerC])
 

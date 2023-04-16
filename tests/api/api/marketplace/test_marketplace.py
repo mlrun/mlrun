@@ -382,35 +382,35 @@ def test_list_sources_with_filters(
     assert len(sources) == 2
 
     # verifying filtering by good item name:
-    sources = client.get("marketplace/sources", params={"item_name": good_name}).json()
+    sources = client.get("marketplace/sources", params={"item-name": good_name}).json()
     assert len(sources) == 1
 
     # verifying filtering by bad item name:
-    sources = client.get("marketplace/sources", params={"item_name": bad_name}).json()
+    sources = client.get("marketplace/sources", params={"item-name": bad_name}).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and bad tag:
     sources = client.get(
-        "marketplace/sources", params={"item_name": good_name, "tag": "bad-tag"}
+        "marketplace/sources", params={"item-name": good_name, "tag": "bad-tag"}
     ).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and good tag:
     sources = client.get(
-        "marketplace/sources", params={"item_name": good_name, "tag": "latest"}
+        "marketplace/sources", params={"item-name": good_name, "tag": "latest"}
     ).json()
     assert len(sources) == 1
 
     # verifying filtering by item name and bad version:
     sources = client.get(
         "marketplace/sources",
-        params={"item_name": good_name, "version": "99.99.99"},
+        params={"item-name": good_name, "version": "99.99.99"},
     ).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and good version:
     sources = client.get(
-        "marketplace/sources", params={"item_name": good_name, "version": "1.1.0"}
+        "marketplace/sources", params={"item-name": good_name, "version": "1.1.0"}
     ).json()
     assert len(sources) == 1
 

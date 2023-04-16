@@ -437,8 +437,8 @@ default_config = {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
-    "marketplace": {
-        "k8s_secrets_project_name": "-marketplace-secrets",
+    "hub": {
+        "k8s_secrets_project_name": "-hub-secrets",
         "catalog_filename": "catalog.json",
         "default_source": {
             # Set false to avoid creating a global source (for example in a dark site)

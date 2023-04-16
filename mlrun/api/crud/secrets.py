@@ -30,7 +30,7 @@ class SecretsClientType(str, enum.Enum):
     schedules = "schedules"
     model_monitoring = "model-monitoring"
     service_accounts = "service-accounts"
-    marketplace = "marketplace"
+    hub = "hub"
     notifications = "notifications"
 
 

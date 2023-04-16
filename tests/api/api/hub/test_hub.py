@@ -35,7 +35,7 @@ def _generate_source_dict(index, name, credentials=None):
     return {
         "index": index,
         "source": {
-            "kind": "MarketplaceSource",
+            "kind": "HubSource",
             "metadata": {"name": name, "description": "A test", "labels": None},
             "spec": {
                 "path": path,
@@ -53,7 +53,7 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
         "root['metadata']['created']",
         "root['spec']['object_type']",
     ]
-    response = client.get("marketplace/sources")
+    response = client.get("hub/sources")
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     # Default source is not in the expected data
@@ -70,29 +70,29 @@ def _assert_sources_in_correct_order(client, expected_order, exclude_paths=None)
             )
 
 
-def test_marketplace_source_apis(
+def test_hub_source_apis(
     db: Session,
     client: TestClient,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # Make sure the default source is there.
-    response = client.get("marketplace/sources")
+    response = client.get("hub/sources")
     assert response.status_code == HTTPStatus.OK.value
     json_response = response.json()
     assert (
         len(json_response) == 1
         and json_response[0]["index"] == -1
         and json_response[0]["source"]["metadata"]["name"]
-        == config.marketplace.default_source.name
+        == config.hub.default_source.name
     )
 
     source_1 = _generate_source_dict(1, "source_1")
-    response = client.post("marketplace/sources", json=source_1)
+    response = client.post("hub/sources", json=source_1)
     assert response.status_code == HTTPStatus.CREATED.value
 
     # Modify existing source with a new field
     source_1["source"]["metadata"]["something_new"] = 42
-    response = client.put("marketplace/sources/source_1", json=source_1)
+    response = client.put("hub/sources/source_1", json=source_1)
     assert response.status_code == HTTPStatus.OK.value
     exclude_paths = [
         "root['metadata']['updated']",
@@ -108,12 +108,12 @@ def test_marketplace_source_apis(
 
     # Insert in 1st place, pushing source_1 to be #2
     source_2 = _generate_source_dict(1, "source_2")
-    response = client.put("marketplace/sources/source_2", json=source_2)
+    response = client.put("hub/sources/source_2", json=source_2)
     assert response.status_code == HTTPStatus.OK.value
 
     # Insert last, making it #3
     source_3 = _generate_source_dict(-1, "source_3")
-    response = client.post("marketplace/sources", json=source_3)
+    response = client.post("hub/sources", json=source_3)
     assert response.status_code == HTTPStatus.CREATED.value
 
     expected_response = {
@@ -125,7 +125,7 @@ def test_marketplace_source_apis(
 
     # Change order for existing source (3->1)
     source_3["index"] = 1
-    response = client.put("marketplace/sources/source_3", json=source_3)
+    response = client.put("hub/sources/source_3", json=source_3)
     assert response.status_code == HTTPStatus.OK.value
     expected_response = {
         1: source_3,
@@ -134,7 +134,7 @@ def test_marketplace_source_apis(
     }
     _assert_sources_in_correct_order(client, expected_response)
 
-    response = client.delete("marketplace/sources/source_2")
+    response = client.delete("hub/sources/source_2")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     expected_response = {
@@ -145,27 +145,25 @@ def test_marketplace_source_apis(
 
     # Negative tests
     # Try to delete the default source.
-    response = client.delete(
-        f"marketplace/sources/{config.marketplace.default_source.name}"
-    )
+    response = client.delete(f"hub/sources/{config.hub.default_source.name}")
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # Try to store an object with invalid order
     source_2["index"] = 42
-    response = client.post("marketplace/sources", json=source_2)
+    response = client.post("hub/sources", json=source_2)
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
 
 
-def test_marketplace_credentials_removed_from_db(
+def test_hub_credentials_removed_from_db(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     # Validate that a source with credentials is stored (and retrieved back) without them, while the creds
     # are stored in the k8s secret.
     credentials = {"secret1": "value1", "another-secret": "42"}
     source_1 = _generate_source_dict(-1, "source_1", credentials)
-    response = client.post("marketplace/sources", json=source_1)
+    response = client.post("hub/sources", json=source_1)
     assert response.status_code == HTTPStatus.CREATED.value
 
-    response = client.get("marketplace/sources/source_1")
+    response = client.get("hub/sources/source_1")
     assert response.status_code == HTTPStatus.OK.value
     object_dict = response.json()
 
@@ -183,20 +181,18 @@ def test_marketplace_credentials_removed_from_db(
         == {}
     )
     expected_credentials = {
-        mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
-            "source_1", key
-        ): value
+        mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key): value
         for key, value in credentials.items()
     }
     k8s_secrets_mock.assert_project_secrets(
-        config.marketplace.k8s_secrets_project_name, expected_credentials
+        config.hub.k8s_secrets_project_name, expected_credentials
     )
 
 
-def test_marketplace_source_manager(
+def test_hub_source_manager(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    manager = mlrun.api.crud.Marketplace()
+    manager = mlrun.api.crud.Hub()
 
     credentials = {"secret1": "value1", "secret2": "value2"}
     expected_credentials = {}
@@ -204,28 +200,26 @@ def test_marketplace_source_manager(
         source_dict = _generate_source_dict(i, f"source_{i}", credentials)
         expected_credentials.update(
             {
-                mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+                mlrun.api.crud.Hub()._generate_credentials_secret_key(
                     f"source_{i}", key
                 ): value
                 for key, value in credentials.items()
             }
         )
-        source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+        source_object = mlrun.api.schemas.HubSource(**source_dict["source"])
         manager.add_source(source_object)
 
     k8s_secrets_mock.assert_project_secrets(
-        config.marketplace.k8s_secrets_project_name, expected_credentials
+        config.hub.k8s_secrets_project_name, expected_credentials
     )
 
     manager.remove_source("source_1")
     for key in credentials:
         expected_credentials.pop(
-            mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
-                "source_1", key
-            )
+            mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key)
         )
     k8s_secrets_mock.assert_project_secrets(
-        config.marketplace.k8s_secrets_project_name, expected_credentials
+        config.hub.k8s_secrets_project_name, expected_credentials
     )
 
     # Test catalog retrieval, with various filters
@@ -252,12 +246,12 @@ def test_marketplace_source_manager(
     assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
 
 
-def test_marketplace_default_source(
+def test_hub_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
-    manager = mlrun.api.crud.Marketplace()
-    source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
+    manager = mlrun.api.crud.Hub()
+    source_object = mlrun.api.schemas.HubSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
     print(f"Retrieved function catalog. Has {len(catalog.catalog)} functions in it.")
@@ -282,19 +276,19 @@ def test_marketplace_default_source(
         assert yaml_function_name == function_modified_name
 
 
-def test_marketplace_catalog_apis(
+def test_hub_catalog_apis(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     # Get the global hub source-name
-    sources = client.get("marketplace/sources").json()
+    sources = client.get("hub/sources").json()
     source_name = sources[0]["source"]["metadata"]["name"]
 
-    catalog = client.get(f"marketplace/sources/{source_name}/items").json()
+    catalog = client.get(f"hub/sources/{source_name}/items").json()
     item = random.choice(catalog["catalog"])
     url = item["spec"]["item_uri"] + "src/function.yaml"
 
     function_yaml = client.get(
-        f"marketplace/sources/{source_name}/item-object", params={"url": url}
+        f"hub/sources/{source_name}/item-object", params={"url": url}
     )
 
     function_dict = yaml.safe_load(function_yaml.content)
@@ -307,7 +301,7 @@ def test_marketplace_catalog_apis(
     assert yaml_function_name == function_modified_name
 
 
-def test_marketplace_get_asset_from_default_source(
+def test_hub_get_asset_from_default_source(
     db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
 ) -> None:
     possible_assets = [
@@ -316,37 +310,37 @@ def test_marketplace_get_asset_from_default_source(
         ("example", "application/octet-stream"),
         ("function", "application/octet-stream"),
     ]
-    sources = client.get("marketplace/sources").json()
+    sources = client.get("hub/sources").json()
     source_name = sources[0]["source"]["metadata"]["name"]
-    catalog = client.get(f"marketplace/sources/{source_name}/items").json()
+    catalog = client.get(f"hub/sources/{source_name}/items").json()
     for _ in range(10):
         item = random.choice(catalog["catalog"])
         asset_name, expected_content_type = random.choice(possible_assets)
         response = client.get(
-            f"marketplace/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
+            f"hub/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
         )
         assert response.status_code == http.HTTPStatus.OK.value
         assert response.headers["content-type"] == expected_content_type
 
 
-def test_marketplace_get_asset(
+def test_hub_get_asset(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    manager = mlrun.api.crud.Marketplace()
+    manager = mlrun.api.crud.Hub()
 
-    # Adding marketplace source with credentials:
+    # Adding hub source with credentials:
     credentials = {"secret": "value"}
 
     source_dict = _generate_source_dict(1, "source", credentials)
     expected_credentials = {
-        mlrun.api.crud.Marketplace()._generate_credentials_secret_key(
+        mlrun.api.crud.Hub()._generate_credentials_secret_key(
             "source", "secret"
         ): credentials["secret"]
     }
-    source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+    source_object = mlrun.api.schemas.HubSource(**source_dict["source"])
     manager.add_source(source_object)
     k8s_secrets_mock.assert_project_secrets(
-        config.marketplace.k8s_secrets_project_name, expected_credentials
+        config.hub.k8s_secrets_project_name, expected_credentials
     )
     # getting asset:
     catalog = manager.get_source_catalog(source_object)

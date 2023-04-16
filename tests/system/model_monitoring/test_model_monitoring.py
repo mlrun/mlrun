@@ -368,7 +368,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
             fv, target=mlrun.datastore.targets.ParquetTarget()
         )
 
-        # Train the model using the auto trainer from the marketplace
+        # Train the model using the auto trainer from the hub
         train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
@@ -446,7 +446,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun marketplace is upgraded to 1.0.8
+        #  from mlrun hub is upgraded to 1.0.8
         # assert len(model_obj.spec.feature_stats) == len(
         #     model_endpoint.spec.feature_names
         # ) + len(model_endpoint.spec.label_names)
@@ -529,7 +529,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # Import the auto trainer function from the marketplace (hub://)
+        # Import the auto trainer function from the hub (hub://)
         train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():

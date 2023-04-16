@@ -580,6 +580,9 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
         with_notifications=True,
     )
 
+    if not len(runs):
+        return
+
     # Unmasking the run parameters from secrets before handing them over to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [

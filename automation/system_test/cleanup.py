@@ -101,6 +101,7 @@ def _remove_image_from_datanode_docker():
             "mlrun",
             "|",
             "xargs",
+            "--no-run-if-empty",
             "docker",
             "rmi",
             "-f",

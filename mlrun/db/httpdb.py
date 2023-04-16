@@ -2823,15 +2823,15 @@ class HTTPRunDB(RunDBInterface):
         List marketplace sources in the MLRun DB.
 
         :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
-        :param tag:         Must be provided with item name, will be filtered by this tag.
-        :param version:     Must be provided with item name, will be filtered by this version.
+        :param tag:         Item tag to filter by, supported only if item name is provided.
+        :param version:     Item version to filter by, supported only if item name is provided and tag is not.
 
         :returns: List of indexed marketplace sources.
         """
         path = "marketplace/sources"
         params = {}
         if item_name:
-            params["item_name"] = normalize_name(item_name)
+            params["item-name"] = normalize_name(item_name)
         if item_name:
             params["tag"] = tag
         if item_name:

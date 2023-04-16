@@ -67,7 +67,7 @@ async def create_source(
     response_model=List[IndexedMarketplaceSource],
 )
 async def list_sources(
-    item_name: Optional[str] = Query(None),
+    item_name: Optional[str] = Query(None, alias="item-name"),
     tag: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
@@ -84,26 +84,14 @@ async def list_sources(
     marketplace_sources = await run_in_threadpool(
         get_db().list_marketplace_sources, db_session
     )
-    # filter sources by item-name, tag or version if given
-    if item_name:
-        filtered_sources = []
-        for source in marketplace_sources:
-            catalog = await run_in_threadpool(
-                mlrun.api.crud.Marketplace().get_source_catalog,
-                source.source,
-                version,
-                tag,
-            )
-            for item in catalog.catalog:
-                if item.metadata.name == item_name:
-                    filtered_sources.append(source)
-                    break
-        return filtered_sources
-    elif tag or version:
-        raise mlrun.errors.MLRunBadRequestError(
-            "Tag or version params must be provided with item-name param"
-        )
-    return marketplace_sources
+
+    return await run_in_threadpool(
+        mlrun.api.crud.Marketplace().filter_marketplace_sources,
+        marketplace_sources,
+        item_name,
+        tag,
+        version,
+    )
 
 
 @router.delete(

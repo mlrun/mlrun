@@ -518,17 +518,14 @@ def _delete_default_marketplace_source(db_session: sqlalchemy.orm.Session):
 def _update_default_marketplace_source(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    overwrite: bool = False,
 ):
     """
     Updates default marketplace source in db.
-    overwrite=True will delete the current default marketplace source before creating a new one.
     """
     hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
     # hub_source will be None if the configuration has marketplace.default_source.create=False
     if hub_source:
-        if overwrite:
-            _delete_default_marketplace_source(db_session)
+        _delete_default_marketplace_source(db_session)
         logger.info("Adding default marketplace source")
         # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
         hub_record = db._transform_marketplace_source_schema_to_record(
@@ -546,17 +543,13 @@ def _update_default_marketplace_source(
 def _add_default_marketplace_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    try:
-        hub_marketplace_source = (
-            db_session.query(MarketplaceSource)
-            .filter(
-                MarketplaceSource.index
-                == mlrun.api.schemas.marketplace.last_source_index
-            )
-            .one_or_none()
+    hub_marketplace_source = (
+        db_session.query(MarketplaceSource)
+        .filter(
+            MarketplaceSource.index == mlrun.api.schemas.marketplace.last_source_index
         )
-    except mlrun.errors.MLRunNotFoundError:
-        hub_marketplace_source = None
+        .one_or_none()
+    )
 
     if not hub_marketplace_source:
         _update_default_marketplace_source(db, db_session)
@@ -565,7 +558,7 @@ def _add_default_marketplace_source_if_needed(
 def _perform_version_3_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _update_default_marketplace_source(db, db_session, overwrite=True)
+    _update_default_marketplace_source(db, db_session)
 
 
 def _add_data_version(

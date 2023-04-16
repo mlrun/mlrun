@@ -618,7 +618,12 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     if ":" in name:
         name, tag = name.split(":")
     if "/" in name:
-        source_name, name = name.split("/")
+        try:
+            source_name, name = name.split("/")
+        except ValueError:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid character '/' in function name or source name"
+            )
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
     function_suffix = f"{name}/{tag}/src/function.yaml"
@@ -629,10 +634,10 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
         )
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Item={name}, tag={tag} not found in all marketplace sources"
+                f"Item={name}, tag={tag} not found in any marketplace source"
             )
-        # getting default source or first:
-        source = sources[-1] if sources[-1].index == -1 else sources[0]
+        # precedence to user source
+        source = sources[0]
     else:
         # Specific source is given
         source = db.get_marketplace_source(source_name)

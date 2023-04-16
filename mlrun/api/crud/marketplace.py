@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.api.schemas.marketplace import (
+    IndexedMarketplaceSource,
     MarketplaceCatalog,
     MarketplaceItem,
     MarketplaceItemMetadata,
@@ -313,3 +314,41 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             mlrun.run.get_object(url=asset_path, secrets=credentials),
             asset_path,
         )
+
+    def filter_marketplace_sources(
+        self,
+        sources: List[IndexedMarketplaceSource],
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[IndexedMarketplaceSource]:
+        """
+        Retrieve only the sources that contains the item name
+        (and tag/version if supplied, if tag and version are both given, only tag will be taken into consideration)
+
+        :param sources:     List of marketplace sources
+        :param item_name:   item name. If not provided the original list will be returned.
+        :param tag:         item tag to filter by, supported only if item name is provided.
+        :param version:     item version to filter by, supported only if item name is provided.
+
+        :return:
+        """
+        if not item_name:
+            if tag or version:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Tag or version are supported only if item name is provided"
+                )
+            return sources
+
+        filtered_sources = []
+        for source in sources:
+            catalog = self.get_source_catalog(
+                source=source.source,
+                version=version,
+                tag=tag,
+            )
+            for item in catalog.catalog:
+                if item.metadata.name == item_name:
+                    filtered_sources.append(source)
+                    break
+        return filtered_sources

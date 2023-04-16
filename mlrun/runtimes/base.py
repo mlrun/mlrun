@@ -463,6 +463,9 @@ class BaseRuntime(ModelObj):
         if self.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")
 
+        # this is only client side relevant, as we won't set the user that is configured in the API
+        # TODO: client-server-separation: verify that clients are passing that as part of the request as
+        #  well as maybe failing if running in IGZ environment
         if "V3IO_USERNAME" in environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
@@ -1536,7 +1539,7 @@ class BaseRuntimeHandler(ABC):
     def _should_collect_logs(self) -> bool:
         """
         There are some runtimes which we don't collect logs for using the log collector
-        :return: whether should collect log for it
+        :return: whether it should collect log for it
         """
         return True
 

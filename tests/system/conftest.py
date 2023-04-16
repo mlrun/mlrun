@@ -73,9 +73,9 @@ def post_report_session_finish_to_slack(
         text += f"[{mlrun_current_branch}] "
 
     if exitstatus == ExitCode.OK:
-        text = f"All {total_executed_tests} tests passed successfully"
+        text += f"All {total_executed_tests} tests passed successfully"
     else:
-        text = f"{total_failed_tests} out of {total_executed_tests} tests failed"
+        text += f"{total_failed_tests} out of {total_executed_tests} tests failed"
 
     test_session_info = ""
     if mlrun_system_tests_component:

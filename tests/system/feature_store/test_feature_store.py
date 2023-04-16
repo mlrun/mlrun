@@ -26,6 +26,7 @@ from time import sleep
 import fsspec
 import numpy as np
 import pandas as pd
+import pyarrow
 import pyarrow.parquet as pq
 import pytest
 import requests
@@ -853,13 +854,17 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert resp1 == resp2
 
+        major_pyarrow_version = int(pyarrow.__version__.split(".")[0])
         file_system = fsspec.filesystem("v3io")
         path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
-            path,
+            path if major_pyarrow_version < 11 else path[len("v3io://") :],
             filesystem=file_system,
         )
-        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        if major_pyarrow_version < 11:
+            partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        else:
+            partitions = dataset.partitioning.schema.names
 
         if key_bucketing_number is None:
             expected_partitions = []
@@ -3244,6 +3249,48 @@ class TestFeatureStore(TestMLRunSystem):
             assert read_back_df.equals(returned_df)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
+
+    def test_pandas_write_partitioned_parquet(self):
+        prediction_set = fstore.FeatureSet(
+            name="myset",
+            entities=[fstore.Entity("id")],
+            timestamp_key="time",
+            engine="pandas",
+        )
+
+        df = pd.DataFrame(
+            {
+                "id": ["a", "b"],
+                "number": [11, 22],
+                "time": [pd.Timestamp(2022, 1, 1, 1), pd.Timestamp(2022, 1, 1, 1, 1)],
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            outdir = f"{tempdir}/test_pandas_write_partitioned_parquet/"
+            prediction_set.set_targets(
+                with_defaults=False, targets=[(ParquetTarget(path=outdir))]
+            )
+
+            returned_df = fstore.ingest(prediction_set, df)
+            # check that partitions are created as expected (ML-3404)
+            read_back_df = pd.read_parquet(
+                f"{prediction_set.get_target_path()}year=2022/month=01/day=01/hour=01/"
+            )
+
+            assert read_back_df.equals(returned_df)
+
+            expected_df = pd.DataFrame(
+                {
+                    "number": [11, 22],
+                    "time": [
+                        pd.Timestamp(2022, 1, 1, 1),
+                        pd.Timestamp(2022, 1, 1, 1, 1),
+                    ],
+                },
+                index=["a", "b"],
+            )
             assert read_back_df.equals(expected_df)
 
     # regression test for #2557

@@ -36,6 +36,7 @@ import yaml
 import mlrun.api.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
@@ -57,7 +58,6 @@ from ..utils import (
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
-from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -117,7 +117,7 @@ def new_project(
         # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://auto_trainer', 'train')
+        project.set_function('hub://auto-trainer', 'train')
         project.set_artifact('data', Artifact(target_path=data_url))
         project.set_workflow('main', "./myflow.py")
         project.save()
@@ -1469,12 +1469,15 @@ class MlrunProject(ModelObj):
                 with open(f"{temp_dir}/_body", "rb") as fp:
                     artifact.spec._body = fp.read()
                 artifact.target_path = ""
+
+                # if the dataitem is not a file, it means we downloaded it from a remote source to a temp file,
+                # so we need to remove it after we're done with it
+                dataitem.remove_local()
+
                 return self.log_artifact(
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
 
-            if dataitem.kind != "file":
-                remove(item_file)
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
@@ -1522,7 +1525,7 @@ class MlrunProject(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto_trainer:master
+            functions hub/market: e.g. hub://auto-trainer:master
 
         examples::
 
@@ -2139,15 +2142,30 @@ class MlrunProject(ModelObj):
                 mlrun.get_dataitem(filepath).upload(tmp_path)
                 remove(tmp_path)
 
-    def set_model_monitoring_credentials(self, access_key: str):
+    def set_model_monitoring_credentials(
+        self, access_key: str = None, endpoint_store_connection: str = None
+    ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
-        The supplied credentials must have data access
 
-        :param access_key: Model Monitoring access key for managing user permissions.
+        :param access_key:                Model Monitoring access key for managing user permissions
+        :param endpoint_store_connection: Endpoint store connection string
         """
-        set_project_model_monitoring_credentials(
-            access_key=access_key, project=self.metadata.name
+
+        secrets_dict = {}
+        if access_key:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
+
+        if endpoint_store_connection:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
+
+        self.set_secrets(
+            secrets=secrets_dict,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(
@@ -2180,7 +2198,7 @@ class MlrunProject(ModelObj):
             # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-            project.set_function("hub://auto_trainer", "train")
+            project.set_function("hub://auto-trainer", "train")
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})

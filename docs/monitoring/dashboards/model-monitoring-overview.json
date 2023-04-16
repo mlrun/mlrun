@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 31,
   "links": [
     {
       "icon": "external link",
@@ -93,10 +93,10 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-"datasource": "iguazio",
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
           "type": "table"
         }
       ],
@@ -159,20 +159,51 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=predictions_per_second;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;",
           "type": "table"
         }
       ],
       "title": "Predictions/s (5 Minute Average)",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "metrics"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "generic"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "generic": true,
+              "latency_avg_1h": true,
+              "latency_avg_5m": true,
+              "metrics": true,
+              "predictions_count_1h": true,
+              "predictions_count_5m": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "predictions_per_second": "Predictions/s (5 Minute Average)"
+            }
+          }
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
     {
-    "datasource": "iguazio",
+      "datasource": "iguazio",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -192,10 +223,10 @@
       "gridPos": {
         "h": 3,
         "w": 5,
-        "x": 12,
+        "x": 11,
         "y": 0
       },
-      "id": 10,
+      "id": 23,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -213,21 +244,45 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
+          "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;",
           "type": "table"
         }
       ],
       "title": "Average Latency (Last Hour)",
       "transformations": [
         {
-          "id": "reduce",
+          "id": "extractFields",
           "options": {
-            "reducers": [
-              "mean"
-            ]
+            "source": "metrics"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "generic"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "generic": true,
+              "latency_avg_1h": false,
+              "latency_avg_5m": true,
+              "metrics": true,
+              "predictions_count_1h": true,
+              "predictions_count_5m": true,
+              "predictions_per_second": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "latency_avg_1h": "Average Latency (Last Hour)",
+              "predictions_per_second": "Predictions/s (5 Minute Average)"
+            }
           }
         }
       ],
@@ -280,7 +335,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
@@ -549,11 +604,11 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id,model,function_uri,model_class,first_request,last_request,error_count,drift_status;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid,model,function_uri,model_class,first_request,last_request,error_count,drift_status;",
           "type": "table"
         }
       ],
@@ -566,13 +621,14 @@
               "model_hash": false
             },
             "indexByName": {
-              "endpoint_id": 0,
+              "drift_status": 7,
               "error_count": 6,
               "first_request": 4,
               "function_uri": 1,
               "last_request": 5,
               "model": 2,
-              "model_class": 3
+              "model_class": 3,
+              "uid": 0
             },
             "renameByName": {
               "accuracy": "Accuracy",
@@ -591,7 +647,8 @@
               "model": "Model",
               "model_class": "Class",
               "predictions_per_second_count_1s": "Predictions/1s",
-              "tag": "Tag"
+              "tag": "Tag",
+              "uid": "Endpoint ID"
             }
           }
         }
@@ -678,7 +735,7 @@
       "reverseYBuckets": false,
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
@@ -782,7 +839,7 @@
       "reverseYBuckets": false,
       "targets": [
         {
-"datasource":  "iguazio",
+          "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
           "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
@@ -848,7 +905,7 @@
       "steppedLine": false,
       "targets": [
         {
-        "datasource": "iguazio",
+          "datasource": "iguazio",
           "refId": "A",
           "target": "select metric",
           "type": "timeserie"
@@ -886,7 +943,7 @@
       }
     }
   ],
-  "refresh": "5s",
+  "refresh": "30s",
   "schemaVersion": 37,
   "style": "dark",
   "tags": [],
@@ -922,6 +979,6 @@
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 9,
+  "version": 2,
   "weekStart": ""
 }

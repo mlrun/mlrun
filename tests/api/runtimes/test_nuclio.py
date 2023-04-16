@@ -156,6 +156,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_build_base_image=None,
         expected_nuclio_runtime=None,
         expected_env=None,
+        expected_build_commands=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -221,6 +222,13 @@ class TestNuclioRuntime(TestRuntimeBase):
 
             if expected_nuclio_runtime:
                 assert deploy_config["spec"]["runtime"] == expected_nuclio_runtime
+
+            if expected_build_commands:
+                assert (
+                    deploy_config["spec"]["build"]["commands"]
+                    == expected_build_commands
+                )
+
         return deploy_configs
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
@@ -610,6 +618,57 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+    @pytest.mark.parametrize(
+        "requirements,expected_commands",
+        [
+            (["pandas", "numpy"], ["python -m pip install pandas numpy"]),
+            (
+                ["-r requirements.txt", "numpy"],
+                ["python -m pip install -r requirements.txt numpy"],
+            ),
+            (["pandas>=1.0.0, <2"], ["python -m pip install 'pandas>=1.0.0, <2'"]),
+            (["pandas>=1.0.0,<2"], ["python -m pip install 'pandas>=1.0.0,<2'"]),
+            (
+                ["-r somewhere/requirements.txt"],
+                ["python -m pip install -r somewhere/requirements.txt"],
+            ),
+            (
+                ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
+                [
+                    "python -m pip install 'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
+                ],
+            ),
+        ],
+    )
+    def test_deploy_function_with_requirements(
+        self,
+        requirements: list,
+        expected_commands: list,
+        db: Session,
+        client: TestClient,
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_requirements(requirements)
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_commands=expected_commands
+        )
+
+    def test_deploy_function_with_commands_and_requirements(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_commands(["python -m pip install scikit-learn"])
+        function.with_requirements(["pandas", "numpy"])
+        self.execute_function(function)
+        expected_commands = [
+            "python -m pip install scikit-learn",
+            "python -m pip install pandas numpy",
+        ]
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_commands=expected_commands
+        )
 
     def test_deploy_function_with_labels(self, db: Session, client: TestClient):
         labels = {

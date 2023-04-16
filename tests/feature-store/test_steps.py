@@ -43,7 +43,7 @@ def extract_meta(event):
     return event
 
 
-def test_set_event_meta():
+def test_set_event_meta(rundb_mock):
     function = mlrun.new_function("test1", kind="serving")
     flow = function.set_topology("flow")
     flow.to(SetEventMetadata(id_path="myid", key_path="mykey")).to(
@@ -60,7 +60,7 @@ def test_set_event_meta():
     }
 
 
-def test_set_event_random_id():
+def test_set_event_random_id(rundb_mock):
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow")
     flow.to(SetEventMetadata(random_id=True)).to(
@@ -456,6 +456,89 @@ def test_pandas_step_data_extractor(
         check_like=True,
         check_names=True,
     )
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        {"age": {"ranges": {"one": [0, 30], "two": ["a", "inf"]}}},
+        {"names": {"A": 1, "B": False}},
+    ],
+)
+def test_mapvalues_mixed_types_validator(rundb_mock, mapping):
+    data, _ = get_data()
+    data_to_ingest = data.copy()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fstore.FeatureSet(
+        "fs-new",
+        entities=[fstore.Entity("id")],
+        description="feature set",
+        engine="pandas",
+    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(
+        MapValues(
+            mapping=mapping,
+            with_original_features=True,
+        )
+    )
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+    # Create a temp directory:
+    output_path = tempfile.TemporaryDirectory()
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=f"^MapValues - mapping values of the same column must be in the same type, which was not the case for"
+        f" Column '{list(mapping.keys())[0]}'$",
+    ):
+        fstore.ingest(
+            data_set_pandas,
+            data_to_ingest,
+            targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+        )
+
+
+def test_mapvalues_combined_mapping_validator(rundb_mock):
+    data, _ = get_data()
+    data_to_ingest = data.copy()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fstore.FeatureSet(
+        "fs-new",
+        entities=[fstore.Entity("id")],
+        description="feature set",
+        engine="pandas",
+    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(
+        MapValues(
+            mapping={
+                "age": {"ranges": {"one": [0, 30], "two": ["a", "inf"]}, 4: "kid"}
+            },
+            with_original_features=True,
+        )
+    )
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+    # Create a temp directory:
+    output_path = tempfile.TemporaryDirectory()
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="^MapValues - mapping values of the same column can not combine ranges and single "
+        "replacement, which is the case for column 'age'$",
+    ):
+        fstore.ingest(
+            data_set_pandas,
+            data_to_ingest,
+            targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+        )
 
 
 @pytest.mark.parametrize("set_index_before", [True, False, 0])

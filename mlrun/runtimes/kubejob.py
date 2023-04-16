@@ -58,16 +58,17 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
         if source.endswith(".zip") and not pull_at_runtime:
             logger.warn(
@@ -79,6 +80,9 @@ class KubejobRuntime(KubeResource):
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
+        if target_dir:
+            self.spec.clone_target_dir = target_dir
+
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
@@ -86,7 +90,7 @@ class KubejobRuntime(KubeResource):
             and pull_at_runtime
             and not self.spec.image
         ):
-            # if we load source from repo and dont need a full build use the base_image as the image
+            # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
         elif not pull_at_runtime:
             # clear the image so build will not be skipped
@@ -133,16 +137,12 @@ class KubejobRuntime(KubeResource):
             self.spec.build.image = image
         if base_image:
             self.spec.build.base_image = base_image
-        # if overwrite and requirements or commands passed, clear the existing commands
-        # (requirements are added to the commands parameter)
-        if (requirements or commands) and overwrite:
-            self.spec.build.commands = None
+        if commands:
+            self.with_commands(commands, overwrite=overwrite, verify_base_image=False)
         if requirements:
             self.with_requirements(
-                requirements, overwrite=False, verify_base_image=False
+                requirements, overwrite=overwrite, verify_base_image=False
             )
-        if commands:
-            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret is not None:
@@ -194,7 +194,13 @@ class KubejobRuntime(KubeResource):
                     or "/mlrun/" in build.base_image
                 )
 
-        if not build.source and not build.commands and not build.extra and with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"
@@ -223,7 +229,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = self.spec.build.base_image or get_in(
                 data, "data.spec.build.base_image"
             )
-            self.spec.workdir = get_in(data, "data.spec.workdir")
+            # get the clone target dir in case it was enriched due to loading source
+            self.spec.clone_target_dir = get_in(data, "data.spec.clone_target_dir")
             ready = data.get("ready", False)
             if not ready:
                 logger.info(
@@ -345,14 +352,7 @@ class KubejobRuntime(KubeResource):
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
-        workdir = self.spec.workdir
-        if workdir:
-            if self.spec.build.source and self.spec.build.load_source_on_run:
-                # workdir will be set AFTER the clone
-                workdir = None
-            elif not workdir.startswith("/"):
-                # relative path mapped to real path in the job pod
-                workdir = os.path.join("/mlrun", workdir)
+        workdir = self._resolve_workdir()
 
         pod_spec = func_to_pod(
             self.full_image_path(
@@ -385,6 +385,31 @@ class KubejobRuntime(KubeResource):
             runobj.status.status_text = txt
 
         return None
+
+    def _resolve_workdir(self):
+        """
+        The workdir is relative to the source root, if the source is not loaded on run then the workdir
+        is relative to the clone target dir (where the source was copied to).
+        Otherwise, if the source is loaded on run, the workdir is resolved on the run as well.
+        If the workdir is absolute, keep it as is.
+        """
+        workdir = self.spec.workdir
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            # workdir will be set AFTER the clone which is done in the pre-run of local runtime
+            return None
+
+        if workdir and os.path.isabs(workdir):
+            return workdir
+
+        if self.spec.clone_target_dir:
+            workdir = workdir or ""
+            if workdir.startswith("./"):
+                # TODO: use 'removeprefix' when we drop python 3.7 support
+                # workdir.removeprefix("./")
+                workdir = workdir[2:]
+            return os.path.join(self.spec.clone_target_dir, workdir)
+
+        return workdir
 
 
 def func_to_pod(image, runtime, extra_env, command, args, workdir):

@@ -100,13 +100,11 @@ from .model_endpoints import (
     GrafanaStringColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
-    Metric,
     ModelEndpoint,
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
     ModelMonitoringStoreKinds,
 )
 from .notification import NotificationSeverity, NotificationStatus

@@ -1,0 +1,10 @@
+kind: project
+metadata:
+  name: project-system-test-project
+spec:
+  functions: []
+  workflows: []
+  artifacts: []
+  conda: ''
+  source: ''
+  desired_state: online

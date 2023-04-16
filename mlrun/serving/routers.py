@@ -24,6 +24,7 @@ import numpy
 import numpy as np
 
 import mlrun
+import mlrun.model_monitoring
 import mlrun.utils.model_monitoring
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
@@ -32,10 +33,8 @@ from ..api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
 )
 from ..config import config
-from ..utils.model_monitoring import EndpointType
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
@@ -402,12 +401,14 @@ class ParallelRun(BaseModelRouter):
                     step._parent = None
                     if step._object:
                         step._object.context = None
+                        if hasattr(step._object, "_kwargs"):
+                            step._object._kwargs["graph_step"] = None
                     routes[key] = step
                 executor_class = concurrent.futures.ProcessPoolExecutor
                 self._pool = executor_class(
                     max_workers=len(self.routes),
                     initializer=ParallelRun.init_pool,
-                    initargs=(server, routes, id(self)),
+                    initargs=(server, routes),
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 executor_class = concurrent.futures.ThreadPoolExecutor
@@ -422,7 +423,7 @@ class ParallelRun(BaseModelRouter):
         if self._pool is not None:
             if self.executor_type == ParallelRunnerModes.process:
                 global local_routes
-                local_routes.pop(id(self))
+                del local_routes
             self._pool.shutdown()
             self._pool = None
 
@@ -446,7 +447,7 @@ class ParallelRun(BaseModelRouter):
         for route in self.routes.keys():
             if self.executor_type == ParallelRunnerModes.process:
                 future = executor.submit(
-                    ParallelRun._wrap_step, route, id(self), copy.copy(event)
+                    ParallelRun._wrap_step, route, copy.copy(event)
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 step = self.routes[route]
@@ -470,25 +471,22 @@ class ParallelRun(BaseModelRouter):
         return results
 
     @staticmethod
-    def init_pool(server_spec, routes, object_id):
+    def init_pool(server_spec, routes):
         server = mlrun.serving.GraphServer.from_dict(server_spec)
         server.init_states(None, None)
         global local_routes
-        if object_id in local_routes:
-            return
         for route in routes.values():
             route.context = server.context
             if route._object:
                 route._object.context = server.context
-        local_routes[object_id] = routes
+        local_routes = routes
 
     @staticmethod
-    def _wrap_step(route, object_id, event):
+    def _wrap_step(route, event):
         global local_routes
-        routes = local_routes.get(object_id, None).copy()
-        if routes is None:
+        if local_routes is None:
             return None, None
-        return route, routes[route].run(event)
+        return route, local_routes[route].run(event)
 
     @staticmethod
     def _wrap_method(route, handler, event):
@@ -1043,7 +1041,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{voting_ensemble.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+    endpoint_uid = mlrun.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -1061,33 +1059,33 @@ def _init_endpoint_record(
                 if hasattr(c, "endpoint_uid"):
                     children_uids.append(c.endpoint_uid)
 
-                model_endpoint = ModelEndpoint(
-                    metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-                    spec=ModelEndpointSpec(
-                        function_uri=graph_server.function_uri,
-                        model=versioned_model_name,
-                        model_class=voting_ensemble.__class__.__name__,
-                        stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                            project=project, kind="stream"
-                        ),
-                        active=True,
-                        monitoring_mode=ModelMonitoringMode.enabled
-                        if voting_ensemble.context.server.track_models
-                        else ModelMonitoringMode.disabled,
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=voting_ensemble.__class__.__name__,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
                     ),
-                    status=ModelEndpointStatus(
-                        children=list(voting_ensemble.routes.keys()),
-                        endpoint_type=EndpointType.ROUTER,
-                        children_uids=children_uids,
-                    ),
-                )
+                    active=True,
+                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
+                    if voting_ensemble.context.server.track_models
+                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
+                ),
+                status=ModelEndpointStatus(
+                    children=list(voting_ensemble.routes.keys()),
+                    endpoint_type=mlrun.model_monitoring.EndpointType.ROUTER,
+                    children_uids=children_uids,
+                ),
+            )
 
             db = mlrun.get_run_db()
 
             db.create_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
-                model_endpoint=model_endpoint,
+                model_endpoint=model_endpoint.dict(),
             )
 
             # Update model endpoint children type
@@ -1095,7 +1093,9 @@ def _init_endpoint_record(
                 current_endpoint = db.get_model_endpoint(
                     project=project, endpoint_id=model_endpoint
                 )
-                current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+                current_endpoint.status.endpoint_type = (
+                    mlrun.model_monitoring.EndpointType.LEAF_EP
+                )
                 db.create_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,

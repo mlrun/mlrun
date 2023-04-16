@@ -218,7 +218,7 @@ class RunConfig:
             config = RunConfig("mycode.py", image="mlrun/mlrun", requirements=["spacy"])
 
             # config for using function object
-            function = mlrun.import_function("hub://some_function")
+            function = mlrun.import_function("hub://some-function")
             config = RunConfig(function)
 
         :param function:    this can be function uri or function object or path to function code (.py/.ipynb)

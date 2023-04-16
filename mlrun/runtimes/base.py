@@ -15,7 +15,6 @@ import enum
 import getpass
 import http
 import os.path
-import shlex
 import traceback
 import typing
 import uuid
@@ -93,6 +92,7 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
+    "clone_target_dir",
 ]
 
 
@@ -133,6 +133,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        clone_target_dir=None,
     ):
 
         self.command = command or ""
@@ -151,6 +152,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        # the build.source is cloned/extracted to the specified clone_target_dir
+        # if a relative path is specified, it will be enriched with a temp dir path
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:
@@ -1272,15 +1276,19 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        encoded_requirements = self._encode_requirements(requirements)
-        commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = f"python -m pip install {encoded_requirements}"
-        # make sure we dont append the same line twice
-        if new_command not in commands:
-            commands.append(new_command)
-        self.spec.build.commands = commands
+        resolved_requirements = self._resolve_requirements(requirements)
+        requirements = self.spec.build.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in resolved_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.spec.build.requirements = requirements
+
         if verify_base_image:
             self.verify_base_image()
+
         return self
 
     def with_commands(
@@ -1322,8 +1330,10 @@ class BaseRuntime(ModelObj):
 
     def verify_base_image(self):
         build = self.spec.build
-        require_build = build.commands or (
-            build.source and not build.load_source_on_run
+        require_build = (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
         )
         image = self.spec.image
         # we allow users to not set an image, in that case we'll use the default
@@ -1448,15 +1458,16 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
-    def _encode_requirements(self, requirements_to_encode):
-
+    @staticmethod
+    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
         # if a string, read the file then encode
-        if isinstance(requirements_to_encode, str):
-            with open(requirements_to_encode, "r") as fp:
-                requirements_to_encode = fp.read().splitlines()
+        if isinstance(requirements_to_resolve, str):
+            with open(requirements_to_resolve, "r") as fp:
+                requirements_to_resolve = fp.read().splitlines()
 
         requirements = []
-        for requirement in requirements_to_encode:
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
             requirement = requirement.strip()
 
             # ignore empty lines
@@ -1469,21 +1480,9 @@ class BaseRuntime(ModelObj):
             if len(inline_comment) > 1:
                 requirement = inline_comment[0].strip()
 
-            # -r / --requirement are flags and should not be escaped
-            # we allow such flags (could be passed within the requirements.txt file) and do not
-            # try to open the file and include its content since it might be a remote file
-            # given on the base image.
-            for req_flag in ["-r", "--requirement"]:
-                if requirement.startswith(req_flag):
-                    requirement = requirement[len(req_flag) :].strip()
-                    requirements.append(req_flag)
-                    break
+            requirements.append(requirement)
 
-            # wrap in single quote to ensure that the requirement is treated as a single string
-            # quote the requirement to avoid issues with special characters, double quotes, etc.
-            requirements.append(shlex.quote(requirement))
-
-        return " ".join(requirements)
+        return requirements
 
     def _validate_output_path(self, run):
         if is_local(run.spec.output_path):

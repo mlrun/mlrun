@@ -35,14 +35,14 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
-    base_image,
-    commands=None,
-    source=None,
-    requirements=None,
-    workdir="/mlrun",
-    extra="",
-    user_unix_id=None,
-    enriched_group_id=None,
+    base_image: str,
+    commands: list = None,
+    source: str = None,
+    requirements_path: str = None,
+    workdir: str = "/mlrun",
+    extra: str = "",
+    user_unix_id: int = None,
+    enriched_group_id: int = None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -55,7 +55,6 @@ def make_dockerfile(
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if source:
-        dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
@@ -77,10 +76,13 @@ def make_dockerfile(
             dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
 
         dock += f"ENV PYTHONPATH {workdir}\n"
-    if requirements:
-        dock += f"RUN python -m pip install -r {requirements}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
+    if requirements_path:
+        dock += (
+            f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        )
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -96,6 +98,7 @@ def make_kaniko_pod(
     inline_code=None,
     inline_path=None,
     requirements=None,
+    requirements_path=None,
     secret_name=None,
     name="",
     verbose=False,
@@ -194,19 +197,23 @@ def make_kaniko_pod(
         commands = []
         env = {}
         if dockertext:
-            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
+            # set and encode docker content to the DOCKERFILE environment variable in the kaniko pod
             env["DOCKERFILE"] = b64encode(dockertext.encode("utf-8")).decode("utf-8")
+            # dump dockerfile content and decode to Dockerfile destination
+            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
         if inline_code:
             name = inline_path or "main.py"
-            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
             env["CODE"] = b64encode(inline_code.encode("utf-8")).decode("utf-8")
+            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
-            commands.append(
-                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
-            )
+            # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
             env["REQUIREMENTS"] = b64encode(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
+            # dump requirement content and decode to the requirement.txt destination
+            commands.append(
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
+            )
 
         kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
@@ -296,7 +303,6 @@ def build_image(
     image_target,
     commands=None,
     source="",
-    mounter="v3io",
     base_image=None,
     requirements=None,
     inline_code=None,
@@ -319,15 +325,12 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-
-    if isinstance(requirements, list):
+    if requirements and isinstance(requirements, list):
         requirements_list = requirements
-        requirements_path = "requirements.txt"
-        if source:
-            raise ValueError("requirements list only works with inline code")
+        requirements_path = "/empty/requirements.txt"
     else:
         requirements_list = None
-        requirements_path = requirements
+        requirements_path = requirements or ""
 
     commands = commands or []
     if with_mlrun:
@@ -342,7 +345,7 @@ def build_image(
         if mlrun_command:
             commands.append(mlrun_command)
 
-    if not inline_code and not source and not commands:
+    if not inline_code and not source and not commands and not requirements:
         logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -398,24 +401,28 @@ def build_image(
         enriched_group_id = runtime.spec.security_context.run_as_group
 
     if source_to_copy and (
-        not runtime.spec.workdir or not path.isabs(runtime.spec.workdir)
+        not runtime.spec.clone_target_dir
+        or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # the user may give a relative workdir to the source where the code is located
-        # add the relative workdir to the target source copy path
+        # use a temp dir for permissions and set it as the workdir
         tmpdir = tempfile.mkdtemp()
-        relative_workdir = runtime.spec.workdir or ""
-        _, _, relative_workdir = relative_workdir.partition("./")
-        runtime.spec.workdir = path.join(tmpdir, "mlrun", relative_workdir)
+        relative_workdir = runtime.spec.clone_target_dir or ""
+        if relative_workdir.startswith("./"):
+            # TODO: use 'removeprefix' when we drop python 3.7 support
+            # relative_workdir.removeprefix("./")
+            relative_workdir = relative_workdir[2:]
+
+        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
 
     dock = make_dockerfile(
         base_image,
         commands,
         source=source_to_copy,
-        requirements=requirements_path,
+        requirements_path=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=runtime.spec.workdir,
+        workdir=runtime.spec.clone_target_dir,
     )
 
     kpod = make_kaniko_pod(
@@ -426,6 +433,7 @@ def build_image(
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements_list,
+        requirements_path=requirements_path,
         secret_name=secret_name,
         name=name,
         verbose=verbose,
@@ -535,7 +543,13 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if not build.source and not build.commands and not build.extra and not with_mlrun:
+    if (
+        not build.source
+        and not build.commands
+        and not build.requirements
+        and not build.extra
+        and not with_mlrun
+    ):
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image
@@ -579,8 +593,8 @@ def build_runtime(
         image_target=build.image,
         base_image=enriched_base_image,
         commands=build.commands,
+        requirements=build.requirements,
         namespace=namespace,
-        # inline_code=inline,
         source=build.source,
         secret_name=build.secret,
         interactive=interactive,

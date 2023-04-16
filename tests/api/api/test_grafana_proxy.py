@@ -31,6 +31,8 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.model_monitoring.stores
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
@@ -86,14 +88,13 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=_get_access_key()
-        )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    endpoint_store = store_type_object.to_endpoint_store(
+        project=TEST_PROJECT, access_key=_get_access_key()
     )
 
     for endpoint in endpoints_in:
-        endpoint_target.write_model_endpoint(endpoint)
+        endpoint_store.write_model_endpoint(endpoint.flat_dict())
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
@@ -358,13 +359,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+            kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -413,7 +414,8 @@ def cleanup_endpoints(db: Session, client: TestClient):
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+        project=TEST_PROJECT,
+        kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -431,14 +433,15 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=_get_access_key()
-        )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+        value="v3io-nosql"
+    )
+    endpoint_store = store_type_object.to_endpoint_store(
+        project=TEST_PROJECT, access_key=_get_access_key()
     )
 
     for endpoint in endpoints:
-        endpoint_target.write_model_endpoint(endpoint)
+        endpoint_store.write_model_endpoint(endpoint.flat_dict())
 
         total = 0
 

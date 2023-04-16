@@ -45,7 +45,7 @@ def exec_project(args):
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs["auto_trainer"].as_step(
+    funcs["auto-trainer"].as_step(
         name="train",
         inputs={"dataset": data_url},
         params={"model_class": model_class, "label_columns": "label"},
@@ -86,8 +86,8 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://auto_trainer", "auto_trainer")
-        proj.set_function("hub://v2_model_server", "serving")
+        proj.set_function("hub://auto-trainer", "auto-trainer")
+        proj.set_function("hub://v2-model-server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(

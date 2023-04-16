@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 18,
+  "id": 33,
   "links": [
     {
       "icon": "external link",
@@ -49,7 +49,10 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -64,8 +67,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -211,19 +213,40 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": "iguazio",
+          "datasource": {
+            "type": "grafana-simple-json-datasource",
+            "uid": "PiBy-ta4z"
+          },
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields=uid,model,function_uri,model_class,first_request,metrics,last_request;",
           "type": "table"
         }
       ],
       "transformations": [
         {
+          "id": "extractFields",
+          "options": {
+            "source": "metrics"
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "generic"
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {},
+            "excludeByName": {
+              "generic": true,
+              "latency_avg_5m": true,
+              "metrics": true,
+              "predictions_count_1h": true,
+              "predictions_count_5m": true
+            },
             "indexByName": {},
             "renameByName": {
               "endpoint_id": "Endpoint ID",
@@ -233,12 +256,14 @@
               "last_request": "Last Request",
               "latency_avg_1h": "Average Latency (1 hour)",
               "latency_avg_1s": "Average Latency",
-              "latency_avg_5m": "Average Latency (1 hour)",
+              "latency_avg_5m": "",
+              "metrics": "",
               "model": "Model",
               "model_class": "Model Class",
               "predictions_per_second": "Predictions/s (5 minute avg)",
               "predictions_per_second_count_1s": "Predictions/sec",
-              "tag": "Tag"
+              "tag": "Tag",
+              "uid": "Endpoint ID"
             }
           }
         }
@@ -247,7 +272,10 @@
       "type": "table"
     },
     {
-      "datasource": "iguazio",
+      "datasource": {
+        "type": "grafana-simple-json-datasource",
+        "uid": "PiBy-ta4z"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -262,8 +290,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -417,7 +444,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields=drift_measures;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields=drift_measures;",
           "type": "table"
         }
       ],
@@ -466,8 +493,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -570,7 +596,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "Field"
+            "displayName": "current_stats"
           }
         ]
       },
@@ -580,21 +606,21 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODELENDPOINT\";\nfields= current_stats;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=uid==\"$MODELENDPOINT\";\nfields= current_stats;",
           "type": "table"
         },
         {
           "datasource": "iguazio",
           "hide": false,
           "refId": "B",
-          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= feature_stats;",
+          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=uid==\"$MODELENDPOINT\"; fields= feature_stats;",
           "type": "table"
         },
         {
           "datasource": "iguazio",
           "hide": false,
           "refId": "C",
-          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=endpoint_id==\"$MODELENDPOINT\"; fields= drift_measures;",
+          "target": "backend=kv; container=users; table=pipelines/$PROJECT/model-endpoints/endpoints; filter=uid==\"$MODELENDPOINT\"; fields= drift_measures;",
           "type": "table"
         }
       ],
@@ -764,8 +790,34 @@
           }
         },
         {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                },
+                "fieldName": "1"
+              },
+              {
+                "config": {
+                  "id": "greater",
+                  "options": {
+                    "value": 0
+                  }
+                },
+                "fieldName": "2"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
+          }
+        },
+        {
           "id": "extractFields",
           "options": {
+            "format": "json",
             "source": "1"
           }
         },
@@ -786,10 +838,10 @@
                 "max 1",
                 "mean 2",
                 "min 2",
+                "max 2",
                 "tvd",
                 "hellinger",
-                "kld",
-                "max 2"
+                "kld"
               ]
             }
           }
@@ -965,7 +1017,7 @@
       }
     }
   ],
-  "refresh": "1m",
+  "refresh": "30s",
   "schemaVersion": 37,
   "style": "dark",
   "tags": [],
@@ -994,14 +1046,14 @@
       {
         "current": {},
         "datasource": "iguazio",
-        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
         "hide": 0,
         "includeAll": false,
         "label": "Model Endpoint",
         "multi": false,
         "name": "MODELENDPOINT",
         "options": [],
-        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -1021,6 +1073,6 @@
   "timezone": "",
   "title": "Model Monitoring - Details",
   "uid": "AohIXhAMk",
-  "version": 2,
+  "version": 9,
   "weekStart": ""
 }

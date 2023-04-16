@@ -1,0 +1,41 @@
+kind: project
+metadata:
+  name: pipe6
+spec:
+  params:
+    label_columns: label
+  functions:
+  - url: prep_data.py
+    name: prep-data
+    image: mlrun/mlrun
+    handler: prep_data
+  - url: hub://describe
+    name: describe
+  - url: hub://auto-trainer
+    name: auto-trainer
+  - url: hub://v2_model_server
+    name: serving
+  workflows:
+  - path: ./kflow.py
+    name: main
+    args_schema:
+    - name: model_class
+      type: str
+      default: sklearn.linear_model.LogisticRegression
+      doc: model package/algorithm
+  - path: ./newflow.py
+    name: newflow
+    handler: newpipe
+  artifacts:
+  - kind: artifact
+    metadata:
+      project: pipe6
+      key: data
+    spec:
+      target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
+    status:
+      state: created
+  artifact_path: v3io:///projects/{{run.project}}
+  conda: ''
+  source: v3io:///projects/pipe6/archive1.zip
+  desired_state: online

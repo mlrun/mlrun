@@ -83,7 +83,20 @@ def test_build_config_preserve_order():
         assert function.spec.build.commands == commands
 
 
-def test_build_runtime_insecure_registries(monkeypatch):
+@pytest.mark.parametrize(
+    "pull_mode,push_mode,secret,flags_expected",
+    [
+        ("auto", "auto", "", True),
+        ("auto", "auto", "some-secret-name", False),
+        ("enabled", "enabled", "some-secret-name", True),
+        ("enabled", "enabled", "", True),
+        ("disabled", "disabled", "some-secret-name", False),
+        ("disabled", "disabled", "", False),
+    ],
+)
+def test_build_runtime_insecure_registries(
+    monkeypatch, pull_mode, push_mode, secret, flags_expected
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
@@ -96,62 +109,24 @@ def test_build_runtime_insecure_registries(monkeypatch):
     )
 
     insecure_flags = {"--insecure", "--insecure-pull"}
-    for case in [
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "some-secret-name",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "",
-            "flags_expected": False,
-        },
-    ]:
-        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = case["pull_mode"]
-        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
-        mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
-        mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(),
-            function,
-        )
-        assert (
-            insecure_flags.issubset(
-                set(
-                    mlrun.builder.get_k8s_helper()
-                    .create_pod.call_args[0][0]
-                    .pod.spec.containers[0]
-                    .args
-                )
+    mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = pull_mode
+    mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        insecure_flags.issubset(
+            set(
+                mlrun.builder.get_k8s_helper()
+                .create_pod.call_args[0][0]
+                .pod.spec.containers[0]
+                .args
             )
-            == case["flags_expected"]
         )
+        == flags_expected
+    )
 
 
 def test_build_runtime_target_image(monkeypatch):
@@ -811,15 +786,16 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "workdir,expected_workdir",
+    "clone_target_dir,expected_workdir",
     [
         (None, r"WORKDIR .*\/tmp.*\/mlrun"),
         ("", r"WORKDIR .*\/tmp.*\/mlrun"),
         ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
+        ("rel_path", r"WORKDIR .*\/tmp.*\/mlrun\/rel_path"),
         ("/some/workdir", r"WORKDIR \/some\/workdir"),
     ],
 )
-def test_builder_workdir(monkeypatch, workdir, expected_workdir):
+def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     _patch_k8s_helper(monkeypatch)
     mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
     docker_registry = "default.docker.registry/default-repository"
@@ -832,8 +808,8 @@ def test_builder_workdir(monkeypatch, workdir, expected_workdir):
         image="mlrun/mlrun",
         kind="job",
     )
-    if workdir is not None:
-        function.spec.workdir = workdir
+    if clone_target_dir is not None:
+        function.spec.clone_target_dir = clone_target_dir
     function.spec.build.source = "some-source.tgz"
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -842,7 +818,7 @@ def test_builder_workdir(monkeypatch, workdir, expected_workdir):
     dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
     dockerfile_lines = dockerfile.splitlines()
     expected_workdir_re = re.compile(expected_workdir)
-    assert expected_workdir_re.match(dockerfile_lines[2])
+    assert expected_workdir_re.match(dockerfile_lines[1])
 
 
 def _get_target_image_from_create_pod_mock():

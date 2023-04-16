@@ -118,6 +118,7 @@ class HubItemMetadata(HubObjectMetadata):
 
 class HubItemSpec(ObjectSpec):
     item_uri: str
+    assets: Dict[str, str] = {}
 
 
 class HubItem(BaseModel):
@@ -125,7 +126,6 @@ class HubItem(BaseModel):
     metadata: HubItemMetadata
     spec: HubItemSpec
     status: ObjectStatus
-    assets: Dict[str, str] = {}
 
 
 class HubCatalog(BaseModel):

@@ -14,6 +14,7 @@
 
 import json
 import pathlib
+import typing
 from datetime import datetime, timedelta, timezone
 from os import listdir, makedirs, path, remove, scandir
 from typing import List, Optional, Union
@@ -59,7 +60,8 @@ class FileRunDB(RunDBInterface):
         self.dirpath = dirpath
         self._datastore = None
         self._subpath = None
-        self._secrets = None
+        self._secrets: typing.Optional[mlrun.secrets.SecretsStore] = None
+        self._projects = {}
         makedirs(self.schedules_dir, exist_ok=True)
 
     def connect(self, secrets=None):
@@ -552,7 +554,10 @@ class FileRunDB(RunDBInterface):
         self,
         project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        if isinstance(project, dict):
+            project = mlrun.api.schemas.Project(**project)
+        self._projects[project.metadata.name] = project
+        return project
 
     @property
     def schedules_dir(self):
@@ -738,7 +743,8 @@ class FileRunDB(RunDBInterface):
         provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: dict = None,
     ):
-        raise NotImplementedError()
+        for key, value in secrets.items():
+            self._secrets._secrets[key] = value
 
     def list_project_secrets(
         self,

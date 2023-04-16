@@ -256,6 +256,16 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
         kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+
+        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values
+        # as they might be volumized via a project secret and will conflict with the instance role
+        kpod.pod.spec.containers[0].env.extend(
+            [
+                client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
+                client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
+            ]
+        )
+
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
         aws_credentials_file_env_value = "/tmp/credentials"

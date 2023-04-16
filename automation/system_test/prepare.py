@@ -534,12 +534,15 @@ class SystemTestPreparer:
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
 
-        get_mlrun_db_pod_name_cmd = self._get_pod_name_command(
+        mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
                 "app.kubernetes.io/component": "db",
                 "app.kubernetes.io/instance": "mlrun",
             },
         )
+        if not mlrun_db_pod_name_cmd:
+            self._logger.info("No mlrun db pod found")
+            return
 
         password = ""
         if self._mysql_password:
@@ -552,7 +555,7 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({get_mlrun_db_pod_name_cmd})",
+                f"$({mlrun_db_pod_name_cmd})",
                 "--",
                 drop_db_cmd,
             ],

@@ -154,7 +154,7 @@ jobs:
       run: |
         echo "ui_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
@@ -164,14 +164,14 @@ jobs:
       run: |
         echo "mlrun_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
         echo "ui_hash=$( \
           cd /tmp && \
-          git clone --single-branch --branch ${{ steps.select-parameter.outputs.param }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \

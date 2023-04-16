@@ -63,6 +63,9 @@ class NotificationPusher(object):
         wait for all notifications to be pushed before returning.
         """
 
+        if not len(self._notification_data):
+            return
+
         async def _push():
             tasks = []
             for notification_data in self._notification_data:

@@ -29,7 +29,6 @@ from urllib.parse import urlparse
 import click
 import dotenv
 import pandas as pd
-import simplejson
 import yaml
 from tabulate import tabulate
 
@@ -1477,9 +1476,9 @@ def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
         if notification.startswith("file="):
             file_path = notification.split("=")[-1]
             notification = open(file_path, "r")
-            notification = simplejson.load(notification)
+            notification = json.load(notification)
         else:
-            notification = simplejson.loads(notification)
+            notification = json.loads(notification)
         add_notification_to_project(notification, project)
 
 

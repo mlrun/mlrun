@@ -1078,7 +1078,7 @@ def read_env(env=None, prefix=env_prefix):
         # in the cluster we can't use https, so we'll use http, and we'll use the internal service name
         # (v3io-webapi instead of webapi) and the internal port (8081 instead of 8080)
         config["v3io_api"] = env_dbpath.replace(
-            "http://mlrun-api.", "http://v3io-webapi"
+            "http://mlrun-api", "http://v3io-webapi"
         ).replace(":8080", ":8081")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
@@ -1088,13 +1088,13 @@ def read_env(env=None, prefix=env_prefix):
         config["v3io_framesd"] = v3io_framesd
     elif is_remote_mlrun:
         config["v3io_framesd"] = env_dbpath.replace(
-            "https://mlrun-api.", "https://framesd."
+            "https://mlrun-api", "https://framesd."
         )
     elif is_in_cluster:
         # in cluster we can't use https, so we'll use http, and we'll use the internal service name
         # (framesd instead of webapi) and the internal port (8081 instead of 8080)
         config["v3io_framesd"] = env_dbpath.replace(
-            "http://mlrun-api.", "http://framesd"
+            "http://mlrun-api", "http://framesd"
         ).replace(":8080", ":8081")
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")

@@ -135,7 +135,7 @@ def test_update_artifact_with_conflicted_key_names(db: Session, client: TestClie
     )
     assert (
         resp.status_code == HTTPStatus.BAD_REQUEST.value
-        and "Artifact with conflicting key name" in resp.json()["detail"]
+        and "Conflict between requested key" in resp.json()["detail"]
     )
 
 

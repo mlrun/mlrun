@@ -1088,7 +1088,7 @@ def read_env(env=None, prefix=env_prefix):
         config["v3io_framesd"] = v3io_framesd
     elif is_remote_mlrun:
         config["v3io_framesd"] = env_dbpath.replace(
-            "https://mlrun-api", "https://framesd."
+            "https://mlrun-api.", "https://framesd."
         )
     elif is_in_cluster:
         # in cluster we can't use https, so we'll use http, and we'll use the internal service name

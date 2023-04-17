@@ -1315,8 +1315,7 @@ def _mock_import_function(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "mlrun.utils.helpers.extend_hub_uri_if_needed.__code__",
-        _mock_extend_hub_uri_if_needed.__code__,
+        mlrun.run, "extend_hub_uri_if_needed", _mock_extend_hub_uri_if_needed
     )
 
 

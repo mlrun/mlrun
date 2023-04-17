@@ -2832,9 +2832,9 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if item_name:
             params["item-name"] = normalize_name(item_name)
-        if item_name:
+        if tag:
             params["tag"] = tag
-        if item_name:
+        if version:
             params["version"] = version
         response = self.api_call(method="GET", path=path, params=params).json()
         results = []

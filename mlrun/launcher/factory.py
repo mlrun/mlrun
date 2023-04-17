@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.errors
-from mlrun.launcher import ClientLocalLauncher, ClientRemoteLauncher, BaseLauncher
+from mlrun.launcher import BaseLauncher, ClientLocalLauncher, ClientRemoteLauncher
 
 
 class LauncherFactory(object):

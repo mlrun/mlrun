@@ -180,8 +180,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # spark does not support indexes, so we need to reset the storey result to match it
         read_back_df_storey.reset_index(inplace=True)
 
-        assert read_back_df_spark.sort_index(axis=1).equals(
-            read_back_df_storey.sort_index(axis=1)
+        pd.testing.assert_frame_equal(
+            read_back_df_spark,
+            read_back_df_storey,
+            check_categorical=False,
+            check_like=True,
         )
 
     @classmethod

@@ -852,7 +852,11 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            spark = (
+                pyspark.sql.SparkSession.builder.appName(session_name)
+                .config("spark.sql.session.timeZone", "UTC")
+                .getOrCreate()
+            )
             created_spark_context = True
 
         timestamp_key = featureset.spec.timestamp_key

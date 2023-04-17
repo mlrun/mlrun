@@ -185,14 +185,14 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
                                         (allows to have function which don't depend on having targets,
                                         e.g a function which accepts a feature vector uri and generate
                                          the offline vector e.g. parquet_ for it if it doesn't exist)
-        :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
-                         results). The list's length must be equal to the amount of returning objects. A configuration may
-                         be given as:
+        :param returns:  List of configurations for how to log the returning values from the handler's run
+                        (as artifacts or results). The list's length must be equal to the amount of returning objects.
+                         A configuration may be given as:
 
                          * A string of the key to use to log the returning value as result or as an artifact. To specify
                            The artifact type, it is possible to pass a string in the following structure:
-                           "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                           type is specified, the object's default artifact type will be used.
+                           "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`.
+                           If no artifact type is specified, the object's default artifact type will be used.
                          * A dictionary of configurations to use when logging. Further info per object type and artifact
                            type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
 

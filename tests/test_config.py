@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest.mock
 from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
 
 import deepdiff
-import unittest.mock
 import pytest
 import requests_mock as requests_mock_package
 import yaml
@@ -148,11 +148,9 @@ def test_v3io_api_and_framesd_enrichment_from_dbpath(
     v3io_framesd,
     expected_v3io_api,
     expected_v3io_framesd,
-        monkeypatch
+    monkeypatch,
 ):
-    with unittest.mock.patch.object(
-            mlrun.db, "get_run_db", return_value=None
-    ):
+    with unittest.mock.patch.object(mlrun.db, "get_run_db", return_value=None):
         env = {
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_API": v3io_api,

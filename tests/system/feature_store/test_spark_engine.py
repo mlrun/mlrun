@@ -156,13 +156,17 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
 
+    @staticmethod
+    def is_path_spark_metadata(path):
+        return path.endswith("/_SUCCESS") or path.endswith("/._SUCCESS.crc")
+
     @classmethod
     def read_parquet_and_assert(cls, out_path_spark, out_path_storey):
         read_back_df_spark = None
         file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
         for file_entry in file_system.ls(out_path_spark):
             filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
-            if not filepath.endswith("/_SUCCESS"):
+            if not cls.is_path_spark_metadata(filepath):
                 read_back_df_spark = pd.read_parquet(filepath)
                 break
         assert read_back_df_spark is not None
@@ -190,10 +194,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @classmethod
     def read_csv(cls, csv_path: str) -> pd.DataFrame:
         file_system = fsspec.filesystem("file" if cls.run_local else "v3io")
-        for file_entry in file_system.ls(csv_path):
-            filepath = file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
-            if not filepath.endswith("/_SUCCESS"):
-                return pd.read_csv(filepath)
+        if file_system.isdir(csv_path):
+            for file_entry in file_system.ls(csv_path):
+                filepath = (
+                    file_entry if cls.run_local else f'v3io://{file_entry["name"]}'
+                )
+                if not cls.is_path_spark_metadata(filepath):
+                    return pd.read_csv(filepath)
+        else:
+            return pd.read_csv(csv_path)
         raise AssertionError(f"No files found in {csv_path}")
 
     @staticmethod
@@ -208,8 +217,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
         read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
 
-        assert read_back_df_spark.sort_index(axis=1).equals(
-            read_back_df_storey.sort_index(axis=1)
+        pd.testing.assert_frame_equal(
+            read_back_df_storey,
+            read_back_df_spark,
+            check_categorical=False,
+            check_like=True,
         )
 
     def setup_method(self, method):
@@ -233,14 +245,21 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             os.makedirs(result, exist_ok=True)
         return result
 
-    def set_targets(self, feature_set, also_in_remote=False):
-        dir_name = (
+    @staticmethod
+    def test_name():
+        return (
             os.environ.get("PYTEST_CURRENT_TEST")
             .split(":")[-1]
             .split(" ")[0]
             .replace("[", "__")
             .replace("]", "")
         )
+
+    def test_output_subdir_path(self):
+        return f"{self.output_dir()}/{self.test_name()}"
+
+    def set_targets(self, feature_set, also_in_remote=False):
+        dir_name = self.test_name()
         if self.run_local or also_in_remote:
             target_path = f"{self.output_dir()}/{dir_name}"
             feature_set.set_targets(
@@ -334,8 +353,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_to_csv(self):
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
-        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
+        base_path = self.test_output_subdir_path()
+        csv_path_spark = f"{base_path}_spark"
+        csv_path_storey = f"{base_path}_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -372,9 +392,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         file_system = fsspec.filesystem("file" if self.run_local else "v3io")
         for file_entry in file_system.ls(csv_path_spark):
             filepath = file_entry if self.run_local else f'v3io://{file_entry["name"]}'
-            if not filepath.endswith("/_SUCCESS") and not filepath.endswith(
-                "/._SUCCESS.crc"
-            ):
+            if not self.is_path_spark_metadata(filepath):
                 read_back_df_spark = pd.read_csv(filepath)
                 break
         assert read_back_df_spark is not None
@@ -1136,7 +1154,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path=f"{self.output_dir()}/test_write_empty_dataframe_overwrite_false/",
+            path=f"{self.output_dir()}/{self.test_name()}/",
             partitioned=False,
         )
 
@@ -1189,7 +1207,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path=f"{self.output_dir()}/test_write_dataframe_overwrite_false/",
+            path=f"{self.output_dir()}/{self.test_name()}/",
             partitioned=False,
         )
 
@@ -1413,10 +1431,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    def test_ingest_with_steps_drop_features(self):
+    def test_ingest_with_steps_drop_features(self, request):
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
-        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
+        base_path = self.test_output_subdir_path()
+        csv_path_spark = f"{base_path}_spark"
+        csv_path_storey = f"{base_path}_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1474,8 +1493,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
-        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
+        base_path = self.test_output_subdir_path()
+        csv_path_spark = f"{base_path}_spark"
+        csv_path_storey = f"{base_path}_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1514,8 +1534,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_ingest_to_csv_spark"
-        csv_path_storey = f"{self.output_dir()}/test_ingest_to_csv_storey.csv"
+        base_path = self.test_output_subdir_path()
+        csv_path_spark = f"{base_path}_spark"
+        csv_path_storey = f"{base_path}_storey.csv"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1570,7 +1591,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_mapvalues_with_partial_mapping"
+        csv_path_spark = self.test_output_subdir_path()
         original_df = pd.read_parquet(self.get_pq_source_path())
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1608,7 +1629,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_mapvalues_with_mixed_types(self):
         key = "patient_id"
-        csv_path_spark = f"{self.output_dir()}/test_mapvalues_with_mixed_types"
+        csv_path_spark = self.test_output_subdir_path()
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1641,8 +1662,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        out_path_spark = f"{self.output_dir()}/test_ingest_with_steps_extractor_spark"
-        out_path_storey = f"{self.output_dir()}/test_ingest_with_steps_extractor_storey"
+        base_path = self.test_output_subdir_path()
+        out_path_spark = f"{base_path}_spark"
+        out_path_storey = f"{base_path}_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -2112,8 +2134,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        left_path = f"{self.output_dir()}/asof_join/df_left.parquet"
-        right_path = f"{self.output_dir()}/asof_join/df_right.parquet"
+        base_path = self.test_output_subdir_path()
+        left_path = f"{base_path}/df_left.parquet"
+        right_path = f"{base_path}/asof_join/df_right.parquet"
 
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol

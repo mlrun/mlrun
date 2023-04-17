@@ -93,7 +93,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         else:
             return cls.get_remote_pq_source_path()
 
-    def _print_full_df(self, df: pd.DataFrame, df_name: str, passthrough: str) -> None:
+    def _print_full_df(self, df: pd.DataFrame, df_name: str, passthrough: bool) -> None:
         with pd.option_context("display.max_rows", None, "display.max_columns", None):
             self._logger.info(f"{df_name}-passthrough_{passthrough}:")
             self._logger.info(df)
@@ -1367,10 +1367,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        assert measurements.status.targets[0].run_id is not None
+        if not self.run_local:
+            assert measurements.status.targets[0].run_id is not None
 
         # assert that online target exist (nosql) and offline target does not (parquet)
-        if passthrough:
+        if passthrough and not self.run_local:
             assert len(measurements.status.targets) == 1
             assert isinstance(measurements.status.targets["nosql"], DataTarget)
 

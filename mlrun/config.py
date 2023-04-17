@@ -1059,16 +1059,27 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
+    # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
     is_remote_mlrun = (
         env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
     )
+    # expected format: http://mlrun-api:8080
+    is_in_cluster = env_dbpath.startswith("http://mlrun-api:")
+
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
+        # in remote mlrun we can't use http, so we'll use https
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
+    elif is_in_cluster:
+        # in the cluster we can't use https, so we'll use http, and we'll use the internal service name
+        # (v3io-webapi instead of webapi) and the internal port (8081 instead of 8080)
+        config["v3io_api"] = env_dbpath.replace(
+            "http://mlrun-api.", "http://v3io-webapi"
+        ).replace(":8080", ":8081")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
     # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
@@ -1079,6 +1090,12 @@ def read_env(env=None, prefix=env_prefix):
         config["v3io_framesd"] = env_dbpath.replace(
             "https://mlrun-api.", "https://framesd."
         )
+    elif is_in_cluster:
+        # in cluster we can't use https, so we'll use http, and we'll use the internal service name
+        # (framesd instead of webapi) and the internal port (8081 instead of 8080)
+        config["v3io_framesd"] = env_dbpath.replace(
+            "http://mlrun-api.", "http://framesd"
+        ).replace(":8080", ":8081")
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")

@@ -38,7 +38,7 @@ def make_dockerfile(
     base_image: str,
     commands: list = None,
     source: str = None,
-    requirements: str = None,
+    requirements_path: str = None,
     workdir: str = "/mlrun",
     extra: str = "",
     user_unix_id: int = None,
@@ -78,8 +78,11 @@ def make_dockerfile(
         dock += f"ENV PYTHONPATH {workdir}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
-    if requirements:
-        dock += f"RUN python -m pip install -r {requirements}\n"
+    if requirements_path:
+        dock += (
+            f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        )
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -95,6 +98,7 @@ def make_kaniko_pod(
     inline_code=None,
     inline_path=None,
     requirements=None,
+    requirements_path=None,
     secret_name=None,
     name="",
     verbose=False,
@@ -208,7 +212,7 @@ def make_kaniko_pod(
             ).decode("utf-8")
             # dump requirement content and decode to the requirement.txt destination
             commands.append(
-                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
             )
 
         kpod.append_init_container(
@@ -225,7 +229,21 @@ def make_kaniko_pod(
         if end == -1:
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
-        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+        assume_instance_role = not config.httpdb.builder.docker_registry_secret
+        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
+
+        # project secret might conflict with the attached instance role
+        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+        # due to credentials conflict / lack of permission on given credentials
+        if assume_instance_role:
+            kpod.pod.spec.containers[0].env.extend(
+                [
+                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
+                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
+                ]
+            )
 
     # mount regular docker config secret
     elif secret_name:
@@ -235,7 +253,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(kpod, registry, repo):
+def configure_kaniko_ecr_init_container(
+    kpod, registry, repo, assume_instance_role=True
+):
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -246,12 +266,13 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
     )
     init_container_env = {}
 
-    if not config.httpdb.builder.docker_registry_secret:
+    if assume_instance_role:
 
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
         kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
         aws_credentials_file_env_value = "/tmp/credentials"
@@ -321,18 +342,12 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-    # TODO: currently requirements are not being passed to that method, this is due to the ImageBuilder class not having
-    #   requirements attribute in it, remove this comment when requirements attribute is being added to the class and
-    #   passed to the `build_image` method. Also `with_requirements` will have to be changed to set them to the
-    #   requirements attribute instead of transforming it right to commands
-    if isinstance(requirements, list):
+    if requirements and isinstance(requirements, list):
         requirements_list = requirements
-        requirements_path = "requirements.txt"
-        if source:
-            raise ValueError("requirements list only works with inline code")
+        requirements_path = "/empty/requirements.txt"
     else:
         requirements_list = None
-        requirements_path = requirements
+        requirements_path = requirements or ""
 
     commands = commands or []
     if with_mlrun:
@@ -347,7 +362,7 @@ def build_image(
         if mlrun_command:
             commands.append(mlrun_command)
 
-    if not inline_code and not source and not commands:
+    if not inline_code and not source and not commands and not requirements:
         logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -420,7 +435,7 @@ def build_image(
         base_image,
         commands,
         source=source_to_copy,
-        requirements=requirements_path,
+        requirements_path=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
@@ -435,6 +450,7 @@ def build_image(
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements_list,
+        requirements_path=requirements_path,
         secret_name=secret_name,
         name=name,
         verbose=verbose,
@@ -544,7 +560,13 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if not build.source and not build.commands and not build.extra and not with_mlrun:
+    if (
+        not build.source
+        and not build.commands
+        and not build.requirements
+        and not build.extra
+        and not with_mlrun
+    ):
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image
@@ -588,6 +610,7 @@ def build_runtime(
         image_target=build.image,
         base_image=enriched_base_image,
         commands=build.commands,
+        requirements=build.requirements,
         namespace=namespace,
         source=build.source,
         secret_name=build.secret,

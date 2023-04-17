@@ -1181,7 +1181,7 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
     _mock_import_function(monkeypatch)
     submit_job_body = {
         "task": {
-            "spec": {"function": "hub://gen_class_data"},
+            "spec": {"function": "hub://gen-class-data"},
             "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},

@@ -74,6 +74,7 @@ class SystemTestPreparer:
         mysql_password: str = None,
         purge_db: bool = False,
         debug: bool = False,
+        branch: str = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -107,6 +108,7 @@ class SystemTestPreparer:
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
+            "MLRUN_SYSTEM_TESTS_BRANCH": branch,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -141,10 +143,13 @@ class SystemTestPreparer:
 
         self._override_mlrun_api_env()
 
-        self._patch_mlrun()
-
+        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
+        # that run as part of the patch would succeed even if we move from a newer version to an older one
+        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
         if self._purge_db:
             self._purge_mlrun_db()
+
+        self._patch_mlrun()
 
     def clean_up_remote_workdir(self):
         self._logger.info(
@@ -486,6 +491,9 @@ class SystemTestPreparer:
                 self._data_cluster_ssh_password,
                 "patch",
                 "appservice",
+                # we force because by default provctl doesn't allow downgrading between version but due to system tests
+                # running on multiple branches this might occur.
+                "--force",
                 "mlrun",
                 mlrun_archive,
             ],
@@ -518,21 +526,23 @@ class SystemTestPreparer:
 
     def _purge_mlrun_db(self):
         """
-        Purge mlrun db - exec into mlrun-db pod, delete the database and restart mlrun pods
+        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
         """
         self._delete_mlrun_db()
-        self._rollout_restart_mlrun()
-        self._wait_for_mlrun_to_be_ready()
+        self._scale_down_mlrun_deployments()
 
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
 
-        get_mlrun_db_pod_name_cmd = self._get_pod_name_command(
+        mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
                 "app.kubernetes.io/component": "db",
                 "app.kubernetes.io/instance": "mlrun",
             },
         )
+        if not mlrun_db_pod_name_cmd:
+            self._logger.info("No mlrun db pod found")
+            return
 
         password = ""
         if self._mysql_password:
@@ -545,7 +555,7 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({get_mlrun_db_pod_name_cmd})",
+                f"$({mlrun_db_pod_name_cmd})",
                 "--",
                 drop_db_cmd,
             ],
@@ -559,33 +569,19 @@ class SystemTestPreparer:
             namespace=namespace, labels_selector=labels_selector
         )
 
-    def _rollout_restart_mlrun(self):
-        self._logger.info("Restarting mlrun")
+    def _scale_down_mlrun_deployments(self):
+        # scaling down to avoid automatically deployments restarts and failures
+        self._logger.info("scaling down mlrun deployments")
         self._run_kubectl_command(
             args=[
-                "rollout",
-                "restart",
+                "scale",
                 "deployment",
                 "-n",
                 self.Constants.namespace,
                 "mlrun-api-chief",
                 "mlrun-api-worker",
                 "mlrun-db",
-            ]
-        )
-
-    def _wait_for_mlrun_to_be_ready(self):
-        self._logger.info("Waiting for mlrun to be ready")
-        self._run_kubectl_command(
-            args=[
-                "wait",
-                "--for=condition=available",
-                "--timeout=300s",
-                "deployment",
-                "-n",
-                self.Constants.namespace,
-                "mlrun-api-chief",
-                "mlrun-db",
+                "--replicas=0",
             ]
         )
 
@@ -732,6 +728,7 @@ def run(
     is_flag=True,
     help="Don't run the ci only show the commands that will be run",
 )
+@click.argument("branch", type=str, default=None, required=False)
 def env(
     mlrun_dbpath: str,
     webapi_direct_url: str,
@@ -742,6 +739,7 @@ def env(
     password: str,
     slack_webhook_url: str,
     debug: bool,
+    branch: str,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_dbpath=mlrun_dbpath,
@@ -753,6 +751,7 @@ def env(
         password=password,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
+        branch=branch,
     )
     try:
         system_test_preparer.prepare_local_env()

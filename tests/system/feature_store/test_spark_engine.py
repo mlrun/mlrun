@@ -158,7 +158,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     @staticmethod
     def is_path_spark_metadata(path):
-        return path.endswith("/_SUCCESS") or path.endswith("/._SUCCESS.crc")
+        return path.endswith("/_SUCCESS") or path.endswith(".crc")
 
     @classmethod
     def read_parquet_and_assert(cls, out_path_spark, out_path_storey):

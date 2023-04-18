@@ -121,17 +121,45 @@ def test_store_artifact_backwards_compatibility(db: Session, client: TestClient)
 
 def test_update_artifact_with_conflicted_key_names(db: Session, client: TestClient):
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123").to_json()
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
-        data=artifact.to_json(),
+        data=artifact,
     )
     assert resp.status_code == HTTPStatus.OK.value
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key="test", tag=TAG),
-        data=artifact.to_json(),
+        data=artifact,
+    )
+    assert (
+        resp.status_code == HTTPStatus.BAD_REQUEST.value
+        and "Conflict between requested key" in resp.json()["detail"]
+    )
+
+
+def test_update_legacy_artifact_with_conflicted_key_names(
+    db: Session, client: TestClient
+):
+    _create_project(client)
+    another_key = "test"
+
+    resp = client.post(
+        f"{LEGACY_API_ARTIFACT_PATH}/{PROJECT}/{UID}/{KEY}?tag={TAG}",
+        json={
+            "kind": "artifact",
+            "key": KEY,
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    resp = client.post(
+        f"{LEGACY_API_ARTIFACT_PATH}/{PROJECT}/{UID}/{another_key}?tag={TAG}&format=legacy",
+        json={
+            "kind": "artifact",
+            "key": KEY,
+        },
     )
     assert (
         resp.status_code == HTTPStatus.BAD_REQUEST.value

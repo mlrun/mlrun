@@ -539,7 +539,7 @@ class SQLDB(DBInterface):
         db_key = artifact["spec"].get("db_key")
         if db_key and db_key != key:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Conflict between requested key and key in artifact body"
+                f"Conflict between requested key ({key}) and key in artifact metadata ({db_key})"
             )
         if not db_key:
             artifact["spec"]["db_key"] = key
@@ -574,7 +574,7 @@ class SQLDB(DBInterface):
         data_key = artifact.get("key")
         if (key and data_key) and data_key != key:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Artifact with conflicting key name - {data_key} while request key : {key}."
+                f"Conflict between requested key ({key}) and key in artifact metadata ({data_key})"
             )
 
         if iter:

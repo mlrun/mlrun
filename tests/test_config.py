@@ -109,14 +109,14 @@ def test_file(config):
             "",
             "",
             "http://v3io-webapi:8081",
-            "http://framesd:8081",
+            "http://framesd:8080",
         ),
         (
             "http://mlrun-api:8080",
             "http://v3io-webapi:8081",
             "",
             "http://v3io-webapi:8081",
-            "http://framesd:8081",
+            "http://framesd:8080",
         ),
         (
             "https://mlrun-api.default-tenant.app.somedev.cluster.amzn.com",

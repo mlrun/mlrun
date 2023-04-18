@@ -239,7 +239,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             prefix = "file://" if url else ""
             base_dir = f"{prefix}{self._tmpdir.name}"
         else:
-            base_dir = self.project.mountdir
+            base_dir = f"v3io:///projects/{self.project_name}"
         result = f"{base_dir}/spark-tests-output"
         if self.run_local:
             os.makedirs(result, exist_ok=True)

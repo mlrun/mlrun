@@ -1431,7 +1431,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    def test_ingest_with_steps_drop_features(self, request):
+    def test_ingest_with_steps_drop_features(self):
         key = "patient_id"
         base_path = self.test_output_subdir_path()
         csv_path_spark = f"{base_path}_spark"

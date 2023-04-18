@@ -255,8 +255,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             .replace("]", "")
         )
 
-    def test_output_subdir_path(self):
-        return f"{self.output_dir()}/{self.test_name()}"
+    def test_output_subdir_path(self, url=True):
+        return f"{self.output_dir(url=url)}/{self.test_name()}"
 
     def set_targets(self, feature_set, also_in_remote=False):
         dir_name = self.test_name()
@@ -2134,13 +2134,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        base_path = self.test_output_subdir_path()
+        base_path = self.test_output_subdir_path(url=False)
         left_path = f"{base_path}/df_left.parquet"
-        right_path = f"{base_path}/asof_join/df_right.parquet"
+        right_path = f"{base_path}/df_right.parquet"
 
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
+        fsys.makedirs(base_path, exist_ok=True)
         df_left.to_parquet(path=left_path, filesystem=fsys)
         df_right.to_parquet(path=right_path, filesystem=fsys)
 
@@ -2149,8 +2150,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
         self.set_targets(fset2, also_in_remote=True)
 
-        source_left = ParquetSource("pq1", path=left_path)
-        source_right = ParquetSource("pq2", path=right_path)
+        base_url = self.test_output_subdir_path()
+        left_url = f"{base_url}/df_left.parquet"
+        right_url = f"{base_url}/df_right.parquet"
+
+        source_left = ParquetSource("pq1", path=left_url)
+        source_right = ParquetSource("pq2", path=right_url)
 
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)

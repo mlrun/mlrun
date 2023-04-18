@@ -460,7 +460,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     )
     @pytest.mark.parametrize(
         "target_kind",
-        ["Redis", "v3io"] if mlrun.mlconf.redis.url is not None else ["v3io"],
+        ["Redis", "v3io"] if mlrun.mlconf.redis.url else ["v3io"],
     )
     def test_ingest_multiple_entities(self, target_kind):
         key1 = "patient_id"

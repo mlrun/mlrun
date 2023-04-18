@@ -15,6 +15,7 @@ import ast
 import datetime
 import os
 import random
+import sys
 import time
 from collections import Counter
 from copy import copy
@@ -23,7 +24,6 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
-from storey.utils import hash_list, stringify_key
 
 import mlrun
 import mlrun.utils.helpers
@@ -1114,7 +1114,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         if isinstance(key_column, list) and len(key_column) >= 1:
             spark_options["key"] = key_column[0]
             if len(key_column) > 2:
-                spark_options["sorting-key"] = "_spark_object_sorting_key"
+                spark_options["sorting-key"] = "_spark_object_name"
             if len(key_column) == 2:
                 spark_options["sorting-key"] = key_column[1]
         else:
@@ -1124,21 +1124,28 @@ class NoSqlTarget(NoSqlBaseTarget):
         return spark_options
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import col, udf
-        from pyspark.sql.types import StringType
+        from pyspark.sql.functions import col
 
-        for col_name, col_type in df.dtypes:
-            if col_type.startswith("decimal("):
-                # V3IO does not support this level of precision
-                df = df.withColumn(col_name, col(col_name).cast("double"))
-        if len(key_columns) > 2:
-            hash_and_concat_udf = udf(
-                lambda *x: hash_list([str(i) for i in x]), StringType()
-            )
-            return df.withColumn(
-                "_spark_object_sorting_key",
-                hash_and_concat_udf(*[col(c) for c in key_columns[1:]]),
-            )
+        spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
+        sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
+
+            df.rdd.context.addFile(spark_udf.__file__)
+
+            for col_name, col_type in df.dtypes:
+                if col_type.startswith("decimal("):
+                    # V3IO does not support this level of precision
+                    df = df.withColumn(col_name, col(col_name).cast("double"))
+            if len(key_columns) > 2:
+                return df.withColumn(
+                    "_spark_object_name",
+                    spark_udf.hash_and_concat_v3io_udf(
+                        *[col(c) for c in key_columns[1:]]
+                    ),
+                )
+        finally:
+            sys.path.remove(spark_udf_directory)
         return df
 
 
@@ -1200,20 +1207,23 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return endpoint
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import col, udf
-        from pyspark.sql.types import StringType
+        from pyspark.sql.functions import col
 
-        if len(key_columns) > 1:
-            hash_and_concat_udf = udf(
-                lambda *x: stringify_key([str(i) for i in x]) + "}:static", StringType()
-            )
-            return df.withColumn(
+        spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
+        sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
+
+            df.rdd.context.addFile(spark_udf.__file__)
+
+            df = df.withColumn(
                 "_spark_object_name",
-                hash_and_concat_udf(*[col(c) for c in key_columns]),
+                spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
             )
-        else:
-            udf1 = udf(lambda x: str(x) + "}:static", StringType())
-            return df.withColumn("_spark_object_name", udf1(key_columns[0]))
+        finally:
+            sys.path.remove(spark_udf_directory)
+
+        return df
 
 
 class StreamTarget(BaseStoreTarget):

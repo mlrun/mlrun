@@ -92,8 +92,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + self.pq_target
         if clean_up:
             fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
-            for f in fsys.listdir(path):
-                fsys._rm(f["name"])
+            if fsys.isdir(path):
+                for f in fsys.listdir(path):
+                    fsys._rm(f["name"])
         return path
 
     @classmethod

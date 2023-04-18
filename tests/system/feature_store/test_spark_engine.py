@@ -59,7 +59,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -90,8 +90,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_target
-        if clean_up:
-            fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        if clean_up and fsys.isdir(path):
             for f in fsys.listdir(path):
                 fsys._rm(f["name"])
         return path

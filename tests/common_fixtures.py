@@ -26,6 +26,7 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.api.schemas.marketplace
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -449,6 +450,22 @@ class RunDBMock:
             return self._functions[function_name]
 
         return list(self._functions.values())[0]
+
+    def list_marketplace_sources(self, item_name: str = None, tag: str = None):
+        source = mlrun.api.schemas.IndexedMarketplaceSource(
+            index=1,
+            source=mlrun.api.schemas.MarketplaceSource(
+                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+                    name="default", description="some description"
+                ),
+                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                    path=mlrun.mlconf.marketplace.default_source.url,
+                    channel="master",
+                    object_type="functions",
+                ),
+            ),
+        )
+        return [source]
 
 
 @pytest.fixture()

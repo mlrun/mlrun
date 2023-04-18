@@ -2885,7 +2885,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
             of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
         """
-        path = (f"marketplace/sources/{source_name}/items",)
+        path = f"marketplace/sources/{source_name}/items"
         params = {
             "version": version,
             "tag": tag,
@@ -2943,7 +2943,7 @@ class HTTPRunDB(RunDBInterface):
         :return: http response with the asset in the content attribute
         """
         path = (
-            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",
+            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         )
         params = {
             "version": version,

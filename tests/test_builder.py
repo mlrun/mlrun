@@ -14,6 +14,7 @@
 #
 import base64
 import json
+import pathlib
 import re
 import unittest.mock
 
@@ -444,6 +445,7 @@ def test_resolve_mlrun_install_command():
 
 def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     _patch_k8s_helper(monkeypatch)
+    _mock_import_hub_function(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
@@ -883,4 +885,15 @@ def _mock_default_service_account(monkeypatch, service_account):
         mlrun.api.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
+    )
+
+
+def _mock_import_hub_function(monkeypatch):
+    function_url = str(
+        pathlib.Path(__file__).absolute().parent / "assets" / "function.yaml"
+    )
+    monkeypatch.setattr(
+        mlrun.run,
+        "extend_hub_uri_if_needed",
+        lambda x: (function_url, True),
     )

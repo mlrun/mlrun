@@ -17,8 +17,10 @@ import pathlib
 import shutil
 import tempfile
 import unittest.mock
+import zipfile
 from contextlib import nullcontext as does_not_raise
 
+import deepdiff
 import inflection
 import pytest
 
@@ -41,6 +43,45 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+def test_sync_functions(rundb_mock):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.set_function("hub://describe", "describe")
+    project_function_object = project.spec._function_objects
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert imported_project.spec._function_objects == {}
+    imported_project.sync_functions()
+    _assert_project_function_objects(imported_project, project_function_object)
+
+    fn = project.get_function("describe")
+    assert fn.metadata.name == "describe", "func did not return"
+
+    # test that functions can be fetched from the DB (w/o set_function)
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
+    fn = project.get_function("train")
+    assert fn.metadata.name == "train", "train func did not return"
+
+
+def test_sync_functions_with_names_different_than_default(rundb_mock):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+
+    describe_func = mlrun.import_function("hub://describe")
+    # set a different name than the default
+    project.set_function(describe_func, "new_describe_func")
+
+    project_function_object = project.spec._function_objects
+    project_function_definition = project.spec._function_definitions
+
+    # sync functions - expected to sync the function objects from the definitions
+    project.sync_functions()
+
+    assert project.spec._function_objects == project_function_object
+    assert project.spec._function_definitions == project_function_definition
 
 
 def test_export_project_dir_doesnt_exist():
@@ -283,6 +324,88 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
+@pytest.mark.parametrize(
+    "sync,expected_num_of_funcs, save",
+    [
+        (
+            False,
+            0,
+            False,
+        ),
+        (
+            True,
+            5,
+            False,
+        ),
+        (
+            True,
+            5,
+            True,
+        ),
+    ],
+)
+def test_load_project_and_sync_functions(
+    context, rundb_mock, sync, expected_num_of_funcs, save
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(
+        context=str(context), url=url, sync_functions=sync, save=save
+    )
+    assert len(project.spec._function_objects) == expected_num_of_funcs
+
+    if sync:
+        function_names = project.get_function_names()
+        assert len(function_names) == expected_num_of_funcs
+        for func in function_names:
+            fn = project.get_function(func)
+            normalized_name = mlrun.utils.helpers.normalize_name(func)
+            assert fn.metadata.name == normalized_name, "func did not return"
+
+            if save:
+                assert normalized_name in rundb_mock._functions
+
+
+def _assert_project_function_objects(project, expected_function_objects):
+    project_function_objects = project.spec._function_objects
+    assert len(project_function_objects) == len(expected_function_objects)
+    for function_name, function_object in expected_function_objects.items():
+        assert function_name in project_function_objects
+        assert (
+            deepdiff.DeepDiff(
+                project_function_objects[function_name].to_dict(),
+                function_object.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['build']['code_origin']"],
+            )
+            == {}
+        )
+
+
+def test_set_function_requirements(rundb_mock):
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+            },
+        }
+    )
+    project.set_function("hub://describe", "desc1", requirements=["x"])
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
+    ]
+
+    fn = mlrun.import_function("hub://describe")
+    project.set_function(fn, "desc2", requirements=["y"])
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
+    ]
+
+
 def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
         "project", default_requirements=["pandas>1, <3"]
@@ -462,6 +585,29 @@ def test_get_artifact_uri():
     assert uri == "store://artifacts/arti/x"
     uri = project.get_artifact_uri("y", category="model", tag="prod")
     assert uri == "store://models/arti/y:prod"
+
+
+def test_export_to_zip(rundb_mock):
+    project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
+    project = mlrun.new_project(
+        "tozip", context=str(project_dir_path / "code"), save=False
+    )
+    project.set_function("hub://describe", "desc")
+    with (project_dir_path / "code" / "f.py").open("w") as f:
+        f.write("print(1)\n")
+
+    zip_path = str(project_dir_path / "proj.zip")
+    project.export(zip_path)
+
+    assert os.path.isfile(str(project_dir_path / "code" / "project.yaml"))
+    assert os.path.isfile(zip_path)
+
+    zipf = zipfile.ZipFile(zip_path, "r")
+    assert set(zipf.namelist()) == set(["./", "f.py", "project.yaml"])
+
+    # check upload to (remote) DataItem
+    project.export("memory://x.zip")
+    assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
 def test_function_receives_project_artifact_path(rundb_mock):

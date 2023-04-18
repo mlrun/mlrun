@@ -1,0 +1,35 @@
+kind: job
+metadata:
+  name: example
+  tag: ''
+  hash: 6ac98156983aea68309906730510762e1dd9fb60
+  project: ''
+  labels:
+    author: John Doe
+  categories:
+  - machine-learning
+spec:
+  command: ''
+  args: []
+  image: mlrun/mlrun
+  build:
+    functionSourceCode: ZGVmIGhhbmRsZXIoKToKICAgIHByaW50KCJUaGlzIGlzIGFuIGV4YW1wbGUgZnVuY3Rpb24iKQo=
+    commands: []
+  entry_points:
+    handler:
+      name: handler
+      doc: ''
+      parameters: []
+      outputs:
+      - default: ''
+      lineno: 1
+  description: Test function for development use.
+  default_handler: handler
+  disable_auto_mount: false
+  env: []
+  priority_class_name: ''
+  preemption_mode: prevent
+  affinity: null
+  tolerations: null
+  security_context: {}
+verbose: false

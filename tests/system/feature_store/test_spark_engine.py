@@ -311,7 +311,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             / "spark_ingest_remote_test_code.py"
         )
         func = code_to_function("func", kind="remote-spark", filename=filename)
-        run_config = fstore.RunConfig(local=self.run_local, function=func)
+        run_config = fstore.RunConfig(
+            local=self.run_local, function=func, handler="ingest_handler"
+        )
         self.set_targets(measurements)
         fstore.ingest(
             measurements,

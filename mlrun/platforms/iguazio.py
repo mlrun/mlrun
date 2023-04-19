@@ -650,6 +650,8 @@ def parse_path(url, suffix="/"):
             )
         endpoint = f"{prefix}://{parsed_url.netloc}"
     else:
+        # no netloc is mainly when using v3io (v3io:///) and expecting the url to be resolved automatically from env or
+        # config
         endpoint = None
     return endpoint, parsed_url.path.strip("/") + suffix
 

@@ -1049,15 +1049,18 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
+    # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
     is_remote_mlrun = (
         env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
     )
+
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
+        # in remote mlrun we can't use http, so we'll use https
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead

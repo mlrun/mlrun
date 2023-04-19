@@ -131,7 +131,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
-        self.with_default_targets = None
+        self.with_default_targets = True
 
     @property
     def entities(self) -> List[Entity]:

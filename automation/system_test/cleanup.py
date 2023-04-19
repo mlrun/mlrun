@@ -39,6 +39,13 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
     images = images.split(",")
     loop = asyncio.get_event_loop()
     try:
+        click.echo("Removing images from datanode docker")
+        _remove_image_from_datanode_docker()
+    except Exception as exc:
+        click.echo(
+            f"Unable to remove images from datanode docker: {exc}, continuing anyway"
+        )
+    try:
         _run_registry_garbage_collection(registry_container_name)
     except Exception as exc:
         click.echo(f"Unable to run garbage collection: {exc}, continuing anyway")
@@ -79,6 +86,27 @@ async def _collect_image_tags(
                 if data.get("tags"):
                     tags[image] = data["tags"]
     return tags
+
+
+def _remove_image_from_datanode_docker():
+    """Remove image from datanode docker"""
+    subprocess.run(
+        [
+            "docker",
+            "images",
+            "--format",
+            "'{{.Repository }}:{{.Tag}}'",
+            "|",
+            "grep",
+            "mlrun",
+            "|",
+            "xargs",
+            "--no-run-if-empty",
+            "docker",
+            "rmi",
+            "-f",
+        ]
+    )
 
 
 async def _delete_image_tags(

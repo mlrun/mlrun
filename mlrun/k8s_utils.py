@@ -27,7 +27,6 @@ import mlrun.errors
 
 from .config import config as mlconfig
 from .errors import err_to_str
-from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 
 _k8s = None
@@ -43,11 +42,6 @@ def get_k8s_helper(namespace=None, silent=False, log=False) -> "K8sHelper":
     if not _k8s:
         _k8s = K8sHelper(namespace, silent=silent, log=log)
     return _k8s
-
-
-class SecretTypes:
-    opaque = "Opaque"
-    v3io_fuse = "v3io/fuse"
 
 
 class K8sHelper:
@@ -101,13 +95,6 @@ class K8sHelper:
             if not states or i.status.phase in states:
                 items.append(i)
         return items
-
-    def clean_pods(self, namespace=None, selector="", states=None):
-        if not selector and not states:
-            raise ValueError("labels selector or states list must be specified")
-        items = self.list_pods(namespace, selector, states)
-        for item in items:
-            self.delete_pod(item.metadata.name, item.metadata.namespace)
 
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
@@ -410,146 +397,9 @@ class K8sHelper:
             project=project
         )
 
-    def get_auth_secret_name(self, access_key: str) -> str:
-        hashed_access_key = self._hash_access_key(access_key)
-        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=hashed_access_key
-        )
-
     @staticmethod
     def _hash_access_key(access_key: str):
         return hashlib.sha224(access_key.encode()).hexdigest()
-
-    def store_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self.get_project_secret_name(project)
-        self.store_secrets(secret_name, secrets, namespace)
-
-    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
-        namespace = self.resolve_namespace(namespace)
-
-        try:
-            secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
-        except ApiException as exc:
-            logger.error(
-                "Failed to read secret",
-                secret_name=secret_name,
-                namespace=namespace,
-                exc=err_to_str(exc),
-            )
-            if exc.status != 404:
-                raise exc
-            elif raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret '{secret_name}' was not found in namespace '{namespace}'"
-                ) from exc
-
-            return None, None
-
-        def _get_secret_value(key):
-            if secret_data.get(key):
-                return base64.b64decode(secret_data[key]).decode("utf-8")
-            else:
-                return None
-
-        username = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
-        )
-        access_key = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
-        )
-
-        return username, access_key
-
-    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
-        secret_name = self.get_auth_secret_name(access_key)
-        secret_data = {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
-                "access_key"
-            ): access_key,
-        }
-        self.store_secrets(
-            secret_name,
-            secret_data,
-            namespace,
-            type_=SecretTypes.v3io_fuse,
-            labels={"mlrun/username": username},
-        )
-        return secret_name
-
-    def store_secrets(
-        self,
-        secret_name,
-        secrets,
-        namespace="",
-        type_=SecretTypes.opaque,
-        labels: typing.Optional[dict] = None,
-    ):
-        namespace = self.resolve_namespace(namespace)
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
-            # If secret doesn't exist, we'll simply create it
-            if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
-                raise exc
-            k8s_secret = client.V1Secret(type=type_)
-            k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace, labels=labels
-            )
-            k8s_secret.string_data = secrets
-            self.v1api.create_namespaced_secret(namespace, k8s_secret)
-            return
-
-        secret_data = k8s_secret.data.copy()
-        for key, value in secrets.items():
-            secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
-
-        k8s_secret.data = secret_data
-        self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
-
-    def load_secret(self, secret_name, namespace=""):
-        namespace = namespace or self.resolve_namespace(namespace)
-
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException:
-            return None
-
-        return k8s_secret.data
-
-    def delete_project_secrets(self, project, secrets, namespace=""):
-        secret_name = self.get_project_secret_name(project)
-        self.delete_secrets(secret_name, secrets, namespace)
-
-    def delete_auth_secret(self, secret_ref: str, namespace=""):
-        self.delete_secrets(secret_ref, {}, namespace)
-
-    def delete_secrets(self, secret_name, secrets, namespace=""):
-        namespace = self.resolve_namespace(namespace)
-
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfully
-            if exc.status == 404:
-                return
-            else:
-                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
-                raise exc
-
-        if not secrets:
-            secret_data = {}
-        else:
-            secret_data = k8s_secret.data.copy()
-            for secret in secrets:
-                secret_data.pop(secret, None)
-
-        if not secret_data:
-            self.v1api.delete_namespaced_secret(secret_name, namespace)
-        else:
-            k8s_secret.data = secret_data
-            self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
@@ -598,195 +448,6 @@ class K8sHelper:
             if encoded_value:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
         return results
-
-
-class BasePod:
-    def __init__(
-        self,
-        task_name="",
-        image=None,
-        command=None,
-        args=None,
-        namespace="",
-        kind="job",
-        project=None,
-        default_pod_spec_attributes=None,
-        resources=None,
-    ):
-        self.namespace = namespace
-        self.name = ""
-        self.task_name = task_name
-        self.image = image
-        self.command = command
-        self.args = args
-        self._volumes = []
-        self._mounts = []
-        self.env = None
-        self.node_selector = None
-        self.project = project or mlrun.mlconf.default_project
-        self._labels = {
-            "mlrun/task-name": task_name,
-            "mlrun/class": kind,
-            "mlrun/project": self.project,
-        }
-        self._annotations = {}
-        self._init_containers = []
-        # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
-        self.default_pod_spec_attributes = default_pod_spec_attributes
-        self.resources = resources
-
-    @property
-    def pod(self):
-        return self._get_spec()
-
-    @property
-    def init_containers(self):
-        return self._init_containers
-
-    @init_containers.setter
-    def init_containers(self, containers):
-        self._init_containers = containers
-
-    def append_init_container(
-        self,
-        image,
-        command=None,
-        args=None,
-        env=None,
-        image_pull_policy="IfNotPresent",
-        name="init",
-    ):
-        if isinstance(env, dict):
-            env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
-        self._init_containers.append(
-            client.V1Container(
-                name=name,
-                image=image,
-                env=env,
-                command=command,
-                args=args,
-                image_pull_policy=image_pull_policy,
-            )
-        )
-
-    def add_label(self, key, value):
-        self._labels[key] = str(value)
-
-    def add_annotation(self, key, value):
-        self._annotations[key] = str(value)
-
-    def add_volume(self, volume: client.V1Volume, mount_path, name=None, sub_path=None):
-        self._mounts.append(
-            client.V1VolumeMount(
-                name=name or volume.name, mount_path=mount_path, sub_path=sub_path
-            )
-        )
-        self._volumes.append(volume)
-
-    def mount_empty(self, name="empty", mount_path="/empty"):
-        self.add_volume(
-            client.V1Volume(name=name, empty_dir=client.V1EmptyDirVolumeSource()),
-            mount_path=mount_path,
-        )
-
-    def mount_v3io(
-        self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""
-    ):
-        self.add_volume(
-            v3io_to_vol(name, remote, access_key, user),
-            mount_path=mount_path,
-            name=name,
-        )
-
-    def mount_cfgmap(self, name, path="/config"):
-        self.add_volume(
-            client.V1Volume(
-                name=name, config_map=client.V1ConfigMapVolumeSource(name=name)
-            ),
-            mount_path=path,
-        )
-
-    def mount_secret(self, name, path="/secret", items=None, sub_path=None):
-        self.add_volume(
-            client.V1Volume(
-                name=name,
-                secret=client.V1SecretVolumeSource(
-                    secret_name=name,
-                    items=items,
-                ),
-            ),
-            mount_path=path,
-            sub_path=sub_path,
-        )
-
-    def set_node_selector(self, node_selector: typing.Optional[typing.Dict[str, str]]):
-        self.node_selector = node_selector
-
-    def _get_spec(self, template=False):
-
-        pod_obj = client.V1PodTemplate if template else client.V1Pod
-
-        if self.env and isinstance(self.env, dict):
-            env = [client.V1EnvVar(name=k, value=v) for k, v in self.env.items()]
-        else:
-            env = self.env
-        container = client.V1Container(
-            name="base",
-            image=self.image,
-            env=env,
-            command=self.command,
-            args=self.args,
-            volume_mounts=self._mounts,
-            resources=self.resources,
-        )
-
-        pod_spec = client.V1PodSpec(
-            containers=[container],
-            restart_policy="Never",
-            volumes=self._volumes,
-            node_selector=self.node_selector,
-        )
-
-        # if attribute isn't defined use default pod spec attributes
-        for key, val in self.default_pod_spec_attributes.items():
-            if not getattr(pod_spec, key, None):
-                setattr(pod_spec, key, val)
-
-        for init_containers in self._init_containers:
-            init_containers.volume_mounts = self._mounts
-        pod_spec.init_containers = self._init_containers
-
-        pod = pod_obj(
-            metadata=client.V1ObjectMeta(
-                generate_name=f"{self.task_name}-",
-                namespace=self.namespace,
-                labels=self._labels,
-                annotations=self._annotations,
-            ),
-            spec=pod_spec,
-        )
-        return pod
-
-
-def format_labels(labels):
-    """Convert a dictionary of labels into a comma separated string"""
-    if labels:
-        return ",".join([f"{k}={v}" for k, v in labels.items()])
-    else:
-        return ""
-
-
-def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
-    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-    if requests_gpu and not limits_gpu:
-        raise mlrun.errors.MLRunConflictError(
-            "You cannot specify GPU requests without specifying limits"
-        )
-    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
-        raise mlrun.errors.MLRunConflictError(
-            f"When specifying both GPU requests and limits these two values must be equal, "
-            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
-        )
 
 
 def generate_preemptible_node_selector_requirements(

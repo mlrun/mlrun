@@ -33,7 +33,7 @@ from kubernetes.client import V1EnvVar
 import mlrun.api.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
@@ -47,7 +47,7 @@ logger = create_logger(level="debug", name="test-runtime")
 class TestRuntimeBase:
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
-        get_k8s().namespace = self.namespace
+        get_k8s_helper().namespace = self.namespace
 
         # set auto-mount to work as if this is an Iguazio system (otherwise it may try to mount PVC)
         mlconf.igz_version = "1.1.1"
@@ -91,10 +91,10 @@ class TestRuntimeBase:
         # We want this mock for every test, ideally we would have simply put it in the setup_method
         # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
         # in order to be able to mock k8s stuff
-        get_k8s().get_project_secret_keys = unittest.mock.Mock(return_value=[])
-        get_k8s().v1api = unittest.mock.Mock()
-        get_k8s().crdapi = unittest.mock.Mock()
-        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(return_value=[])
+        get_k8s_helper().v1api = unittest.mock.Mock()
+        get_k8s_helper().crdapi = unittest.mock.Mock()
+        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
             return_value=True
         )
         # enable inheriting classes to do the same
@@ -328,7 +328,7 @@ class TestRuntimeBase:
             response_pod.metadata.namespace = namespace
             return response_pod
 
-        get_k8s().v1api.create_namespaced_pod = unittest.mock.Mock(
+        get_k8s_helper().v1api.create_namespaced_pod = unittest.mock.Mock(
             side_effect=_generate_pod
         )
 
@@ -336,10 +336,10 @@ class TestRuntimeBase:
 
     def _mock_get_logger_pods(self):
         # Our purpose is not to test the client watching on logs, mock empty list (used in get_logger_pods)
-        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
+        get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(
+        get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
             return_value="Mocked pod logs"
         )
 
@@ -354,7 +354,7 @@ class TestRuntimeBase:
         ):
             return deepcopy(body)
 
-        get_k8s().crdapi.create_namespaced_custom_object = unittest.mock.Mock(
+        get_k8s_helper().crdapi.create_namespaced_custom_object = unittest.mock.Mock(
             side_effect=_generate_custom_object
         )
         self._mock_get_logger_pods()
@@ -378,7 +378,7 @@ class TestRuntimeBase:
         service_account = client.V1ServiceAccount(
             metadata=object_meta, secrets=[secret]
         )
-        get_k8s().v1api.read_namespaced_service_account = unittest.mock.Mock(
+        get_k8s_helper().v1api.read_namespaced_service_account = unittest.mock.Mock(
             return_value=service_account
         )
 
@@ -390,13 +390,13 @@ class TestRuntimeBase:
         self._execute_run(runtime, **kwargs)
 
     def _reset_mocks(self):
-        get_k8s().v1api.create_namespaced_pod.reset_mock()
-        get_k8s().v1api.list_namespaced_pod.reset_mock()
-        get_k8s().v1api.read_namespaced_pod_log.reset_mock()
+        get_k8s_helper().v1api.create_namespaced_pod.reset_mock()
+        get_k8s_helper().v1api.list_namespaced_pod.reset_mock()
+        get_k8s_helper().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
-        mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.reset_mock()
-        get_k8s().v1api.list_namespaced_pod.reset_mock()
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
+        get_k8s_helper().v1api.list_namespaced_pod.reset_mock()
 
     def _execute_run(self, runtime, **kwargs):
         # Reset the mock, so that when checking is create_pod was called, no leftovers are there (in case running
@@ -522,7 +522,7 @@ class TestRuntimeBase:
         assert len(expected_variables) == 0
 
     def _get_pod_creation_args(self):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        args, _ = get_k8s_helper().v1api.create_namespaced_pod.call_args
         return args[1]
 
     def _get_custom_object_creation_body(self):
@@ -530,7 +530,7 @@ class TestRuntimeBase:
             _,
             kwargs,
         ) = (
-            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         )
         return kwargs["body"]
 
@@ -539,12 +539,12 @@ class TestRuntimeBase:
             _,
             kwargs,
         ) = (
-            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.call_args
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         )
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):
-        args, _ = get_k8s().v1api.create_namespaced_pod.call_args
+        args, _ = get_k8s_helper().v1api.create_namespaced_pod.call_args
         return args[0]
 
     def _assert_v3io_mount_or_creds_configured(
@@ -664,7 +664,7 @@ class TestRuntimeBase:
         expected_args=None,
     ):
         if assert_create_pod_called:
-            create_pod_mock = get_k8s().v1api.create_namespaced_pod
+            create_pod_mock = get_k8s_helper().v1api.create_namespaced_pod
             create_pod_mock.assert_called_once()
 
         assert self._get_create_pod_namespace_arg() == self.namespace

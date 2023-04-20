@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import tests.api.api.utils
 from mlrun import mlconf, new_function
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.db import SQLDB
 from mlrun.runtimes.function import (
     NuclioStatus,
@@ -244,8 +244,10 @@ class TestServingRuntime(TestNuclioRuntime):
             server.test()
 
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
-        orig_function = get_k8s()._get_project_secrets_raw_data
-        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        orig_function = get_k8s_helper()._get_project_secrets_raw_data
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
         mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
@@ -263,7 +265,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
-        get_k8s()._get_project_secrets_raw_data = orig_function
+        get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
@@ -326,10 +328,12 @@ class TestServingRuntime(TestNuclioRuntime):
         function.set_topology("flow")
 
         # mock secrets for the source (so it will not fail)
-        orig_function = get_k8s()._get_project_secrets_raw_data
-        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        orig_function = get_k8s_helper()._get_project_secrets_raw_data
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
         _, _, config = compile_function_config(function, builder_env={})
-        get_k8s()._get_project_secrets_raw_data = orig_function
+        get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
         # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")

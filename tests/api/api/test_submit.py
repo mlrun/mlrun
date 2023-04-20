@@ -33,7 +33,7 @@ import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio
 import tests.api.api.utils
 from mlrun.api.schemas import AuthInfo
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
@@ -65,12 +65,14 @@ access_key = "12345"
 
 @pytest.fixture()
 def pod_create_mock():
-    create_pod_orig_function = get_k8s().create_pod
+    create_pod_orig_function = get_k8s_helper().create_pod
     _get_project_secrets_raw_data_orig_function = (
-        get_k8s()._get_project_secrets_raw_data
+        get_k8s_helper()._get_project_secrets_raw_data
     )
-    get_k8s().create_pod = unittest.mock.Mock(return_value=("pod-name", "namespace"))
-    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+    get_k8s_helper().create_pod = unittest.mock.Mock(
+        return_value=("pod-name", "namespace")
+    )
+    get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
 
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
@@ -97,11 +99,11 @@ def pod_create_mock():
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield get_k8s().create_pod
+    yield get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    get_k8s().create_pod = create_pod_orig_function
-    get_k8s()._get_project_secrets_raw_data = (
+    get_k8s_helper().create_pod = create_pod_orig_function
+    get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (

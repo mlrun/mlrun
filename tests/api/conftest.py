@@ -206,8 +206,10 @@ class K8sSecretsMock:
                 )
                 expected_env_from_secrets[env_variable_name] = {global_secret: key}
 
-        secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
-            project
+        secret_name = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                project
+            )
         )
         for key in self.project_secrets_map.get(project, {}):
             if key.startswith("mlrun.") and not include_internal:
@@ -281,7 +283,7 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
 
     for mocked_function_name in mocked_function_names:
         monkeypatch.setattr(
-            mlrun.api.utils.singletons.k8s.get_k8s(),
+            mlrun.api.utils.singletons.k8s.get_k8s_helper(),
             mocked_function_name,
             getattr(k8s_secrets_mock, mocked_function_name),
         )
@@ -291,8 +293,8 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(return_value=True)
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)

@@ -39,13 +39,13 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.model_monitoring.constants
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.schemas import SecretProviderName, SecretsData
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
@@ -465,7 +465,9 @@ def _handle_job_deploy_status(
         )
 
     logger.info(f"get pod {pod} status")
-    state = get_k8s().get_pod_status(pod)
+    state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
+        pod
+    )
     logger.info(f"pod state={state}")
 
     if state == "succeeded":
@@ -476,7 +478,7 @@ def _handle_job_deploy_status(
         state = mlrun.api.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = get_k8s().logs(pod)
+        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:

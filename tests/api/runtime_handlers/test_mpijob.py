@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
@@ -362,7 +362,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         crd_dict = {
             "metadata": {
                 "name": "train-eaf63df8",
-                "namespace": get_k8s().resolve_namespace(),
+                "namespace": get_k8s_helper().resolve_namespace(),
                 "labels": {
                     "mlrun/class": "mpijob",
                     "mlrun/function": "trainer",

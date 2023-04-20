@@ -28,8 +28,8 @@ import mlrun.api.utils.auth.verifier
 import mlrun.errors
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.utils import logger
 
 router = APIRouter()

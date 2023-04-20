@@ -43,6 +43,7 @@ from mlrun.api.utils.periodic import (
     run_function_periodically,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.api.utils.singletons.logs_dir import initialize_logs_dir
 from mlrun.api.utils.singletons.project_member import (
     get_project_member,
@@ -51,7 +52,6 @@ from mlrun.api.utils.singletons.project_member import (
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 

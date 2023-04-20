@@ -25,7 +25,6 @@ from mlrun.utils import logger
 # import mlrun.model
 
 
-
 class ClientLocalLauncher(BaseLauncher):
     @staticmethod
     def verify_base_image(runtime):

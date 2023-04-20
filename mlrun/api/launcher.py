@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.runtimes.base
 from mlrun.launcher.base import BaseLauncher
 
 
@@ -21,15 +20,15 @@ class ServerSideLauncher(BaseLauncher):
         pass
 
     @staticmethod
-    def verify_base_image(runtime: mlrun.runtimes.kubejob.KubeResource):
+    def verify_base_image(runtime):
         pass
 
     @staticmethod
-    def save(runtime: mlrun.runtimes.kubejob.KubeResource):
+    def save(runtime):
         pass
 
     @staticmethod
-    def _enrich_runtime(runtime: mlrun.runtimes.kubejob.KubeResource):
+    def _enrich_runtime(runtime):
         """
         Enrich the function with:
             1. Default values
@@ -40,5 +39,5 @@ class ServerSideLauncher(BaseLauncher):
         pass
 
     @staticmethod
-    def _validate_runtime(runtime: mlrun.runtimes.kubejob.KubeResource):
+    def _validate_runtime(runtime):
         pass

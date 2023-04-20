@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 
-import mlrun.run
 from mlrun.utils import logger
 
 
@@ -53,11 +52,11 @@ class BaseLauncher(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _save_or_push_notifications(self, runobj: mlrun.run.RunObject):
+    def _save_or_push_notifications(self, runobj):
         pass
 
     @staticmethod
-    def _are_validate_notifications(runobj: mlrun.run.RunObject) -> bool:
+    def _are_validate_notifications(runobj) -> bool:
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid

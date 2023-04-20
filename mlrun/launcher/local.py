@@ -15,28 +15,30 @@ import os
 import pathlib
 from typing import Dict, List, Optional, Union
 
-import mlrun.api.schemas.schedule
-import mlrun.launcher.base
-import mlrun.model
-import mlrun.run
-import mlrun.runtimes.base
-import mlrun.runtimes.generators
-from mlrun.utils import logger, notifications as mlrun_utils_notifications
+# from mlrun.run import MLClientCtx, load_func_code
+# import mlrun.runtimes.base
+# import mlrun.runtimes.generators
+from mlrun.launcher.base import BaseLauncher
+from mlrun.utils import logger
+
+# import mlrun.api.schemas.schedule
+# import mlrun.model
 
 
-class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
+
+class ClientLocalLauncher(BaseLauncher):
     @staticmethod
-    def verify_base_image(runtime: mlrun.runtimes.base.BaseRuntime):
+    def verify_base_image(runtime):
         pass
 
     @staticmethod
-    def save(runtime: mlrun.runtimes.base.BaseRuntime):
+    def save(runtime):
         pass
 
     def run(
         self,
-        runtime: mlrun.runtimes.base.BaseRuntime,
-        runspec: mlrun.model.RunObject = None,
+        runtime,
+        runspec=None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -47,16 +49,16 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         artifact_path: str = "",
         watch: bool = True,
         # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule: Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger] = None,
+        schedule=None,  # Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: mlrun.model.HyperParamOptions = None,
+        hyper_param_options=None,  # :mlrun.model.HyperParamOptions
         verbose=None,
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
         auto_build=None,
         param_file_secrets: Dict[str, str] = None,
-        notifications: List[mlrun.model.Notification] = None,
+        notifications=None,  # : List[mlrun.model.Notification]
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         self._enrich_runtime(runtime)
@@ -87,12 +89,12 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         return result
 
     @staticmethod
-    def _enrich_runtime(runtime: mlrun.runtimes.base.BaseRuntime):
+    def _enrich_runtime(runtime):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
 
     @staticmethod
-    def _validate_runtime(runtime: mlrun.runtimes.base.BaseRuntime):
+    def _validate_runtime(runtime):
         pass
 
     def _run_local(
@@ -108,7 +110,7 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         inputs,
         returns,
         artifact_path,
-        notifications: List[mlrun.model.Notification] = None,
+        notifications=None,  # : List[mlrun.model.Notification]
     ):
         command = runtime
         if local_code_path:
@@ -148,7 +150,7 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         artifact_path: str = "",
         mode: str = None,
         allow_empty_resources=None,
-        notifications: List[mlrun.model.Notification] = None,
+        notifications=None,  # : List[mlrun.model.Notification]
         returns: list = None,
     ):
         """Run a task on function/code (.py, .ipynb or .yaml) locally,
@@ -208,9 +210,7 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
             function_name = function_name or pathlib.Path(command).stem
 
         meta = mlrun.model.BaseMetadata(function_name, project=project, tag=tag)
-        command, runtime = mlrun.run.load_func_code(
-            command, workdir, secrets=secrets, name=name
-        )
+        command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
         if runtime:
             if task:
@@ -248,8 +248,8 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
 
     def _run(
         self,
-        runtime: mlrun.runtimes.base.BaseRuntime,
-        runspec: mlrun.model.RunObject = None,
+        runtime,
+        runspec=None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -260,13 +260,13 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         artifact_path: str = "",
         watch: bool = True,
         # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule: Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger] = None,
+        schedule=None,  # : Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: mlrun.model.HyperParamOptions = None,
+        hyper_param_options=None,  # : mlrun.model.HyperParamOptions
         verbose=None,
         scrape_metrics: bool = None,
         param_file_secrets: Dict[str, str] = None,
-        notifications: List[mlrun.model.Notification] = None,
+        notifications=None,  # : List[mlrun.model.Notification]
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         run = runtime._enrich_run(
@@ -303,7 +303,7 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         )
         runtime._store_function(run, run.metadata, db)
 
-        execution = mlrun.run.MLClientCtx.from_dict(
+        execution = MLClientCtx.from_dict(
             run.to_dict(),
             db,
             autocommit=False,
@@ -366,7 +366,7 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
 
         return runtime._wrap_run_result(result, run, schedule=schedule, err=last_err)
 
-    def _save_or_push_notifications(self, runobj: mlrun.run.RunObject):
+    def _save_or_push_notifications(self, runobj):
         if not self._are_validate_notifications(runobj):
             return
         # The run is local, so we can assume that watch=True, therefore this code runs

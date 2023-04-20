@@ -153,7 +153,8 @@ class BaseStep(ModelObj):
 
         example:
             in the below example, an 'error_catcher' step is set as the error_handler of the 'rais' step:
-            in case of error/raise in 'rais' step, the handle_error will be run. after that, the 'echo' step will be run.
+            in case of error/raise in 'rais' step, the handle_error will be run. after that,
+            the 'echo' step will be run.
             graph = function.set_topology('flow', engine='async')
             graph.to(name='raise', handler='raising_step')\
                 .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')

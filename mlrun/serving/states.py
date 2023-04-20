@@ -163,7 +163,6 @@ class BaseStep(ModelObj):
         :param class_name:  class name or step object to build the step from
                             the error handler step is derived from task step (ie no router/queue functionally)
         :param handler:     class/function handler to invoke on run/event
-                            can use $prev to indicate the last added step
         :param before:      string or list of next step(s) names that will run after this step.
                             the `before` param must not specify upstream steps as it will cause a loop.
                             if `before` is not specified, the graph will complete after the error handler execution.

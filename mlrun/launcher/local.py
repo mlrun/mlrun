@@ -21,8 +21,7 @@ import mlrun.model
 import mlrun.run
 import mlrun.runtimes.base
 import mlrun.runtimes.generators
-import mlrun.utils.notifications
-from mlrun.utils import logger
+from mlrun.utils import logger, notifications as mlrun_utils_notifications
 
 
 class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
@@ -374,4 +373,4 @@ class ClientLocalLauncher(mlrun.launcher.base.BaseLauncher):
         # once the run is completed, and we can just push the notifications.
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
         #       SDK for documentation purposes.
-        mlrun.utils.notifications.NotificationPusher([runobj]).push()
+        mlrun_utils_notifications.NotificationPusher([runobj]).push()

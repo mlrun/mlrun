@@ -1102,7 +1102,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
@@ -1257,7 +1257,7 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint),
+            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             stream_path=uri,
             **self.attributes,
         )

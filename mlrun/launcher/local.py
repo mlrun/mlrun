@@ -15,14 +15,9 @@ import os
 import pathlib
 from typing import Dict, List, Optional, Union
 
-# from mlrun.run import MLClientCtx, load_func_code
-# import mlrun.runtimes.base
-# import mlrun.runtimes.generators
+import mlrun.errors
 from mlrun.launcher.base import BaseLauncher
 from mlrun.utils import logger
-
-# import mlrun.api.schemas.schedule
-# import mlrun.model
 
 
 class ClientLocalLauncher(BaseLauncher):
@@ -209,6 +204,8 @@ class ClientLocalLauncher(BaseLauncher):
             function_name = function_name or pathlib.Path(command).stem
 
         meta = mlrun.model.BaseMetadata(function_name, project=project, tag=tag)
+        from mlrun.run import load_func_code
+
         command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
         if runtime:
@@ -302,6 +299,8 @@ class ClientLocalLauncher(BaseLauncher):
         )
         runtime._store_function(run, run.metadata, db)
 
+        from mlrun.run import MLClientCtx
+
         execution = MLClientCtx.from_dict(
             run.to_dict(),
             db,
@@ -311,9 +310,10 @@ class ClientLocalLauncher(BaseLauncher):
         )
 
         runtime._verify_run_params(run.spec.parameters)
+        from mlrun.runtimes.generators import get_generator
 
         # create task generator (for child runs) from spec
-        task_generator = mlrun.runtimes.generators.get_generator(
+        task_generator = get_generator(
             run.spec, execution, param_file_secrets=param_file_secrets
         )
         if task_generator:
@@ -366,10 +366,12 @@ class ClientLocalLauncher(BaseLauncher):
         return runtime._wrap_run_result(result, run, schedule=schedule, err=last_err)
 
     def _save_or_push_notifications(self, runobj):
+        from mlrun.utils.notifications import NotificationPusher
+
         if not self._are_validate_notifications(runobj):
             return
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
         #       SDK for documentation purposes.
-        mlrun_utils_notifications.NotificationPusher([runobj]).push()
+        NotificationPusher([runobj]).push()

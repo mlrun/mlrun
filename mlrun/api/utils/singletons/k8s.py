@@ -50,7 +50,7 @@ class SecretTypes:
 
 class K8sHelper:
     def __init__(self, namespace=None, config_file=None, silent=False, log=True):
-        self.namespace = namespace or mlconfig.namespace
+        self.namespace = namespace or mlconfig.config.namespace
         self.config_file = config_file
         self.running_inside_kubernetes_cluster = False
         try:
@@ -410,13 +410,13 @@ class K8sHelper:
         return service_account.secrets[0].name
 
     def get_project_secret_name(self, project) -> str:
-        return mlconfig.secret_stores.kubernetes.project_secret_name.format(
+        return mlconfig.config.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
     def get_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
-        return mlconfig.secret_stores.kubernetes.auth_secret_name.format(
+        return mlconfig.config.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
         )
 
@@ -790,7 +790,7 @@ def generate_preemptible_node_selector_requirements(
     for (
         node_selector_key,
         node_selector_value,
-    ) in mlconfig.get_preemptible_node_selector().items():
+    ) in mlconfig.config.get_preemptible_node_selector().items():
         match_expressions.append(
             kubernetes.client.V1NodeSelectorRequirement(
                 key=node_selector_key,
@@ -852,7 +852,7 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
 
 
 def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Toleration]:
-    tolerations = mlconfig.get_preemptible_tolerations()
+    tolerations = mlconfig.config.get_preemptible_tolerations()
 
     toleration_objects = []
     for toleration in tolerations:

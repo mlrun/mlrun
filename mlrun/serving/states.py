@@ -147,33 +147,34 @@ class BaseStep(ModelObj):
         result_path: str = None,
         **class_args,
     ):
-        """set error handler step (on failure/raise of this step)
+        """set error handler on a step or the entire graph (to be executed on failure/raise)
 
-        Use before to define the next steps (`before` steps have to be feature step).
-        The default will end the graph after the error handler execution.
-        For graph.error_handler it will always end the graph after the error handler execution.
+        When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
         example:
+            in the below example, an 'error_catcher' step is set as the error_handler of the 'rais' step:
+            in case of error/raise in 'rais' step, the handle_error will be run. after that, the 'echo' step will be run.
             graph = function.set_topology('flow', engine='async')
-            graph.to(name='raise', handler='raising_step', verbose=True)\
+            graph.to(name='raise', handler='raising_step')\
                 .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
             graph.add_step(name="echo", handler='echo', after="raise").respond()
 
+        :param name:        unique name (and path) for the error handler step, default is class name
         :param class_name:  class name or step object to build the step from
-                            for router steps the class name should start with '*'
-                            for queue/stream step the class should be '>>' or '$queue'
-        :param name:        unique name (and path) for the child step, default is class name
+                            the error handler step is derived from task step (ie no router/queue functionally)
         :param handler:     class/function handler to invoke on run/event
                             can use $prev to indicate the last added step
-        :param before:      string or list of next step names that will run after this step
+        :param before:      string or list of next step(s) names that will run after this step.
+                            the `before` param must not specify upstream steps as it will cause a loop.
+                            if `before` is not specified, the graph will complete after the error handler execution.
         :param function:    function this step should run in
-        :param full_event:  this step accepts the full event (not just body)
+        :param full_event:  this step accepts the full event (not just the body)
         :param input_path:  selects the key/path in the event to use as input to the step
-                            this require that the event body will behave like a dict, example:
+                            this requires that the event body will behave like a dict, for example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
         :param result_path: selects the key/path in the event to write the results to
-                            this require that the event body will behave like a dict, example:
+                            this requires that the event body will behave like a dict, for example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param class_args:  class init arguments

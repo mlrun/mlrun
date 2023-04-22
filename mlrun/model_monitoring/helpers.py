@@ -20,6 +20,7 @@ import mlrun
 import mlrun.api.api.utils
 import mlrun.api.crud.secrets
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.k8s
 import mlrun.config
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.constants as model_monitoring_constants
@@ -87,7 +88,9 @@ def initial_model_monitoring_stream_processing_function(
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
         model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
-        mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+            project
+        ),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
             model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
@@ -141,7 +144,7 @@ def get_model_monitoring_batch_function(
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
         model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
-        mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(project),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
             model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,

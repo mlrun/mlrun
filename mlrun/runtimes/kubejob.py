@@ -294,13 +294,12 @@ class KubejobRuntime(KubeResource):
         else:
             pod = self.status.build_pod
             if not self.status.state == "ready" and pod:
-                k8s = self._get_k8s()
-                status = k8s.get_pod_status(pod)
+                status = self._get_k8s().get_pod_status(pod)
                 if logs:
                     if watch:
-                        status = k8s.watch(pod)
+                        status = self._get_k8s().watch(pod)
                     else:
-                        resp = k8s.logs(pod)
+                        resp = self._get_k8s().logs(pod)
                         if resp:
                             print(resp.encode())
 
@@ -348,7 +347,6 @@ class KubejobRuntime(KubeResource):
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
@@ -369,13 +367,13 @@ class KubejobRuntime(KubeResource):
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace = k8s.create_pod(pod)
+            pod_name, namespace = self._get_k8s().create_pod(pod)
         except ApiException as exc:
             raise RunError(err_to_str(exc))
 
         if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)
-            status = k8s.watch(pod_name, namespace, writer=writer)
+            status = self._get_k8s().watch(pod_name, namespace, writer=writer)
 
             if status in ["failed", "error"]:
                 raise RunError(f"pod exited with {status}, check logs")

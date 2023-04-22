@@ -843,7 +843,11 @@ def _get_target_image_from_create_pod_mock():
 
 
 def _create_pod_mock_pod_spec():
-    return mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_args[0][0].pod.spec
+    return (
+        mlrun.api.utils.singletons.k8s.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec
+    )
 
 
 def _patch_k8s_helper(monkeypatch):
@@ -861,7 +865,9 @@ def _patch_k8s_helper(monkeypatch):
         side_effect=lambda project, keys: {"KEY": "val"}
     )
     monkeypatch.setattr(
-        mlrun.api.utils.singletons.k8s, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
+        mlrun.api.utils.singletons.k8s,
+        "get_k8s_helper",
+        lambda *args, **kwargs: get_k8s_helper_mock,
     )
 
 

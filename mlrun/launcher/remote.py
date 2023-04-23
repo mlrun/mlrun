@@ -11,10 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.launcher.base import _BaseLauncher
+from typing import Dict
+
+from mlrun.launcher.base import BaseLauncher
+from mlrun.model import RunObject
+from mlrun.runtimes import BaseRuntime
 
 
-class ClientRemoteLauncher(_BaseLauncher):
+class ClientRemoteLauncher(BaseLauncher):
+    def _run(self, runtime: BaseRuntime, run: RunObject, param_file_secrets):
+        pass
+
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -24,15 +31,14 @@ class ClientRemoteLauncher(_BaseLauncher):
         pass
 
     @staticmethod
-    def run(runtime):
+    def _enrich_run(runtime: BaseRuntime, run: RunObject):
         pass
 
     @staticmethod
-    def _enrich_runtime(runtime):
-        pass
-
-    @staticmethod
-    def _validate_runtime(runtime):
+    def _validate_runtime(
+        runtime: BaseRuntime,
+        inputs: Dict[str, str] = None,
+    ):
         pass
 
     def _submit_job(self, runtime):

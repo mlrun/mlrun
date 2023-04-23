@@ -17,7 +17,7 @@ import pathlib
 import sys
 import warnings
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -330,7 +330,7 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
-def _get_namespace(run_config):
+def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
     # if running locally, we need to import the file dynamically to get its namespace
     if run_config and run_config.local and run_config.function:
         filename = run_config.function.spec.filename

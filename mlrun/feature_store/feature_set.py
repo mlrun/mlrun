@@ -131,6 +131,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
+        self.with_default_targets = True
 
     @property
     def entities(self) -> List[Entity]:
@@ -473,7 +474,10 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
+            self.spec.with_default_targets = True
             targets.extend(get_default_targets())
+        else:
+            self.spec.with_default_targets = False
 
         validate_target_list(targets=targets)
 

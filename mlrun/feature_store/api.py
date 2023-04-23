@@ -415,11 +415,10 @@ def ingest(
         and not targets
         and not (featureset.spec.targets or featureset.spec.with_default_targets)
     ):
-        if not isinstance(featureset, FeatureSet):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
-                "(preview can be used as an alternative to local ingest when targets are not needed)"
-            )
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
+            "(preview can be used as an alternative to local ingest when targets are not needed)"
+        )
 
     if featureset is not None:
         featureset.validate_steps(namespace=namespace)

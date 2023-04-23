@@ -137,7 +137,7 @@ class BaseStep(ModelObj):
 
     def error_handler(
         self,
-        name=None,
+        name: str = None,
         class_name=None,
         handler=None,
         before=None,
@@ -152,8 +152,8 @@ class BaseStep(ModelObj):
         When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
         example:
-            in the below example, an 'error_catcher' step is set as the error_handler of the 'rais' step:
-            in case of error/raise in 'rais' step, the handle_error will be run. after that,
+            in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
+            in case of error/raise in 'raise' step, the handle_error will be run. after that,
             the 'echo' step will be run.
             graph = function.set_topology('flow', engine='async')
             graph.to(name='raise', handler='raising_step')\
@@ -180,37 +180,36 @@ class BaseStep(ModelObj):
         :param class_args:  class init arguments
 
         """
-        if class_name or handler:
-            name = get_name(name, class_name)
-            step = ErrorStep(
-                class_name,
-                class_args,
-                handler,
-                name=name,
-                function=function,
-                full_event=full_event,
-                input_path=input_path,
-                result_path=result_path,
-            )
-            self.on_error = name
-            if isinstance(self, RootFlowStep) and before:
-                raise MLRunInvalidArgumentError(
-                    "`before` arg can't be specified for graph error handler"
-                )
-            else:
-                before = [before] if isinstance(before, str) else before
-                step.before = before or []
-            step.base_step = self.name
-            if hasattr(self, "_parent") and self._parent:
-                step = self._parent._steps.update(name, step)
-                step.set_parent(self._parent)
-            elif hasattr(self, "_steps"):
-                step = self._steps.update(name, step)
-                step.set_parent(self)
-
-            return self
-        else:
+        if not (class_name or handler):
             raise MLRunInvalidArgumentError("class_name or handler must be provided")
+        if isinstance(self, RootFlowStep) and before:
+            raise MLRunInvalidArgumentError(
+                "`before` arg can't be specified for graph error handler"
+            )
+
+        name = get_name(name, class_name)
+        step = ErrorStep(
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
+        )
+        self.on_error = name
+        before = [before] if isinstance(before, str) else before
+        step.before = before or []
+        step.base_step = self.name
+        if hasattr(self, "_parent") and self._parent:
+            step = self._parent._steps.update(name, step)
+            step.set_parent(self._parent)
+        elif hasattr(self, "_steps"):
+            step = self._steps.update(name, step)
+            step.set_parent(self)
+
+        return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         """init the step class"""
@@ -1202,13 +1201,13 @@ class FlowStep(BaseStep):
         )
 
     def _insert_all_error_handlers(self):
-        """insert all error steps tp the graph"""
+        """insert all error steps to the graph"""
         for name, step in self._steps.items():
             if step.kind == "error_step":
                 self._insert_error_step(name, step)
 
     def _insert_error_step(self, name, step):
-        """insert error step tp the graph"""
+        """insert error step to the graph"""
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):

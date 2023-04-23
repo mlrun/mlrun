@@ -410,17 +410,15 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
-    if not targets:
+    if (
+        not mlrun_context
+        and not targets
+        and not (featureset.spec.targets or featureset.spec.with_default_targets)
+    ):
         if not isinstance(featureset, FeatureSet):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "targets must be specified\n"
-                "If you don't want to provide any target use `preview` function instead"
-            )
-        elif not (featureset.spec.targets or featureset.spec.with_default_targets):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"You disabled the default targets of the {featureset.metadata.name} feature set "
-                "and you didn't provide any different target.\n"
-                "If you don't want to provide any target use preview function instead"
+                f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
+                "(preview can be used as an alternative to local ingest when targets are not needed)"
             )
 
     if featureset is not None:

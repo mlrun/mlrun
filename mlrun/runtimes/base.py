@@ -496,7 +496,7 @@ class BaseRuntime(ModelObj):
             store_run=False,
         )
 
-        self._verify_run_params(run.spec.parameters)
+        self._validate_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
         task_generator = get_generator(
@@ -506,7 +506,7 @@ class BaseRuntime(ModelObj):
             # verify valid task parameters
             tasks = task_generator.generate(run)
             for task in tasks:
-                self._verify_run_params(task.spec.parameters)
+                self._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()
@@ -1356,13 +1356,13 @@ class BaseRuntime(ModelObj):
             self.spec.build.base_image = image
             self.spec.image = ""
 
-    def _verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
+    def _validate_run_params(self, parameters: typing.Dict[str, typing.Any]):
         for param_name, param_value in parameters.items():
 
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
-                self._verify_run_params(param_value)
+                self._validate_run_params(param_value)
 
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:

@@ -11,16 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getpass
 import os
 import pathlib
+import typing
 from typing import Dict, List, Optional, Union
 
+import mlrun.db
 import mlrun.errors
+import mlrun.utils.clones
 from mlrun.launcher.base import BaseLauncher
 from mlrun.utils import logger
 
 
 class ClientLocalLauncher(BaseLauncher):
+    def __init__(self):
+        self.db = None
+        self._ensure_run_db()
+
+    def _ensure_run_db(self):
+        self.db = mlrun.db.get_or_set_dburl()
+
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -32,7 +43,7 @@ class ClientLocalLauncher(BaseLauncher):
     def run(
         self,
         runtime,
-        runspec=None,
+        task=None,
         handler=None,
         name: str = "",
         project: str = "",
@@ -55,31 +66,38 @@ class ClientLocalLauncher(BaseLauncher):
         notifications=None,  # : List[mlrun.model.Notification]
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
-        self._enrich_runtime(runtime)
-
-        run = runtime._create_run_object(runspec)
-
         # do not allow local function to be scheduled
         if schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "local and schedule cannot be used together"
             )
-        result = self._run_local(
-            runtime,
-            run,
-            local_code_path,
-            project,
-            name,
-            workdir,
-            handler,
-            params,
-            inputs,
-            returns,
-            artifact_path,
+
+        self._enrich_runtime(runtime)
+
+        run = self._create_run_object(task)
+
+        local_function = self._create_local_function_for_execution(
+            runtime=runtime,
+            run=run,
+            local_code_path=local_code_path,
+            project=project,
+            name=name,
+            workdir=workdir,
+            handler=handler,
+        )
+
+        result = self._run(
+            runtime=local_function,
+            runspec=run,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            artifact_path=artifact_path,
             notifications=notifications,
         )
 
-        runtime._save_or_push_notifications(result, local)
+        self._save_or_push_notifications(result)
         return result
 
     @staticmethod
@@ -91,149 +109,82 @@ class ClientLocalLauncher(BaseLauncher):
     def _validate_runtime(runtime):
         pass
 
-    def _run_local(
+    def _create_local_function_for_execution(
         self,
         runtime,
-        runspec,
+        run,
         local_code_path,
         project,
         name,
         workdir,
         handler,
-        params,
-        inputs,
-        returns,
-        artifact_path,
-        notifications=None,  # : List[mlrun.model.Notification]
     ):
-        command = runtime
-        if local_code_path:
-            project = project or runtime.metadata.project
-            name = name or runtime.metadata.name
-            command = local_code_path
-        return self.run_local(
-            runspec,
-            command,
-            name,
-            runtime.spec.args,
-            workdir=workdir,
-            project=project,
-            handler=handler,
-            params=params,
-            inputs=inputs,
-            artifact_path=artifact_path,
-            mode=runtime.spec.mode,
-            allow_empty_resources=runtime.spec.allow_empty_resources,
-            notifications=notifications,
-            returns=returns,
-        )
 
-    def run_local(
-        self,
-        task=None,
-        command="",
-        name: str = "",
-        args: list = None,
-        workdir=None,
-        project: str = "",
-        tag: str = "",
-        secrets=None,
-        handler=None,
-        params: dict = None,
-        inputs: dict = None,
-        artifact_path: str = "",
-        mode: str = None,
-        allow_empty_resources=None,
-        notifications=None,  # : List[mlrun.model.Notification]
-        returns: list = None,
-    ):
-        """Run a task on function/code (.py, .ipynb or .yaml) locally,
+        project = project or runtime.metadata.project
+        function_name = name or runtime.metadata.name
+        command, args = self._resolve_local_code_path(local_code_path)
+        if command:
+            function_name = name or pathlib.Path(command).stem
 
-        example::
+        meta = mlrun.model.BaseMetadata(function_name, project=project)
 
-            # define a task
-            task = new_task(params={'p1': 8}, out_path=out_path)
-            # run
-            run = run_local(spec, command='src/training.py', workdir='src')
-
-        or specify base task parameters (handler, params, ..) in the call::
-
-            run = run_local(handler=my_function, params={'x': 5})
-
-        :param task:     task template object or dict (see RunTemplate)
-        :param command:  command/url/function
-        :param name:     ad hook function name
-        :param args:     command line arguments (override the ones in command)
-        :param workdir:  working dir to exec in
-        :param project:  function project (none for 'default')
-        :param tag:      function version tag (none for 'latest')
-        :param secrets:  secrets dict if the function source is remote (s3, v3io, ..)
-
-        :param handler:  pointer or name of a function handler
-        :param params:   input parameters (dict)
-        :param inputs:   Input objects to pass to the handler. Type hints can be given so the input will be parsed
-                         during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
-                         in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param artifact_path: default artifact output path
-        :param mode:    Runtime mode for more details head to `mlrun.new_function`
-        :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                        (allows to have function which don't depend on having targets,
-                                        e.g a function which accepts a feature vector uri and generate
-                                         the offline vector e.g. parquet_ for it if it doesn't exist)
-        :param returns:  List of configurations for how to log the returning values from the handler's run
-                        (as artifacts or results). The list's length must be equal to the amount of returning objects.
-                         A configuration may be given as:
-
-                         * A string of the key to use to log the returning value as result or as an artifact. To specify
-                           The artifact type, it is possible to pass a string in the following structure:
-                           "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`.
-                           If no artifact type is specified, the object's default artifact type will be used.
-                         * A dictionary of configurations to use when logging. Further info per object type and artifact
-                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-
-        :return: run object
-        """
-
-        function_name = name
-        if command and isinstance(command, str):
-            sp = command.split()
-            command = sp[0]
-            if len(sp) > 1:
-                args = args or []
-                args = sp[1:] + args
-            function_name = function_name or pathlib.Path(command).stem
-
-        meta = mlrun.model.BaseMetadata(function_name, project=project, tag=tag)
         from mlrun.run import load_func_code
 
-        command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
-
+        command, runtime = load_func_code(command or runtime, workdir, name=name)
         if runtime:
-            if task:
-                handler = handler or task.spec.handler
+            if run:
+                handler = handler or run.spec.handler
             handler = handler or runtime.spec.default_handler or ""
             meta = runtime.metadata.copy()
             meta.project = project or meta.project
-            meta.tag = tag or meta.tag
 
         # if the handler has module prefix force "local" (vs "handler") runtime
         kind = "local" if isinstance(handler, str) and "." in handler else ""
-        fn = mlrun.new_function(
-            meta.name, command=command, args=args, mode=mode, kind=kind
-        )
+        fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
         fn.metadata = meta
         setattr(fn, "_is_run_local", True)
         if workdir:
             fn.spec.workdir = str(workdir)
-        fn.spec.allow_empty_resources = allow_empty_resources
+        fn.spec.allow_empty_resources = runtime.spec.allow_empty_resources
         if runtime:
             # copy the code/base-spec to the local function (for the UI and code logging)
             fn.spec.description = runtime.spec.description
             fn.spec.build = runtime.spec.build
-        return self._run(
-            runtime=fn,
-            runspec=task,
-            handler=handler,
+
+        run.spec.handler = handler
+        return fn
+
+    @staticmethod
+    def _resolve_local_code_path(local_code_path: str) -> (str, typing.List[str]):
+        command = None
+        args = []
+        if local_code_path:
+            command = local_code_path
+            if command:
+                sp = command.split()
+                # split command and args
+                command = sp[0]
+                if len(sp) > 1:
+                    args = sp[1:]
+        return command, args
+
+    def _run(
+        self,
+        runtime,
+        runspec=None,
+        name: str = "",
+        project: str = "",
+        params: dict = None,
+        inputs: Dict[str, str] = None,
+        artifact_path: str = "",
+        watch: bool = True,
+        notifications=None,  # : List[mlrun.model.Notification]
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    ):
+        run = self._enrich_run(
+            runtime=runtime,
+            runspec=runspec,
+            project_name=project,
             name=name,
             params=params,
             inputs=inputs,
@@ -241,52 +192,9 @@ class ClientLocalLauncher(BaseLauncher):
             artifact_path=artifact_path,
             notifications=notifications,
         )
-
-    def _run(
-        self,
-        runtime,
-        runspec=None,
-        handler=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        out_path: str = "",
-        workdir: str = "",
-        artifact_path: str = "",
-        watch: bool = True,
-        # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule=None,  # : Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
-        hyperparams: Dict[str, list] = None,
-        hyper_param_options=None,  # : mlrun.model.HyperParamOptions
-        verbose=None,
-        scrape_metrics: bool = None,
-        param_file_secrets: Dict[str, str] = None,
-        notifications=None,  # : List[mlrun.model.Notification]
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ):
-        run = runtime._enrich_run(
-            runspec,
-            handler,
-            project,
-            name,
-            params,
-            inputs,
-            returns,
-            hyperparams,
-            hyper_param_options,
-            verbose,
-            scrape_metrics,
-            out_path,
-            artifact_path,
-            workdir,
-            notifications,
-        )
+        # TODO client-server separation, combine all validation under one method
         runtime._validate_output_path(run)
-        db = runtime._get_db()
-
-        if runtime.verbose:
-            logger.info(f"runspec:\n{run.to_yaml()}")
+        runtime._validate_run_params(run.spec.parameters)
 
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
@@ -297,40 +205,38 @@ class ClientLocalLauncher(BaseLauncher):
             uid=run.metadata.uid,
             db=runtime.spec.rundb,
         )
-        runtime._store_function(run, run.metadata, db)
+        self.store_function(runtime, run, run.metadata)
 
         from mlrun.run import MLClientCtx
 
         execution = MLClientCtx.from_dict(
             run.to_dict(),
-            db,
+            self.db,
             autocommit=False,
             is_api=False,
             store_run=False,
         )
 
-        runtime._verify_run_params(run.spec.parameters)
         from mlrun.runtimes.generators import get_generator
 
         # create task generator (for child runs) from spec
-        task_generator = get_generator(
-            run.spec, execution, param_file_secrets=param_file_secrets
-        )
+        task_generator = get_generator(run.spec, execution)
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
             for task in tasks:
-                runtime._verify_run_params(task.spec.parameters)
+                runtime._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()
-        runtime._pre_run(run, execution)  # hook for runtime specific prep
+        self._pre_run(runtime, run, execution)  # hook for runtime specific prep
 
         last_err = None
         # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
         # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
         # runtime is now a local runtime and therefore `self._is_nested == False`, we run each task as a separate run by
         # using the task generator
+        # TODO client-server separation might not need the not runtime._is_nested anymore as this executed local func
         if task_generator and not runtime._is_nested:
             # multiple runs (based on hyper params or params file)
             runner = runtime._run_many
@@ -345,15 +251,6 @@ class ClientLocalLauncher(BaseLauncher):
             # single run
             try:
                 resp = runtime._run(run, execution)
-                if (
-                    watch
-                    and mlrun.runtimes.RuntimeKinds.is_watchable(runtime.kind)
-                    # API shouldn't watch logs, it's the client job to query the run logs
-                    and not mlrun.config.is_running_as_api()
-                ):
-                    state, _ = run.logs(True, runtime._get_db())
-                    if state not in ["succeeded", "completed"]:
-                        logger.warning(f"run ended with state {state}")
                 result = runtime._update_run_state(resp, task=run)
             except mlrun.runtimes.base.RunError as err:
                 last_err = err
@@ -361,9 +258,65 @@ class ClientLocalLauncher(BaseLauncher):
 
         self._save_or_push_notifications(run)
         # run post run hooks
-        runtime._post_run(result, execution)  # hook for runtime specific cleanup
+        self._post_run(execution)  # hook for runtime specific cleanup
 
-        return runtime._wrap_run_result(result, run, schedule=schedule, err=last_err)
+        return runtime._wrap_run_result(result, run, err=last_err)
+
+    @staticmethod
+    def _pre_run(runtime, runobj, execution):
+        workdir = runtime.spec.workdir
+        execution._current_workdir = workdir
+        execution._old_workdir = None
+
+        # TODO client-server, might not need the _is_run_local any more
+        if runtime.spec.build.source and not hasattr(runtime, "_is_run_local"):
+            target_dir = mlrun.utils.clones.extract_source(
+                runtime.spec.build.source,
+                runtime.spec.clone_target_dir,
+                secrets=execution._secrets_manager,
+            )
+            if workdir and not workdir.startswith("/"):
+                execution._current_workdir = os.path.join(target_dir, workdir)
+            else:
+                execution._current_workdir = workdir or target_dir
+
+        if execution._current_workdir:
+            execution._old_workdir = os.getcwd()
+            workdir = os.path.realpath(execution._current_workdir)
+            mlrun.utils.helpers.set_paths(workdir)
+            os.chdir(workdir)
+        else:
+            mlrun.utils.helpers.set_paths(os.path.realpath("."))
+
+        if (
+            runobj.metadata.labels.get("kind") == mlrun.runtimes.RemoteSparkRuntime.kind
+            and os.environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
+        ):
+            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
+
+            igz_spark_pre_hook()
+
+    @staticmethod
+    def _post_run(execution):
+        # hook for runtime specific cleanup
+        if execution._old_workdir:
+            os.chdir(execution._old_workdir)
+
+    def store_function(self, runtime, runspec, meta):
+        meta.labels["kind"] = runtime.kind
+        if "owner" not in meta.labels:
+            meta.labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.user}}", meta.labels["owner"]
+            )
+
+        if self.db and runtime.kind != "handler":
+            struct = runtime.to_dict()
+            hash_key = self.db.store_function(
+                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
+            )
+            runspec.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _save_or_push_notifications(self, runobj):
         from mlrun.utils.notifications import NotificationPusher

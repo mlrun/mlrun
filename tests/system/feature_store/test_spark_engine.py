@@ -55,6 +55,20 @@ from tests.system.feature_store.expected_stats import expected_stats
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
 class TestFeatureStoreSparkEngine(TestMLRunSystem):
+    """
+    This suite tests feature store functionality with the remote spark runtime (spark service). It does not test spark
+    operator. Make sure that, in env.yml, MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE is set to the name of a spark service
+    that exists on the remote system, or alternative set spark_service (below) to that name.
+
+    To run the tests against code other than mlrun/mlrun@development, set test_branch below.
+
+    After any tests have already run at least once, you may want to set spark_image_deployed=True (below) to avoid
+    rebuilding the image on subsequent runs, as it takes several minutes.
+
+    It is also possible to run most tests in this suite locally if you have pyspark installed. To run locally, set
+    run_local=True. This can be very useful for debugging.
+    """
+
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"

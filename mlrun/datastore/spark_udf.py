@@ -26,11 +26,14 @@ def _hash_list(*list_to_hash):
 
 
 def _redis_stringify_key(key_list):
-    if len(key_list) >= 2:
-        return str(key_list[0]) + "." + _hash_list(key_list[1:]) + "}:static"
-    if len(key_list) == 2:
-        return str(key_list[0]) + "." + str(key_list[1]) + "}:static"
-    return str(key_list[0]) + "}:static"
+    try:
+        if len(key_list) >= 2:
+            return str(key_list[0]) + "." + _hash_list(key_list[1:]) + "}:static"
+        if len(key_list) == 2:
+            return str(key_list[0]) + "." + str(key_list[1]) + "}:static"
+        return str(key_list[0]) + "}:static"
+    except TypeError:
+        return str(key_list) + "}:static"
 
 
 hash_and_concat_v3io_udf = udf(_hash_list, StringType())

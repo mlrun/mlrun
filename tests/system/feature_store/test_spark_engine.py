@@ -275,7 +275,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def set_targets(self, feature_set, also_in_remote=False):
         dir_name = self.test_name()
         if self.run_local or also_in_remote:
-            target_path = f"{self.output_dir()}/{dir_name}"
+            target_path = f"{self.output_dir(url=False)}/{dir_name}"
             feature_set.set_targets(
                 [ParquetTarget(path=target_path)], with_defaults=False
             )

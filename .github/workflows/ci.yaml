@@ -30,6 +30,9 @@ on:
     - master
     - '[0-9]+.[0-9]+.x'
 
+env:
+  NAMESPACE: mlrun-integ-test
+
 jobs:
   lint:
     name: Lint code (Python ${{ matrix.python-version }})
@@ -128,6 +131,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      # since github-actions gives us 14G only, and fills it up with some garbage
+      - name: Freeing up disk space
+        run: |
+          "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
       - uses: manusa/actions-setup-minikube@v2.7.2
         with:
           minikube version: "v1.28.0"
@@ -141,6 +148,18 @@ jobs:
       - name: Run GO tests
         run: |
           make test-go-integration-dockerized
+      - name: Output some logs in case of failure
+        if: ${{ failure() }}
+        # add set -x to print commands before executing to make logs reading easier
+        run: |
+          set -x
+          minikube ip
+          minikube logs
+          minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+          minikube kubectl -- --namespace ${NAMESPACE} get pods
+          minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml
+          minikube kubectl -- --namespace ${NAMESPACE} describe pods
+          set +x
 
   migrations-tests:
     name: Run Dockerized Migrations Tests

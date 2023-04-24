@@ -203,9 +203,11 @@ class BaseStep(ModelObj):
         step.before = before or []
         step.base_step = self.name
         if hasattr(self, "_parent") and self._parent:
+            # when self is a step
             step = self._parent._steps.update(name, step)
             step.set_parent(self._parent)
-        elif hasattr(self, "_steps"):
+        else:
+            # when self is the graph
             step = self._steps.update(name, step)
             step.set_parent(self)
 
@@ -1201,13 +1203,19 @@ class FlowStep(BaseStep):
         )
 
     def _insert_all_error_handlers(self):
-        """insert all error steps to the graph"""
+        """
+        insert all error steps to the graph
+        run after deployment
+        """
         for name, step in self._steps.items():
             if step.kind == "error_step":
                 self._insert_error_step(name, step)
 
     def _insert_error_step(self, name, step):
-        """insert error step to the graph"""
+        """
+        insert error step to the graph
+        run after deployment
+        """
         if not step.before and not any(
             [step.name in other_step.after for other_step in self._steps.values()]
         ):

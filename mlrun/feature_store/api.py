@@ -18,7 +18,6 @@ import sys
 import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from urllib.parse import urlparse
 
 import pandas as pd
 

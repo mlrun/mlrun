@@ -131,14 +131,9 @@ class CommunityEditionDeployer:
         mlrun_ui_image: str = None,
         jupyter_image: str = None,
     ) -> None:
-        if mlrun_api_image:
-            self._run_command("minikube", ["load", mlrun_api_image])
-
-        if mlrun_ui_image:
-            self._run_command("minikube", ["load", mlrun_ui_image])
-
-        if jupyter_image:
-            self._run_command("minikube", ["load", jupyter_image])
+        for image in [mlrun_api_image, mlrun_ui_image, jupyter_image]:
+            if image:
+                self._run_command("minikube", ["load", image])
 
         self._teardown()
 

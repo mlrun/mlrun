@@ -900,14 +900,6 @@ def _ingest_with_spark(
             target.set_resource(featureset)
             if featureset.spec.passthrough and target.is_offline:
                 continue
-            if target.path and urlparse(target.path).scheme == "":
-                if mlrun_context:
-                    mlrun_context.logger.error(
-                        "Paths for spark ingest must contain schema, i.e v3io, s3, az"
-                    )
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Paths for spark ingest must contain schema, i.e v3io, s3, az"
-                )
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
             )

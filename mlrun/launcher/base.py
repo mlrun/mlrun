@@ -29,6 +29,9 @@ class BaseLauncher(abc.ABC):
     Each context will have its own implementation of the abstract methods
     """
 
+    def __init__(self):
+        self.db = mlrun.db.get_or_set_dburl()
+
     @staticmethod
     @abc.abstractmethod
     def verify_base_image(runtime):

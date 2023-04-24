@@ -29,13 +29,6 @@ from mlrun.utils import logger
 
 
 class ClientLocalLauncher(BaseLauncher):
-    def __init__(self):
-        self.db = None
-        self._ensure_run_db()
-
-    def _ensure_run_db(self):
-        self.db = mlrun.db.get_or_set_dburl()
-
     @staticmethod
     def verify_base_image(runtime):
         pass

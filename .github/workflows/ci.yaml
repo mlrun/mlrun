@@ -155,6 +155,7 @@ jobs:
           set -x
           minikube ip
           minikube logs
+          minikube kubectl -- --namespace ${NAMESPACE} get events
           minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
           minikube kubectl -- --namespace ${NAMESPACE} get pods
           minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml

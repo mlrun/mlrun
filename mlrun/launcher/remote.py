@@ -11,10 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mlrun.launcher.base import _BaseLauncher
+from mlrun.launcher.base import BaseLauncher
 
 
-class ClientRemoteLauncher(_BaseLauncher):
+class ClientRemoteLauncher(BaseLauncher):
+    def _save_or_push_notifications(self, runobj):
+        pass
+
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -24,7 +27,7 @@ class ClientRemoteLauncher(_BaseLauncher):
         pass
 
     @staticmethod
-    def run(runtime):
+    def launch(runtime):
         pass
 
     @staticmethod

@@ -317,7 +317,7 @@ class ClientLocalLauncher(BaseLauncher):
             runspec.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _save_or_push_notifications(self, runobj):
-        if not self._are_validate_notifications(runobj):
+        if not self._are_valid_notifications(runobj):
             return
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.

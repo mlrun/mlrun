@@ -218,7 +218,7 @@ class BaseLauncher(abc.ABC):
         return runspec
 
     @staticmethod
-    def _are_validate_notifications(runobj) -> bool:
+    def _are_valid_notifications(runobj) -> bool:
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid

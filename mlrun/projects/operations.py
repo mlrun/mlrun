@@ -188,7 +188,7 @@ def run_function(
             workdir = workdir or project.spec.get_code_path()
         run_result = function.run(
             name=name,
-            task=task,
+            runspec=task,
             workdir=workdir,
             verbose=verbose,
             watch=watch,

@@ -19,7 +19,10 @@ from typing import Dict, List, Optional, Union
 
 import mlrun.db
 import mlrun.errors
+import mlrun.run
+import mlrun.runtimes.generators
 import mlrun.utils.clones
+import mlrun.utils.notifications
 from mlrun.launcher.base import BaseLauncher
 from mlrun.utils import logger
 
@@ -128,9 +131,9 @@ class ClientLocalLauncher(BaseLauncher):
 
         meta = mlrun.model.BaseMetadata(function_name, project=project)
 
-        from mlrun.run import load_func_code
-
-        command, runtime = load_func_code(command or runtime, workdir, name=name)
+        command, runtime = mlrun.run.load_func_code(
+            command or runtime, workdir, name=name
+        )
         if runtime:
             if run:
                 handler = handler or run.spec.handler
@@ -207,9 +210,7 @@ class ClientLocalLauncher(BaseLauncher):
         )
         self.store_function(runtime, run, run.metadata)
 
-        from mlrun.run import MLClientCtx
-
-        execution = MLClientCtx.from_dict(
+        execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
             self.db,
             autocommit=False,
@@ -217,10 +218,8 @@ class ClientLocalLauncher(BaseLauncher):
             store_run=False,
         )
 
-        from mlrun.runtimes.generators import get_generator
-
         # create task generator (for child runs) from spec
-        task_generator = get_generator(run.spec, execution)
+        task_generator = mlrun.runtimes.generators.get_generator(run.spec, execution)
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
@@ -292,9 +291,7 @@ class ClientLocalLauncher(BaseLauncher):
             runobj.metadata.labels.get("kind") == mlrun.runtimes.RemoteSparkRuntime.kind
             and os.environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
-            from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
-
-            igz_spark_pre_hook()
+            mlrun.runtimes.remotesparkjob.igz_spark_pre_hook()
 
     @staticmethod
     def _post_run(execution):
@@ -319,12 +316,10 @@ class ClientLocalLauncher(BaseLauncher):
             runspec.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _save_or_push_notifications(self, runobj):
-        from mlrun.utils.notifications import NotificationPusher
-
         if not self._are_validate_notifications(runobj):
             return
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
         #       SDK for documentation purposes.
-        NotificationPusher([runobj]).push()
+        mlrun.utils.notifications.NotificationPusher([runobj]).push()

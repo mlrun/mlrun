@@ -45,7 +45,7 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_sync_functions():
+def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
     project.set_function("hub://describe", "describe")
@@ -61,7 +61,7 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -358,12 +358,11 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
-                func
-            ), "func did not return"
+            normalized_name = mlrun.utils.helpers.normalize_name(func)
+            assert fn.metadata.name == normalized_name, "func did not return"
 
-    if save:
-        assert rundb_mock._function is not None
+            if save:
+                assert normalized_name in rundb_mock._functions
 
 
 def _assert_project_function_objects(project, expected_function_objects):
@@ -382,26 +381,69 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject(
-        "newproj", default_requirements=["pandas>1, <3"]
+def test_set_function_requirements():
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+            },
+        }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.commands == [
-        "python -m pip install x",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.commands == [
-        "python -m pip install y",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
     ]
 
 
+def test_set_function_underscore_name(rundb_mock):
+    project = mlrun.projects.MlrunProject(
+        "project", default_requirements=["pandas>1, <3"]
+    )
+    func_name = "name_with_underscores"
+
+    # Create a function with a name that includes underscores
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    project.set_function(name=func_name, func=func)
+
+    # Attempt to get the function using the original name (with underscores) and ensure that it fails
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        project.get_function(key=func_name)
+
+    # Get the function using a normalized name and make sure it works
+    normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=normalized_name)
+    assert enriched_function.metadata.name == normalized_name
+
+
 def test_set_func_with_tag():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas"],
+            },
+        }
+    )
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",

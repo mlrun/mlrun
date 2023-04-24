@@ -71,7 +71,11 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         ],
         "google-cloud-storage": ["gcsfs~=2021.8.1"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
-        "kafka": ["kafka-python~=2.0"],
+        "kafka": [
+            "kafka-python~=2.0",
+            # because confluent kafka supports avro format by default
+            "avro~=1.11",
+        ],
         "redis": ["redis~=4.3"],
     }
 

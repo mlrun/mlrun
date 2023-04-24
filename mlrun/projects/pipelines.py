@@ -660,7 +660,7 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -829,7 +829,8 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                "error",
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
@@ -988,7 +989,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+                    severity=mlrun.api.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:

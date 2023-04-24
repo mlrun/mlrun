@@ -275,6 +275,11 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
         },
         "logs": {
+            "decode": {
+                # Replace with a replacement marker. Uses � (U+FFFD, the official REPLACEMENT CHARACTER).
+                # see https://docs.python.org/3/library/codecs.html#error-handlers for more info and options
+                "errors": "replace",
+            },
             "pipelines": {
                 # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
                 # pipeline step instead of pulling the state by getting the run logs
@@ -367,6 +372,15 @@ default_config = {
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # run db operations.
+        "nop_db": {
+            # if set to true, will raise an error for trying to use run db functionality
+            # if set to false, will use a nop db which will not preform any run db operations
+            "raise_error": False,
+            # if set to true, will log a warning for trying to use run db functionality while in nop db mode
+            "verbose": True,
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
@@ -378,7 +392,8 @@ default_config = {
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
-        "store_type": "kv",
+        "store_type": "v3io-nosql",
+        "endpoint_store_connection": "",
     },
     "secret_stores": {
         "vault": {
@@ -426,11 +441,12 @@ default_config = {
         "k8s_secrets_project_name": "-marketplace-secrets",
         "catalog_filename": "catalog.json",
         "default_source": {
-            # Set to false to avoid creating a global source (for example in a dark site)
+            # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "mlrun_global_hub",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "object_type": "functions",
             "channel": "master",
         },
     },
@@ -1043,15 +1059,18 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
+    # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
     is_remote_mlrun = (
         env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
     )
+
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
+        # in remote mlrun we can't use http, so we'll use https
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead

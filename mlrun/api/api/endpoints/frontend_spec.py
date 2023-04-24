@@ -24,6 +24,7 @@ import mlrun.builder
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
+from mlrun.api.api.utils import get_allowed_path_prefixes_list
 from mlrun.config import config
 from mlrun.platforms import is_iguazio_session_cookie
 
@@ -82,6 +83,7 @@ def get_frontend_spec(
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
         default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
         feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
+        allowed_artifact_path_prefixes_list=get_allowed_path_prefixes_list(),
         # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
         ce_mode=config.ce.mode,
         ce=config.ce.to_dict(),

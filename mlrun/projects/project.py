@@ -36,6 +36,7 @@ import yaml
 import mlrun.api.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
@@ -58,7 +59,6 @@ from ..utils import (
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
-from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -117,7 +117,7 @@ def new_project(
         # create a project with local and marketplace functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://auto_trainer', 'train')
+        project.set_function('hub://auto-trainer', 'train')
         project.set_artifact('data', Artifact(target_path=data_url))
         project.set_workflow('main', "./myflow.py")
         project.save()
@@ -169,7 +169,13 @@ def new_project(
         # Remove original owner name for avoiding possible conflicts
         project.spec.owner = None
     else:
-        project = MlrunProject(name=name)
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": name,
+                }
+            }
+        )
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
 
@@ -419,9 +425,15 @@ def _load_project_dir(context, name="", subpath=""):
 
     elif path.isfile(path.join(context, subpath_str, "function.yaml")):
         func = import_function(path.join(context, subpath_str, "function.yaml"))
-        project = MlrunProject(
-            name=func.metadata.project,
-            functions=[{"url": "function.yaml", "name": func.metadata.name}],
+        project = MlrunProject.from_dict(
+            {
+                "metadata": {
+                    "name": func.metadata.project,
+                },
+                "spec": {
+                    "functions": [{"url": "function.yaml", "name": func.metadata.name}],
+                },
+            }
         )
     else:
         raise mlrun.errors.MLRunNotFoundError(
@@ -769,6 +781,7 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
+        # TODO: remove all arguments except metadata and spec in 1.6.0
         name=None,
         description=None,
         params=None,
@@ -777,7 +790,7 @@ class MlrunProject(ModelObj):
         artifacts=None,
         artifact_path=None,
         conda=None,
-        # all except these 2 are for backwards compatibility with MlrunProjectLegacy
+        # all except these metadata and spec are for backwards compatibility with MlrunProjectLegacy
         metadata=None,
         spec=None,
         default_requirements: typing.Union[str, typing.List[str]] = None,
@@ -788,6 +801,26 @@ class MlrunProject(ModelObj):
         self.spec = spec
         self._status = None
         self.status = None
+
+        if any(
+            [
+                name,
+                description,
+                params,
+                functions,
+                workflows,
+                artifacts,
+                artifact_path,
+                conda,
+                default_requirements,
+            ]
+        ):
+            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
+            warnings.warn(
+                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
+                " use metadata and spec instead",
+                FutureWarning,
+            )
 
         # Handling the fields given in the legacy way
         self.metadata.name = name or self.metadata.name
@@ -1446,12 +1479,15 @@ class MlrunProject(ModelObj):
                 with open(f"{temp_dir}/_body", "rb") as fp:
                     artifact.spec._body = fp.read()
                 artifact.target_path = ""
+
+                # if the dataitem is not a file, it means we downloaded it from a remote source to a temp file,
+                # so we need to remove it after we're done with it
+                dataitem.remove_local()
+
                 return self.log_artifact(
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
 
-            if dataitem.kind != "file":
-                remove(item_file)
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
@@ -1499,7 +1535,7 @@ class MlrunProject(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto_trainer:master
+            functions hub/market: e.g. hub://auto-trainer:master
 
         examples::
 
@@ -1546,6 +1582,7 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
+        name = mlrun.utils.normalize_name(name) if name else name
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
@@ -1918,6 +1955,7 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
+        overwrite: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
@@ -1949,6 +1987,8 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: (deprecated) replacing the schedule of the same workflow (under the same name) if exists
+                          with the new one.
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
@@ -1960,6 +2000,14 @@ class MlrunProject(ModelObj):
         if ttl:
             warnings.warn(
                 "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.5.0",
+                # TODO: Remove this in 1.5.0
+                FutureWarning,
+            )
+
+        if overwrite:
+            warnings.warn(
+                "'overwrite' is deprecated, running a schedule is now an upsert operation. "
                 "This will be removed in 1.5.0",
                 # TODO: Remove this in 1.5.0
                 FutureWarning,
@@ -2148,15 +2196,30 @@ class MlrunProject(ModelObj):
                 mlrun.get_dataitem(filepath).upload(tmp_path)
                 remove(tmp_path)
 
-    def set_model_monitoring_credentials(self, access_key: str):
+    def set_model_monitoring_credentials(
+        self, access_key: str = None, endpoint_store_connection: str = None
+    ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
-        The supplied credentials must have data access
 
-        :param access_key: Model Monitoring access key for managing user permissions.
+        :param access_key:                Model Monitoring access key for managing user permissions
+        :param endpoint_store_connection: Endpoint store connection string
         """
-        set_project_model_monitoring_credentials(
-            access_key=access_key, project=self.metadata.name
+
+        secrets_dict = {}
+        if access_key:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
+
+        if endpoint_store_connection:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
+
+        self.set_secrets(
+            secrets=secrets_dict,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(
@@ -2179,6 +2242,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
@@ -2188,7 +2252,7 @@ class MlrunProject(ModelObj):
             # create a project with two functions (local and from marketplace)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-            project.set_function("hub://auto_trainer", "train")
+            project.set_function("hub://auto-trainer", "train")
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})
@@ -2220,6 +2284,7 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
                                 of returning objects. A log hint may be given as:
@@ -2254,6 +2319,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            notifications=notifications,
             returns=returns,
         )
 
@@ -2621,73 +2687,6 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.project = project.metadata.name
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
-    return name or func.metadata.name, func
-
-
-def _init_function_from_dict_legacy(f, project):
-    name = f.get("name", "")
-    url = f.get("url", "")
-    kind = f.get("kind", "")
-    image = f.get("image", None)
-    with_repo = f.get("with_repo", False)
-
-    if with_repo and not project.source:
-        raise ValueError("project source must be specified when cloning context")
-
-    in_context = False
-    if not url and "spec" not in f:
-        raise ValueError("function missing a url or a spec")
-    # We are not using the project method to obtain an absolute path here,
-    # because legacy projects are built differently, and we cannot rely on them to have a spec
-    if url and "://" not in url:
-        if project.context and not url.startswith("/"):
-            url = path.join(project.context, url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
-
-    if "spec" in f:
-        func = new_function(name, runtime=f["spec"])
-    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
-        func = import_function(url)
-        if image:
-            func.spec.image = image
-    elif url.endswith(".ipynb"):
-        func = code_to_function(name, filename=url, image=image, kind=kind)
-    elif url.endswith(".py"):
-        if not image:
-            raise ValueError(
-                "image must be provided with py code files, "
-                "use function object for more control/settings"
-            )
-        if in_context and with_repo:
-            func = new_function(name, command=url, image=image, kind=kind or "job")
-        else:
-            func = code_to_function(name, filename=url, image=image, kind=kind or "job")
-    else:
-        raise ValueError(f"unsupported function url {url} or no spec")
-
-    if with_repo:
-        # mark source to be enriched before run with project source (enrich_function_object)
-        func.spec.build.source = "./"
-
-    return _init_function_from_obj_legacy(func, project, name)
-
-
-def _init_function_from_obj_legacy(func, project, name=None):
-    build = func.spec.build
-    if project.origin_url:
-        origin = project.origin_url
-        try:
-            if project.repo:
-                origin += "#" + project.repo.head.commit.hexsha
-        except Exception:
-            pass
-        build.code_origin = origin
-    if project.name:
-        func.metadata.project = project.name
-    if project.tag:
-        func.metadata.tag = project.tag
     return name or func.metadata.name, func
 
 

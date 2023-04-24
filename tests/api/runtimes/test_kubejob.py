@@ -554,13 +554,11 @@ def my_func(context):
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
-        expected_commands = [
-            "python -m pip install faker python-dotenv 'chardet>=3.0.2, <4.0'"
-        ]
+        expected_requirements = ["faker", "python-dotenv", "chardet>=3.0.2, <4.0"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=True,
             )
             == {}
@@ -665,11 +663,46 @@ def my_func(context):
         )
 
         runtime.build_config(requirements=["pandas", "numpy"])
-        expected_commands = [
-            "python -m pip install scikit-learn",
-            "python -m pip install pandas numpy",
+        expected_requirements = [
+            "pandas",
+            "numpy",
         ]
-        print(runtime.spec.build.commands)
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=False,
+            )
+            == {}
+        )
+        expected_commands = ["python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        expected_requirements = ["scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+    def test_build_config_commands_and_requirements_order(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+        runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
+        expected_commands = ["apt-get update"]
+        expected_requirements = ["scikit-learn"]
         assert (
             deepdiff.DeepDiff(
                 expected_commands,
@@ -678,14 +711,11 @@ def my_func(context):
             )
             == {}
         )
-
-        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
-        expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
-                ignore_order=True,
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=False,
             )
             == {}
         )
@@ -740,6 +770,33 @@ def my_func(context):
                 f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
                 not in dockerfile
             )
+
+    @pytest.mark.parametrize(
+        "workdir, source, pull_at_runtime, target_dir, expected_workdir",
+        [
+            ("", "git://bla", True, None, None),
+            ("", "git://bla", False, None, None),
+            ("", "git://bla", False, "/a/b/c", "/a/b/c/"),
+            ("subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", True, "/a/b/c", None),
+            ("/abs/subdir", "git://bla", False, "/a/b/c", "/abs/subdir"),
+            ("/abs/subdir", "git://bla", False, None, "/abs/subdir"),
+        ],
+    )
+    def test_resolve_workdir(
+        self, workdir, source, pull_at_runtime, target_dir, expected_workdir
+    ):
+        runtime = self._generate_runtime()
+        runtime.with_source_archive(
+            source, workdir, pull_at_runtime=pull_at_runtime, target_dir=target_dir
+        )
+
+        # mock the build
+        runtime.spec.image = "some/image"
+        self.execute_function(runtime)
+        pod = self._get_pod_creation_args()
+        assert pod.spec.containers[0].working_dir == expected_workdir
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

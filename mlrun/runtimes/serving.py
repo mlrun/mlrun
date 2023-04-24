@@ -141,6 +141,9 @@ class ServingSpec(NuclioSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        service_type=None,
+        add_templated_ingress_host_mode=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -178,6 +181,9 @@ class ServingSpec(NuclioSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            service_type=service_type,
+            add_templated_ingress_host_mode=add_templated_ingress_host_mode,
+            clone_target_dir=clone_target_dir,
         )
 
         self.models = models or {}
@@ -313,7 +319,7 @@ class ServingRuntime(RemoteRuntime):
                                 example::
 
                                     # initialize a new serving function
-                                    serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                    serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
                                     # apply model monitoring and set monitoring batch job to run every 3 hours
                                     tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
                                     serving_fn.set_tracking(tracking_policy=tracking_policy)

@@ -1040,10 +1040,26 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+# TODO: Remove in 1.5.0
+@click.option(
+    "--overwrite-schedule",
+    "-os",
+    is_flag=True,
+    help="Overwrite a schedule when submitting a new one with the same name.",
+)
 @click.option(
     "--save-secrets",
     is_flag=True,
     help="Store the project secrets as k8s secrets",
+)
+@click.option(
+    "--notifications",
+    "--notification",
+    "-nt",
+    multiple=True,
+    help="To have a notification for the run set notification file "
+    "destination define: file=notification.json or a "
+    'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\'',
 )
 def project(
     context,
@@ -1070,6 +1086,8 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    notifications,
+    overwrite_schedule,
     save_secrets,
     save,
 ):
@@ -1144,6 +1162,8 @@ def project(
                     "token": proj.get_param("GIT_TOKEN"),
                 },
             )
+        if notifications:
+            load_notification(notifications, proj)
         try:
             proj.run(
                 name=run,
@@ -1159,12 +1179,11 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
+                overwrite=overwrite_schedule,
             )
-
-        except Exception as exc:
+        except Exception as err:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {err_to_str(exc)}"
-            proj.notifiers.push(message, "error")
+            send_workflow_error_notification(run, proj, err)
             exit(1)
 
     elif sync:
@@ -1439,6 +1458,49 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
         return None
 
     return runtime
+
+
+def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
+    """
+    A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
+    Each notification is stored in a tuple called notifications.
+    The code then goes through each value in the notifications tuple and check
+    if the notification starts with "file=", such as "file=notification.json," in those cases it loads the
+    notification.json file and uses add_notification_to_project to add the notifications from the file to
+    the project. If not, it adds the notification dictionary to the project.
+    :param notifications:  Notifications file or a dictionary to be added to the project
+    :param project: The object to which the notifications will be added
+    :return:
+    """
+    for notification in notifications:
+        if notification.startswith("file="):
+            file_path = notification.split("=")[-1]
+            notification = open(file_path, "r")
+            notification = json.load(notification)
+        else:
+            notification = json.loads(notification)
+        add_notification_to_project(notification, project)
+
+
+def add_notification_to_project(
+    notification: str, project: mlrun.projects.MlrunProject
+):
+    for notification_type, notification_params in notification.items():
+        project.notifiers.add_notification(
+            notification_type=notification_type, params=notification_params
+        )
+
+
+def send_workflow_error_notification(
+    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+):
+    message = (
+        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
+        f"error: ```{err_to_str(error)}```"
+    )
+    project.notifiers.push(
+        message=message, severity=mlrun.api.schemas.NotificationSeverity.ERROR
+    )
 
 
 if __name__ == "__main__":

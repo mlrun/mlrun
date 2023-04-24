@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import collections
+import json
 import re
 import traceback
 import typing
@@ -29,6 +30,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
@@ -98,8 +100,18 @@ def get_obj_path(schema, path, user=""):
         if not path.startswith(schema_prefix):
             path = f"{schema_prefix}{path}"
 
-    # Check if path is allowed - v3io:// is always allowed, and also the real_path parameter if specified.
-    # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
+    allowed_paths_list = get_allowed_path_prefixes_list()
+    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
+        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
+    return path
+
+
+def get_allowed_path_prefixes_list() -> typing.List[str]:
+    """
+    Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
+    We never allow local files in the allowed paths list. Allowed paths must contain a schema (://).
+    """
+    real_path = config.httpdb.real_path
     allowed_file_paths = config.httpdb.allowed_file_paths or ""
     allowed_paths_list = [
         path.strip() for path in allowed_file_paths.split(",") if "://" in path
@@ -107,10 +119,7 @@ def get_obj_path(schema, path, user=""):
     if real_path:
         allowed_paths_list.append(real_path)
     allowed_paths_list.append("v3io://")
-
-    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
-        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
-    return path
+    return allowed_paths_list
 
 
 def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
@@ -178,6 +187,7 @@ def _generate_function_and_task_from_submit_run_body(
             function = enrich_function_from_dict(function, function_dict)
 
     apply_enrichment_and_validation_on_function(function, auth_info)
+    apply_enrichment_and_validation_on_task(task)
 
     return function, task
 
@@ -187,6 +197,105 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
         submit_run_sync, db_session, auth_info, data
     )
     return response
+
+
+def apply_enrichment_and_validation_on_task(task):
+
+    # Masking notification config params from the task object
+    mask_notification_params_on_task(task)
+
+
+def mask_notification_params_on_task(task):
+    run_uid = get_in(task, "metadata.uid")
+    project = get_in(task, "metadata.project")
+    notifications = task.get("spec", {}).get("notifications", [])
+    if notifications:
+        for notification in notifications:
+            notification_object = mlrun.model.Notification.from_dict(notification)
+            mask_notification_params_with_secret(project, run_uid, notification_object)
+
+
+def mask_notification_params_with_secret(
+    project: str, run_uid: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    if notification_object.params and "secret" not in notification_object.params:
+        secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.SecretsClientType.notifications,
+            run_uid,
+            notification_object.name,
+        )
+        mlrun.api.crud.Secrets().store_project_secrets(
+            project,
+            mlrun.api.schemas.SecretsData(
+                provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                secrets={secret_key: json.dumps(notification_object.params)},
+            ),
+            allow_internal_secrets=True,
+        )
+        notification_object.params = {"secret": secret_key}
+
+    return notification_object
+
+
+def unmask_notification_params_secret_on_task(run):
+    if isinstance(run, dict):
+        run = mlrun.model.RunObject.from_dict(run)
+
+    run.spec.notifications = [
+        unmask_notification_params_secret(run.metadata.project, notification)
+        for notification in run.spec.notifications
+    ]
+    return run
+
+
+def unmask_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return notification_object
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot load notification params secret"
+        )
+
+    notification_object.params = json.loads(
+        mlrun.api.crud.Secrets().get_project_secret(
+            project,
+            mlrun.api.schemas.SecretProviderName.kubernetes,
+            secret_key=params_secret,
+            allow_internal_secrets=True,
+            allow_secrets_from_k8s=True,
+        )
+    )
+
+    return notification_object
+
+
+def delete_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> None:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot delete notification params secret"
+        )
+
+    mlrun.api.crud.Secrets().delete_project_secret(
+        project,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        secret_key=params_secret,
+        allow_internal_secrets=True,
+        allow_secrets_from_k8s=True,
+    )
 
 
 def apply_enrichment_and_validation_on_function(

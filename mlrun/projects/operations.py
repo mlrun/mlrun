@@ -72,6 +72,7 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
+    notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
@@ -91,7 +92,7 @@ def run_function(
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://auto-trainer")
         run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                       inputs={"dataset": DATA_PATH})
 
@@ -100,7 +101,7 @@ def run_function(
         # create a project with two functions (local and from marketplace)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        project.set_function("hub://auto_trainer", "train")
+        project.set_function("hub://auto-trainer", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
@@ -143,6 +144,7 @@ def run_function(
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
                             objects. A log hint may be given as:
@@ -198,6 +200,7 @@ def run_function(
             or (project.artifact_path if project else None),
             auto_build=auto_build,
             schedule=schedule,
+            notifications=notifications,
         )
         if run_result:
             run_result._notified = False

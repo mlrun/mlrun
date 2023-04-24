@@ -156,6 +156,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_build_base_image=None,
         expected_nuclio_runtime=None,
         expected_env=None,
+        expected_build_commands=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -221,6 +222,13 @@ class TestNuclioRuntime(TestRuntimeBase):
 
             if expected_nuclio_runtime:
                 assert deploy_config["spec"]["runtime"] == expected_nuclio_runtime
+
+            if expected_build_commands:
+                assert (
+                    deploy_config["spec"]["build"]["commands"]
+                    == expected_build_commands
+                )
+
         return deploy_configs
 
     def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
@@ -610,6 +618,57 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+    @pytest.mark.parametrize(
+        "requirements,expected_commands",
+        [
+            (["pandas", "numpy"], ["python -m pip install pandas numpy"]),
+            (
+                ["-r requirements.txt", "numpy"],
+                ["python -m pip install -r requirements.txt numpy"],
+            ),
+            (["pandas>=1.0.0, <2"], ["python -m pip install 'pandas>=1.0.0, <2'"]),
+            (["pandas>=1.0.0,<2"], ["python -m pip install 'pandas>=1.0.0,<2'"]),
+            (
+                ["-r somewhere/requirements.txt"],
+                ["python -m pip install -r somewhere/requirements.txt"],
+            ),
+            (
+                ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
+                [
+                    "python -m pip install 'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
+                ],
+            ),
+        ],
+    )
+    def test_deploy_function_with_requirements(
+        self,
+        requirements: list,
+        expected_commands: list,
+        db: Session,
+        client: TestClient,
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_requirements(requirements)
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_commands=expected_commands
+        )
+
+    def test_deploy_function_with_commands_and_requirements(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_commands(["python -m pip install scikit-learn"])
+        function.with_requirements(["pandas", "numpy"])
+        self.execute_function(function)
+        expected_commands = [
+            "python -m pip install scikit-learn",
+            "python -m pip install pandas numpy",
+        ]
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_commands=expected_commands
+        )
 
     def test_deploy_function_with_labels(self, db: Session, client: TestClient):
         labels = {
@@ -1328,6 +1387,101 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=3, expected_class=self.class_name
         )
         self.assert_security_context(other_security_context)
+
+    @pytest.mark.parametrize(
+        "service_type, default_service_type, expected_service_type, "
+        "add_templated_ingress_host_mode, default_add_templated_ingress_host_mode, expected_ingress_host_template",
+        [
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                NuclioIngressAddTemplatedIngressModes.always,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "",
+                "ClusterIP",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.always,
+                None,
+            ),
+            (
+                "NodePort",
+                "ClusterIP",
+                "NodePort",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                "",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                "@nuclio.fromDefault",
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.never,
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                None,
+            ),
+            (
+                "ClusterIP",
+                "NodePort",
+                "ClusterIP",
+                NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
+                NuclioIngressAddTemplatedIngressModes.never,
+                "@nuclio.fromDefault",
+            ),
+        ],
+    )
+    def test_deploy_with_service_type(
+        self,
+        db: Session,
+        client: TestClient,
+        service_type,
+        default_service_type,
+        expected_service_type,
+        add_templated_ingress_host_mode,
+        default_add_templated_ingress_host_mode,
+        expected_ingress_host_template,
+    ):
+        mlconf.httpdb.nuclio.default_service_type = default_service_type
+        mlconf.httpdb.nuclio.add_templated_ingress_host_mode = (
+            default_add_templated_ingress_host_mode
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_service_type(service_type, add_templated_ingress_host_mode)
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["serviceType"] == expected_service_type
+
+        if expected_ingress_host_template is None:
+            # never
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses == []
+
+        else:
+            ingresses = resolve_function_ingresses(deploy_spec)
+            assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

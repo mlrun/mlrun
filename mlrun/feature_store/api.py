@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import importlib.util
+import pathlib
+import sys
 import warnings
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -103,6 +106,7 @@ def get_offline_features(
     engine_args: dict = None,
     query: str = None,
     join_type: str = "inner",
+    order_by: Union[str, List[str]] = None,
     spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
@@ -161,6 +165,8 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
+    :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
+                            or the alias of the feature you pass in the feature list.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -190,6 +196,7 @@ def get_offline_features(
             with_indexes=with_indexes,
             query=query,
             join_type=join_type,
+            order_by=order_by,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -213,6 +220,7 @@ def get_offline_features(
         update_stats=update_stats,
         query=query,
         join_type=join_type,
+        order_by=order_by,
     )
 
 
@@ -322,6 +330,21 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
+def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
+    # if running locally, we need to import the file dynamically to get its namespace
+    if run_config and run_config.local and run_config.function:
+        filename = run_config.function.spec.filename
+        if filename:
+            module_name = pathlib.Path(filename).name.rsplit(".", maxsplit=1)[0]
+            spec = importlib.util.spec_from_file_location(module_name, filename)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            return vars(__import__(module_name))
+    else:
+        return get_caller_globals()
+
+
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -405,6 +428,15 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
+    if (
+        not mlrun_context
+        and not targets
+        and not (featureset.spec.targets or featureset.spec.with_default_targets)
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
+            "(preview can be used as an alternative to local ingest when targets are not needed)"
+        )
 
     if featureset is not None:
         featureset.validate_steps(namespace=namespace)
@@ -487,7 +519,8 @@ def ingest(
         featureset.spec.source = source
         featureset.spec.validate_no_processing_for_passthrough()
 
-    namespace = namespace or get_caller_globals()
+    if not namespace:
+        namespace = _get_namespace(run_config)
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
@@ -832,7 +865,11 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            spark = (
+                pyspark.sql.SparkSession.builder.appName(session_name)
+                .config("spark.sql.session.timeZone", "UTC")
+                .getOrCreate()
+            )
             created_spark_context = True
 
         timestamp_key = featureset.spec.timestamp_key

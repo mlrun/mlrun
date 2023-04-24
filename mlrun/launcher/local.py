@@ -34,12 +34,5 @@ class ClientLocalLauncher(BaseLauncher):
     def _enrich_run(runtime: BaseRuntime, run: RunObject):
         pass
 
-    @staticmethod
-    def _validate_runtime(
-        runtime: BaseRuntime,
-        inputs: Dict[str, str] = None,
-    ):
-        pass
-
     def _run_local(self, runtime):
         pass

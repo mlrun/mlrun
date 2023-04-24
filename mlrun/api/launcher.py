@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import uuid
+from typing import Dict
 
 import mlrun.api.crud
 import mlrun.api.db.sqldb.session
@@ -28,13 +29,15 @@ from mlrun.utils import logger
 
 
 class ServerSideLauncher(BaseLauncher):
+    def __init__(self):
+        self._db_conn = None
+
     def _run(self, runtime: BaseRuntime, run: RunObject, param_file_secrets):
         self._enrich_run(runtime, run)
-        self._validate_output_path(runtime, run)
         if runtime.verbose:
             logger.info(f"Run:\n{run.to_yaml()}")
 
-        db = runtime._get_db()
+        db = self._get_db(runtime)
         if not runtime.is_child:
             logger.info(
                 "Storing function",
@@ -194,6 +197,14 @@ class ServerSideLauncher(BaseLauncher):
         run.spec.notifications = run.spec.notifications or []
         return run
 
+    def _validate_runtime(
+        self,
+        runtime: BaseRuntime,
+        run: RunObject,
+    ):
+        super()._validate_runtime(runtime, run)
+        self._validate_output_path(runtime, run)
+
     @staticmethod
     def _validate_output_path(runtime: BaseRuntime, run: RunObject):
         # TODO: move is_local somewhere else
@@ -249,3 +260,16 @@ class ServerSideLauncher(BaseLauncher):
             run.metadata.uid,
             run.metadata.project,
         )
+
+    @staticmethod
+    def _ensure_run_db(runtime: BaseRuntime):
+        runtime.spec.rundb = runtime.spec.rundb or mlrun.db.get_or_set_dburl()
+
+    def _get_db(self, runtime: BaseRuntime):
+        self._ensure_run_db(runtime)
+        if not self._db_conn:
+            if runtime.spec.rundb:
+                self._db_conn = mlrun.db.get_run_db(
+                    runtime.spec.rundb, secrets=runtime._secrets
+                )
+        return self._db_conn

@@ -118,10 +118,10 @@ class BaseLauncher(abc.ABC):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
-        self._validate_runtime(runtime, inputs)
         # TODO: Needed for client side
         # self._enrich_function(runtime)
         run = self._create_run_object(runspec)
+        self._validate_runtime(runtime, run)
         return self._run(runtime, run, param_file_secrets)
 
     @abc.abstractmethod
@@ -172,12 +172,14 @@ class BaseLauncher(abc.ABC):
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
-    @staticmethod
     def _validate_runtime(
+        self,
         runtime: BaseRuntime,
-        inputs: Dict[str, str] = None,
+        run: RunObject,
     ):
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
+        mlrun.utils.helpers.verify_dict_items_type(
+            "Inputs", run.spec.inputs, [str], [str]
+        )
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')

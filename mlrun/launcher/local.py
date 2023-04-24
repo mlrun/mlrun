@@ -17,6 +17,7 @@ import pathlib
 import typing
 from typing import Dict, List, Optional, Union
 
+import mlrun.api.schemas.schedule
 import mlrun.db
 import mlrun.errors
 import mlrun.run
@@ -43,30 +44,36 @@ class ClientLocalLauncher(BaseLauncher):
     def save(runtime):
         pass
 
-    def run(
+    def launch(
         self,
-        runtime,
-        task=None,
-        handler=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        out_path: str = "",
-        workdir: str = "",
-        artifact_path: str = "",
-        watch: bool = True,
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: typing.Optional[
+            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        ] = None,
+        handler: typing.Optional[str] = None,
+        name: typing.Optional[str] = "",
+        project: typing.Optional[str] = "",
+        params: typing.Optional[dict] = None,
+        inputs: typing.Optional[Dict[str, str]] = None,
+        out_path: typing.Optional[str] = "",
+        workdir: typing.Optional[str] = "",
+        artifact_path: typing.Optional[str] = "",
+        watch: typing.Optional[bool] = True,
         # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule=None,  # Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        schedule: typing.Optional[
+            typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options=None,  # :mlrun.model.HyperParamOptions
-        verbose=None,
-        scrape_metrics: bool = None,
-        local=False,
-        local_code_path=None,
-        auto_build=None,
-        param_file_secrets: Dict[str, str] = None,
-        notifications=None,  # : List[mlrun.model.Notification]
+        hyper_param_options: typing.Optional[
+            mlrun.model.HyperParamOptions
+        ] = None,  # :mlrun.model.HyperParamOptions
+        verbose: typing.Optional[bool] = None,
+        scrape_metrics: typing.Optional[bool] = None,
+        local: typing.Optional[bool] = False,
+        local_code_path: typing.Optional[str] = None,
+        auto_build: typing.Optional[bool] = None,
+        param_file_secrets: typing.Optional[Dict[str, str]] = None,
+        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         # do not allow local function to be scheduled
@@ -89,9 +96,9 @@ class ClientLocalLauncher(BaseLauncher):
             handler=handler,
         )
 
-        result = self._run(
+        result = self.execute(
             runtime=local_function,
-            runspec=run,
+            task=run,
             name=name,
             params=params,
             inputs=inputs,
@@ -171,22 +178,23 @@ class ClientLocalLauncher(BaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _run(
+    def execute(
         self,
-        runtime,
-        runspec=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        artifact_path: str = "",
-        watch: bool = True,
-        notifications=None,  # : List[mlrun.model.Notification]
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: typing.Optional[
+            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        ] = None,
+        name: typing.Optional[str] = "",
+        project: typing.Optional[str] = "",
+        params: typing.Optional[dict] = None,
+        inputs: typing.Optional[Dict[str, str]] = None,
+        artifact_path: typing.Optional[str] = "",
+        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         run = self._enrich_run(
             runtime=runtime,
-            runspec=runspec,
+            runspec=task,
             project_name=project,
             name=name,
             params=params,

@@ -42,7 +42,7 @@ class BaseLauncher(abc.ABC):
         pass
 
     @staticmethod
-    def run(runtime):
+    def launch(runtime):
         """run the function from the server/client[local/remote]"""
         pass
 

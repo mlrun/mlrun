@@ -27,7 +27,7 @@ class ClientRemoteLauncher(BaseLauncher):
         pass
 
     @staticmethod
-    def run(runtime):
+    def launch(runtime):
         pass
 
     @staticmethod

@@ -16,7 +16,7 @@ from mlrun.launcher.base import BaseLauncher
 
 class ServerSideLauncher(BaseLauncher):
     @staticmethod
-    def run(runtime):
+    def launch(runtime):
         pass
 
     @staticmethod
@@ -40,4 +40,7 @@ class ServerSideLauncher(BaseLauncher):
 
     @staticmethod
     def _validate_runtime(runtime):
+        pass
+
+    def _save_or_push_notifications(self, runobj):
         pass

@@ -11,7 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# TODO: remove noqa when the factory will be used (imported but unused lint error)
-from .base import BaseLauncher  # noqa: F401
-from .local import ClientLocalLauncher  # noqa: F401
-from .remote import ClientRemoteLauncher  # noqa: F401

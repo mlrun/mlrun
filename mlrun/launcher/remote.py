@@ -11,15 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict
-
 from mlrun.launcher.base import BaseLauncher
-from mlrun.model import RunObject
-from mlrun.runtimes import BaseRuntime
 
 
 class ClientRemoteLauncher(BaseLauncher):
-    def _run(self, runtime: BaseRuntime, run: RunObject, param_file_secrets):
+    def _save_or_push_notifications(self, runobj):
         pass
 
     @staticmethod
@@ -31,7 +27,15 @@ class ClientRemoteLauncher(BaseLauncher):
         pass
 
     @staticmethod
-    def _enrich_run(runtime: BaseRuntime, run: RunObject):
+    def launch(runtime):
+        pass
+
+    @staticmethod
+    def _enrich_runtime(runtime):
+        pass
+
+    @staticmethod
+    def _validate_runtime(runtime):
         pass
 
     def _submit_job(self, runtime):

@@ -13,17 +13,19 @@
 # limitations under the License.
 import abc
 import ast
+import copy
+import typing
+import uuid
 import getpass
-from copy import deepcopy
 from os import environ
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 
 import mlrun.model
-from mlrun.api import schemas
-from mlrun.model import RunObject, RunTemplate
+from mlrun.model import RunObject
 from mlrun.runtimes import BaseRuntime
 
-run_modes = ["pass"]
+import mlrun.errors
+from mlrun.utils import logger
 
 
 class BaseLauncher(abc.ABC):
@@ -33,6 +35,9 @@ class BaseLauncher(abc.ABC):
     i.e. running a function locally, remotely or in a server
     Each context will have its own implementation of the abstract methods
     """
+
+    def __init__(self):
+        self.db = mlrun.db.get_or_set_dburl()
 
     @staticmethod
     @abc.abstractmethod
@@ -46,111 +51,14 @@ class BaseLauncher(abc.ABC):
         """store the function to the db"""
         pass
 
-    def run(
-        self,
-        runtime: BaseRuntime,
-        runspec: Union[str, dict, RunTemplate, RunObject] = None,
-        handler=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        out_path: str = "",
-        workdir: str = "",
-        artifact_path: str = "",
-        watch: bool = True,
-        schedule: Union[str, schemas.ScheduleCronTrigger] = None,
-        hyperparams: Dict[str, list] = None,
-        hyper_param_options: mlrun.model.HyperParamOptions = None,
-        verbose=None,
-        scrape_metrics: bool = None,
-        local=False,
-        local_code_path=None,
-        auto_build=None,
-        param_file_secrets: Dict[str, str] = None,
-        notifications: List[mlrun.model.Notification] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ) -> RunObject:
-        """
-        Run the function from the server/client[local/remote]
-
-        :param runtime:        runtime object which runs the function by triggering the launcher
-        :param runspec:        run template object or dict (see RunTemplate)
-        :param handler:        pointer or name of a function handler
-        :param name:           execution name
-        :param project:        project name
-        :param params:         input parameters (dict)
-        :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
-                               during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
-                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param out_path:       default artifact output path
-        :param artifact_path:  default artifact output path (will replace out_path)
-        :param workdir:        default input artifacts path
-        :param watch:          watch/follow run log
-        :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
-                               (which will be converted to the class using its `from_crontab` constructor),
-                               see this link for help:
-                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
-                               the default strategy is grid search, can specify strategy (grid, list, random)
-                               and other options in the hyper_param_options parameter
-        :param hyper_param_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
-                                     hyper parameter options
-        :param verbose:        add verbose prints/logs
-        :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param local:      run the function locally vs on the runtime/cluster
-        :param local_code_path: path of the code for local runs & debug
-        :param auto_build: when set to True and the function require build it will be built on the first
-                           function run, use only if you dont plan on changing the build config between runs
-        :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
-                            These secrets are only used locally and will not be stored anywhere
-        :param notifications: list of notifications to push when the run is completed
-        :param returns: List of log hints - configurations for how to log the returning values from the handler's run
-                        (as artifacts or results). The list's length must be equal to the amount of returning objects. A
-                        log hint may be given as:
-
-                        * A string of the key to use to log the returning value as result or as an artifact. To specify
-                          The artifact type, it is possible to pass a string in the following structure:
-                          "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                          artifact type is specified, the object's default artifact type will be used.
-                        * A dictionary of configurations to use when logging. Further info per object type and artifact
-                          type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-
-        :return: run context object (RunObject) with run metadata, results and status
-        """
-        # TODO: Needed for client side
-        # self._enrich_function(runtime)
-        run = self._create_run_object(runspec)
-        self._validate_runtime(runtime, run)
-        return self._run(runtime, run, param_file_secrets)
-
-    @abc.abstractmethod
-    def _run(self, runtime: BaseRuntime, run: RunObject, param_file_secrets):
-        raise NotImplementedError()
-
     @staticmethod
-    def _create_run_object(run: Union[str, dict, RunTemplate, RunObject]) -> RunObject:
-        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
-        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
-        #       the `RunObject` from the `Runtime`.
-        if run:
-            run = deepcopy(run)
-            if isinstance(run, str):
-                run = ast.literal_eval(run)
-            if not isinstance(run, (dict, RunTemplate, RunObject)):
-                raise ValueError(
-                    "task/runspec is not a valid task object," f" type={type(run)}"
-                )
-
-        if isinstance(run, RunTemplate):
-            run = RunObject.from_template(run)
-        if isinstance(run, dict) or run is None:
-            run = RunObject.from_dict(run)
-        return run
+    def launch(runtime):
+        """run the function from the server/client[local/remote]"""
+        pass
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_run(runtime: BaseRuntime, run: RunObject):
+    def _enrich_runtime(runtime):
         pass
 
     @staticmethod
@@ -197,3 +105,179 @@ class BaseLauncher(abc.ABC):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"parameter {param_name} value {param_value} exceeds int64"
                 )
+
+    @abc.abstractmethod
+    def _save_or_push_notifications(self, runobj):
+        pass
+
+    @staticmethod
+    def _create_run_object(task):
+        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
+        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
+        #       the `RunObject` from the `Runtime`.
+        from mlrun.run import RunObject, RunTemplate
+
+        valid_task_types = (dict, RunTemplate, RunObject)
+
+        if not task:
+            # if task passed generate default RunObject
+            return RunObject.from_dict(task)
+
+        # deepcopy user's task, so we don't modify / enrich the user's object
+        task = copy.deepcopy(task)
+
+        if isinstance(task, str):
+            task = ast.literal_eval(task)
+
+        if not isinstance(task, valid_task_types):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
+            )
+
+        if isinstance(task, RunTemplate):
+            return RunObject.from_template(task)
+        elif isinstance(task, dict):
+            return RunObject.from_dict(task)
+
+    @staticmethod
+    def _enrich_run(
+        runtime,
+        runspec,
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        runspec.spec.handler = (
+            handler or runspec.spec.handler or runtime.spec.default_handler or ""
+        )
+        if runspec.spec.handler and runtime.kind not in ["handler", "dask"]:
+            runspec.spec.handler = runspec.spec.handler_name
+
+        def_name = runtime.metadata.name
+        if runspec.spec.handler_name:
+            short_name = runspec.spec.handler_name
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            def_name += "-" + short_name
+
+        runspec.metadata.name = mlrun.utils.normalize_name(
+            name=name or runspec.metadata.name or def_name,
+            # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
+            # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
+            # from the handler(function) name then we replace the underscore without warning the user.
+            # most of the time handlers will have `_` in the handler name (python convention is to separate function
+            # words with `_`), therefore we don't want to be noisy when normalizing the run name
+            verbose=bool(name or runspec.metadata.name),
+        )
+        mlrun.utils.verify_field_regex(
+            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
+        )
+        runspec.metadata.project = (
+            project_name
+            or runspec.metadata.project
+            or runtime.metadata.project
+            or mlrun.mlconf.default_project
+        )
+        runspec.spec.parameters = params or runspec.spec.parameters
+        runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.returns = returns or runspec.spec.returns
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
+        runspec.spec.verbose = verbose or runspec.spec.verbose
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = mlrun.mlconf.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
+        runspec.spec.input_path = (
+            workdir or runspec.spec.input_path or runtime.spec.workdir
+        )
+        if runtime.spec.allow_empty_resources:
+            runspec.spec.allow_empty_resources = runtime.spec.allow_empty_resources
+
+        spec = runspec.spec
+        if spec.secret_sources:
+            runtime._secrets = mlrun.secrets.SecretsStore.from_list(spec.secret_sources)
+
+        # update run metadata (uid, labels) and store in DB
+        meta = runspec.metadata
+        meta.uid = meta.uid or uuid.uuid4().hex
+
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+
+        if not runspec.spec.output_path:
+            if runspec.metadata.project:
+                if (
+                    mlrun.pipeline_context.project
+                    and runspec.metadata.project
+                    == mlrun.pipeline_context.project.metadata.name
+                ):
+                    runspec.spec.output_path = (
+                        mlrun.pipeline_context.project.spec.artifact_path
+                        or mlrun.pipeline_context.workflow_artifact_path
+                    )
+
+                if not runspec.spec.output_path and runtime._get_db():
+                    try:
+                        # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
+                        # spec first as get_db() depends on it
+                        project = runtime._get_db().get_project(
+                            runspec.metadata.project
+                        )
+                        # this is mainly for tests, so we won't need to mock get_project for so many tests
+                        # in normal use cases if no project is found we will get an error
+                        if project:
+                            runspec.spec.output_path = project.spec.artifact_path
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.warning(
+                            f"project {project_name} is not saved in DB yet, "
+                            f"enriching output path with default artifact path: {mlrun.mlconf.artifact_path}"
+                        )
+
+            if not runspec.spec.output_path:
+                runspec.spec.output_path = mlrun.mlconf.artifact_path
+
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.uid}}", meta.uid
+            )
+            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                runspec.spec.output_path, runspec.metadata.project
+            )
+
+        runspec.spec.notifications = notifications or runspec.spec.notifications or []
+        return runspec
+
+    @staticmethod
+    def _are_valid_notifications(runobj) -> bool:
+        if not runobj.spec.notifications:
+            logger.debug(
+                "No notifications to push for run", run_uid=runobj.metadata.uid
+            )
+            return False
+
+        # TODO: add support for other notifications per run iteration
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            logger.debug(
+                "Notifications per iteration are not supported, skipping",
+                run_uid=runobj.metadata.uid,
+            )
+            return False
+
+        return True

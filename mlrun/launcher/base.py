@@ -14,17 +14,16 @@
 import abc
 import ast
 import copy
+import getpass
 import typing
 import uuid
-import getpass
 from os import environ
 from typing import Any, Dict
 
+import mlrun.errors
 import mlrun.model
 from mlrun.model import RunObject
 from mlrun.runtimes import BaseRuntime
-
-import mlrun.errors
 from mlrun.utils import logger
 
 
@@ -60,25 +59,6 @@ class BaseLauncher(abc.ABC):
     @abc.abstractmethod
     def _enrich_runtime(runtime):
         pass
-
-    @staticmethod
-    def _store_function(runtime: BaseRuntime, run: RunObject, db):
-        run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            run.metadata.labels["owner"] = (
-                environ.get("V3IO_USERNAME") or getpass.getuser()
-            )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels["owner"]
-            )
-
-        if db and runtime.kind != "handler":
-            struct = runtime.to_dict()
-            hash_key = db.store_function(
-                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
-            )
-            run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _validate_runtime(
         self,

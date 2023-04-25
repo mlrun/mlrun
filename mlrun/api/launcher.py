@@ -156,3 +156,13 @@ class ServerSideLauncher(BaseLauncher):
                     runtime.spec.rundb, secrets=runtime._secrets
                 )
         return self._db_conn
+
+    @staticmethod
+    def _store_function(runtime: BaseRuntime, run: RunObject, db):
+        run.metadata.labels["kind"] = runtime.kind
+        if db and runtime.kind != "handler":
+            struct = runtime.to_dict()
+            hash_key = db.store_function(
+                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
+            )
+            run.spec.function = runtime._function_uri(hash_key=hash_key)

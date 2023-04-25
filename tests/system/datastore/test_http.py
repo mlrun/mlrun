@@ -21,19 +21,19 @@ from tests.system.base import TestMLRunSystem
 class TestHttpDataStore(TestMLRunSystem):
     def test_https_auth_token_with_env(self):
         mlrun.mlconf.hub_url = (
-            "https://raw.githubusercontent.com/GiladShapira94/my-hub/"
+            "https://raw.githubusercontent.com/mlrun/private-system-tests/"
         )
         mlrun.get_or_create_project("testing-import", "./", user_project=True)
-        func = mlrun.import_function("hub://func", secrets=None)
-        assert func.metadata.name == "func-hub"
+        func = mlrun.import_function("hub://support-private-hub-repo/func:main", secrets=None,)
+        assert func.metadata.name == "func"
 
     def test_https_auth_token_with_secrets(self):
         mlrun.mlconf.hub_url = (
-            "https://raw.githubusercontent.com/GiladShapira94/my-hub/"
+            "https://raw.githubusercontent.com/mlrun/private-system-tests/"
         )
         project = mlrun.get_or_create_project("testing-import", "./", user_project=True)
-        project.set_secrets({"GIT_TOKEN": os.environ["GIT_TOKEN"]})
-        func = mlrun.import_function("hub://func", secrets=None)
+        project.set_secrets({"HTTPS_AUTH_TOKEN": os.environ["HTTPS_AUTH_TOKEN"]})
+        func = mlrun.import_function("hub://support-private-hub-repo:main", secrets=None)
         assert func.metadata.name == "func-hub"
 
     def test_https_auth_token_with_secrets_flag(self):

@@ -2385,7 +2385,8 @@ class TestFeatureStore(TestMLRunSystem):
             inner_join=True,
         )
         df = fstore.preview(
-            fset, df,
+            fset,
+            df,
         )
         assert df.to_dict() == {
             "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
@@ -2748,9 +2749,7 @@ class TestFeatureStore(TestMLRunSystem):
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
-        df = fstore.preview(
-            fset, df
-        )
+        df = fstore.preview(fset, df)
         assert df.to_dict() == {
             "name": {"a": "a", "b": "b"},
             "sum": {"a": 16, "b": 26},

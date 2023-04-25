@@ -1,0 +1,33 @@
+[importlinter]
+root_package=mlrun
+include_external_packages=True
+
+
+[importlinter:contract:1]
+name=common modules shouldn't import other mlrun utilities
+type=forbidden
+source_modules=
+    mlrun.common
+
+forbidden_modules=
+    mlrun.api
+    mlrun.artifacts
+    mlrun.data_types
+    mlrun.datastore
+    mlrun.db
+    mlrun.feature_store
+    mlrun.frameworks
+    mlrun.mlutils
+    mlrun.model_monitoring
+    mlrun.platforms
+    mlrun.projects
+    mlrun.runtimes
+    mlrun.serving
+    mlrun.utils
+    mlrun.builder
+    mlrun.config
+    mlrun.errors
+    mlrun.lists
+    mlrun.model
+    mlrun.run
+

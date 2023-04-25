@@ -45,18 +45,26 @@ pip install -e '.[complete]'
 ## Developing with ARM64 machines
 
 Some mlrun dependencies are not yet available for ARM64 machines via pypi, so we need to work with conda to get the packages compiled for ARM64 platform.   
-First, create a conda environemnt:
+Install Anaconda from [here](https://docs.anaconda.com/free/anaconda/install/index.html) and then follow the steps below:
+
+Fork, clone and cd into the MLRun repository directory
+```shell script
+git clone git@github.com:<your username>/mlrun.git
+cd mlrun
+```
+
+Create a conda environment and activate it
 ```shell script
 conda create -n mlrun python=3.9
 conda activate mlrun
 ``` 
 
-Then, install the dependencies:
+Then, install the dependencies
 ```shell script
 make install-conda-requirements
 ```
 
-Finally, install mlrun:
+Finally, install mlrun
 ```shell script
 pip install -e '.[complete]'
 ```

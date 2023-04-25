@@ -2384,8 +2384,8 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.ingest(
-            fset, df, targets=[], infer_options=fstore.InferOptions.default()
+        df = fstore.preview(
+            fset, df,
         )
         assert df.to_dict() == {
             "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
@@ -2428,7 +2428,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.ingest(fset, df, targets=[])
+        df = fstore.preview(fset, df)
         assert df.to_dict() == {
             "foreignkey1": {
                 "mykey1_1": "AB",
@@ -2748,8 +2748,8 @@ class TestFeatureStore(TestMLRunSystem):
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
-        df = fstore.ingest(
-            fset, df, targets=[], infer_options=fstore.InferOptions.default()
+        df = fstore.preview(
+            fset, df
         )
         assert df.to_dict() == {
             "name": {"a": "a", "b": "b"},

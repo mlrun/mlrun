@@ -16,7 +16,8 @@ from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Dict, Optional, Union
 
-from .utils import AzureVaultStore, VaultStore, list2dict
+# import mlrun.utils.vault
+from .utils import AzureVaultStore, list2dict
 
 
 class SecretsStore:
@@ -26,7 +27,7 @@ class SecretsStore:
         # for example from Vault, and when adding their source they will be retrieved from the external source.
         self._hidden_sources = []
         self._hidden_secrets = {}
-        self.vault = VaultStore()
+        # self.vault = mlrun.utils.vault.VaultStore()
 
     @classmethod
     def from_list(cls, src_list: list):

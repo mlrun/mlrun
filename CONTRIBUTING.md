@@ -2,6 +2,8 @@
 
 ## Creating a development environment
 
+If you are working with an ARM64 machine, please see  [Developing with ARM64 machines](#developing-with-arm64-machines).
+
 We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manage your python versions.
 Once you have pyenv installed, you can create a new environment by running:
 
@@ -37,6 +39,25 @@ source venv/bin/activate
 Install MLRun, dependencies and dev dependencies
 ```shell script
 make install-requirements
+pip install -e '.[complete]'
+```
+
+## Developing with ARM64 machines
+
+Some mlrun dependencies are not yet available for ARM64 machines via pypi, so we need to work with conda to get the packages compiled for ARM64 platform.   
+First, create a conda environemnt:
+```shell script
+conda create -n mlrun python=3.9
+conda activate mlrun
+``` 
+
+Then, install the dependencies:
+```shell script
+make install-conda-requirements
+```
+
+Finally, install mlrun:
+```shell script
 pip install -e '.[complete]'
 ```
 

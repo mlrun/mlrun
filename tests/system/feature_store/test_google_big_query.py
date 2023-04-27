@@ -56,30 +56,8 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
     project_name = "fs-system-test-google-big-query"
     max_results = 100
 
-    @pytest.mark.parametrize("chunksize", [None, 30])
-    def test_big_query_source_query(self, chunksize):
-        query_string = f"select *\nfrom `bigquery-public-data.chicago_taxi_trips.taxi_trips`\nlimit {self.max_results}"
-        source = BigQuerySource(
-            "BigQuerySource",
-            query=query_string,
-            materialization_dataset="chicago_taxi_trips",
-            chunksize=chunksize,
-        )
-        self.assert_big_query_source("query", source)
-
-    @pytest.mark.parametrize("chunksize", [None, 30])
-    def test_big_query_source_table(self, chunksize):
-        source = BigQuerySource(
-            "BigQuerySource",
-            table="bigquery-public-data.chicago_taxi_trips.taxi_trips",
-            max_results_for_table=self.max_results,
-            materialization_dataset="chicago_taxi_trips",
-            chunksize=chunksize,
-        )
-        self.assert_big_query_source("table_c", source)
-
     @classmethod
-    def assert_big_query_source(cls, name: str, source: BigQuerySource):
+    def ingest_and_assert(cls, name: str, source: BigQuerySource):
         credentials_path = resolve_google_credentials_json_path()
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
@@ -102,3 +80,25 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
         assert len(ingest_df) == cls.max_results
         assert ingest_df.dtypes["pickup_latitude"] == "float64"
         assert ingest_df.dtypes["trip_seconds"] == pd.Int64Dtype()
+
+    @pytest.mark.parametrize("chunksize", [None, 30])
+    def test_big_query_source_query(self, chunksize):
+        query_string = f"select *\nfrom `bigquery-public-data.chicago_taxi_trips.taxi_trips`\nlimit {self.max_results}"
+        source = BigQuerySource(
+            "BigQuerySource",
+            query=query_string,
+            materialization_dataset="chicago_taxi_trips",
+            chunksize=chunksize,
+        )
+        self.ingest_and_assert("query", source)
+
+    @pytest.mark.parametrize("chunksize", [None, 50])
+    def test_big_query_source_table(self, chunksize):
+        source = BigQuerySource(
+            "BigQuerySource",
+            table="bigquery-public-data.chicago_taxi_trips.taxi_trips",
+            max_results_for_table=self.max_results,
+            materialization_dataset="chicago_taxi_trips",
+            chunksize=chunksize,
+        )
+        self.ingest_and_assert("table_c", source)

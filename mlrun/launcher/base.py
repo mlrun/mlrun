@@ -14,10 +14,8 @@
 import abc
 import ast
 import copy
-import getpass
 import typing
 import uuid
-from os import environ
 from typing import Any, Dict
 
 import mlrun.errors
@@ -25,6 +23,8 @@ import mlrun.model
 from mlrun.model import RunObject
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils import logger
+
+run_modes = ["pass"]
 
 
 class BaseLauncher(abc.ABC):

@@ -30,7 +30,7 @@ CREDENTIALS_JSON_DEFAULT_PATH = (
 )
 
 
-def _resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
+def resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
     default_path = pathlib.Path(CREDENTIALS_JSON_DEFAULT_PATH)
     if os.getenv(CREDENTIALS_ENV):
         return pathlib.Path(os.getenv(CREDENTIALS_ENV))
@@ -39,71 +39,48 @@ def _resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
     return None
 
 
-def _are_google_credentials_not_set() -> bool:
-    # credentials_path = _resolve_google_credentials_json_path()
-    # return not credentials_path
-
-    # Once issues with installation of packages - 'google-cloud-bigquery' and 'six' - will be fixed
-    # uncomment the above and let the tests run.
-    return True
+def are_google_credentials_not_set() -> bool:
+    credentials_path = resolve_google_credentials_json_path()
+    return not credentials_path
 
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
-    _are_google_credentials_not_set(),
+    are_google_credentials_not_set(),
     reason=f"Environment variable {CREDENTIALS_ENV} is not defined, and credentials file not in default path"
     f" {CREDENTIALS_JSON_DEFAULT_PATH}, skipping...",
 )
 @pytest.mark.enterprise
 class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
     project_name = "fs-system-test-google-big-query"
+    max_results = 100
 
-    def test_big_query_source_query(self):
-        max_results = 100
-        query_string = f"select *\nfrom `bigquery-public-data.chicago_taxi_trips.taxi_trips`\nlimit {max_results}"
+    @pytest.mark.parametrize("chunksize", [None, 30])
+    def test_big_query_source_query(self, chunksize):
+        query_string = f"select *\nfrom `bigquery-public-data.chicago_taxi_trips.taxi_trips`\nlimit {self.max_results}"
         source = BigQuerySource(
             "BigQuerySource",
             query=query_string,
             materialization_dataset="chicago_taxi_trips",
+            chunksize=chunksize,
         )
-        self._test_big_query_source("query", source, max_results)
+        self.assert_big_query_source("query", source)
 
-    def test_big_query_source_query_with_chunk_size(self):
-        max_results = 100
-        query_string = f"select *\nfrom `bigquery-public-data.chicago_taxi_trips.taxi_trips`\nlimit {max_results * 2}"
-        source = BigQuerySource(
-            "BigQuerySource",
-            query=query_string,
-            materialization_dataset="chicago_taxi_trips",
-            chunksize=max_results,
-        )
-        self._test_big_query_source("query_c", source, max_results)
-
-    def test_big_query_source_table(self):
-        max_results = 100
+    @pytest.mark.parametrize("chunksize", [None, 30])
+    def test_big_query_source_table(self, chunksize):
         source = BigQuerySource(
             "BigQuerySource",
             table="bigquery-public-data.chicago_taxi_trips.taxi_trips",
-            max_results_for_table=max_results,
+            max_results_for_table=self.max_results,
             materialization_dataset="chicago_taxi_trips",
+            chunksize=chunksize,
         )
-        self._test_big_query_source("table", source, max_results)
+        self.assert_big_query_source("table_c", source)
 
-    def test_big_query_source_table_with_chunk_size(self):
-        max_results = 100
-        source = BigQuerySource(
-            "BigQuerySource",
-            table="bigquery-public-data.chicago_taxi_trips.taxi_trips",
-            max_results_for_table=max_results * 2,
-            materialization_dataset="chicago_taxi_trips",
-            chunksize=max_results,
-        )
-        self._test_big_query_source("table_c", source, max_results)
-
-    @staticmethod
-    def _test_big_query_source(name: str, source: BigQuerySource, max_results: int):
-        credentials_path = _resolve_google_credentials_json_path()
+    @classmethod
+    def assert_big_query_source(cls, name: str, source: BigQuerySource):
+        credentials_path = resolve_google_credentials_json_path()
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_path)
 
         targets = [
@@ -120,8 +97,8 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
             timestamp_key="trip_start_timestamp",
             engine="pandas",
         )
-        ingest_df = fstore.ingest(feature_set, source, targets, return_df=False)
+        ingest_df = fstore.ingest(feature_set, source, targets)
         assert ingest_df is not None
-        assert len(ingest_df) == max_results
+        assert len(ingest_df) == cls.max_results
         assert ingest_df.dtypes["pickup_latitude"] == "float64"
         assert ingest_df.dtypes["trip_seconds"] == pd.Int64Dtype()

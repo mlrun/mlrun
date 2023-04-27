@@ -102,6 +102,7 @@ def test_requirement_specifiers_convention():
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},
+        "import-linter": {"~=1.8.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},

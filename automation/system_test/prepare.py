@@ -109,6 +109,8 @@ class SystemTestPreparer:
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
             "MLRUN_SYSTEM_TESTS_BRANCH": branch,
+            # Setting to MLRUN_SYSTEM_TESTS_GIT_TOKEN instead of GIT_TOKEN, to not affect tests which doesn't need it
+            # (e.g. tests which use public repos, therefor doesn't need that access token)
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
         if password:

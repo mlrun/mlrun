@@ -64,6 +64,11 @@ Then, install the dependencies
 make install-conda-requirements
 ```
 
+Run some unit tests to make sure everything works:
+```shell script
+python -m pytest ./tests/projects
+```
+
 If you encounter any error with 'charset_normalizer' for example:
 ```shell script
 AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)

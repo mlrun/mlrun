@@ -30,7 +30,11 @@ class BaseLauncher(abc.ABC):
     """
 
     def __init__(self):
-        self.db = mlrun.db.get_or_set_dburl()
+        self._db = mlrun.db.get_or_set_dburl()
+
+    @property
+    def db(self) -> mlrun.db.base.RunDBInterface:
+        return self._db
 
     @staticmethod
     @abc.abstractmethod
@@ -65,16 +69,11 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _create_run_object(task):
-        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
-        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
-        #       the `RunObject` from the `Runtime`.
-        from mlrun.run import RunObject, RunTemplate
-
-        valid_task_types = (dict, RunTemplate, RunObject)
+        valid_task_types = (dict, mlrun.run.RunTemplate, mlrun.run.RunObject)
 
         if not task:
             # if task passed generate default RunObject
-            return RunObject.from_dict(task)
+            return mlrun.run.RunObject.from_dict(task)
 
         # deepcopy user's task, so we don't modify / enrich the user's object
         task = copy.deepcopy(task)
@@ -87,10 +86,10 @@ class BaseLauncher(abc.ABC):
                 f"Task is not a valid object, type={type(task)}, expected types={valid_task_types}"
             )
 
-        if isinstance(task, RunTemplate):
-            return RunObject.from_template(task)
+        if isinstance(task, mlrun.run.RunTemplate):
+            return mlrun.run.RunObject.from_template(task)
         elif isinstance(task, dict):
-            return RunObject.from_dict(task)
+            return mlrun.run.RunObject.from_dict(task)
 
     @staticmethod
     def _enrich_run(

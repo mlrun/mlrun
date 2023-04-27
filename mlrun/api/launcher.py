@@ -12,47 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import typing
 
 import mlrun.api.crud
 import mlrun.api.db.sqldb.session
-import mlrun.model
+import mlrun.execution
+import mlrun.launcher.base
+import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
+import mlrun.utils
 import mlrun.utils.regex
-from mlrun.execution import MLClientCtx
-from mlrun.launcher.base import BaseLauncher
-from mlrun.model import RunObject
-from mlrun.runtimes import BaseRuntime
-from mlrun.utils import logger
 
 
-class ServerSideLauncher(BaseLauncher):
-    def __init__(self):
-        self._db_conn = None
+class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+    def launch(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: typing.Optional[
+            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        ] = None,
+        param_file_secrets=None,
+    ):
+        self._enrich_runtime(runtime)
 
-    def launch(self, runtime: BaseRuntime, run: RunObject, param_file_secrets):
-        self._enrich_run(runtime, run)
+        run = self._create_run_object(task)
+
+        self._enrich_run(runtime, runspec=task)
+        self._verify_run_params(run.spec.parameters)
+
         if runtime.verbose:
-            logger.info(f"Run:\n{run.to_yaml()}")
+            mlrun.utils.logger.info(f"Run:\n{run.to_yaml()}")
 
-        db = self._get_db(runtime)
         if not runtime.is_child:
-            logger.info(
+            mlrun.utils.logger.info(
                 "Storing function",
                 name=run.metadata.name,
                 uid=run.metadata.uid,
             )
-            self._store_function(runtime, run, db)
+            self._store_function(runtime, run, self.db)
 
-        execution = MLClientCtx.from_dict(
+        execution = mlrun.execution.MLClientCtx.from_dict(
             run.to_dict(),
-            db,
+            self.db,
             autocommit=False,
             is_api=True,
             store_run=False,
         )
-
-        self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
         task_generator = mlrun.runtimes.generators.get_generator(
@@ -120,17 +126,18 @@ class ServerSideLauncher(BaseLauncher):
         """
         pass
 
-    @staticmethod
-    def _save_or_push_notifications(run: RunObject):
-        if not run.spec.notifications:
-            logger.debug("No notifications to push for run", run_uid=run.metadata.uid)
+    def _save_or_push_notifications(self, runobj):
+        if not runobj.spec.notifications:
+            mlrun.utils.logger.debug(
+                "No notifications to push for run", run_uid=runobj.metadata.uid
+            )
             return
 
         # TODO: add support for other notifications per run iteration
-        if run.metadata.iteration and run.metadata.iteration > 0:
-            logger.debug(
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            mlrun.utils.logger.debug(
                 "Notifications per iteration are not supported, skipping",
-                run_uid=run.metadata.uid,
+                run_uid=runobj.metadata.uid,
             )
             return
 
@@ -139,26 +146,15 @@ class ServerSideLauncher(BaseLauncher):
         session = mlrun.api.db.sqldb.session.create_session()
         mlrun.api.crud.Notifications().store_run_notifications(
             session,
-            run.spec.notifications,
-            run.metadata.uid,
-            run.metadata.project,
+            runobj.spec.notifications,
+            runobj.metadata.uid,
+            runobj.metadata.project,
         )
 
     @staticmethod
-    def _ensure_run_db(runtime: BaseRuntime):
-        runtime.spec.rundb = runtime.spec.rundb or mlrun.db.get_or_set_dburl()
-
-    def _get_db(self, runtime: BaseRuntime):
-        self._ensure_run_db(runtime)
-        if not self._db_conn:
-            if runtime.spec.rundb:
-                self._db_conn = mlrun.db.get_run_db(
-                    runtime.spec.rundb, secrets=runtime._secrets
-                )
-        return self._db_conn
-
-    @staticmethod
-    def _store_function(runtime: BaseRuntime, run: RunObject, db):
+    def _store_function(
+        runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject, db
+    ):
         run.metadata.labels["kind"] = runtime.kind
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

@@ -109,6 +109,7 @@ class SystemTestPreparer:
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
             "MLRUN_SYSTEM_TESTS_BRANCH": branch,
+            "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -729,6 +730,7 @@ def run(
     help="Don't run the ci only show the commands that will be run",
 )
 @click.argument("branch", type=str, default=None, required=False)
+@click.argument("github-access-token", type=str, default=None, required=False)
 def env(
     mlrun_dbpath: str,
     webapi_direct_url: str,
@@ -740,6 +742,7 @@ def env(
     slack_webhook_url: str,
     debug: bool,
     branch: str,
+    github_access_token: str,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_dbpath=mlrun_dbpath,
@@ -752,6 +755,7 @@ def env(
         debug=debug,
         slack_webhook_url=slack_webhook_url,
         branch=branch,
+        github_access_token=github_access_token,
     )
     try:
         system_test_preparer.prepare_local_env()

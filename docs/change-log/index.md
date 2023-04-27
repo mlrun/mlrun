@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
 - [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
@@ -13,6 +14,25 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
+
+## v1.3.1
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3041 | CE Model Monitoring now uses Kafka stream instead of V3IO |
+| ML-3373 | `get_offline_features` is now fully supported by the Spark retrieval engine |
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3443 | Spark ingestion engine now supports more than two keys in an online target |
+| ML-3586 | Can now deploy a Spark function with git repo |
+| ML-3631 | Running a function with source from gitlab is processed successfully on authentication |
+| ML-3682 | Running a Gitlab CI/CD pipeline to run a Kubeflow pipeline to deploy a serving function is successful |
+| ML-3713 | User-configured job spec parameter in a Kubeflow is processed successfully |
+| ML-3652 | V3IO_API is now inferred from DBPATH |
+
 
 ## v1.3.0
 

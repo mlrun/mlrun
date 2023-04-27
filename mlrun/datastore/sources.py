@@ -62,6 +62,11 @@ class BaseSourceDriver(DataSource):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
+        if not self.support_storey:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
+
         return storey.SyncEmitSource(context=context)
 
     def get_table_object(self):

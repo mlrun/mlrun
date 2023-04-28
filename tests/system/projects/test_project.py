@@ -817,3 +817,17 @@ class TestProject(TestMLRunSystem):
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
         assert schedule.scheduled_object["schedule"] == schedule_str
+
+    def test_remote_workflow_source_with_subpath(self):
+        # Test running remote workflow when the project files are store in a relative path (the subpath)
+        project_source = "git://github.com/mlrun/system-tests.git#main"
+        project_context = "./test_subpath_remote"
+        project_name = "test-remote-workflow-source-with-subpath"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.load_project(
+            context=project_context,
+            url=project_source,
+            subpath="./test_remote_workflow_subpath",
+            name=project_name,
+        )
+        project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)

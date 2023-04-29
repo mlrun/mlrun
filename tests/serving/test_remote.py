@@ -53,7 +53,6 @@ def _new_server(url, engine, method="POST", **kwargs):
     return function.to_mock_server()
 
 
-
 @pytest.mark.parametrize("engine", ["sync", "async"])
 def test_remote_step(httpserver, engine):
     httpserver.expect_request("/", method="GET").respond_with_json({"get": "ok"})

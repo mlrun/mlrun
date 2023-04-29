@@ -523,7 +523,12 @@ def http_upload(url, file_path, headers=None, auth=None):
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
+        self._https_auth_token = None
+        self._schema = schema
         self.auth = None
+        self._headers = {}
+        self._enrich_https_token()
+        self._validate_https_token()
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -541,9 +546,22 @@ class HttpStore(DataStore):
         raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
-        data = http_get(self.url + self._join(key), None, self.auth)
+        data = http_get(self.url + self._join(key), self._headers, self.auth)
         if offset:
             data = data[offset:]
         if size:
             data = data[:size]
         return data
+
+    def _enrich_https_token(self):
+        token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
+        if token:
+            self._https_auth_token = token
+            self._headers.setdefault("Authorization", f"token {token}")
+
+    def _validate_https_token(self):
+        if self._https_auth_token and self._schema in ["http"]:
+            logger.warn(
+                f"A AUTH TOKEN should not be provided while using {self._schema} "
+                f"schema as it is not secure and is not recommended."
+            )

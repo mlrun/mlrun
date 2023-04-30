@@ -33,7 +33,12 @@ from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import get_caller_globals, parse_versioned_object_uri
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
-from .utils import event_id_key, event_path_key, legacy_event_id_key, legacy_event_path_key
+from .utils import (
+    event_id_key,
+    event_path_key,
+    legacy_event_id_key,
+    legacy_event_path_key,
+)
 
 
 class _StreamContext:
@@ -245,7 +250,10 @@ class GraphServer(ModelObj):
                 event.id = event.headers.get(event_id_key) or event.headers.get(
                     legacy_event_id_key
                 )
-            if event_path_key in event.headers or legacy_event_path_key in event.headers:
+            if (
+                event_path_key in event.headers
+                or legacy_event_path_key in event.headers
+            ):
                 event.path = event.headers.get(event_path_key) or event.headers.get(
                     legacy_event_path_key
                 )

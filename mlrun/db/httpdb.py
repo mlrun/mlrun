@@ -2584,11 +2584,13 @@ class HTTPRunDB(RunDBInterface):
         uids: Optional[List[str]] = None,
     ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
-        Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
-        This functions supports filtering by the following parameters:
+        Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
+        model endpoint. This functions supports filtering by the following parameters:
         1) model
         2) function
         3) labels
+        4) top level
+        5) uids
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -2610,7 +2612,7 @@ class HTTPRunDB(RunDBInterface):
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
                                  days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return `ModelEndpointList` of endpoints with uid in uids
+        :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
         """
 
         path = f"projects/{project}/model-endpoints"

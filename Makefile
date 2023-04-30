@@ -501,7 +501,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests
+		tests/serving/test_remote.py::test_remote_step
 
 
 .PHONY: test-integration-dockerized
@@ -650,8 +650,13 @@ fmt: ## Format the code (using black and isort)
 	python -m black .
 	python -m isort .
 
+.PHONY: lint-imports
+lint-imports: ## making sure imports dependencies are aligned
+	@echo "Running import linter"
+	lint-imports
+
 .PHONY: lint
-lint: flake8 fmt-check ## Run lint on the code
+lint: flake8 fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

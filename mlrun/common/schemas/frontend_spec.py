@@ -16,29 +16,29 @@ import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 from .k8s import Resources
 
 
-class ProjectMembershipFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class ProjectMembershipFeatureFlag(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class PreemptionNodesFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class PreemptionNodesFeatureFlag(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class AuthenticationFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class AuthenticationFeatureFlag(mlrun.common.types.StrEnum):
     none = "none"
     basic = "basic"
     bearer = "bearer"
     iguazio = "iguazio"
 
 
-class NuclioStreamsFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class NuclioStreamsFeatureFlag(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 

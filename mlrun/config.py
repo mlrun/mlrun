@@ -155,7 +155,7 @@ default_config = {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
-                # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
+                # see mlrun.common.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
                 # default 65534 (nogroup), set to -1 to use the user unix id or
                 # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
@@ -178,7 +178,7 @@ default_config = {
             "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
-        # and mlrun.api.schemas.function.PreemptionModes for available options
+        # and mlrun.common.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {
@@ -219,7 +219,7 @@ default_config = {
         "allowed_file_paths": "s3://,gcs://,gs://,az://",
         "db_type": "sqldb",
         "max_workers": 64,
-        # See mlrun.api.schemas.APIStates for options
+        # See mlrun.common.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
@@ -391,7 +391,7 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.api.schemas.ModelEndpointStoreType for available options
+        # See mlrun.common.schemas.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },

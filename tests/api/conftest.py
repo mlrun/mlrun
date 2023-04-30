@@ -23,8 +23,8 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
@@ -134,8 +134,10 @@ class K8sSecretsMock:
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
         return {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }
@@ -153,10 +155,10 @@ class K8sSecretsMock:
 
             return None, None
         username = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
         ]
         access_key = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         ]
         return username, access_key
 

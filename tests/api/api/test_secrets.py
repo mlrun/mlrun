@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from mlrun import mlconf
-from mlrun.api import schemas
+from mlrun.common import schemas
 
 # Set a valid Vault token to run this test.
 # For this test, you must also have a k8s cluster available (minikube is good enough).

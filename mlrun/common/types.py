@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
-import pydantic
-
-import mlrun.api.utils.helpers
+import enum
 
 
-class ClusterizationSpec(pydantic.BaseModel):
-    chief_api_state: typing.Optional[str]
-    chief_version: typing.Optional[str]
+# TODO: From python 3.11 StrEnum is built-in and this will not be needed
+class StrEnum(str, enum.Enum):
+    def __str__(self):
+        return self.value
 
-
-class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.api.utils.helpers.StrEnum):
-    enabled = "enabled"
-    disabled = "disabled"
+    def __repr__(self):
+        return self.value

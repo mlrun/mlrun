@@ -22,8 +22,8 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.db.base
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.lists
 import mlrun.model
@@ -106,7 +106,7 @@ class NotificationPusher(object):
         # if the notification isn't pending, don't push it
         if (
             notification.status
-            and notification.status != mlrun.api.schemas.NotificationStatus.PENDING
+            and notification.status != mlrun.common.schemas.NotificationStatus.PENDING
         ):
             return False
 
@@ -149,7 +149,8 @@ class NotificationPusher(object):
     ):
         message = self.messages.get(run.state(), "")
         severity = (
-            notification_object.severity or mlrun.api.schemas.NotificationSeverity.INFO
+            notification_object.severity
+            or mlrun.common.schemas.NotificationSeverity.INFO
         )
         logger.debug(
             "Pushing notification",
@@ -168,7 +169,7 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_object,
-                    status=mlrun.api.schemas.NotificationStatus.SENT,
+                    status=mlrun.common.schemas.NotificationStatus.SENT,
                     sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
         except Exception as exc:
@@ -178,7 +179,7 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_object,
-                    status=mlrun.api.schemas.NotificationStatus.ERROR,
+                    status=mlrun.common.schemas.NotificationStatus.ERROR,
                 )
             raise exc
 
@@ -216,8 +217,8 @@ class CustomNotificationPusher(object):
         self,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -243,8 +244,8 @@ class CustomNotificationPusher(object):
         notification: NotificationBase,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):

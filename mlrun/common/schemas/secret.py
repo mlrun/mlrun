@@ -16,10 +16,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
-class SecretProviderName(mlrun.api.utils.helpers.StrEnum):
+class SecretProviderName(mlrun.common.types.StrEnum):
     """Enum containing names of valid providers for secrets."""
 
     vault = "vault"

@@ -16,14 +16,14 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.schemas.artifact import ArtifactsFormat
+from mlrun.common.schemas.artifact import ArtifactsFormat
 
 
 class Artifacts(
@@ -90,7 +90,7 @@ class Artifacts(
         since=None,
         until=None,
         kind: typing.Optional[str] = None,
-        category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
+        category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         format_: ArtifactsFormat = ArtifactsFormat.full,
@@ -122,7 +122,7 @@ class Artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str = mlrun.mlconf.default_project,
-        category: mlrun.api.schemas.ArtifactCategories = None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_artifact_tags(
@@ -148,7 +148,7 @@ class Artifacts(
         name: str = "",
         tag: str = "latest",
         labels: typing.List[str] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.db.get_db().del_artifacts(

@@ -29,12 +29,12 @@ import sqlalchemy.orm
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.model_monitoring
 import tests.api.api.utils
@@ -399,16 +399,19 @@ def test_start_function_succeeded(
         ),
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
 
 
@@ -440,14 +443,18 @@ def test_start_function_fails(
         ),
     )
     assert response.status_code == http.HTTPStatus.OK
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
 
 def test_start_function(
@@ -461,26 +468,26 @@ def test_start_function(
     for test_case in [
         {
             "_start_function_mock": unittest.mock.Mock,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.succeeded,
             "background_timeout_mode": "enabled",
             "dask_timeout": 100,
         },
         {
             "_start_function_mock": failing_func,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.failed,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.failed,
             "background_timeout_mode": "enabled",
             "dask_timeout": None,
         },
         {
             "_start_function_mock": unittest.mock.Mock,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.succeeded,
             "background_timeout_mode": "disabled",
             "dask_timeout": 0,
         },
     ]:
         _start_function_mock = test_case.get("_start_function_mock", unittest.mock.Mock)
         expected_status_result = test_case.get(
-            "expected_status_result", mlrun.api.schemas.BackgroundTaskState.running
+            "expected_status_result", mlrun.common.schemas.BackgroundTaskState.running
         )
         background_timeout_mode = test_case.get("background_timeout_mode", "enabled")
         dask_timeout = test_case.get("dask_timeout", None)
@@ -507,16 +514,16 @@ def test_start_function(
             ),
         )
         assert response.status_code == http.HTTPStatus.OK
-        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert (
             background_task.status.state
-            == mlrun.api.schemas.BackgroundTaskState.running
+            == mlrun.common.schemas.BackgroundTaskState.running
         )
         response = client.get(
             f"projects/{project}/background-tasks/{background_task.metadata.name}"
         )
         assert response.status_code == http.HTTPStatus.OK.value
-        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
 
 

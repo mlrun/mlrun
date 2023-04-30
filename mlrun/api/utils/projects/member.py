@@ -19,8 +19,8 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -39,11 +39,11 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         wait_for_completion: bool = True,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project_names = self.list_projects(
             db_session,
-            format_=mlrun.api.schemas.ProjectsFormat.name_only,
+            format_=mlrun.common.schemas.ProjectsFormat.name_only,
             leader_session=auth_info.session,
         )
         if name not in project_names.projects:
@@ -53,12 +53,12 @@ class Member(abc.ABC):
     def create_project(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: mlrun.api.schemas.Project,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        project: mlrun.common.schemas.Project,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod
@@ -66,11 +66,11 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        project: mlrun.common.schemas.Project,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         pass
 
     @abc.abstractmethod
@@ -79,11 +79,11 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[mlrun.common.schemas.Project, bool]:
         pass
 
     @abc.abstractmethod
@@ -91,9 +91,9 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         pass
@@ -104,7 +104,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abc.abstractmethod
@@ -112,13 +112,13 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
     @abc.abstractmethod
@@ -127,7 +127,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         pass
 
     @abc.abstractmethod
@@ -136,11 +136,11 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         pass
 
     @abc.abstractmethod
@@ -148,7 +148,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-    ) -> mlrun.api.schemas.ProjectOwner:
+    ) -> mlrun.common.schemas.ProjectOwner:
         pass
 
     async def post_delete_project(
@@ -157,7 +157,7 @@ class Member(abc.ABC):
     ):
         if (
             mlrun.mlconf.log_collector.mode
-            != mlrun.api.schemas.LogsCollectorMode.legacy
+            != mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             await self._stop_logs_for_project(project_name)
             await self._delete_project_logs(project_name)

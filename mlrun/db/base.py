@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
 import mlrun.model_monitoring.model_endpoint
-from mlrun.api import schemas
+from mlrun.common import schemas
 
 
 class RunDBError(Exception):
@@ -188,7 +188,7 @@ class RunDBInterface(ABC):
         """
         :param artifacts: Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
             dictionaries, or a single object.
-        :return: :py:class:`~mlrun.api.schemas.TagObjects`
+        :return: :py:class:`~mlrun.common.schemas.TagObjects`
         """
         # to avoid circular imports we import here
         import mlrun.artifacts.base

@@ -17,7 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.schemas.marketplace import (
+from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.common.schemas import SecretProviderName
+from mlrun.common.schemas.marketplace import (
     MarketplaceCatalog,
     MarketplaceItem,
     MarketplaceItemMetadata,
@@ -25,11 +27,9 @@ from mlrun.api.schemas.marketplace import (
     MarketplaceSource,
     ObjectStatus,
 )
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
-from ..schemas import SecretProviderName
 from .secrets import Secrets, SecretsClientType
 
 # Using a complex separator, as it's less likely someone will use it in a real secret name
@@ -92,7 +92,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         }
         Secrets().store_project_secrets(
             self._internal_project_name,
-            mlrun.api.schemas.SecretsData(
+            mlrun.common.schemas.SecretsData(
                 provider=SecretProviderName.kubernetes, secrets=adjusted_credentials
             ),
             allow_internal_secrets=True,

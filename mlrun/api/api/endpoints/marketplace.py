@@ -25,13 +25,13 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
-from mlrun.api.schemas import AuthorizationAction
-from mlrun.api.schemas.marketplace import (
+from mlrun.api.utils.singletons.db import get_db
+from mlrun.common.schemas import AuthorizationAction
+from mlrun.common.schemas.marketplace import (
     IndexedMarketplaceSource,
     MarketplaceCatalog,
     MarketplaceItem,
 )
-from mlrun.api.utils.singletons.db import get_db
 
 router = APIRouter()
 
@@ -44,12 +44,12 @@ router = APIRouter()
 async def create_source(
     source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.create,
         auth_info,
     )
@@ -68,12 +68,12 @@ async def create_source(
 )
 async def list_sources(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
@@ -88,12 +88,12 @@ async def list_sources(
 async def delete_source(
     source_name: str,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.delete,
         auth_info,
     )
@@ -109,7 +109,7 @@ async def delete_source(
 async def get_source(
     source_name: str,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -117,7 +117,7 @@ async def get_source(
         get_db().get_marketplace_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
@@ -132,12 +132,12 @@ async def store_source(
     source_name: str,
     source: IndexedMarketplaceSource,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.store,
         auth_info,
     )
@@ -163,7 +163,7 @@ async def get_catalog(
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -171,7 +171,7 @@ async def get_catalog(
         get_db().get_marketplace_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
@@ -196,7 +196,7 @@ async def get_item(
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -204,7 +204,7 @@ async def get_item(
         get_db().get_marketplace_source, db_session, source_name
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
@@ -226,7 +226,7 @@ async def get_object(
     source_name: str,
     url: str,
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -239,7 +239,7 @@ async def get_object(
         url,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )
@@ -261,7 +261,7 @@ async def get_asset(
     tag: Optional[str] = Query("latest"),
     version: Optional[str] = Query(None),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -283,7 +283,7 @@ async def get_asset(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.marketplace_source,
+        mlrun.common.schemas.AuthorizationResourceTypes.marketplace_source,
         AuthorizationAction.read,
         auth_info,
     )

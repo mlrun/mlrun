@@ -21,7 +21,7 @@ import mlrun
 import mlrun.model
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
-from mlrun.api.schemas.schedule import ScheduleCronTrigger
+from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.config import is_running_as_api
 
 
@@ -44,7 +44,7 @@ def set_project_model_monitoring_credentials(access_key: str, project: str = Non
     """
     mlrun.get_run_db().create_project_secrets(
         project=project or mlrun.mlconf.default_project,
-        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+        provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets={model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key},
     )
 
@@ -133,12 +133,12 @@ def get_connection_string(project: str = None):
     if is_running_as_api():
         # Running on API server side
         import mlrun.api.crud.secrets
-        import mlrun.api.schemas
+        import mlrun.common.schemas
 
         return (
             mlrun.api.crud.secrets.Secrets().get_project_secret(
                 project=project,
-                provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
+                provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
                 allow_secrets_from_k8s=True,
                 secret_key=model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
             )

@@ -25,8 +25,8 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
 import tests.api.api.utils
-from mlrun.api import schemas
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.common import schemas
 from tests.common_fixtures import aioresponses_mock
 
 ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX

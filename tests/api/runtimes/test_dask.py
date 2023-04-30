@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.api.endpoints.functions
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -437,10 +437,10 @@ class TestDaskRuntime(TestRuntimeBase):
     ):
         runtime = self._generate_runtime()
         user_unix_id = 1000
-        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=user_unix_id)
         mlrun.mlconf.igz_version = "3.6"
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)
         pod = self._get_pod_creation_args()
@@ -448,7 +448,7 @@ class TestDaskRuntime(TestRuntimeBase):
         self.assert_security_context()
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         runtime = self._generate_runtime()
         _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)

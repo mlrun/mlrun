@@ -33,8 +33,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 import mlrun.utils.db
-from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
+from mlrun.common import schemas
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

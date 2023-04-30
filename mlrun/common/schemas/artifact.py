@@ -16,10 +16,10 @@ import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
-class ArtifactCategories(mlrun.api.utils.helpers.StrEnum):
+class ArtifactCategories(mlrun.common.types.StrEnum):
     model = "model"
     dataset = "dataset"
     other = "other"
@@ -56,6 +56,6 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # hash: typing.Optional[str]
 
 
-class ArtifactsFormat(mlrun.api.utils.helpers.StrEnum):
+class ArtifactsFormat(mlrun.common.types.StrEnum):
     full = "full"
     legacy = "legacy"

@@ -34,7 +34,6 @@ import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.model
-from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
     generate_query_predicate_for_name,
@@ -63,6 +62,7 @@ from mlrun.api.db.sqldb.models import (
     _labeled,
     _tagged,
 )
+from mlrun.common import schemas
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
@@ -456,7 +456,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -479,7 +479,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -496,7 +496,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -512,7 +512,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project_name: str,
-        identifier: mlrun.api.schemas.ArtifactIdentifier,
+        identifier: mlrun.common.schemas.ArtifactIdentifier,
     ):
         return self.list_artifacts(
             session,
@@ -1424,9 +1424,11 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: typing.Union[
+            mlrun.common.schemas.ProjectsFormat, mlrun.common.schemas.ProjectsFormat
+        ] = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
@@ -1437,12 +1439,12 @@ class SQLDB(DBInterface):
         project_records = query.all()
         projects = []
         for project_record in project_records:
-            if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+            if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
                 projects = [project_record.name for project_record in project_records]
             # leader format is only for follower mode which will format the projects returned from here
             elif format_ in [
-                mlrun.api.schemas.ProjectsFormat.full,
-                mlrun.api.schemas.ProjectsFormat.leader,
+                mlrun.common.schemas.ProjectsFormat.full,
+                mlrun.common.schemas.ProjectsFormat.leader,
             ]:
                 projects.append(
                     self._transform_project_record_to_schema(session, project_record)
@@ -1560,7 +1562,10 @@ class SQLDB(DBInterface):
         # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         file_artifacts = self._find_artifacts(
-            session, None, "latest", category=mlrun.api.schemas.ArtifactCategories.other
+            session,
+            None,
+            "latest",
+            category=mlrun.common.schemas.ArtifactCategories.other,
         )
         project_to_files_count = collections.defaultdict(int)
         for file_artifact in file_artifacts:
@@ -1604,7 +1609,7 @@ class SQLDB(DBInterface):
 
     async def generate_projects_summaries(
         self, session: Session, projects: List[str]
-    ) -> List[mlrun.api.schemas.ProjectSummary]:
+    ) -> List[mlrun.common.schemas.ProjectSummary]:
         (
             project_to_function_count,
             project_to_schedule_count,
@@ -1616,7 +1621,7 @@ class SQLDB(DBInterface):
         project_summaries = []
         for project in projects:
             project_summaries.append(
-                mlrun.api.schemas.ProjectSummary(
+                mlrun.common.schemas.ProjectSummary(
                     name=project,
                     functions_count=project_to_function_count.get(project, 0),
                     schedules_count=project_to_schedule_count.get(project, 0),
@@ -3324,7 +3329,7 @@ class SQLDB(DBInterface):
         if not max_order or max_order < 0:
             max_order = 0
 
-        if order == schemas.marketplace.last_source_index:
+        if order == mlrun.common.schemas.marketplace.last_source_index:
             order = max_order + 1
 
         if order > max_order + 1:
@@ -3334,7 +3339,7 @@ class SQLDB(DBInterface):
         if order < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Order of inserted source must be greater than 0 or "
-                + f"{schemas.marketplace.last_source_index} (for last). order = {order}"
+                + f"{mlrun.common.schemas.marketplace.last_source_index} (for last). order = {order}"
             )
         return order
 
@@ -3385,7 +3390,7 @@ class SQLDB(DBInterface):
 
         source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
         current_order = source_record.index if source_record else None
-        if current_order == schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.marketplace.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to modify the global marketplace source."
             )
@@ -3421,7 +3426,7 @@ class SQLDB(DBInterface):
             return
 
         current_order = source_record.index
-        if current_order == schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.marketplace.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Attempting to delete the global marketplace source."
             )
@@ -3475,7 +3480,7 @@ class SQLDB(DBInterface):
         session,
         name: str,
         project: str,
-        state: str = mlrun.api.schemas.BackgroundTaskState.running,
+        state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
     ):
         background_task_record = self._query(
@@ -3489,7 +3494,7 @@ class SQLDB(DBInterface):
             # we don't want to be able to change state after it reached terminal state
             if (
                 background_task_record.state
-                in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 and state != background_task_record.state
             ):
                 raise mlrun.errors.MLRunRuntimeError(
@@ -3527,7 +3532,7 @@ class SQLDB(DBInterface):
                 session,
                 name,
                 project,
-                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
+                mlrun.common.schemas.background_task.BackgroundTaskState.failed,
             )
             background_task_record = self._get_background_task_record(
                 session, name, project
@@ -3601,7 +3606,7 @@ class SQLDB(DBInterface):
         if (
             timeout
             and background_task_record.state
-            not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+            not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
             and datetime.utcnow()
             > timedelta(seconds=int(timeout)) + background_task_record.updated
         ):
@@ -3644,7 +3649,7 @@ class SQLDB(DBInterface):
             notification.params = notification_model.params
             notification.status = (
                 notification_model.status
-                or mlrun.api.schemas.NotificationStatus.PENDING
+                or mlrun.common.schemas.NotificationStatus.PENDING
             )
             notification.sent_time = notification_model.sent_time
 

@@ -21,9 +21,9 @@ import deepdiff
 import pytest
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import mlrun.builder
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.version
 from mlrun.config import config
@@ -35,7 +35,7 @@ def test_build_runtime_use_base_image_when_no_build():
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
     ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         fn,
     )
     assert ready is True
@@ -49,7 +49,7 @@ def test_build_runtime_use_image_when_no_build():
     )
     assert fn.spec.image == image
     ready = mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         fn,
         with_mlrun=False,
     )
@@ -113,7 +113,7 @@ def test_build_runtime_insecure_registries(
     mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
     mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
@@ -151,7 +151,7 @@ def test_build_runtime_target_image(monkeypatch):
     )
 
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
 
@@ -164,7 +164,7 @@ def test_build_runtime_target_image(monkeypatch):
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
@@ -177,7 +177,7 @@ def test_build_runtime_target_image(monkeypatch):
         f"/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
@@ -194,7 +194,7 @@ def test_build_runtime_target_image(monkeypatch):
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             mlrun.builder.build_runtime(
-                mlrun.api.schemas.AuthInfo(),
+                mlrun.common.schemas.AuthInfo(),
                 function,
             )
 
@@ -204,7 +204,7 @@ def test_build_runtime_target_image(monkeypatch):
         f":{function.metadata.tag}"
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
@@ -230,7 +230,7 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
@@ -263,7 +263,7 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
     function.spec.node_selector = node_selector
     function.spec.priority_class_name = priority_class_name
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
@@ -300,7 +300,7 @@ def test_function_build_with_default_requests(monkeypatch):
         requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     expected_resources = {"requests": {}}
@@ -321,7 +321,7 @@ def test_function_build_with_default_requests(monkeypatch):
     expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
 
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
@@ -348,7 +348,7 @@ def test_function_build_with_default_requests(monkeypatch):
     expected_resources = {"requests": {"cpu": "25m", "memory": "1m"}}
 
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
@@ -460,7 +460,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
         kind="job",
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
@@ -523,7 +523,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
             image += f":{case.get('tag')}"
         function.spec.build.image = image
         mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(),
+            mlrun.common.schemas.AuthInfo(),
             function,
         )
         pod_spec = _create_pod_mock_pod_spec()
@@ -555,7 +555,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
@@ -613,7 +613,7 @@ def test_build_runtime_ecr_with_repository(monkeypatch):
         requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
@@ -771,7 +771,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
         kind="job",
     )
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
@@ -795,7 +795,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     service_account = "my-actual-sa"
     function.spec.service_account = service_account
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
@@ -829,7 +829,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
         function.spec.clone_target_dir = clone_target_dir
     function.spec.build.source = "some-source.tgz"
     mlrun.builder.build_runtime(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         function,
     )
     dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]

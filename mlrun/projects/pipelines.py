@@ -27,7 +27,7 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -79,7 +79,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         # TODO: deprecated, remove in 1.5.0
         ttl=None,
         args_schema: dict = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
     ):
         if ttl:
@@ -279,7 +279,7 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
         return
 
@@ -972,7 +972,7 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
-    schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
 ):
     """
@@ -1038,7 +1038,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.api.schemas.NotificationSeverity.ERROR,
+                    severity=mlrun.common.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:

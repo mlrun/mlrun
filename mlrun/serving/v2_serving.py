@@ -18,13 +18,13 @@ from typing import Dict, Union
 
 import mlrun
 import mlrun.model_monitoring
-from mlrun.api.schemas import (
+from mlrun.artifacts import ModelArtifact  # noqa: F401
+from mlrun.common.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
-from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 

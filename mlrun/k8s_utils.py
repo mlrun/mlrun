@@ -22,7 +22,7 @@ import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
@@ -452,10 +452,10 @@ class K8sHelper:
                 return None
 
         username = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
         )
         access_key = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
 
         return username, access_key
@@ -463,8 +463,10 @@ class K8sHelper:
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(access_key)
         secret_data = {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }
@@ -795,7 +797,7 @@ def generate_preemptible_node_selector_requirements(
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
     node selector operator represents a key's relationship to a set of values.
-    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    Valid operators are listed in :py:class:`~mlrun.common.schemas.NodeSelectorOperator`
     :param node_selector_operator: The operator of V1NodeSelectorRequirement
     :return: List[V1NodeSelectorRequirement]
     """
@@ -826,7 +828,7 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     :return: List contains one nodeSelectorTerm with multiple expressions.
     """
     # import here to avoid circular imports
-    from mlrun.api.schemas import NodeSelectorOperator
+    from mlrun.common.schemas import NodeSelectorOperator
 
     # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
     node_selector_requirements = generate_preemptible_node_selector_requirements(
@@ -849,7 +851,7 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
     :return: List of nodeSelectorTerms associated with the preemptible nodes.
     """
     # import here to avoid circular imports
-    from mlrun.api.schemas import NodeSelectorOperator
+    from mlrun.common.schemas import NodeSelectorOperator
 
     node_selector_terms = []
 

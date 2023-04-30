@@ -28,7 +28,7 @@ import v3io.dataplane
 import v3io_frames
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring

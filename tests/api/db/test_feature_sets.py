@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 import mlrun.feature_store as fstore
 import mlrun.utils.helpers
 from mlrun import errors
-from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
+from mlrun.common import schemas
 
 
 def _create_feature_set(name):

@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun.model
-from mlrun.api import schemas
+from mlrun.common import schemas
 
 
 class DBError(Exception):

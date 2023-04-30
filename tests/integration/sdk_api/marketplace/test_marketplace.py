@@ -40,18 +40,18 @@ class TestMarketplace(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_marketplace(self):
         db = mlrun.get_run_db()
 
-        default_source = mlrun.api.schemas.IndexedMarketplaceSource(
+        default_source = mlrun.common.schemas.IndexedMarketplaceSource(
             index=-1,
-            source=mlrun.api.schemas.MarketplaceSource.generate_default_source(),
+            source=mlrun.common.schemas.MarketplaceSource.generate_default_source(),
         )
         self._assert_source_lists_match([default_source])
 
-        new_source = mlrun.api.schemas.IndexedMarketplaceSource(
-            source=mlrun.api.schemas.MarketplaceSource(
-                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+        new_source = mlrun.common.schemas.IndexedMarketplaceSource(
+            source=mlrun.common.schemas.MarketplaceSource(
+                metadata=mlrun.common.schemas.MarketplaceObjectMetadata(
                     name="source-1", description="a private source"
                 ),
-                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                spec=mlrun.common.schemas.MarketplaceSourceSpec(
                     path="/local/path/to/source", channel="development"
                 ),
             )
@@ -60,13 +60,13 @@ class TestMarketplace(tests.integration.sdk_api.base.TestMLRunIntegration):
         new_source.index = 1
         self._assert_source_lists_match([new_source, default_source])
 
-        new_source_2 = mlrun.api.schemas.IndexedMarketplaceSource(
+        new_source_2 = mlrun.common.schemas.IndexedMarketplaceSource(
             index=1,
-            source=mlrun.api.schemas.MarketplaceSource(
-                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+            source=mlrun.common.schemas.MarketplaceSource(
+                metadata=mlrun.common.schemas.MarketplaceObjectMetadata(
                     name="source-2", description="2nd private source"
                 ),
-                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                spec=mlrun.common.schemas.MarketplaceSourceSpec(
                     path="/local/path/to/source", channel="prod"
                 ),
             ),

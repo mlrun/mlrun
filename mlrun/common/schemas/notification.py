@@ -11,25 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import http
-
-import fastapi.testclient
-import sqlalchemy.orm
-
-import mlrun.common.schemas
-import mlrun.config
 
 
-def test_health(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
+import mlrun.common.types
 
-    # sanity
-    response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.OK.value
 
-    # fail
-    mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.offline
-    response = client.get("healthz")
-    assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
+class NotificationSeverity(mlrun.common.types.StrEnum):
+    INFO = "info"
+    DEBUG = "debug"
+    VERBOSE = "verbose"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class NotificationStatus(mlrun.common.types.StrEnum):
+    PENDING = "pending"
+    SENT = "sent"
+    ERROR = "error"

@@ -20,12 +20,12 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.initial_data
 import mlrun.errors
-from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from mlrun.api.schemas.artifact import ArtifactCategories
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
+from mlrun.common import schemas
+from mlrun.common.schemas.artifact import ArtifactCategories
 
 
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):

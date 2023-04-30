@@ -17,9 +17,9 @@ import datetime
 from typing import List, Optional, Union
 
 import mlrun.errors
+from mlrun.common.schemas import ModelEndpoint
 
-from ..api import schemas
-from ..api.schemas import ModelEndpoint
+from ..common import schemas
 from ..config import config
 from ..utils import logger
 from .base import RunDBInterface

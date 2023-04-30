@@ -23,11 +23,11 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.scheduler
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -44,7 +44,7 @@ class Projects(
         }
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
         logger.debug("Creating project", project=project)
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
@@ -53,7 +53,7 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         logger.debug("Storing project", name=name, project=project)
         mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
@@ -63,7 +63,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         logger.debug(
             "Patching project", name=name, project=project, patch_mode=patch_mode
@@ -76,12 +76,12 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         if (
             deletion_strategy.is_restricted()
-            or deletion_strategy == mlrun.api.schemas.DeletionStrategy.check
+            or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
         ):
             if not mlrun.api.utils.singletons.db.get_db().is_project_exists(
                 session, name
@@ -91,7 +91,7 @@ class Projects(
                 session, name
             )
             self._verify_project_has_no_external_resources(name)
-            if deletion_strategy == mlrun.api.schemas.DeletionStrategy.check:
+            if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
             self.delete_project_resources(session, name)
@@ -142,7 +142,7 @@ class Projects(
         # log collector service will delete the logs, so we don't need to do it here
         if (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.legacy
+            == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             mlrun.api.crud.Logs().delete_logs(name)
 
@@ -160,18 +160,18 @@ class Projects(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         return mlrun.api.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         return mlrun.api.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
         )
@@ -181,14 +181,14 @@ class Projects(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
             session,
             owner,
-            mlrun.api.schemas.ProjectsFormat.name_only,
+            mlrun.common.schemas.ProjectsFormat.name_only,
             labels,
             state,
             names,
@@ -196,13 +196,13 @@ class Projects(
         project_summaries = await self.generate_projects_summaries(
             projects_output.projects
         )
-        return mlrun.api.schemas.ProjectSummariesOutput(
+        return mlrun.common.schemas.ProjectSummariesOutput(
             project_summaries=project_summaries
         )
 
     async def get_project_summary(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
         await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
         project_summaries = await self.generate_projects_summaries([name])
@@ -210,7 +210,7 @@ class Projects(
 
     async def generate_projects_summaries(
         self, projects: typing.List[str]
-    ) -> typing.List[mlrun.api.schemas.ProjectSummary]:
+    ) -> typing.List[mlrun.common.schemas.ProjectSummary]:
         (
             project_to_files_count,
             project_to_schedule_count,
@@ -223,7 +223,7 @@ class Projects(
         project_summaries = []
         for project in projects:
             project_summaries.append(
-                mlrun.api.schemas.ProjectSummary(
+                mlrun.common.schemas.ProjectSummary(
                     name=project,
                     files_count=project_to_files_count.get(project, 0),
                     schedules_count=project_to_schedule_count.get(project, 0),
@@ -294,7 +294,7 @@ class Projects(
     @staticmethod
     def _list_pipelines(
         session,
-        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
     ):
         return mlrun.api.crud.Pipelines().list_pipelines(session, "*", format_=format_)
 

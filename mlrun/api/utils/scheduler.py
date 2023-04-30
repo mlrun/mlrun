@@ -31,9 +31,9 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
 import mlrun.errors
-from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
+from mlrun.common import schemas
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import RunObject
@@ -73,7 +73,7 @@ class Scheduler:
         try:
             if (
                 mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.api.schemas.ClusterizationRole.chief
+                == mlrun.common.schemas.ClusterizationRole.chief
             ):
                 self._reload_schedules(db_session)
         except Exception as exc:
@@ -104,7 +104,7 @@ class Scheduler:
     def create_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
         kind: schemas.ScheduleKinds,
@@ -177,7 +177,7 @@ class Scheduler:
     def update_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
         scheduled_object: Union[Dict, Callable] = None,
@@ -309,7 +309,7 @@ class Scheduler:
     async def invoke_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
     ):
@@ -335,7 +335,7 @@ class Scheduler:
 
     def _ensure_auth_info_has_access_key(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         kind: schemas.ScheduleKinds,
     ):
         import mlrun.api.crud
@@ -371,7 +371,7 @@ class Scheduler:
 
     def _store_schedule_secrets_using_auth_secret(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ) -> str:
         # import here to avoid circular imports
         import mlrun.api.crud
@@ -388,8 +388,8 @@ class Scheduler:
                 auth_info.username = ""
 
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-                mlrun.api.schemas.AuthSecretData(
-                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                mlrun.common.schemas.AuthSecretData(
+                    provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                     username=auth_info.username,
                     access_key=auth_info.access_key,
                 )
@@ -400,7 +400,7 @@ class Scheduler:
     #       are sure we are far enough that it's no longer going to be used (or keep, and use for other things).
     def _store_schedule_secrets(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
     ):
@@ -602,7 +602,7 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
@@ -632,7 +632,7 @@ class Scheduler:
         scheduled_object: Any,
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
@@ -706,7 +706,7 @@ class Scheduler:
                         if access_key:
                             need_to_update_credentials = True
 
-                auth_info = mlrun.api.schemas.AuthInfo(
+                auth_info = mlrun.common.schemas.AuthInfo(
                     username=username,
                     access_key=access_key,
                     # enriching with control plane tag because scheduling a function requires control plane
@@ -767,7 +767,7 @@ class Scheduler:
         # running on chief.
         if (
             mlrun.mlconf.httpdb.clusterization.role
-            == mlrun.api.schemas.ClusterizationRole.chief
+            == mlrun.common.schemas.ClusterizationRole.chief
         ):
             job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
             job = self._scheduler.get_job(job_id)
@@ -813,7 +813,7 @@ class Scheduler:
         project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
@@ -858,7 +858,7 @@ class Scheduler:
         project_name,
         schedule_name,
         schedule_concurrency_limit,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
@@ -872,7 +872,7 @@ class Scheduler:
         if "task" in scheduled_object and "metadata" in scheduled_object["task"]:
             scheduled_object["task"]["metadata"].setdefault("labels", {})
             scheduled_object["task"]["metadata"]["labels"][
-                schemas.constants.LabelNames.schedule_name
+                mlrun.common.schemas.constants.LabelNames.schedule_name
             ] = schedule_name
 
         return await fastapi.concurrency.run_in_threadpool(
@@ -927,7 +927,7 @@ class Scheduler:
                 db_session,
                 states=RunStates.non_terminal_states(),
                 project=project_name,
-                labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+                labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
             )
             if len(active_runs) >= schedule_concurrency_limit:
                 logger.warn(
@@ -965,7 +965,7 @@ class Scheduler:
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(
                     db_session,
-                    mlrun.api.schemas.AuthInfo(
+                    mlrun.common.schemas.AuthInfo(
                         username=project_owner.username,
                         access_key=project_owner.access_key,
                         # enriching with control plane tag because scheduling a function requires control plane

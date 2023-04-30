@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 import mlrun.model_monitoring
-from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 
 
 class ModelMonitoringStoreKinds:

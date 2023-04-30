@@ -33,7 +33,6 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.main
-import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.log_collector
 import mlrun.api.utils.singletons.db
@@ -43,6 +42,7 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.schemas
 import mlrun.errors
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
@@ -86,7 +86,7 @@ def test_redirection_from_worker_to_chief_delete_project(
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     project = "test-project"
     endpoint = f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}"
-    for strategy in mlrun.api.schemas.DeletionStrategy:
+    for strategy in mlrun.common.schemas.DeletionStrategy:
         headers = {"x-mlrun-deletion-strategy": strategy.value}
         for test_case in [
             # deleting schedule failed for unknown reason
@@ -134,8 +134,8 @@ def test_create_project_failure_already_exists(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     name1 = f"prj-{uuid4().hex}"
-    project_1 = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
+    project_1 = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name1),
     )
 
     # create
@@ -192,7 +192,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -201,7 +201,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -210,7 +210,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -249,7 +249,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -258,7 +258,7 @@ def test_delete_project_with_resources(
     response = client.delete(
         f"projects/{project_to_remove}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -269,16 +269,16 @@ def test_list_and_get_project_summaries(
 ) -> None:
     # create empty project
     empty_project_name = "empty-project"
-    empty_project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
+    empty_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=empty_project_name),
     )
     response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
     # create project with resources
     project_name = "project-with-resources"
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
     )
     response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
@@ -359,7 +359,7 @@ def test_list_and_get_project_summaries(
 
     # list project summaries
     response = client.get("project-summaries")
-    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
@@ -381,7 +381,7 @@ def test_list_and_get_project_summaries(
 
     # get project summary
     response = client.get(f"project-summaries/{project_name}")
-    project_summary = mlrun.api.schemas.ProjectSummary(**response.json())
+    project_summary = mlrun.common.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
         files_count,
@@ -402,8 +402,8 @@ def test_list_project_summaries_different_installation_modes(
     """
     # create empty project
     empty_project_name = "empty-project"
-    empty_project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=empty_project_name),
+    empty_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=empty_project_name),
     )
     response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
@@ -418,7 +418,7 @@ def test_list_project_summaries_different_installation_modes(
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
-    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
     _assert_project_summary(
@@ -440,7 +440,7 @@ def test_list_project_summaries_different_installation_modes(
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
-    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
     _assert_project_summary(
@@ -462,7 +462,7 @@ def test_list_project_summaries_different_installation_modes(
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
-    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
     _assert_project_summary(
@@ -484,7 +484,7 @@ def test_list_project_summaries_different_installation_modes(
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
-    project_summaries_output = mlrun.api.schemas.ProjectSummariesOutput(
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
     _assert_project_summary(
@@ -506,9 +506,9 @@ def test_delete_project_deletion_strategy_check(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.api.schemas.ProjectSpec(),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
     )
 
     # create
@@ -520,7 +520,7 @@ def test_delete_project_deletion_strategy_check(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -542,7 +542,7 @@ def test_delete_project_deletion_strategy_check(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.check.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.check.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -608,7 +608,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     response = client.delete(
         f"projects/{project_name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -635,9 +635,9 @@ def test_delete_project_deletion_strategy_check_external_resource(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     mlrun.mlconf.namespace = "test-namespace"
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.api.schemas.ProjectSpec(),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
     )
 
     # create
@@ -652,7 +652,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -662,7 +662,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     response = client.delete(
         f"projects/{project.metadata.name}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response
@@ -674,14 +674,16 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
+    mlrun.config.config.log_collector.mode = (
+        mlrun.common.schemas.LogsCollectorMode.sidecar
+    )
 
     project_name = "project-name"
 
     mlrun.mlconf.namespace = "test-namespace"
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.api.schemas.ProjectSpec(),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(),
     )
 
     # create
@@ -720,8 +722,8 @@ def test_list_projects_leader_format(
     project_names = []
     for _ in range(5):
         project_name = f"prj-{uuid4().hex}"
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         )
         mlrun.api.utils.singletons.db.get_db().create_project(db, project)
         project_names.append(project_name)
@@ -729,9 +731,9 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.common.schemas.ProjectsFormat.leader},
         headers={
-            mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
+            mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
     )
     returned_project_names = [
@@ -758,9 +760,9 @@ def test_projects_crud(
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
 
     name1 = f"prj-{uuid4().hex}"
-    project_1 = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=name1),
-        spec=mlrun.api.schemas.ProjectSpec(
+    project_1 = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name1),
+        spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
@@ -778,7 +780,7 @@ def test_projects_crud(
     project_patch = {
         "spec": {
             "description": "lemon",
-            "desired_state": mlrun.api.schemas.ProjectState.archived,
+            "desired_state": mlrun.common.schemas.ProjectState.archived,
         }
     }
     response = client.patch(f"projects/{name1}", json=project_patch)
@@ -797,9 +799,9 @@ def test_projects_crud(
 
     name2 = f"prj-{uuid4().hex}"
     labels_2 = {"key": "value"}
-    project_2 = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=name2, labels=labels_2),
-        spec=mlrun.api.schemas.ProjectSpec(description="banana2", source="source2"),
+    project_2 = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name2, labels=labels_2),
+        spec=mlrun.common.schemas.ProjectSpec(description="banana2", source="source2"),
     )
 
     # store
@@ -824,9 +826,9 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.common.schemas.ProjectsFormat.full}
     )
-    projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
+    projects_output = mlrun.common.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
     for project in projects_output.projects:
         for _project in expected:
@@ -874,7 +876,7 @@ def test_projects_crud(
 
     # list - names only - filter by state
     _list_project_names_and_assert(
-        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived}
+        client, [name1], params={"state": mlrun.common.schemas.ProjectState.archived}
     )
 
     # add function to project 1
@@ -887,7 +889,7 @@ def test_projects_crud(
     response = client.delete(
         f"projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.restricted.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.restricted.value
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
@@ -896,7 +898,7 @@ def test_projects_crud(
     response = client.delete(
         f"projects/{name1}",
         headers={
-            mlrun.api.schemas.HeaderNames.deletion_strategy: mlrun.api.schemas.DeletionStrategy.cascading.value
+            mlrun.common.schemas.HeaderNames.deletion_strategy: mlrun.common.schemas.DeletionStrategy.cascading.value
         },
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
@@ -916,11 +918,11 @@ def _create_resources_of_all_kinds(
 ):
     db = mlrun.api.utils.singletons.db.get_db()
     # add labels to project
-    project_schema = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(
+    project_schema = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
             name=project, labels={"key": "value"}
         ),
-        spec=mlrun.api.schemas.ProjectSpec(description="some desc"),
+        spec=mlrun.common.schemas.ProjectSpec(description="some desc"),
     )
     mlrun.api.utils.singletons.project_member.get_project_member().store_project(
         db_session, project, project_schema
@@ -1014,15 +1016,15 @@ def _create_resources_of_all_kinds(
         "bla": "blabla",
         "status": {"bla": "blabla"},
     }
-    schedule_cron_trigger = mlrun.api.schemas.ScheduleCronTrigger(year=1999)
+    schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_names = ["schedule_name_1", "schedule_name_2", "schedule_name_3"]
     for schedule_name in schedule_names:
         mlrun.api.utils.singletons.scheduler.get_scheduler().create_schedule(
             db_session,
-            mlrun.api.schemas.AuthInfo(),
+            mlrun.common.schemas.AuthInfo(),
             project,
             schedule_name,
-            mlrun.api.schemas.ScheduleKinds.job,
+            mlrun.common.schemas.ScheduleKinds.job,
             schedule,
             schedule_cron_trigger,
             labels,
@@ -1032,18 +1034,18 @@ def _create_resources_of_all_kinds(
     labels = {
         "owner": "nobody",
     }
-    feature_set = mlrun.api.schemas.FeatureSet(
-        metadata=mlrun.api.schemas.ObjectMetadata(
+    feature_set = mlrun.common.schemas.FeatureSet(
+        metadata=mlrun.common.schemas.ObjectMetadata(
             name="dummy", tag="latest", labels=labels
         ),
-        spec=mlrun.api.schemas.FeatureSetSpec(
+        spec=mlrun.common.schemas.FeatureSetSpec(
             entities=[
-                mlrun.api.schemas.Entity(
+                mlrun.common.schemas.Entity(
                     name="ent1", value_type="str", labels={"label": "1"}
                 )
             ],
             features=[
-                mlrun.api.schemas.Feature(
+                mlrun.common.schemas.Feature(
                     name="feat1", value_type="str", labels={"label": "1"}
                 )
             ],
@@ -1061,12 +1063,12 @@ def _create_resources_of_all_kinds(
                 feature_set.spec.index = index
                 db.store_feature_set(db_session, project, feature_set_name, feature_set)
 
-    feature_vector = mlrun.api.schemas.FeatureVector(
-        metadata=mlrun.api.schemas.ObjectMetadata(
+    feature_vector = mlrun.common.schemas.FeatureVector(
+        metadata=mlrun.common.schemas.ObjectMetadata(
             name="dummy", tag="latest", labels=labels
         ),
-        spec=mlrun.api.schemas.ObjectSpec(),
-        status=mlrun.api.schemas.ObjectStatus(state="created"),
+        spec=mlrun.common.schemas.ObjectSpec(),
+        status=mlrun.common.schemas.ObjectStatus(state="created"),
     )
     feature_vector_names = ["feature_vector_1", "feature_vector_2", "feature_vector_3"]
     feature_vector_tags = ["some_tag", "some_tag2", "some_tag3"]
@@ -1087,7 +1089,7 @@ def _create_resources_of_all_kinds(
         db_session,
         name="task",
         project=project,
-        state=mlrun.api.schemas.BackgroundTaskState.running,
+        state=mlrun.common.schemas.BackgroundTaskState.running,
     )
 
 
@@ -1280,7 +1282,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",
@@ -1297,14 +1299,14 @@ def _list_project_names_and_assert(
 
 
 def _assert_project_response(
-    expected_project: mlrun.api.schemas.Project, response, extra_exclude: dict = None
+    expected_project: mlrun.common.schemas.Project, response, extra_exclude: dict = None
 ):
-    project = mlrun.api.schemas.Project(**response.json())
+    project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
 
 
 def _assert_project_summary(
-    project_summary: mlrun.api.schemas.ProjectSummary,
+    project_summary: mlrun.common.schemas.ProjectSummary,
     files_count: int,
     feature_sets_count: int,
     models_count: int,
@@ -1323,8 +1325,8 @@ def _assert_project_summary(
 
 
 def _assert_project(
-    expected_project: mlrun.api.schemas.Project,
-    project: mlrun.api.schemas.Project,
+    expected_project: mlrun.common.schemas.Project,
+    project: mlrun.common.schemas.Project,
     extra_exclude: dict = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
@@ -1422,11 +1424,11 @@ def _create_runs(
 def _create_schedules(client: TestClient, project_name, schedules_count):
     for index in range(schedules_count):
         schedule_name = f"schedule-name-{str(uuid4())}"
-        schedule = mlrun.api.schemas.ScheduleInput(
+        schedule = mlrun.common.schemas.ScheduleInput(
             name=schedule_name,
-            kind=mlrun.api.schemas.ScheduleKinds.job,
+            kind=mlrun.common.schemas.ScheduleKinds.job,
             scheduled_object={"metadata": {"name": "something"}},
-            cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
+            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(year=1999),
         )
         response = client.post(
             f"projects/{project_name}/schedules", json=schedule.dict()

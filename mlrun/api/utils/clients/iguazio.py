@@ -27,8 +27,8 @@ import fastapi
 import requests.adapters
 from fastapi.concurrency import run_in_threadpool
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
@@ -79,7 +79,7 @@ class Client(
         super().__init__(*args, **kwargs)
         self._session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
             verbose=True,
         )
         self._api_url = mlrun.mlconf.iguazio_api_url
@@ -123,7 +123,7 @@ class Client(
 
     def verify_request_session(
         self, request: fastapi.Request
-    ) -> mlrun.api.schemas.AuthInfo:
+    ) -> mlrun.common.schemas.AuthInfo:
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
@@ -140,7 +140,7 @@ class Client(
             response.headers, response.json()
         )
 
-    def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
+    def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
         response = self._send_request_to_api(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
@@ -189,7 +189,7 @@ class Client(
     def create_project(
         self,
         session: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
         wait_for_completion: bool = True,
     ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
@@ -202,7 +202,7 @@ class Client(
         self,
         session: str,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
@@ -212,7 +212,7 @@ class Client(
         self,
         session: str,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
         logger.debug(
@@ -221,8 +221,8 @@ class Client(
             deletion_strategy=deletion_strategy,
         )
         body = self._transform_mlrun_project_to_iguazio_project(
-            mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
             )
         )
         headers = {
@@ -266,7 +266,7 @@ class Client(
         updated_after: typing.Optional[datetime.datetime] = None,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[
-        typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
+        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
     ]:
         params = {}
         if updated_after is not None:
@@ -300,14 +300,14 @@ class Client(
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
     def get_project_owner(
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.ProjectOwner:
+    ) -> mlrun.common.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, enrich_owner_access_key=True
         )
@@ -323,15 +323,15 @@ class Client(
                 f"Unable to enrich project owner for project {name},"
                 f" because project has no owner configured"
             )
-        return mlrun.api.schemas.ProjectOwner(
+        return mlrun.common.schemas.ProjectOwner(
             username=owner_username,
             access_key=owner_access_key,
         )
 
     def format_as_leader_project(
-        self, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.IguazioProject:
-        return mlrun.api.schemas.IguazioProject(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        return mlrun.common.schemas.IguazioProject(
             data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
         )
 
@@ -372,7 +372,7 @@ class Client(
 
     def _post_project_to_iguazio(
         self, session: str, body: dict
-    ) -> typing.Tuple[mlrun.api.schemas.Project, str]:
+    ) -> typing.Tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
             "POST", "projects", "Failed creating project in Iguazio", session, json=body
         )
@@ -384,7 +384,7 @@ class Client(
 
     def _put_project_to_iguazio(
         self, session: str, name: str, body: dict
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         response = self._send_request_to_api(
             "PUT",
             f"projects/__name__/{name}",
@@ -410,7 +410,7 @@ class Client(
 
     def _get_project_from_iguazio(
         self, session: str, name: str, include_owner_session: bool = False
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
@@ -466,7 +466,7 @@ class Client(
         self,
         response_headers: typing.Mapping[str, typing.Any],
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> mlrun.api.schemas.AuthInfo:
+    ) -> mlrun.common.schemas.AuthInfo:
 
         (
             username,
@@ -487,7 +487,7 @@ class Client(
         user_id = user_id_from_body or user_id
         group_ids = group_ids_from_body or group_ids
 
-        auth_info = mlrun.api.schemas.AuthInfo(
+        auth_info = mlrun.common.schemas.AuthInfo(
             username=username,
             session=session,
             user_id=user_id,
@@ -546,7 +546,7 @@ class Client(
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ) -> dict:
         body = {
             "data": {
@@ -583,7 +583,7 @@ class Client(
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_mlrun_project_attribute(
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         project_dict = project.dict(
             exclude_unset=True,
@@ -617,7 +617,7 @@ class Client(
     @staticmethod
     def _transform_iguazio_project_to_mlrun_project(
         iguazio_project,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         mlrun_project_without_common_fields = json.loads(
             iguazio_project["attributes"].get("mlrun_project", "{}")
         )
@@ -625,14 +625,16 @@ class Client(
         mlrun_project_without_common_fields.setdefault("metadata", {})[
             "name"
         ] = iguazio_project["attributes"]["name"]
-        mlrun_project = mlrun.api.schemas.Project(**mlrun_project_without_common_fields)
+        mlrun_project = mlrun.common.schemas.Project(
+            **mlrun_project_without_common_fields
+        )
         mlrun_project.metadata.created = datetime.datetime.fromisoformat(
             iguazio_project["attributes"]["created_at"]
         )
-        mlrun_project.spec.desired_state = mlrun.api.schemas.ProjectDesiredState(
+        mlrun_project.spec.desired_state = mlrun.common.schemas.ProjectDesiredState(
             iguazio_project["attributes"]["admin_status"]
         )
-        mlrun_project.status.state = mlrun.api.schemas.ProjectState(
+        mlrun_project.status.state = mlrun.common.schemas.ProjectState(
             iguazio_project["attributes"]["operational_status"]
         )
         if iguazio_project["attributes"].get("description"):
@@ -677,11 +679,11 @@ class Client(
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
         if "projects" in path:
-            if mlrun.api.schemas.HeaderNames.projects_role not in kwargs.get(
+            if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
                 "headers", {}
             ):
                 kwargs.setdefault("headers", {})[
-                    mlrun.api.schemas.HeaderNames.projects_role
+                    mlrun.common.schemas.HeaderNames.projects_role
                 ] = "mlrun"
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
@@ -755,7 +757,7 @@ class AsyncClient(Client):
 
     async def verify_request_session(
         self, request: fastapi.Request
-    ) -> mlrun.api.schemas.AuthInfo:
+    ) -> mlrun.common.schemas.AuthInfo:
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
@@ -772,7 +774,7 @@ class AsyncClient(Client):
                 response.headers, await response.json()
             )
 
-    async def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
+    async def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
         async with self._send_request_to_api_async(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
@@ -812,6 +814,6 @@ class AsyncClient(Client):
         if not self._async_session:
             self._async_session = mlrun.utils.AsyncClientWithRetry(
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
             )

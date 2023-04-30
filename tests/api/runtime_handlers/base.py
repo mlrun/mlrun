@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.crud as crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.runtimes.constants
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
@@ -150,14 +150,16 @@ class TestRuntimeHandlerBase:
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
         if group_by is None:
             project = "*"
             label_selector = runtime_handler._get_default_label_selector()
             assertion_func = TestRuntimeHandlerBase._assert_list_resources_response
-        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+        elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.job:
             project = self.project
             label_selector = ",".join(
                 [
@@ -168,7 +170,7 @@ class TestRuntimeHandlerBase:
             assertion_func = (
                 TestRuntimeHandlerBase._assert_list_resources_grouped_by_job_response
             )
-        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+        elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             project = self.project
             label_selector = ",".join(
                 [
@@ -213,7 +215,7 @@ class TestRuntimeHandlerBase:
 
     def _assert_list_resources_grouped_by_job_response(
         self,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
@@ -229,7 +231,7 @@ class TestRuntimeHandlerBase:
 
     def _assert_list_resources_grouped_by_project_response(
         self,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
@@ -253,7 +255,7 @@ class TestRuntimeHandlerBase:
 
     def _assert_list_resources_grouped_by_response(
         self,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         group_by_field_extractor,
         expected_crds=None,
         expected_pods=None,
@@ -285,7 +287,7 @@ class TestRuntimeHandlerBase:
     def _assert_resource_in_response_resources(
         expected_resource_type: str,
         expected_resource: dict,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         resources_field_name: str,
         group_by_field_extractor,
     ):
@@ -323,7 +325,7 @@ class TestRuntimeHandlerBase:
 
     def _assert_list_resources_response(
         self,
-        resources: mlrun.api.schemas.RuntimeResources,
+        resources: mlrun.common.schemas.RuntimeResources,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,

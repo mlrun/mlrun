@@ -24,7 +24,7 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
-from mlrun.api import schemas
+from mlrun.common import schemas
 from mlrun.utils.vault import add_vault_user_secrets
 
 router = fastapi.APIRouter()
@@ -34,7 +34,7 @@ router = fastapi.APIRouter()
 async def store_project_secrets(
     project: str,
     secrets: schemas.SecretsData,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -50,10 +50,10 @@ async def store_project_secrets(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         secrets.provider,
-        mlrun.api.schemas.AuthorizationAction.create,
+        mlrun.common.schemas.AuthorizationAction.create,
         auth_info,
     )
     await run_in_threadpool(
@@ -68,7 +68,7 @@ async def delete_project_secrets(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -81,10 +81,10 @@ async def delete_project_secrets(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.delete,
+        mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
     await run_in_threadpool(
@@ -99,7 +99,7 @@ async def list_project_secret_keys(
     project: str,
     provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -111,10 +111,10 @@ async def list_project_secret_keys(
         auth_info.session,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return await run_in_threadpool(
@@ -128,7 +128,7 @@ async def list_project_secrets(
     secrets: List[str] = fastapi.Query(None, alias="secret"),
     provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
     token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -140,10 +140,10 @@ async def list_project_secrets(
         auth_info.session,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return await run_in_threadpool(

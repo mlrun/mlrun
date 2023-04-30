@@ -24,7 +24,7 @@ import yaml
 
 import mlrun.errors
 from mlrun import config as mlconf
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.db.httpdb import HTTPRunDB
 
 namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"

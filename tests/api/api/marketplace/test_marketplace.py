@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.api.conftest
 from mlrun.config import config
 
@@ -210,7 +210,7 @@ def test_marketplace_source_manager(
                 for key, value in credentials.items()
             }
         )
-        source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+        source_object = mlrun.common.schemas.MarketplaceSource(**source_dict["source"])
         manager.add_source(source_object)
 
     k8s_secrets_mock.assert_project_secrets(
@@ -257,7 +257,7 @@ def test_marketplace_default_source(
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
     manager = mlrun.api.crud.Marketplace()
-    source_object = mlrun.api.schemas.MarketplaceSource.generate_default_source()
+    source_object = mlrun.common.schemas.MarketplaceSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
     print(f"Retrieved function catalog. Has {len(catalog.catalog)} functions in it.")
@@ -343,7 +343,7 @@ def test_marketplace_get_asset(
             "source", "secret"
         ): credentials["secret"]
     }
-    source_object = mlrun.api.schemas.MarketplaceSource(**source_dict["source"])
+    source_object = mlrun.common.schemas.MarketplaceSource(**source_dict["source"])
     manager.add_source(source_object)
     k8s_secrets_mock.assert_project_secrets(
         config.marketplace.k8s_secrets_project_name, expected_credentials

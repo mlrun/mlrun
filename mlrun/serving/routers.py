@@ -26,14 +26,14 @@ import numpy as np
 import mlrun
 import mlrun.model_monitoring
 import mlrun.utils.model_monitoring
-from mlrun.utils import logger, now_date, parse_versioned_object_uri
-
-from ..api.schemas import (
+from mlrun.common.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
+from mlrun.utils import logger, now_date, parse_versioned_object_uri
+
 from ..config import config
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body

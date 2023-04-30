@@ -33,7 +33,7 @@ import mlrun.artifacts.base
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.api import schemas
+from mlrun.common import schemas
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -677,7 +677,7 @@ def test_project_file_db_roundtrip(create_server):
     project_name = "project-name"
     description = "project description"
     goals = "project goals"
-    desired_state = mlrun.api.schemas.ProjectState.archived
+    desired_state = mlrun.common.schemas.ProjectState.archived
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"

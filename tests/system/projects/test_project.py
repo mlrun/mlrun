@@ -511,6 +511,32 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
+    def test_kfp_from_local_code(self):
+        name = "kfp-from-local-code"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+
+        handler_fn = project.set_function(
+            func="./assets/handler.py",
+            handler="my_func",
+            name="my-func",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        project.build_function(handler_fn)
+
+        project.set_workflow(
+            "main", "./assets/handler_workflow.py", handler="job_pipeline"
+        )
+        project.save()
+
+        run = project.run(
+            "main",
+            watch=True,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"

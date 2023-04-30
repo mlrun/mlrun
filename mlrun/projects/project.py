@@ -585,8 +585,6 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
-        if self._source in [".", "./"]:
-            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -1044,8 +1042,14 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
-            if self.spec.context and not workflow_path.startswith("/"):
-                workflow_path = path.join(self.spec.context, workflow_path)
+            if (
+                self.context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(self.context)
+            ):
+                workflow_path = path.join(self.context, workflow_path)
             with open(workflow_path, "r") as fp:
                 txt = fp.read()
             workflow = {"name": name, "code": txt}

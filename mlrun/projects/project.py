@@ -585,8 +585,8 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
-        if self._source in [".", "./"]:
-            return path.abspath(self.context)
+        # if self._source in [".", "./"]:
+        #     return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -1044,8 +1044,12 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
-            if self.spec.context and not workflow_path.startswith("/"):
-                workflow_path = path.join(self.spec.context, workflow_path)
+            if (
+                self.context
+                and not workflow_path.startswith("/")
+                and not workflow_path.startswith(self.context)
+            ):
+                workflow_path = path.join(self.context, workflow_path)
             with open(workflow_path, "r") as fp:
                 txt = fp.read()
             workflow = {"name": name, "code": txt}
@@ -1184,7 +1188,7 @@ class MlrunProject(ModelObj):
         # We don't want to change the url if the project has no context or if it is already absolute
         in_context = self.spec.context and not url.startswith("/")
         if in_context:
-            url = path.normpath(path.join(self.spec.get_code_path(), url))
+            url = path.abspath(path.normpath(path.join(self.spec.get_code_path(), url)))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
             raise mlrun.errors.MLRunNotFoundError(f"{url} not found")

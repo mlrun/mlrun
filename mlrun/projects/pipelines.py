@@ -116,7 +116,11 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
-            if context and not workflow_path.startswith("/"):
+            if (
+                context
+                and not workflow_path.startswith("/")
+                and not workflow_path.startswith(context)
+            ):
                 workflow_path = os.path.join(context, workflow_path)
         return workflow_path
 

@@ -96,8 +96,19 @@ class ModelEndpointTarget:
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
+    STREAM_PATH = "STREAM_PATH"
 
 
 class ModelMonitoringStoreKinds:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+
+
+class FileTargetKind:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"
+    STREAM = "stream"
+    PARQUET = "parquet"
+    LOG_STREAM = "log_stream"
+    DEFAULT_HTTP_SINK = "default_http_sink"

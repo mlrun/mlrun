@@ -32,7 +32,6 @@ pandas~=1.2, <1.5.0
 pyarrow>=10.0, <12
 pyyaml~=5.1
 requests~=2.22
-werkzeug~=2.2.3
 # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
 sqlalchemy~=1.4
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)

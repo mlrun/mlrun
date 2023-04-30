@@ -585,8 +585,6 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
-        # if self._source in [".", "./"]:
-        #     return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -1188,7 +1186,7 @@ class MlrunProject(ModelObj):
         # We don't want to change the url if the project has no context or if it is already absolute
         in_context = self.spec.context and not url.startswith("/")
         if in_context:
-            url = path.abspath(path.normpath(path.join(self.spec.get_code_path(), url)))
+            url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
             raise mlrun.errors.MLRunNotFoundError(f"{url} not found")

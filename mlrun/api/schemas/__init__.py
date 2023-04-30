@@ -14,11 +14,16 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+"""
+Schemas were moved to mlrun.common.schemas.
+For backwards compatibility with mlrun.api.schemas, we use this file to convert the old imports to the new ones.
+The DeprecationHelper class is used to print a deprecation warning when the old import is used, and return the new
+schema.
+"""
 
 import mlrun.common.schemas
 from mlrun.utils.helpers import DeprecationHelper
 
-# OldClsName = DeprecationHelper(NewClsName)
 ArtifactCategories = DeprecationHelper(mlrun.common.schemas.ArtifactCategories)
 ArtifactIdentifier = DeprecationHelper(mlrun.common.schemas.ArtifactIdentifier)
 ArtifactsFormat = DeprecationHelper(mlrun.common.schemas.ArtifactsFormat)

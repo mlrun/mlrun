@@ -1045,6 +1045,8 @@ class MlrunProject(ModelObj):
             if (
                 self.context
                 and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
                 and not workflow_path.startswith(self.context)
             ):
                 workflow_path = path.join(self.context, workflow_path)

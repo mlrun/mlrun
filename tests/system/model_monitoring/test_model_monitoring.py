@@ -238,6 +238,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
+        # 3 - invalid records are considered in the aggregated error count value
 
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
@@ -282,9 +283,19 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating Requests
-        iris_data = iris["data"].tolist()
+        # Simulating invalid requests
+        invalid_input = ["n", "s", "o", "-"]
+        for _ in range(10):
+            try:
+                serving_fn.invoke(
+                    f"v2/models/{model_name}/infer",
+                    json.dumps({"inputs": [invalid_input]}),
+                )
+            except RuntimeError:
+                pass
 
+        # Simulating valid requests
+        iris_data = iris["data"].tolist()
         t_end = monotonic() + simulation_time
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -293,7 +304,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.1))
 
-        # test metrics
+        # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -307,6 +318,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ]
         total = sum((m[1] for m in predictions_per_second))
         assert total > 0
+
+        # Validate error count value
+        assert endpoint.status.error_count == 10
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

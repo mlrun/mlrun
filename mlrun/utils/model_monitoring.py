@@ -156,6 +156,55 @@ def get_connection_string(project: str = None):
         )
 
 
+def get_stream_path(project: str = None):
+    # TODO: This function (as well as other methods in this file) includes both client and server side code. We will
+    #  need to refactor and adjust this file in the future.
+    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
+
+    if is_running_as_api():
+
+        # Running on API server side
+        import mlrun.api.crud.secrets
+        import mlrun.common.schemas
+
+        stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
+            project=project,
+            provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+            allow_secrets_from_k8s=True,
+            secret_key=model_monitoring_constants.ProjectSecretKeys.STREAM_PATH,
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    else:
+
+        import mlrun
+
+        stream_uri = mlrun.get_secret_or_env(
+            model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    if stream_uri.startswith("kafka://"):
+        if "?topic" in stream_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom kafka topic is not allowed"
+            )
+        # Add topic to stream kafka uri
+        stream_uri += f"?topic=monitoring_stream_{project}"
+
+    elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
+        # V3IO is not supported in CE mode, generating a default http stream path
+        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+
+    return stream_uri
+
+
 def validate_errors_and_metrics(endpoint: dict):
     """
     Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
@@ -171,7 +220,11 @@ def validate_errors_and_metrics(endpoint: dict):
     )
 
     # Validate default value for `error_count`
-    if endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null":
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
+    if (
+        model_monitoring_constants.EventFieldType.ERROR_COUNT in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null"
+    ):
         endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`

@@ -76,7 +76,8 @@ async def grafana_proxy_model_endpoints_search(
 
     :return: List of results. e.g. list of available project names.
     """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    if not mlrun.mlconf.is_ce_mode():
+        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(
         body

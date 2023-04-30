@@ -23,8 +23,10 @@ import uuid
 from typing import Optional, Union
 
 import mlrun
+import mlrun.utils.model_monitoring
 from mlrun.config import config
 from mlrun.errors import err_to_str
+from mlrun.model_monitoring import FileTargetKind
 from mlrun.secrets import SecretsStore
 
 from ..datastore import get_stream_pusher
@@ -37,31 +39,40 @@ from .utils import event_id_key, event_path_key
 
 
 class _StreamContext:
-    def __init__(self, enabled, parameters, function_uri):
+    """Handles the stream context for the events stream process. Includes the configuration for the output stream
+    that will be used for pushing the events from the nuclio model serving function"""
+
+    def __init__(self, enabled: bool, parameters: dict, function_uri: str):
+
+        """
+        Initialize _StreamContext object.
+        :param enabled:      A boolean indication for applying the stream context
+        :param parameters:   Dictionary of optional parameters, such as `log_stream` and `stream_args`. Note that these
+                             parameters might be relevant to the output source such as `kafka_bootstrap_servers` if
+                             the output source is from type Kafka.
+        :param function_uri: Full value of the function uri, usually it's <project-name>/<function-name>
+        """
+
         self.enabled = False
         self.hostname = socket.gethostname()
         self.function_uri = function_uri
         self.output_stream = None
         self.stream_uri = None
+        log_stream = parameters.get(FileTargetKind.LOG_STREAM, "")
 
-        log_stream = parameters.get("log_stream", "")
-        stream_uri = config.model_endpoint_monitoring.store_prefixes.default
-
-        if ((enabled and stream_uri) or log_stream) and function_uri:
+        if (enabled or log_stream) and function_uri:
             self.enabled = True
-
             project, _, _, _ = parse_versioned_object_uri(
                 function_uri, config.default_project
             )
 
-            stream_uri = stream_uri.format(project=project, kind="stream")
+            stream_uri = mlrun.utils.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
+                # Update the stream path to the log stream value
                 stream_uri = log_stream.format(project=project)
 
             stream_args = parameters.get("stream_args", {})
-
-            self.stream_uri = stream_uri
 
             self.output_stream = get_stream_pusher(stream_uri, **stream_args)
 

@@ -33,7 +33,12 @@ __all__ = [
 
 import mlrun.datastore.wasbfs
 
-from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_path
+from ..platforms.iguazio import (
+    HTTPOutputStream,
+    KafkaOutputStream,
+    OutputStream,
+    parse_path,
+)
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
@@ -69,7 +74,7 @@ def get_in_memory_items():
 
 
 def get_stream_pusher(stream_path: str, **kwargs):
-    """get a stream pusher object from URL, currently only support v3io stream
+    """get a stream pusher object from URL.
 
     common kwargs::
 
@@ -87,6 +92,8 @@ def get_stream_pusher(stream_path: str, **kwargs):
         return KafkaOutputStream(
             topic, bootstrap_servers, kwargs.get("kafka_producer_options")
         )
+    elif stream_path.startswith("http://") or stream_path.startswith("https://"):
+        return HTTPOutputStream(stream_path=stream_path)
     elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):

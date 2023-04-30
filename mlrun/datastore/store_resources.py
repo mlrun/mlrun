@@ -81,7 +81,7 @@ class ResourceCache:
             endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
-                V3ioDriver(webapi=endpoint),
+                V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
             return self._tabels[uri]

@@ -74,6 +74,7 @@ class SystemTestPreparer:
         mysql_password: str = None,
         purge_db: bool = False,
         debug: bool = False,
+        branch: str = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -107,6 +108,10 @@ class SystemTestPreparer:
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
+            "MLRUN_SYSTEM_TESTS_BRANCH": branch,
+            # Setting to MLRUN_SYSTEM_TESTS_GIT_TOKEN instead of GIT_TOKEN, to not affect tests which doesn't need it
+            # (e.g. tests which use public repos, therefor doesn't need that access token)
+            "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -532,12 +537,15 @@ class SystemTestPreparer:
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
 
-        get_mlrun_db_pod_name_cmd = self._get_pod_name_command(
+        mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
                 "app.kubernetes.io/component": "db",
                 "app.kubernetes.io/instance": "mlrun",
             },
         )
+        if not mlrun_db_pod_name_cmd:
+            self._logger.info("No mlrun db pod found")
+            return
 
         password = ""
         if self._mysql_password:
@@ -550,7 +558,7 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({get_mlrun_db_pod_name_cmd})",
+                f"$({mlrun_db_pod_name_cmd})",
                 "--",
                 drop_db_cmd,
             ],
@@ -723,6 +731,8 @@ def run(
     is_flag=True,
     help="Don't run the ci only show the commands that will be run",
 )
+@click.argument("branch", type=str, default=None, required=False)
+@click.argument("github-access-token", type=str, default=None, required=False)
 def env(
     mlrun_dbpath: str,
     webapi_direct_url: str,
@@ -733,6 +743,8 @@ def env(
     password: str,
     slack_webhook_url: str,
     debug: bool,
+    branch: str,
+    github_access_token: str,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_dbpath=mlrun_dbpath,
@@ -744,6 +756,8 @@ def env(
         password=password,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
+        branch=branch,
+        github_access_token=github_access_token,
     )
     try:
         system_test_preparer.prepare_local_env()

@@ -28,7 +28,7 @@ class LauncherFactory(object):
                     "Launch of local run inside the server is not allowed"
                 )
 
-            from mlrun.api import ServerSideLauncher
+            from mlrun.api.launcher import ServerSideLauncher
 
             return ServerSideLauncher()
 

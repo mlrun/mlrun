@@ -83,7 +83,20 @@ def test_build_config_preserve_order():
         assert function.spec.build.commands == commands
 
 
-def test_build_runtime_insecure_registries(monkeypatch):
+@pytest.mark.parametrize(
+    "pull_mode,push_mode,secret,flags_expected",
+    [
+        ("auto", "auto", "", True),
+        ("auto", "auto", "some-secret-name", False),
+        ("enabled", "enabled", "some-secret-name", True),
+        ("enabled", "enabled", "", True),
+        ("disabled", "disabled", "some-secret-name", False),
+        ("disabled", "disabled", "", False),
+    ],
+)
+def test_build_runtime_insecure_registries(
+    monkeypatch, pull_mode, push_mode, secret, flags_expected
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
@@ -96,62 +109,24 @@ def test_build_runtime_insecure_registries(monkeypatch):
     )
 
     insecure_flags = {"--insecure", "--insecure-pull"}
-    for case in [
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "auto",
-            "push_mode": "auto",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "some-secret-name",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "enabled",
-            "push_mode": "enabled",
-            "secret": "",
-            "flags_expected": True,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "some-secret-name",
-            "flags_expected": False,
-        },
-        {
-            "pull_mode": "disabled",
-            "push_mode": "disabled",
-            "secret": "",
-            "flags_expected": False,
-        },
-    ]:
-        mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = case["pull_mode"]
-        mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = case["push_mode"]
-        mlrun.mlconf.httpdb.builder.docker_registry_secret = case["secret"]
-        mlrun.builder.build_runtime(
-            mlrun.api.schemas.AuthInfo(),
-            function,
-        )
-        assert (
-            insecure_flags.issubset(
-                set(
-                    mlrun.builder.get_k8s_helper()
-                    .create_pod.call_args[0][0]
-                    .pod.spec.containers[0]
-                    .args
-                )
+    mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode = pull_mode
+    mlrun.mlconf.httpdb.builder.insecure_push_registry_mode = push_mode
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = secret
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    assert (
+        insecure_flags.issubset(
+            set(
+                mlrun.builder.get_k8s_helper()
+                .create_pod.call_args[0][0]
+                .pod.spec.containers[0]
+                .args
             )
-            == case["flags_expected"]
         )
+        == flags_expected
+    )
 
 
 def test_build_runtime_target_image(monkeypatch):
@@ -472,13 +447,17 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
+    project = mlrun.new_project("some-project")
+    project.set_secrets(
+        secrets={
+            "AWS_ACCESS_KEY_ID": "test-a",
+            "AWS_SECRET_ACCESS_KEY": "test-b",
+        }
+    )
+    function = project.set_function(
+        "hub://describe",
+        name="some-function",
         kind="job",
-        requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -488,6 +467,19 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
         env.to_dict() for env in pod_spec.containers[0].env
     ]
+
+    # ensure both envvars are set without values so they wont interfere with the iam policy
+    for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
+        assert {"name": env_name, "value": "", "value_from": None} in [
+            env.to_dict() for env in pod_spec.containers[0].env
+        ]
+
+    # 1 for the AWS_SDK_LOAD_CONFIG=true
+    # 2 for the AWS_ACCESS_KEY_ID="" and AWS_SECRET_ACCESS_KEY=""
+    # 1 for the project secret
+    # == 4
+    assert len(pod_spec.containers[0].env) == 4, "expected 4 env items"
+
     assert len(pod_spec.init_containers) == 2
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":

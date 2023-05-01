@@ -137,16 +137,12 @@ class KubejobRuntime(KubeResource):
             self.spec.build.image = image
         if base_image:
             self.spec.build.base_image = base_image
-        # if overwrite and requirements or commands passed, clear the existing commands
-        # (requirements are added to the commands parameter)
-        if (requirements or commands) and overwrite:
-            self.spec.build.commands = None
+        if commands:
+            self.with_commands(commands, overwrite=overwrite, verify_base_image=False)
         if requirements:
             self.with_requirements(
-                requirements, overwrite=False, verify_base_image=False
+                requirements, overwrite=overwrite, verify_base_image=False
             )
-        if commands:
-            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret is not None:
@@ -198,7 +194,13 @@ class KubejobRuntime(KubeResource):
                     or "/mlrun/" in build.base_image
                 )
 
-        if not build.source and not build.commands and not build.extra and with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"

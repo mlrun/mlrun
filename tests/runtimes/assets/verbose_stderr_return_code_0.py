@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = [
-    "V2ModelServer",
-    "VotingEnsemble",
-    "GraphServer",
-    "create_graph_server",
-    "GraphContext",
-    "TaskStep",
-    "RouterStep",
-    "QueueStep",
-    "ErrorStep",
-]
+import sys
 
-from .routers import ModelRouter, VotingEnsemble  # noqa
-from .server import GraphContext, GraphServer, create_graph_server  # noqa
-from .states import ErrorStep, QueueStep, RouterStep, TaskStep  # noqa
-from .v1_serving import MLModelServer, new_v1_model_server  # noqa
-from .v2_serving import V2ModelServer  # noqa
+print("some output")
+
+for i in range(10000):
+    print("123456789", file=sys.stderr)
+
+sys.exit(0)

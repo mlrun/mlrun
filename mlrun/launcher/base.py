@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import mlrun.errors
 import mlrun.model
+import mlrun.runtimes
 from mlrun.model import RunObject
-from mlrun.runtimes import BaseRuntime
 from mlrun.utils import logger
 
 run_modes = ["pass"]
@@ -93,7 +93,7 @@ class BaseLauncher(abc.ABC):
 
     def _validate_runtime(
         self,
-        runtime: BaseRuntime,
+        runtime: mlrun.runtimes.BaseRuntime,
         run: RunObject,
     ):
         mlrun.utils.helpers.verify_dict_items_type(

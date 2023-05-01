@@ -77,6 +77,7 @@ from .funcdoc import update_function_entry_points
 from .generators import get_generator
 from .utils import RunError, calc_hash, get_k8s, results_to_iter
 
+# TODO client-server-separation: remove run_modes once used only in launcher
 run_modes = ["pass"]
 spec_fields = [
     "command",

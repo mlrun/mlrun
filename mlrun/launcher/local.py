@@ -183,7 +183,7 @@ class ClientLocalLauncher(BaseLauncher):
         return fn
 
     @staticmethod
-    def _resolve_local_code_path(local_code_path: str) -> (str, typing.List[str]):
+    def _resolve_local_code_path(local_code_path: str) -> (str, List[str]):
         command = None
         args = []
         if local_code_path:
@@ -199,16 +199,14 @@ class ClientLocalLauncher(BaseLauncher):
     def execute(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: typing.Optional[
-            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
-        ] = None,
-        name: typing.Optional[str] = "",
-        project: typing.Optional[str] = "",
-        params: typing.Optional[dict] = None,
-        inputs: typing.Optional[Dict[str, str]] = None,
-        artifact_path: typing.Optional[str] = "",
-        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
-        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
+        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        artifact_path: Optional[str] = "",
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         run = self._enrich_run(
             runtime=runtime,

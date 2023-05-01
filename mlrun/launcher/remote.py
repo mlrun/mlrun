@@ -150,8 +150,8 @@ class ClientRemoteLauncher(BaseLauncher):
         self,
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
-        schedule: typing.Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
-        watch: typing.Optional[bool] = None,
+        schedule: Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
+        watch: Optional[bool] = None,
     ):
         if runtime._secrets:
             run.spec.secret_sources = runtime._secrets.to_serial()

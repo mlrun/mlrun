@@ -164,7 +164,7 @@ class BaseLauncher(abc.ABC):
         out_path=None,
         artifact_path=None,
         workdir=None,
-        notifications: typing.List[mlrun.model.Notification] = None,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         runspec.spec.handler = (
             handler or runspec.spec.handler or runtime.spec.default_handler or ""

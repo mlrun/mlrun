@@ -64,13 +64,18 @@ def post_report_session_finish_to_slack(
     session: Session, exitstatus: ExitCode, slack_webhook_url
 ):
     mlrun_version = os.getenv("MLRUN_VERSION", "")
+    mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
     total_executed_tests = session.testscollected
     total_failed_tests = session.testsfailed
+    text = ""
+    if mlrun_current_branch:
+        text += f"[{mlrun_current_branch}] "
+
     if exitstatus == ExitCode.OK:
-        text = f"All {total_executed_tests} tests passed successfully"
+        text += f"All {total_executed_tests} tests passed successfully"
     else:
-        text = f"{total_failed_tests} out of {total_executed_tests} tests failed"
+        text += f"{total_failed_tests} out of {total_executed_tests} tests failed"
 
     test_session_info = ""
     if mlrun_system_tests_component:

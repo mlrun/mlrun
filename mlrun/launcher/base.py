@@ -16,9 +16,15 @@ import ast
 import copy
 import typing
 import uuid
+from typing import Any, Dict
 
 import mlrun.errors
+import mlrun.model
+from mlrun.model import RunObject
+from mlrun.runtimes import BaseRuntime
 from mlrun.utils import logger
+
+run_modes = ["pass"]
 
 
 class BaseLauncher(abc.ABC):
@@ -58,10 +64,31 @@ class BaseLauncher(abc.ABC):
     def _enrich_runtime(runtime):
         pass
 
-    @staticmethod
-    @abc.abstractmethod
-    def _validate_runtime(runtime):
-        pass
+    def _validate_runtime(
+        self,
+        runtime: BaseRuntime,
+        run: RunObject,
+    ):
+        mlrun.utils.helpers.verify_dict_items_type(
+            "Inputs", run.spec.inputs, [str], [str]
+        )
+
+        if runtime.spec.mode and runtime.spec.mode not in run_modes:
+            raise ValueError(f'run mode can only be {",".join(run_modes)}')
+
+    def _verify_run_params(self, parameters: Dict[str, Any]):
+        for param_name, param_value in parameters.items():
+
+            if isinstance(param_value, dict):
+                # if the parameter is a dict, we might have some nested parameters,
+                # in this case we need to verify them as well recursively
+                self._verify_run_params(param_value)
+
+            # verify that integer parameters don't exceed a int64
+            if isinstance(param_value, int) and abs(param_value) >= 2**63:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"parameter {param_name} value {param_value} exceeds int64"
+                )
 
     @abc.abstractmethod
     def _save_or_push_notifications(self, runobj):

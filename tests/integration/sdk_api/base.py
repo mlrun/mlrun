@@ -142,8 +142,7 @@ class TestMLRunIntegration:
                 {
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
-                    # integration tests run in docker, and do no support sidecars for log collection
-                    "MLRUN__LOG_COLLECTOR__MODE": "legacy",
+                    "MLRUN_LOG_LEVEL": "DEBUG",
                 }
             ),
             cwd=TestMLRunIntegration.root_path,

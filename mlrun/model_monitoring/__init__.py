@@ -25,6 +25,7 @@ __all__ = [
     "EventKeyMetrics",
     "TimeSeriesTarget",
     "ModelEndpointTarget",
+    "FileTargetKind",
     "ProjectSecretKeys",
     "ModelMonitoringStoreKinds",
 ]
@@ -34,6 +35,7 @@ from .constants import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    FileTargetKind,
     ModelEndpointTarget,
     ModelMonitoringStoreKinds,
     ProjectSecretKeys,

@@ -73,7 +73,7 @@ class TestHorovodTFv2(TestDemo):
         trainer.spec.service_type = "NodePort"
 
         demo_project.set_function(trainer)
-        demo_project.set_function("hub://tf2_serving", "serving")
+        demo_project.set_function("hub://tf2-serving", "serving")
 
         demo_project.log_artifact(
             "images",

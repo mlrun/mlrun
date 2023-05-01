@@ -15,7 +15,7 @@ import getpass
 import os
 import pathlib
 import typing
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import mlrun.api.schemas.schedule
 import mlrun.db
@@ -29,6 +29,15 @@ from mlrun.utils import logger
 
 
 class ClientLocalLauncher(BaseLauncher):
+    """
+    ClientLocalLauncher is a launcher that runs the job locally.
+    Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).
+    """
+
+    def __init__(self, local: bool):
+        super(BaseLauncher).__init__()
+        self._is_run_local = local
+
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -67,7 +76,7 @@ class ClientLocalLauncher(BaseLauncher):
         auto_build: typing.Optional[bool] = None,
         param_file_secrets: typing.Optional[Dict[str, str]] = None,
         notifications: typing.Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         # do not allow local function to be scheduled
         if schedule is not None:
@@ -79,18 +88,26 @@ class ClientLocalLauncher(BaseLauncher):
 
         run = self._create_run_object(task)
 
-        local_function = self._create_local_function_for_execution(
-            runtime=runtime,
-            run=run,
-            local_code_path=local_code_path,
-            project=project,
-            name=name,
-            workdir=workdir,
-            handler=handler,
-        )
+        local_function = None
+        if self._is_run_local:
+            local_function = self._create_local_function_for_execution(
+                runtime=runtime,
+                run=run,
+                local_code_path=local_code_path,
+                project=project,
+                name=name,
+                workdir=workdir,
+                handler=handler,
+            )
+
+        # sanity check
+        elif runtime._is_remote:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "remote function cannot be executed locally"
+            )
 
         result = self.execute(
-            runtime=local_function,
+            runtime=local_function or runtime,
             task=run,
             name=name,
             params=params,
@@ -183,7 +200,7 @@ class ClientLocalLauncher(BaseLauncher):
         inputs: typing.Optional[Dict[str, str]] = None,
         artifact_path: typing.Optional[str] = "",
         notifications: typing.Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         run = self._enrich_run(
             runtime=runtime,

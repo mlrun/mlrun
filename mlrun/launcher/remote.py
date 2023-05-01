@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import typing
+from typing import Dict, List, Union
+
+import mlrun.runtimes
 from mlrun.launcher.base import BaseLauncher
 
 
@@ -26,8 +30,38 @@ class ClientRemoteLauncher(BaseLauncher):
     def save(runtime):
         pass
 
-    @staticmethod
-    def launch(runtime):
+    def launch(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: typing.Optional[
+            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        ] = None,
+        handler: typing.Optional[str] = None,
+        name: typing.Optional[str] = "",
+        project: typing.Optional[str] = "",
+        params: typing.Optional[dict] = None,
+        inputs: typing.Optional[Dict[str, str]] = None,
+        out_path: typing.Optional[str] = "",
+        workdir: typing.Optional[str] = "",
+        artifact_path: typing.Optional[str] = "",
+        watch: typing.Optional[bool] = True,
+        # TODO: don't use schedule from API schemas but rather from mlrun client
+        schedule: typing.Optional[
+            typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: typing.Optional[
+            mlrun.model.HyperParamOptions
+        ] = None,  # :mlrun.model.HyperParamOptions
+        verbose: typing.Optional[bool] = None,
+        scrape_metrics: typing.Optional[bool] = None,
+        local: typing.Optional[bool] = False,
+        local_code_path: typing.Optional[str] = None,
+        auto_build: typing.Optional[bool] = None,
+        param_file_secrets: typing.Optional[Dict[str, str]] = None,
+        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
+        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
+    ):
         pass
 
     @staticmethod

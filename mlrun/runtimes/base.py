@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
 import mlrun.errors
+import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -48,7 +49,6 @@ from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
-from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
 from ..lists import RunList
@@ -76,8 +76,7 @@ from ..utils import (
 )
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
-from .generators import get_generator
-from .utils import RunError, calc_hash, results_to_iter
+from .utils import RunError, calc_hash
 
 # TODO: remove run_modes once used only in launcher
 run_modes = ["pass"]
@@ -255,29 +254,6 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
-    def _enrich_on_client_side(self):
-        self.try_auto_mount_based_on_config()
-        self._fill_credentials()
-
-    def _enrich_on_server_side(self):
-        pass
-
-    def _enrich_on_server_and_client_sides(self):
-        """
-        enrich function also in client side and also on server side
-        """
-        pass
-
-    def _enrich_function(self):
-        """
-        enriches the function based on the flow state we run in (sdk or server)
-        """
-        if self._use_remote_api():
-            self._enrich_on_client_side()
-        else:
-            self._enrich_on_server_side()
-        self._enrich_on_server_and_client_sides()
-
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -398,159 +374,12 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
-
-        if self.spec.mode and self.spec.mode not in run_modes:
-            raise ValueError(f'run mode can only be {",".join(run_modes)}')
-
-        self._enrich_function()
-
-        run = self._create_run_object(runspec)
-
-        if local:
-
-            # do not allow local function to be scheduled
-            if schedule is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "local and schedule cannot be used together"
-                )
-            result = self._run_local(
-                run,
-                local_code_path,
-                project,
-                name,
-                workdir,
-                handler,
-                params,
-                inputs,
-                returns,
-                artifact_path,
-                notifications=notifications,
-            )
-            self._save_or_push_notifications(result, local)
-            return result
-
-        run = self._enrich_run(
-            run,
-            handler,
-            project,
-            name,
-            params,
-            inputs,
-            returns,
-            hyperparams,
-            hyper_param_options,
-            verbose,
-            scrape_metrics,
-            out_path,
-            artifact_path,
-            workdir,
-            notifications,
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            self._is_remote, local
         )
-        self._validate_output_path(run)
-        db = self._get_db()
-
-        if not self.is_deployed():
-            if self.spec.build.auto_build or auto_build:
-                logger.info(
-                    "Function is not deployed and auto_build flag is set, starting deploy..."
-                )
-                self.deploy(skip_deployed=True, show_on_failure=True)
-            else:
-                raise RunError(
-                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
-                )
-
-        if self.verbose:
-            logger.info(f"runspec:\n{run.to_yaml()}")
-
-        # this is only client side relevant, as we won't set the user that is configured in the API
-        # TODO: client-server-separation: verify that clients are passing that as part of the request as
-        #  well as maybe failing if running in IGZ environment
-        if "V3IO_USERNAME" in environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
-
-        if not self.is_child:
-            db_str = "self" if self._is_api_server else self.spec.rundb
-            logger.info(
-                "Storing function",
-                name=run.metadata.name,
-                uid=run.metadata.uid,
-                db=db_str,
-            )
-            self._store_function(run, run.metadata, db)
-
-        # execute the job remotely (to a k8s cluster via the API service)
-        if self._use_remote_api():
-            return self._submit_job(run, schedule, db, watch)
-
-        elif self._is_remote and not self._is_api_server and not self.kfp:
-            logger.warning(
-                "warning!, Api url not set, " "trying to exec remote runtime locally"
-            )
-
-        execution = MLClientCtx.from_dict(
-            run.to_dict(),
-            db,
-            autocommit=False,
-            is_api=self._is_api_server,
-            store_run=False,
+        return launcher.launch(
+            runtime=self,
         )
-
-        self._validate_run_params(run.spec.parameters)
-
-        # create task generator (for child runs) from spec
-        task_generator = get_generator(
-            run.spec, execution, param_file_secrets=param_file_secrets
-        )
-        if task_generator:
-            # verify valid task parameters
-            tasks = task_generator.generate(run)
-            for task in tasks:
-                self._validate_run_params(task.spec.parameters)
-
-        # post verifications, store execution in db and run pre run hooks
-        execution.store_run()
-        self._pre_run(run, execution)  # hook for runtime specific prep
-
-        last_err = None
-        # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
-        # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
-        # runtime is now a local runtime and therefore `self._is_nested == False`, we run each task as a separate run by
-        # using the task generator
-        if task_generator and not self._is_nested:
-            # multiple runs (based on hyper params or params file)
-            runner = self._run_many
-            if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
-                runner = self._parallel_run_many
-            results = runner(task_generator, execution, run)
-            results_to_iter(results, run, execution)
-            result = execution.to_dict()
-            result = self._update_run_state(result, task=run)
-
-        else:
-            # single run
-            try:
-                resp = self._run(run, execution)
-                if (
-                    watch
-                    and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind)
-                    # API shouldn't watch logs, its the client job to query the run logs
-                    and not mlrun.config.is_running_as_api()
-                ):
-                    state, _ = run.logs(True, self._get_db())
-                    if state not in ["succeeded", "completed"]:
-                        logger.warning(f"run ended with state {state}")
-                result = self._update_run_state(resp, task=run)
-            except RunError as err:
-                last_err = err
-                result = self._update_run_state(task=run, err=err)
-
-        self._save_or_push_notifications(run)
-
-        self._post_run(result, execution)  # hook for runtime specific cleanup
-
-        return self._wrap_run_result(result, run, schedule=schedule, err=last_err)
 
     def _wrap_run_result(
         self, result: dict, runspec: RunObject, schedule=None, err=None
@@ -632,43 +461,6 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
-
-    def _run_local(
-        self,
-        runspec,
-        local_code_path,
-        project,
-        name,
-        workdir,
-        handler,
-        params,
-        inputs,
-        returns,
-        artifact_path,
-        notifications: List[mlrun.model.Notification] = None,
-    ):
-        # allow local run simulation with a flip of a flag
-        command = self
-        if local_code_path:
-            project = project or self.metadata.project
-            name = name or self.metadata.name
-            command = local_code_path
-        return mlrun.run_local(
-            runspec,
-            command,
-            name,
-            self.spec.args,
-            workdir=workdir,
-            project=project,
-            handler=handler,
-            params=params,
-            inputs=inputs,
-            artifact_path=artifact_path,
-            mode=self.spec.mode,
-            allow_empty_resources=self.spec.allow_empty_resources,
-            notifications=notifications,
-            returns=returns,
-        )
 
     def _create_run_object(self, runspec):
         # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning

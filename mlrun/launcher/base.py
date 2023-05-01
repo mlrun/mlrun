@@ -16,7 +16,7 @@ import ast
 import copy
 import typing
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import mlrun.errors
 import mlrun.model
@@ -50,8 +50,38 @@ class BaseLauncher(abc.ABC):
         """store the function to the db"""
         pass
 
-    @staticmethod
-    def launch(runtime):
+    def launch(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: typing.Optional[
+            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        ] = None,
+        handler: typing.Optional[str] = None,
+        name: typing.Optional[str] = "",
+        project: typing.Optional[str] = "",
+        params: typing.Optional[dict] = None,
+        inputs: typing.Optional[Dict[str, str]] = None,
+        out_path: typing.Optional[str] = "",
+        workdir: typing.Optional[str] = "",
+        artifact_path: typing.Optional[str] = "",
+        watch: typing.Optional[bool] = True,
+        # TODO: don't use schedule from API schemas but rather from mlrun client
+        schedule: typing.Optional[
+            typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: typing.Optional[
+            mlrun.model.HyperParamOptions
+        ] = None,  # :mlrun.model.HyperParamOptions
+        verbose: typing.Optional[bool] = None,
+        scrape_metrics: typing.Optional[bool] = None,
+        local: typing.Optional[bool] = False,
+        local_code_path: typing.Optional[str] = None,
+        auto_build: typing.Optional[bool] = None,
+        param_file_secrets: typing.Optional[Dict[str, str]] = None,
+        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
+        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
+    ):
         """run the function from the server/client[local/remote]"""
         pass
 
@@ -71,6 +101,8 @@ class BaseLauncher(abc.ABC):
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
+
+        self._verify_run_params(run.spec.parameters)
 
     def _verify_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():

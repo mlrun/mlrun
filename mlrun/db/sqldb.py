@@ -29,7 +29,6 @@ from mlrun.api.db.sqldb.session import create_session
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
-from ..api import schemas
 from .base import RunDBError, RunDBInterface
 
 
@@ -123,10 +122,12 @@ class SQLDB(RunDBInterface):
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
         last_update_time_to: datetime.datetime = None,
-        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -216,12 +217,12 @@ class SQLDB(RunDBInterface):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         import mlrun.api.crud
 
         if category and isinstance(category, str):
-            category = schemas.ArtifactCategories(category)
+            category = mlrun.common.schemas.ArtifactCategories(category)
 
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().list_artifacts,
@@ -309,7 +310,9 @@ class SQLDB(RunDBInterface):
         )
 
     def list_artifact_tags(
-        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+        self,
+        project=None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
@@ -319,7 +322,9 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: Union[schemas.TagObjects, mlrun.common.schemas.TagObjects],
+        tag_objects: Union[
+            mlrun.common.schemas.TagObjects, mlrun.common.schemas.TagObjects
+        ],
         replace: bool = False,
     ):
         import mlrun.api.crud
@@ -345,7 +350,9 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: Union[schemas.TagObjects, mlrun.common.schemas.TagObjects],
+        tag_objects: Union[
+            mlrun.common.schemas.TagObjects, mlrun.common.schemas.TagObjects
+        ],
     ):
         import mlrun.api.crud
 
@@ -392,7 +399,9 @@ class SQLDB(RunDBInterface):
         return self._transform_db_error(self.db.list_schedules, self.session)
 
     def store_project(
-        self, name: str, project: Union[schemas.Project, mlrun.common.schemas.Project]
+        self,
+        name: str,
+        project: Union[mlrun.common.schemas.Project, mlrun.common.schemas.Project],
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
@@ -411,7 +420,7 @@ class SQLDB(RunDBInterface):
         name: str,
         project: dict,
         patch_mode: Union[
-            schemas.PatchMode, mlrun.common.schemas.PatchMode
+            mlrun.common.schemas.PatchMode, mlrun.common.schemas.PatchMode
         ] = mlrun.common.schemas.PatchMode.replace,
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
@@ -426,7 +435,7 @@ class SQLDB(RunDBInterface):
 
     def create_project(
         self,
-        project: Union[schemas.Project, mlrun.common.schemas.Project],
+        project: Union[mlrun.common.schemas.Project, mlrun.common.schemas.Project],
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
@@ -440,7 +449,7 @@ class SQLDB(RunDBInterface):
         self,
         name: str,
         deletion_strategy: Union[
-            schemas.DeletionStrategy,
+            mlrun.common.schemas.DeletionStrategy,
             mlrun.common.schemas.DeletionStrategy,
         ] = mlrun.common.schemas.DeletionStrategy.default(),
     ):

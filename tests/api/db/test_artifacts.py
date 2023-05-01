@@ -19,12 +19,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.initial_data
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
-from mlrun.common import schemas
 from mlrun.common.schemas.artifact import ArtifactCategories
 
 
@@ -171,17 +171,21 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == 4
 
-    artifacts = db.list_artifacts(db_session, category=schemas.ArtifactCategories.model)
+    artifacts = db.list_artifacts(
+        db_session, category=mlrun.common.schemas.ArtifactCategories.model
+    )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_3
 
     artifacts = db.list_artifacts(
-        db_session, category=schemas.ArtifactCategories.dataset
+        db_session, category=mlrun.common.schemas.ArtifactCategories.dataset
     )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_4
 
-    artifacts = db.list_artifacts(db_session, category=schemas.ArtifactCategories.other)
+    artifacts = db.list_artifacts(
+        db_session, category=mlrun.common.schemas.ArtifactCategories.other
+    )
     assert len(artifacts) == 2
     assert artifacts[0]["metadata"]["name"] == artifact_name_1
     assert artifacts[1]["metadata"]["name"] == artifact_name_2
@@ -540,13 +544,13 @@ def test_list_artifacts_best_iter_with_tagged_iteration(
         project=project,
     )
 
-    identifier_1 = schemas.ArtifactIdentifier(
+    identifier_1 = mlrun.common.schemas.ArtifactIdentifier(
         kind=ArtifactCategories.model,
         key=artifact_key_1,
         uid=artifact_uid_1,
         iter=best_iter,
     )
-    identifier_2 = schemas.ArtifactIdentifier(
+    identifier_2 = mlrun.common.schemas.ArtifactIdentifier(
         kind=ArtifactCategories.model,
         key=artifact_key_2,
         uid=artifact_uid_2,

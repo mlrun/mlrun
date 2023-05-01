@@ -22,9 +22,9 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.common import schemas
 from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
 from mlrun.utils import is_legacy_artifact, logger
@@ -82,7 +82,7 @@ async def store_artifact(
 @router.get("/projects/{project}/artifact-tags")
 async def list_artifact_tags(
     project: str,
-    category: schemas.ArtifactCategories = None,
+    category: mlrun.common.schemas.ArtifactCategories = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -181,7 +181,7 @@ async def list_artifacts(
     name: str = None,
     tag: str = None,
     kind: str = None,
-    category: schemas.ArtifactCategories = None,
+    category: mlrun.common.schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),

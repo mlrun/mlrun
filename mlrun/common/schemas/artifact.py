@@ -24,23 +24,22 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
     dataset = "dataset"
     other = "other"
 
-    def to_kinds_filter(self) -> typing.Tuple[typing.List[str], bool]:
-        # FIXME: these artifact definitions (or at least the kinds enum) should sit in a dedicated module
-        # import here to prevent import cycle
-        import mlrun.artifacts.dataset
-        import mlrun.artifacts.model
+    # we define the link as a category to prevent import cycles, but it's not a real category
+    # and should not be used as such
+    link = "link"
 
-        link_kind = mlrun.artifacts.base.LinkArtifact.kind
+    def to_kinds_filter(self) -> typing.Tuple[typing.List[str], bool]:
+        link_kind = ArtifactCategories.link.value
 
         if self.value == ArtifactCategories.model.value:
-            return [mlrun.artifacts.model.ModelArtifact.kind, link_kind], False
+            return [ArtifactCategories.model.value, link_kind], False
         if self.value == ArtifactCategories.dataset.value:
-            return [mlrun.artifacts.dataset.DatasetArtifact.kind, link_kind], False
+            return [ArtifactCategories.dataset.value, link_kind], False
         if self.value == ArtifactCategories.other.value:
             return (
                 [
-                    mlrun.artifacts.model.ModelArtifact.kind,
-                    mlrun.artifacts.dataset.DatasetArtifact.kind,
+                    ArtifactCategories.model.value,
+                    ArtifactCategories.dataset.value,
                 ],
                 True,
             )

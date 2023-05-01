@@ -27,9 +27,9 @@ import requests
 import semver
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
-from mlrun.common import schemas
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -560,10 +560,12 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
         last_update_time_to: datetime = None,
-        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
@@ -621,7 +623,7 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    schemas.RunPartitionByField,
+                    mlrun.common.schemas.RunPartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -690,7 +692,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
-        params = {"format": schemas.ArtifactsFormat.full.value}
+        params = {"format": mlrun.common.schemas.ArtifactsFormat.full.value}
         if iter:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params)
@@ -718,7 +720,7 @@ class HTTPRunDB(RunDBInterface):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -762,7 +764,7 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
-            "format": schemas.ArtifactsFormat.full.value,
+            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
@@ -795,7 +797,7 @@ class HTTPRunDB(RunDBInterface):
     def list_artifact_tags(
         self,
         project=None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
@@ -993,7 +995,9 @@ class HTTPRunDB(RunDBInterface):
                 ] = mlrun.common.schemas.RuntimeResources(**runtime_resources)
         return structured_dict
 
-    def create_schedule(self, project: str, schedule: schemas.ScheduleInput):
+    def create_schedule(
+        self, project: str, schedule: mlrun.common.schemas.ScheduleInput
+    ):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
         schedule itself are within the schedule object provided.
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
@@ -1005,7 +1009,7 @@ class HTTPRunDB(RunDBInterface):
 
         Example::
 
-            from mlrun.api import schemas
+            from mlrun.common import schemas
 
             # Execute the get_data_func function every Tuesday at 15:30
             schedule = schemas.ScheduleInput(
@@ -1024,7 +1028,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
 
     def update_schedule(
-        self, project: str, name: str, schedule: schemas.ScheduleUpdate
+        self, project: str, name: str, schedule: mlrun.common.schemas.ScheduleUpdate
     ):
         """Update an existing schedule, replace it with the details contained in the schedule object."""
 
@@ -1036,7 +1040,7 @@ class HTTPRunDB(RunDBInterface):
 
     def get_schedule(
         self, project: str, name: str, include_last_run: bool = False
-    ) -> schemas.ScheduleOutput:
+    ) -> mlrun.common.schemas.ScheduleOutput:
         """Retrieve details of the schedule in question. Besides returning the details of the schedule object itself,
         this function also returns the next scheduled run for this specific schedule, as well as potentially the
         results of the last run executed through this schedule.
@@ -1052,15 +1056,15 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(
             "GET", path, error_message, params={"include_last_run": include_last_run}
         )
-        return schemas.ScheduleOutput(**resp.json())
+        return mlrun.common.schemas.ScheduleOutput(**resp.json())
 
     def list_schedules(
         self,
         project: str,
         name: str = None,
-        kind: schemas.ScheduleKinds = None,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
         include_last_run: bool = False,
-    ) -> schemas.SchedulesOutput:
+    ) -> mlrun.common.schemas.SchedulesOutput:
         """Retrieve list of schedules of specific name or kind.
 
         :param project: Project name.
@@ -1075,7 +1079,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/schedules"
         error_message = f"Failed listing schedules for {project} ? {kind} {name}"
         resp = self.api_call("GET", path, error_message, params=params)
-        return schemas.SchedulesOutput(**resp.json())
+        return mlrun.common.schemas.SchedulesOutput(**resp.json())
 
     def delete_schedule(self, project: str, name: str):
         """Delete a specific schedule by name."""
@@ -1204,7 +1208,7 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> schemas.BackgroundTask:
+    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
@@ -1227,13 +1231,13 @@ class HTTPRunDB(RunDBInterface):
             logger.error(f"bad resp!!\n{resp.text}")
             raise ValueError("bad function start response")
 
-        return schemas.BackgroundTask(**resp.json())
+        return mlrun.common.schemas.BackgroundTask(**resp.json())
 
     def get_project_background_task(
         self,
         project: str,
         name: str,
-    ) -> schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a project background task being executed."""
 
         project = project or config.default_project
@@ -1242,15 +1246,15 @@ class HTTPRunDB(RunDBInterface):
             f"Failed getting project background task. project={project}, name={name}"
         )
         response = self.api_call("GET", path, error_message)
-        return schemas.BackgroundTask(**response.json())
+        return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def get_background_task(self, name: str) -> schemas.BackgroundTask:
+    def get_background_task(self, name: str) -> mlrun.common.schemas.BackgroundTask:
         """Retrieve updated information on a background task being executed."""
 
         path = f"background-tasks/{name}"
         error_message = f"Failed getting background task. name={name}"
         response = self.api_call("GET", path, error_message)
-        return schemas.BackgroundTask(**response.json())
+        return mlrun.common.schemas.BackgroundTask(**response.json())
 
     def remote_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
@@ -1275,7 +1279,9 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["data"]
 
     def submit_job(
-        self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None
+        self,
+        runspec,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     ):
         """Submit a job for remote execution.
 
@@ -1287,7 +1293,7 @@ class HTTPRunDB(RunDBInterface):
         try:
             req = {"task": runspec.to_dict()}
             if schedule:
-                if isinstance(schedule, schemas.ScheduleCronTrigger):
+                if isinstance(schedule, mlrun.common.schemas.ScheduleCronTrigger):
                     schedule = schedule.dict()
                 req["schedule"] = schedule
             timeout = (int(config.submit_timeout) or 120) + 20
@@ -1369,7 +1375,9 @@ class HTTPRunDB(RunDBInterface):
         if arguments:
             if not isinstance(arguments, dict):
                 raise ValueError("arguments must be dict type")
-            headers[schemas.HeaderNames.pipeline_arguments] = str(arguments)
+            headers[mlrun.common.schemas.HeaderNames.pipeline_arguments] = str(
+                arguments
+            )
 
         if not path.isfile(pipe_file):
             raise OSError(f"file {pipe_file} doesnt exist")
@@ -1491,7 +1499,7 @@ class HTTPRunDB(RunDBInterface):
 
     def create_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet, FeatureSet],
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet, FeatureSet],
         project="",
         versioned=True,
     ) -> dict:
@@ -1504,7 +1512,7 @@ class HTTPRunDB(RunDBInterface):
             will be kept in the DB and can be retrieved until explicitly deleted.
         :returns: The :py:class:`~mlrun.feature_store.FeatureSet` object (as dict).
         """
-        if isinstance(feature_set, schemas.FeatureSet):
+        if isinstance(feature_set, mlrun.common.schemas.FeatureSet):
             feature_set = feature_set.dict()
         elif isinstance(feature_set, FeatureSet):
             feature_set = feature_set.to_dict()
@@ -1638,10 +1646,14 @@ class HTTPRunDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
@@ -1675,7 +1687,7 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    schemas.FeatureStorePartitionByField,
+                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -1695,7 +1707,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet, FeatureSet],
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet, FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -1720,7 +1732,7 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
         params = {"versioned": versioned}
 
-        if isinstance(feature_set, schemas.FeatureSet):
+        if isinstance(feature_set, mlrun.common.schemas.FeatureSet):
             feature_set = feature_set.dict()
         elif isinstance(feature_set, FeatureSet):
             feature_set = feature_set.to_dict()
@@ -1743,7 +1755,9 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         """Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureSet` object.
         The object is identified by its name (and project it belongs to), as well as optionally a ``tag`` or its
@@ -1766,7 +1780,7 @@ class HTTPRunDB(RunDBInterface):
         """
         project = project or config.default_project
         reference = self._resolve_reference(tag, uid)
-        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-sets/{name}/references/{reference}"
         error_message = f"Failed updating feature-set {project}/{name}"
         self.api_call(
@@ -1795,7 +1809,7 @@ class HTTPRunDB(RunDBInterface):
 
     def create_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector, FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector, FeatureVector],
         project="",
         versioned=True,
     ) -> dict:
@@ -1807,7 +1821,7 @@ class HTTPRunDB(RunDBInterface):
             will be kept in the DB and can be retrieved until explicitly deleted.
         :returns: The :py:class:`~mlrun.feature_store.FeatureVector` object (as dict).
         """
-        if isinstance(feature_vector, schemas.FeatureVector):
+        if isinstance(feature_vector, mlrun.common.schemas.FeatureVector):
             feature_vector = feature_vector.dict()
         elif isinstance(feature_vector, FeatureVector):
             feature_vector = feature_vector.to_dict()
@@ -1851,10 +1865,14 @@ class HTTPRunDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[FeatureVector]:
         """Retrieve a list of feature-vectors matching the criteria provided.
 
@@ -1884,7 +1902,7 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    schemas.FeatureStorePartitionByField,
+                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -1904,7 +1922,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector, FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector, FeatureVector],
         name=None,
         project="",
         tag=None,
@@ -1929,7 +1947,7 @@ class HTTPRunDB(RunDBInterface):
         reference = self._resolve_reference(tag, uid)
         params = {"versioned": versioned}
 
-        if isinstance(feature_vector, schemas.FeatureVector):
+        if isinstance(feature_vector, mlrun.common.schemas.FeatureVector):
             feature_vector = feature_vector.dict()
         elif isinstance(feature_vector, FeatureVector):
             feature_vector = feature_vector.to_dict()
@@ -1954,7 +1972,9 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         """Modify (patch) an existing :py:class:`~mlrun.feature_store.FeatureVector` object.
         The object is identified by its name (and project it belongs to), as well as optionally a ``tag`` or its
@@ -1972,7 +1992,7 @@ class HTTPRunDB(RunDBInterface):
         """
         reference = self._resolve_reference(tag, uid)
         project = project or config.default_project
-        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         path = f"projects/{project}/feature-vectors/{name}/references/{reference}"
         error_message = f"Failed updating feature-vector {project}/{name}"
         self.api_call(
@@ -2158,7 +2178,9 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{name}"
-        headers = {schemas.HeaderNames.deletion_strategy: deletion_strategy}
+        headers = {
+            mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
+        }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
@@ -2191,7 +2213,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: dict,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ) -> mlrun.projects.MlrunProject:
         """Patch an existing project object.
 
@@ -2202,7 +2226,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{name}"
-        headers = {schemas.HeaderNames.patch_mode: patch_mode}
+        headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
         error_message = f"Failed patching project {name}"
         response = self.api_call(
             "PATCH", path, error_message, body=dict_to_json(project), headers=headers
@@ -2255,7 +2279,7 @@ class HTTPRunDB(RunDBInterface):
 
     def _wait_for_background_task_to_reach_terminal_state(
         self, name: str
-    ) -> schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
             background_task = self.get_background_task(name)
             state = background_task.status.state
@@ -2293,8 +2317,8 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         """Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
@@ -2324,7 +2348,9 @@ class HTTPRunDB(RunDBInterface):
                 )
         """
         path = f"projects/{project}/secrets"
-        secrets_input = schemas.SecretsData(secrets=secrets, provider=provider)
+        secrets_input = mlrun.common.schemas.SecretsData(
+            secrets=secrets, provider=provider
+        )
         body = secrets_input.dict()
         error_message = f"Failed creating secret provider {project}/{provider}"
         self.api_call(
@@ -2339,10 +2365,10 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         token: str = None,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
-    ) -> schemas.SecretsData:
+    ) -> mlrun.common.schemas.SecretsData:
         """Retrieve project-context secrets from Vault.
 
         Note:
@@ -2357,14 +2383,17 @@ class HTTPRunDB(RunDBInterface):
             to this specific project. ``kubernetes`` provider only supports an empty list.
         """
 
-        if provider == schemas.SecretProviderName.vault.value and not token:
+        if (
+            provider == mlrun.common.schemas.SecretProviderName.vault.value
+            and not token
+        ):
             raise MLRunInvalidArgumentError(
                 "A vault token must be provided when accessing vault secrets"
             )
 
         path = f"projects/{project}/secrets"
         params = {"provider": provider, "secret": secrets}
-        headers = {schemas.HeaderNames.secret_store_token: token}
+        headers = {mlrun.common.schemas.HeaderNames.secret_store_token: token}
         error_message = f"Failed retrieving secrets {project}/{provider}"
         result = self.api_call(
             "GET",
@@ -2373,16 +2402,16 @@ class HTTPRunDB(RunDBInterface):
             params=params,
             headers=headers,
         )
-        return schemas.SecretsData(**result.json())
+        return mlrun.common.schemas.SecretsData(**result.json())
 
     def list_project_secret_keys(
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         token: str = None,
-    ) -> schemas.SecretKeysData:
+    ) -> mlrun.common.schemas.SecretKeysData:
         """Retrieve project-context secret keys from Vault or Kubernetes.
 
         Note:
@@ -2396,7 +2425,10 @@ class HTTPRunDB(RunDBInterface):
             Must be a valid Vault token, with permissions to retrieve secrets of the project in question.
         """
 
-        if provider == schemas.SecretProviderName.vault.value and not token:
+        if (
+            provider == mlrun.common.schemas.SecretProviderName.vault.value
+            and not token
+        ):
             raise MLRunInvalidArgumentError(
                 "A vault token must be provided when accessing vault secrets"
             )
@@ -2404,8 +2436,8 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/secret-keys"
         params = {"provider": provider}
         headers = (
-            {schemas.HeaderNames.secret_store_token: token}
-            if provider == schemas.SecretProviderName.vault.value
+            {mlrun.common.schemas.HeaderNames.secret_store_token: token}
+            if provider == mlrun.common.schemas.SecretProviderName.vault.value
             else None
         )
         error_message = f"Failed retrieving secret keys {project}/{provider}"
@@ -2416,14 +2448,14 @@ class HTTPRunDB(RunDBInterface):
             params=params,
             headers=headers,
         )
-        return schemas.SecretKeysData(**result.json())
+        return mlrun.common.schemas.SecretKeysData(**result.json())
 
     def delete_project_secrets(
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         """Delete project-context secrets from Kubernetes.
@@ -2448,8 +2480,8 @@ class HTTPRunDB(RunDBInterface):
         self,
         user: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         """Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
@@ -2464,7 +2496,7 @@ class HTTPRunDB(RunDBInterface):
         :param secrets: A set of secret values to store within the Vault.
         """
         path = "user-secrets"
-        secrets_creation_request = schemas.UserSecretCreationRequest(
+        secrets_creation_request = mlrun.common.schemas.UserSecretCreationRequest(
             user=user,
             provider=provider,
             secrets=secrets,
@@ -2742,7 +2774,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
     ):
         """
         Add a new marketplace source.
@@ -2796,13 +2828,15 @@ class HTTPRunDB(RunDBInterface):
         :returns: The source object as inserted into the database, with credentials stripped.
         """
         path = "marketplace/sources"
-        if isinstance(source, schemas.IndexedMarketplaceSource):
+        if isinstance(source, mlrun.common.schemas.IndexedMarketplaceSource):
             source = source.dict()
         response = self.api_call(method="POST", path=path, json=source)
-        return schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
 
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
     ):
         """
         Create or replace a marketplace source.
@@ -2816,11 +2850,11 @@ class HTTPRunDB(RunDBInterface):
         :returns: The source object as stored in the DB.
         """
         path = f"marketplace/sources/{source_name}"
-        if isinstance(source, schemas.IndexedMarketplaceSource):
+        if isinstance(source, mlrun.common.schemas.IndexedMarketplaceSource):
             source = source.dict()
 
         response = self.api_call(method="PUT", path=path, json=source)
-        return schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
 
     def list_marketplace_sources(self):
         """
@@ -2830,7 +2864,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="GET", path=path).json()
         results = []
         for item in response:
-            results.append(schemas.IndexedMarketplaceSource(**item))
+            results.append(mlrun.common.schemas.IndexedMarketplaceSource(**item))
         return results
 
     def get_marketplace_source(self, source_name: str):
@@ -2841,7 +2875,7 @@ class HTTPRunDB(RunDBInterface):
         """
         path = f"marketplace/sources/{source_name}"
         response = self.api_call(method="GET", path=path)
-        return schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
 
     def delete_marketplace_source(self, source_name: str):
         """
@@ -2883,7 +2917,7 @@ class HTTPRunDB(RunDBInterface):
             "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
-        return schemas.MarketplaceCatalog(**response.json())
+        return mlrun.common.schemas.MarketplaceCatalog(**response.json())
 
     def get_marketplace_item(
         self,
@@ -2912,7 +2946,7 @@ class HTTPRunDB(RunDBInterface):
             "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
-        return schemas.MarketplaceItem(**response.json())
+        return mlrun.common.schemas.MarketplaceItem(**response.json())
 
     def get_marketplace_asset(
         self,
@@ -2944,7 +2978,8 @@ class HTTPRunDB(RunDBInterface):
         return response
 
     def verify_authorization(
-        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+        self,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         """Verifies authorization for the provided action on the provided resource.
 
@@ -2960,7 +2995,7 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
-    def trigger_migrations(self) -> Optional[schemas.BackgroundTask]:
+    def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
@@ -2971,7 +3006,7 @@ class HTTPRunDB(RunDBInterface):
             "Failed triggering migrations",
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            background_task = schemas.BackgroundTask(**response.json())
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
             return self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
             )

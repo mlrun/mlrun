@@ -16,11 +16,11 @@ import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.common.schemas
 import mlrun.feature_store as fstore
 import mlrun.utils.helpers
 from mlrun import errors
 from mlrun.api.db.base import DBInterface
-from mlrun.common import schemas
 
 
 def _create_feature_set(name):
@@ -64,7 +64,7 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
 
     project = "proj-test"
 
-    feature_set = schemas.FeatureSet(**feature_set)
+    feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
     db.store_feature_set(
         db_session, project, name, feature_set, tag="latest", versioned=True
     )
@@ -86,7 +86,7 @@ def test_handle_feature_set_with_datetime_fields(db: DBInterface, db_session: Se
     # This object will have datetime in the spec.source object fields
     fs_object = fstore.FeatureSet.from_dict(feature_set)
     # Convert it to DB schema object (will still have datetime fields)
-    fs_server_object = schemas.FeatureSet(**fs_object.to_dict())
+    fs_server_object = mlrun.common.schemas.FeatureSet(**fs_object.to_dict())
     mlrun.utils.helpers.fill_object_hash(fs_server_object.dict(), "uid")
 
 
@@ -96,7 +96,7 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
 
     project = "proj-test"
 
-    feature_set = schemas.FeatureSet(**feature_set)
+    feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
     db.store_feature_set(
         db_session, project, name, feature_set, tag="latest", versioned=True
     )
@@ -153,7 +153,7 @@ def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
 
     project = "proj-test"
 
-    feature_set = schemas.FeatureSet(**feature_set)
+    feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
     db.store_feature_set(
         db_session, project, name, feature_set, tag="latest", versioned=True
     )

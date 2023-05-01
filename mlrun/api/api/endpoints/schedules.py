@@ -23,9 +23,9 @@ import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.scheduler import get_scheduler
-from mlrun.common import schemas
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -34,7 +34,7 @@ router = APIRouter()
 @router.post("/projects/{project}/schedules")
 async def create_schedule(
     project: str,
-    schedule: schemas.ScheduleInput,
+    schedule: mlrun.common.schemas.ScheduleInput,
     request: fastapi.Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -90,7 +90,7 @@ async def create_schedule(
 async def update_schedule(
     project: str,
     name: str,
-    schedule: schemas.ScheduleUpdate,
+    schedule: mlrun.common.schemas.ScheduleUpdate,
     request: fastapi.Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -136,12 +136,14 @@ async def update_schedule(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.get("/projects/{project}/schedules", response_model=schemas.SchedulesOutput)
+@router.get(
+    "/projects/{project}/schedules", response_model=mlrun.common.schemas.SchedulesOutput
+)
 async def list_schedules(
     project: str,
     name: str = None,
     labels: str = None,
-    kind: schemas.ScheduleKinds = None,
+    kind: mlrun.common.schemas.ScheduleKinds = None,
     include_last_run: bool = False,
     include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -176,7 +178,8 @@ async def list_schedules(
 
 
 @router.get(
-    "/projects/{project}/schedules/{name}", response_model=schemas.ScheduleOutput
+    "/projects/{project}/schedules/{name}",
+    response_model=mlrun.common.schemas.ScheduleOutput,
 )
 async def get_schedule(
     project: str,

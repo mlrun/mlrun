@@ -18,9 +18,9 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.initial_data
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.api.db.base import DBInterface
-from mlrun.common import schemas
 
 
 def test_store_project_background_task(db: DBInterface, db_session: Session):
@@ -57,20 +57,27 @@ def test_store_project_background_task_after_status_updated(
     project = "test-project"
     db.store_background_task(db_session, "test", project=project)
     background_task = db.get_background_task(db_session, "test", project=project)
-    assert background_task.status.state == schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     db.store_background_task(
-        db_session, "test", state=schemas.BackgroundTaskState.failed, project=project
+        db_session,
+        "test",
+        state=mlrun.common.schemas.BackgroundTaskState.failed,
+        project=project,
     )
     background_task = db.get_background_task(db_session, "test", project=project)
-    assert background_task.status.state == schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
     # Expecting to fail
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         db.store_background_task(
             db_session,
             "test",
-            state=schemas.BackgroundTaskState.running,
+            state=mlrun.common.schemas.BackgroundTaskState.running,
             project=project,
         )
     # expecting to fail, because terminal state is terminal which means it is not supposed to change
@@ -78,12 +85,15 @@ def test_store_project_background_task_after_status_updated(
         db.store_background_task(
             db_session,
             "test",
-            state=schemas.BackgroundTaskState.succeeded,
+            state=mlrun.common.schemas.BackgroundTaskState.succeeded,
             project=project,
         )
 
     db.store_background_task(
-        db_session, "test", state=schemas.BackgroundTaskState.failed, project=project
+        db_session,
+        "test",
+        state=mlrun.common.schemas.BackgroundTaskState.failed,
+        project=project,
     )
 
 

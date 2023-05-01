@@ -35,7 +35,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
-from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
@@ -823,7 +822,7 @@ def submit_run_sync(
         if schedule:
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
-                cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
+                cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
             created = False
 
@@ -844,7 +843,7 @@ def submit_run_sync(
                     auth_info,
                     task["metadata"]["project"],
                     task["metadata"]["name"],
-                    schemas.ScheduleKinds.job,
+                    mlrun.common.schemas.ScheduleKinds.job,
                     data,
                     cron_trigger,
                     schedule_labels,

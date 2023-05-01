@@ -18,7 +18,7 @@ import typing
 from typing import Dict, List, Union
 
 import mlrun.api.schemas.schedule
-import mlrun.db
+import mlrun.db.httpdb
 import mlrun.errors
 import mlrun.run
 import mlrun.runtimes.generators
@@ -26,6 +26,8 @@ import mlrun.utils.clones
 import mlrun.utils.notifications
 from mlrun.launcher.base import BaseLauncher
 from mlrun.utils import logger
+
+run_modes = ["pass"]
 
 
 class ClientLocalLauncher(BaseLauncher):
@@ -37,6 +39,9 @@ class ClientLocalLauncher(BaseLauncher):
     def __init__(self, local: bool):
         super(BaseLauncher).__init__()
         self._is_run_local = local
+    @property
+    def db(self) -> mlrun.db.httpdb.HTTPRunDB:
+        return self._db
 
     @staticmethod
     def verify_base_image(runtime):
@@ -66,9 +71,7 @@ class ClientLocalLauncher(BaseLauncher):
             typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: typing.Optional[
-            mlrun.model.HyperParamOptions
-        ] = None,  # :mlrun.model.HyperParamOptions
+        hyper_param_options: typing.Optional[mlrun.model.HyperParamOptions] = None,
         verbose: typing.Optional[bool] = None,
         scrape_metrics: typing.Optional[bool] = None,
         local: typing.Optional[bool] = False,
@@ -78,6 +81,13 @@ class ClientLocalLauncher(BaseLauncher):
         notifications: typing.Optional[List[mlrun.model.Notification]] = None,
         returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
+        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
+
+        if runtime.spec.mode and runtime.spec.mode not in run_modes:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f'run mode can only be {",".join(run_modes)}'
+            )
+
         # do not allow local function to be scheduled
         if schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(

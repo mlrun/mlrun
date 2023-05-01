@@ -11,21 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+from kfp import dsl
 
-__all__ = [
-    "V2ModelServer",
-    "VotingEnsemble",
-    "GraphServer",
-    "create_graph_server",
-    "GraphContext",
-    "TaskStep",
-    "RouterStep",
-    "QueueStep",
-    "ErrorStep",
-]
+funcs = {}
 
-from .routers import ModelRouter, VotingEnsemble  # noqa
-from .server import GraphContext, GraphServer, create_graph_server  # noqa
-from .states import ErrorStep, QueueStep, RouterStep, TaskStep  # noqa
-from .v1_serving import MLModelServer, new_v1_model_server  # noqa
-from .v2_serving import V2ModelServer  # noqa
+
+@dsl.pipeline(name="Demo training pipeline", description="Tests simple handler")
+def job_pipeline():
+    funcs["my-func"].as_step()

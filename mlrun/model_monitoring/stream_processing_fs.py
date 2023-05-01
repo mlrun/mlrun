@@ -32,6 +32,7 @@ from mlrun.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    FileTargetKind,
     ModelEndpointTarget,
     ProjectSecretKeys,
 )
@@ -45,30 +46,54 @@ class EventStreamProcessor:
         self,
         project: str,
         parquet_batching_max_events: int,
+        parquet_target: str,
         sample_window: int = 10,
-        tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
         aggregate_count_windows: typing.Optional[typing.List[str]] = None,
         aggregate_count_period: str = "30s",
         aggregate_avg_windows: typing.Optional[typing.List[str]] = None,
         aggregate_avg_period: str = "30s",
-        v3io_access_key: typing.Optional[str] = None,
-        v3io_framesd: typing.Optional[str] = None,
-        v3io_api: typing.Optional[str] = None,
         model_monitoring_access_key: str = None,
     ):
+        # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
         self.sample_window = sample_window
-        self.tsdb_batching_max_events = tsdb_batching_max_events
-        self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
-        self.parquet_batching_max_events = parquet_batching_max_events
-        self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
         self.aggregate_count_windows = aggregate_count_windows or ["5m", "1h"]
         self.aggregate_count_period = aggregate_count_period
         self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
         self.aggregate_avg_period = aggregate_avg_period
 
+        # Parquet path and configurations
+        self.parquet_path = parquet_target
+        self.parquet_batching_max_events = parquet_batching_max_events
+        self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
+
+        self.model_endpoint_store_target = (
+            mlrun.mlconf.model_endpoint_monitoring.store_type
+        )
+
+        logger.info(
+            "Initializing model monitoring event stream processor",
+            parquet_path=self.parquet_path,
+            parquet_batching_max_events=self.parquet_batching_max_events,
+        )
+
+        self.storage_options = None
+        if not mlrun.mlconf.is_ce_mode():
+            self._initialize_v3io_configurations(
+                model_monitoring_access_key=model_monitoring_access_key
+            )
+
+    def _initialize_v3io_configurations(
+        self,
+        tsdb_batching_max_events: int = 10,
+        tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
+        v3io_access_key: typing.Optional[str] = None,
+        v3io_framesd: typing.Optional[str] = None,
+        v3io_api: typing.Optional[str] = None,
+        model_monitoring_access_key: str = None,
+    ):
+        # Get the V3IO configurations
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
@@ -81,48 +106,30 @@ class EventStreamProcessor:
         self.storage_options = dict(
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
-        self.model_endpoint_store_target = (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
+
+        # KV path
+        kv_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project, kind=FileTargetKind.ENDPOINTS
         )
-
-        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
-
-        kv_path = template.format(project=project, kind="endpoints")
         (
             _,
             self.kv_container,
             self.kv_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
 
-        tsdb_path = template.format(project=project, kind="events")
+        # TSDB path and configurations
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project, kind=FileTargetKind.EVENTS
+        )
         (
             _,
             self.tsdb_container,
             self.tsdb_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
-
-        self.parquet_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                project=project, kind="parquet"
-            )
-        )
-
-        logger.info(
-            "Initializing model monitoring event stream processor",
-            parquet_batching_max_events=self.parquet_batching_max_events,
-            v3io_access_key=self.v3io_access_key,
-            model_monitoring_access_key=self.model_monitoring_access_key,
-            default_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default,
-            user_space_store_prefix=mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space,
-            v3io_api=self.v3io_api,
-            v3io_framesd=self.v3io_framesd,
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            tsdb_container=self.tsdb_container,
-            tsdb_path=self.tsdb_path,
-            parquet_path=self.parquet_path,
-        )
+        self.tsdb_batching_max_events = tsdb_batching_max_events
+        self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
     def apply_monitoring_serving_graph(self, fn):
         """
@@ -144,8 +151,9 @@ class EventStreamProcessor:
            endpoint_features (Prediction and feature names and values), and custom_metrics (user-defined metrics).
            This data is also being used by the monitoring dashboards in grafana.
         3. Parquet (steps 19-20): This Parquet file includes the required data for the model monitoring batch job
-           that run every hour by default. The parquet target can be found under
-           v3io:///projects/{project}/model-endpoints/.
+           that run every hour by default. If defined, the parquet target path can be found under
+           mlrun.mlconf.model_endpoint_monitoring.offline. Otherwise, the default parquet path is under
+           mlrun.mlconf.model_endpoint_monitoring.user_space.
 
         :param fn: A serving function.
         """
@@ -209,7 +217,6 @@ class EventStreamProcessor:
                 after="MapFeatureNames",
                 step_name="Aggregates",
                 table=".",
-                v3io_access_key=self.v3io_access_key,
             )
             # Step 5.2 - Calculate average latency time for each window (5 min and 1 hour by default)
             graph.add_step(
@@ -226,7 +233,6 @@ class EventStreamProcessor:
                 name=EventFieldType.LATENCY,
                 after=EventFieldType.PREDICTIONS,
                 table=".",
-                v3io_access_key=self.v3io_access_key,
             )
 
         apply_storey_aggregations()
@@ -239,7 +245,6 @@ class EventStreamProcessor:
                 after=EventFieldType.LATENCY,
                 window_size=self.sample_window,
                 key=EventFieldType.ENDPOINT_ID,
-                v3io_access_key=self.v3io_access_key,
             )
 
         apply_storey_sample_window()
@@ -275,7 +280,6 @@ class EventStreamProcessor:
                 "InferSchema",
                 name="InferSchema",
                 after="UpdateEndpoint",
-                v3io_access_key=self.v3io_access_key,
                 v3io_framesd=self.v3io_framesd,
                 container=self.kv_container,
                 table=self.kv_path,
@@ -284,76 +288,78 @@ class EventStreamProcessor:
         if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
-        # Steps 11-18 - TSDB branch
-        # Step 11 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
-        # stats and details about the events
-        def apply_process_before_tsdb():
-            graph.add_step(
-                "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
+        # Steps 11-18 - TSDB branch (not supported in CE environment at the moment)
+
+        if not mlrun.mlconf.is_ce_mode():
+            # Step 11 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
+            # stats and details about the events
+            def apply_process_before_tsdb():
+                graph.add_step(
+                    "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
+                )
+
+            apply_process_before_tsdb()
+
+            # Steps 12-18: - Unpacked keys from each dictionary and write to TSDB target
+            def apply_filter_and_unpacked_keys(name, keys):
+                graph.add_step(
+                    "FilterAndUnpackKeys",
+                    name=name,
+                    after="ProcessBeforeTSDB",
+                    keys=[keys],
+                )
+
+            def apply_tsdb_target(name, after):
+                graph.add_step(
+                    "storey.TSDBTarget",
+                    name=name,
+                    after=after,
+                    path=self.tsdb_path,
+                    rate="10/m",
+                    time_col=EventFieldType.TIMESTAMP,
+                    container=self.tsdb_container,
+                    access_key=self.v3io_access_key,
+                    v3io_frames=self.v3io_framesd,
+                    infer_columns_from_data=True,
+                    index_cols=[
+                        EventFieldType.ENDPOINT_ID,
+                        EventFieldType.RECORD_TYPE,
+                    ],
+                    max_events=self.tsdb_batching_max_events,
+                    flush_after_seconds=self.tsdb_batching_timeout_secs,
+                    key=EventFieldType.ENDPOINT_ID,
+                )
+
+            # Steps 12-13 - unpacked base_metrics dictionary
+            apply_filter_and_unpacked_keys(
+                name="FilterAndUnpackKeys1",
+                keys=EventKeyMetrics.BASE_METRICS,
+            )
+            apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
+
+            # Steps 14-15 - unpacked endpoint_features dictionary
+            apply_filter_and_unpacked_keys(
+                name="FilterAndUnpackKeys2",
+                keys=EventKeyMetrics.ENDPOINT_FEATURES,
+            )
+            apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
+
+            # Steps 16-18 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
+            apply_filter_and_unpacked_keys(
+                name="FilterAndUnpackKeys3",
+                keys=EventKeyMetrics.CUSTOM_METRICS,
             )
 
-        apply_process_before_tsdb()
+            def apply_storey_filter():
+                graph.add_step(
+                    "storey.Filter",
+                    "FilterNotNone",
+                    after="FilterAndUnpackKeys3",
+                    _fn="(event is not None)",
+                )
 
-        # Steps 12-18: - Unpacked keys from each dictionary and write to TSDB target
-        def apply_filter_and_unpacked_keys(name, keys):
-            graph.add_step(
-                "FilterAndUnpackKeys",
-                name=name,
-                after="ProcessBeforeTSDB",
-                keys=[keys],
-            )
-
-        def apply_tsdb_target(name, after):
-            graph.add_step(
-                "storey.TSDBTarget",
-                name=name,
-                after=after,
-                path=self.tsdb_path,
-                rate="10/m",
-                time_col=EventFieldType.TIMESTAMP,
-                container=self.tsdb_container,
-                access_key=self.v3io_access_key,
-                v3io_frames=self.v3io_framesd,
-                infer_columns_from_data=True,
-                index_cols=[
-                    EventFieldType.ENDPOINT_ID,
-                    EventFieldType.RECORD_TYPE,
-                ],
-                max_events=self.tsdb_batching_max_events,
-                flush_after_seconds=self.tsdb_batching_timeout_secs,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        # Steps 12-13 - unpacked base_metrics dictionary
-        apply_filter_and_unpacked_keys(
-            name="FilterAndUnpackKeys1",
-            keys=EventKeyMetrics.BASE_METRICS,
-        )
-        apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
-
-        # Steps 14-15 - unpacked endpoint_features dictionary
-        apply_filter_and_unpacked_keys(
-            name="FilterAndUnpackKeys2",
-            keys=EventKeyMetrics.ENDPOINT_FEATURES,
-        )
-        apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
-
-        # Steps 16-18 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
-        apply_filter_and_unpacked_keys(
-            name="FilterAndUnpackKeys3",
-            keys=EventKeyMetrics.CUSTOM_METRICS,
-        )
-
-        def apply_storey_filter():
-            graph.add_step(
-                "storey.Filter",
-                "FilterNotNone",
-                after="FilterAndUnpackKeys3",
-                _fn="(event is not None)",
-            )
-
-        apply_storey_filter()
-        apply_tsdb_target(name="tsdb3", after="FilterNotNone")
+            apply_storey_filter()
+            apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
         # Steps 19-20 - Parquet branch
         # Step 19 - Filter and validate different keys before writing the data to Parquet target
@@ -762,7 +768,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if endpoint_id not in self.endpoints:
 
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-
             endpoint_record = get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
@@ -783,7 +788,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
 
                 if error_count:
-                    self.error_count[endpoint_id] = error_count
+                    self.error_count[endpoint_id] = int(error_count)
 
             # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
@@ -1035,7 +1040,6 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
 class InferSchema(mlrun.feature_store.steps.MapClass):
     def __init__(
         self,
-        v3io_access_key: str,
         v3io_framesd: str,
         container: str,
         table: str,
@@ -1055,7 +1059,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         """
         super().__init__(**kwargs)
         self.container = container
-        self.v3io_access_key = v3io_access_key
         self.v3io_framesd = v3io_framesd
         self.table = table
         self.keys = set()
@@ -1067,7 +1070,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
             self.keys.update(key_set)
             # Apply infer_schema on the kv table for generating the schema file
             mlrun.utils.v3io_clients.get_frames_client(
-                token=self.v3io_access_key,
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")

@@ -1000,7 +1000,7 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: list):
+def create_function(pkg_func: str):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,

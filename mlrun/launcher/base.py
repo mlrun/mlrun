@@ -14,9 +14,8 @@
 import abc
 import ast
 import copy
-import typing
 import uuid
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import mlrun.errors
 import mlrun.model
@@ -57,34 +56,32 @@ class BaseLauncher(abc.ABC):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: typing.Optional[
-            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
-        ] = None,
-        handler: typing.Optional[str] = None,
-        name: typing.Optional[str] = "",
-        project: typing.Optional[str] = "",
-        params: typing.Optional[dict] = None,
-        inputs: typing.Optional[Dict[str, str]] = None,
-        out_path: typing.Optional[str] = "",
-        workdir: typing.Optional[str] = "",
-        artifact_path: typing.Optional[str] = "",
-        watch: typing.Optional[bool] = True,
+        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
         # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule: typing.Optional[
-            typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        schedule: Optional[
+            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: typing.Optional[
+        hyper_param_options: Optional[
             mlrun.model.HyperParamOptions
         ] = None,  # :mlrun.model.HyperParamOptions
-        verbose: typing.Optional[bool] = None,
-        scrape_metrics: typing.Optional[bool] = None,
-        local: typing.Optional[bool] = False,
-        local_code_path: typing.Optional[str] = None,
-        auto_build: typing.Optional[bool] = None,
-        param_file_secrets: typing.Optional[Dict[str, str]] = None,
-        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
-        returns: typing.Optional[List[Union[str, Dict[str, str]]]] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         """run the function from the server/client[local/remote]"""
         pass

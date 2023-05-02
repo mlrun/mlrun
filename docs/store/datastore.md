@@ -114,5 +114,5 @@ authentication methods that use the `fsspec` mechanism.
 be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
 * `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this secret or environment variable
 may contain the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
-and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which uses `GCP_CREDENTIALS`
-directly.
+and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
+contents directly to the query engine.

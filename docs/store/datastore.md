@@ -112,6 +112,7 @@ authentication methods that use the `fsspec` mechanism.
 ### Google cloud storage
 * `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can
 be used if this file is located in a location on shared storage, accessible to pods executing MLRun jobs.
-* `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this environment variable may contain
-the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
-and points `GOOGLE_APPLICATION_CREDENTIALS` at it.
+* `GCP_CREDENTIALS` &mdash; when the credentials file cannot be mounted to the pod, this secret or environment variable
+may contain the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
+and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which uses `GCP_CREDENTIALS`
+directly.

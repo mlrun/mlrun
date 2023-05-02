@@ -323,7 +323,12 @@ class BigQuerySource(BaseSourceDriver):
     """
     Reads Google BigQuery query results as input source for a flow.
 
+    For authentication, set the GCP_CREDENTIALS project secret to the credentials json string.
+
     example::
+
+         # set the credentials
+         project.set_secrets({"GCP_CREDENTIALS": gcp_credentials_json})
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"

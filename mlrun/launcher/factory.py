@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.config
 import mlrun.errors
 import mlrun.launcher.base
 import mlrun.launcher.local
@@ -28,7 +29,7 @@ class LauncherFactory(object):
         ClientRemoteLauncher - if run is remote and local was not specified.
         ClientLocalLauncher - if run is not remote or local was specified.
         """
-        if mlrun.mlconf.is_running_as_api:
+        if mlrun.config.is_running_as_api():
             if local:
                 raise mlrun.errors.MLRunInternalServerError(
                     "Launch of local run inside the server is not allowed"

@@ -77,15 +77,7 @@ class ClientRemoteLauncher(BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
-
-        if runtime.spec.mode and runtime.spec.mode not in run_modes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f'run mode can only be {",".join(run_modes)}'
-            )
-
         self._enrich_runtime(runtime)
-
         run = self._create_run_object(task)
 
         run = self._enrich_run(
@@ -106,8 +98,7 @@ class ClientRemoteLauncher(BaseLauncher):
             workdir=workdir,
             notifications=notifications,
         )
-
-        runtime._validate_output_path(run)
+        self._validate_runtime(runtime, run)
 
         if not runtime.is_deployed():
             if runtime.spec.build.auto_build or auto_build:
@@ -141,10 +132,6 @@ class ClientRemoteLauncher(BaseLauncher):
     def _enrich_runtime(runtime):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
-
-    @staticmethod
-    def _validate_runtime(runtime):
-        pass
 
     def submit_job(
         self,

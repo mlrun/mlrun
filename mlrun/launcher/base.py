@@ -14,6 +14,7 @@
 import abc
 import ast
 import copy
+import os
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
@@ -102,6 +103,41 @@ class BaseLauncher(abc.ABC):
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
         self._verify_run_params(run.spec.parameters)
+        self._validate_output_path(runtime, run)
+
+    @staticmethod
+    def _validate_output_path(
+        runtime: mlrun.runtimes.BaseRuntime,
+        run: RunObject,
+    ):
+        def is_local(url):
+            if not url:
+                return True
+            return "://" not in url
+
+        if is_local(run.spec.output_path):
+            message = ""
+            if not os.path.isabs(run.spec.output_path):
+                message = (
+                    "artifact/output path is not defined or is local and relative,"
+                    " artifacts will not be visible in the UI"
+                )
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
+                    runtime.kind
+                ):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                    )
+            elif (
+                hasattr(runtime.spec, "volume_mounts")
+                and not runtime.spec.volume_mounts
+            ):
+                message = (
+                    "artifact output path is local while no volume mount is specified. "
+                    "artifacts would not be visible via UI."
+                )
+            if message:
+                logger.warning(message, output_path=run.spec.output_path)
 
     def _verify_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():

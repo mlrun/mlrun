@@ -1302,34 +1302,6 @@ class BaseRuntime(ModelObj):
 
         return requirements
 
-    def _validate_output_path(self, run):
-        if is_local(run.spec.output_path):
-            message = ""
-            if not os.path.isabs(run.spec.output_path):
-                message = (
-                    "artifact/output path is not defined or is local and relative,"
-                    " artifacts will not be visible in the UI"
-                )
-                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
-                    self.kind
-                ):
-                    raise mlrun.errors.MLRunPreconditionFailedError(
-                        "artifact path (`artifact_path`) must be absolute for remote tasks"
-                    )
-            elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
-                message = (
-                    "artifact output path is local while no volume mount is specified. "
-                    "artifacts would not be visible via UI."
-                )
-            if message:
-                logger.warning(message, output_path=run.spec.output_path)
-
-
-def is_local(url):
-    if not url:
-        return True
-    return "://" not in url
-
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override

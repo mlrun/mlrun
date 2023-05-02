@@ -79,12 +79,6 @@ class ClientLocalLauncher(BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
-
-        if runtime.spec.mode and runtime.spec.mode not in run_modes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f'run mode can only be {",".join(run_modes)}'
-            )
 
         # do not allow local function to be scheduled
         if schedule is not None:
@@ -93,7 +87,6 @@ class ClientLocalLauncher(BaseLauncher):
             )
 
         self._enrich_runtime(runtime)
-
         run = self._create_run_object(task)
 
         local_function = None
@@ -114,15 +107,21 @@ class ClientLocalLauncher(BaseLauncher):
                 "remote function cannot be executed locally"
             )
 
-        result = self.execute(
-            runtime=local_function or runtime,
-            task=run,
+        run = self._enrich_run(
+            runtime=runtime,
+            runspec=task,
+            project_name=project,
             name=name,
             params=params,
             inputs=inputs,
             returns=returns,
             artifact_path=artifact_path,
             notifications=notifications,
+        )
+        self._validate_runtime(runtime, run)
+        result = self.execute(
+            runtime=local_function or runtime,
+            run=run,
         )
 
         self._save_or_push_notifications(result)
@@ -132,10 +131,6 @@ class ClientLocalLauncher(BaseLauncher):
     def _enrich_runtime(runtime):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
-
-    @staticmethod
-    def _validate_runtime(runtime):
-        pass
 
     def _create_local_function_for_execution(
         self,
@@ -199,29 +194,8 @@ class ClientLocalLauncher(BaseLauncher):
     def execute(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
-        artifact_path: Optional[str] = "",
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        run: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
     ):
-        run = self._enrich_run(
-            runtime=runtime,
-            runspec=task,
-            project_name=project,
-            name=name,
-            params=params,
-            inputs=inputs,
-            returns=returns,
-            artifact_path=artifact_path,
-            notifications=notifications,
-        )
-        # TODO client-server separation, combine all validation under one method
-        runtime._validate_output_path(run)
-        runtime._validate_run_params(run.spec.parameters)
 
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
@@ -247,8 +221,8 @@ class ClientLocalLauncher(BaseLauncher):
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
-            for task in tasks:
-                runtime._validate_run_params(task.spec.parameters)
+            for run in tasks:
+                runtime._validate_run_params(run.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()

@@ -31,7 +31,7 @@ class BaseLauncher(abc.ABC):
     Abstract class for managing and running functions in different contexts
     This class is designed to encapsulate the logic of running a function in different contexts
     i.e. running a function locally, remotely or in a server
-    Each context will have its own implementation of the abstract methods
+    Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
 
     def __init__(self):
@@ -71,9 +71,7 @@ class BaseLauncher(abc.ABC):
             Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: Optional[
-            mlrun.model.HyperParamOptions
-        ] = None,  # :mlrun.model.HyperParamOptions
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
@@ -82,7 +80,7 @@ class BaseLauncher(abc.ABC):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ):
+    ) -> mlrun.run.RunObject:
         """run the function from the server/client[local/remote]"""
         pass
 

@@ -44,9 +44,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: Optional[
-            mlrun.model.HyperParamOptions
-        ] = None,  # :mlrun.model.HyperParamOptions
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
         local: Optional[bool] = False,
@@ -55,7 +53,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ):
+    ) -> mlrun.run.RunObject:
         self._enrich_runtime(runtime)
 
         run = self._create_run_object(task)

@@ -76,7 +76,7 @@ class ClientRemoteLauncher(BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ):
+    ) -> mlrun.run.RunObject:
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:

@@ -872,12 +872,14 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
     ):
         raise NotImplementedError()
 
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
     ):
         raise NotImplementedError()
 

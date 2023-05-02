@@ -480,7 +480,7 @@ class RunDBInterface(ABC):
         project: str,
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         pass
@@ -490,8 +490,8 @@ class RunDBInterface(ABC):
         self,
         user: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         pass
@@ -551,13 +551,15 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
     ):
         pass
 
     @abstractmethod
     def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
     ):
         pass
 
@@ -596,6 +598,7 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def verify_authorization(
-        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+        self,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass

@@ -39,8 +39,8 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.model_monitoring
 import mlrun.common.schemas
-import mlrun.model_monitoring.constants
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
@@ -638,7 +638,7 @@ def _build_function(
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
                             if mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project

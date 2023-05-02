@@ -23,9 +23,10 @@ import mlrun.api.api.utils
 import mlrun.api.crud.secrets
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.feature_store as fstore
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers

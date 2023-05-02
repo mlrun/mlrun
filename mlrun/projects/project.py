@@ -33,10 +33,10 @@ import kfp
 import nuclio
 import yaml
 
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 

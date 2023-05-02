@@ -24,8 +24,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.crud.model_monitoring.grafana
 import mlrun.api.utils.auth.verifier
+import mlrun.common.model_monitoring
 import mlrun.common.schemas
-import mlrun.model_monitoring
 from mlrun.api.api import deps
 from mlrun.common.schemas import GrafanaTable, GrafanaTimeSeriesTarget
 

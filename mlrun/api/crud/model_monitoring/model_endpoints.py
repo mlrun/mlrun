@@ -23,13 +23,13 @@ import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_endpoints
 import mlrun.config
 import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
@@ -126,7 +126,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db

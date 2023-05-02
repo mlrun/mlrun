@@ -22,8 +22,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.common.model_monitoring
 import mlrun.common.schemas
-import mlrun.model_monitoring
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.common.schemas import (
     GrafanaColumn,
@@ -144,17 +144,19 @@ async def grafana_list_endpoints(
 
         if (
             endpoint.status.metrics
-            and mlrun.model_monitoring.EventKeyMetrics.GENERIC
+            and mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
             in endpoint.status.metrics
         ):
             row.extend(
                 [
                     endpoint.status.metrics[
-                        mlrun.model_monitoring.EventKeyMetrics.GENERIC
-                    ][mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND],
+                        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
+                    ][
+                        mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND
+                    ],
                     endpoint.status.metrics[
-                        mlrun.model_monitoring.EventKeyMetrics.GENERIC
-                    ][mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H],
+                        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
+                    ][mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H],
                 ]
             )
 

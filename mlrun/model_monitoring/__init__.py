@@ -17,9 +17,6 @@
 
 __all__ = [
     "ModelEndpoint",
-    "ModelMonitoringMode",
-    "EndpointType",
-    "create_model_endpoint_uid",
     "EventFieldType",
     "EventLiveStats",
     "EventKeyMetrics",
@@ -30,8 +27,7 @@ __all__ = [
     "ModelMonitoringStoreKinds",
 ]
 
-from .common import EndpointType, ModelMonitoringMode, create_model_endpoint_uid
-from .constants import (
+from mlrun.common.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
@@ -41,4 +37,5 @@ from .constants import (
     ProjectSecretKeys,
     TimeSeriesTarget,
 )
+
 from .model_endpoint import ModelEndpoint

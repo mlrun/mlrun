@@ -30,8 +30,8 @@ from v3io_frames import frames_pb2 as fpb2
 import mlrun
 import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stores
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,

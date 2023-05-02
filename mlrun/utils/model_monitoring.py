@@ -18,8 +18,8 @@ import warnings
 from typing import Union
 
 import mlrun
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.model
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
 from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.config import is_running_as_api

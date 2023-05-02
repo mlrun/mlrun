@@ -20,7 +20,7 @@ import v3io.dataplane
 import v3io_frames
 
 import mlrun
-import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -434,8 +434,8 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(mlrun.model_monitoring.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(mlrun.model_monitoring.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(model_monitoring_constants.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(model_monitoring_constants.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)

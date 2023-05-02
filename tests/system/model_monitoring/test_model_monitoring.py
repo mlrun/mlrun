@@ -29,9 +29,9 @@ from sklearn.datasets import load_diabetes, load_iris
 import mlrun
 import mlrun.api.crud
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.feature_store
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils
 from mlrun.common.schemas import (
     ModelEndpoint,

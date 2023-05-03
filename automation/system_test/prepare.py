@@ -28,6 +28,7 @@ import paramiko
 import yaml
 
 import mlrun.utils
+import automation.common.helpers
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
@@ -188,7 +189,7 @@ class SystemTestPreparer:
             return ""
         try:
             if local:
-                stdout, stderr, exit_status = self._run_command_locally(
+                stdout, stderr, exit_status = automation.common.helpers.run_command(
                     command, args, workdir, stdin, live
                 )
             else:
@@ -268,45 +269,6 @@ class SystemTestPreparer:
         stderr = stderr_stream.read()
 
         exit_status = stdout_stream.channel.recv_exit_status()
-
-        return stdout, stderr, exit_status
-
-    @staticmethod
-    def _run_command_locally(
-        command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
-        live: bool = True,
-    ) -> (str, str, int):
-        stdout, stderr, exit_status = "", "", 0
-        if workdir:
-            command = f"cd {workdir}; " + command
-        if args:
-            command += " " + " ".join(args)
-
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            shell=True,
-        )
-
-        if stdin:
-            process.stdin.write(bytes(stdin, "ascii"))
-            process.stdin.close()
-
-        if live:
-            for line in iter(process.stdout.readline, b""):
-                stdout += str(line)
-                sys.stdout.write(line.decode(sys.stdout.encoding))
-        else:
-            stdout = process.stdout.read()
-
-        stderr = process.stderr.read()
-
-        exit_status = process.wait()
 
         return stdout, stderr, exit_status
 

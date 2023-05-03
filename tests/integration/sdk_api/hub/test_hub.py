@@ -18,10 +18,10 @@ import mlrun
 import tests.integration.sdk_api.base
 
 
-class TestMarketplace(tests.integration.sdk_api.base.TestMLRunIntegration):
+class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
     @staticmethod
     def _assert_source_lists_match(expected_response):
-        response = mlrun.get_run_db().list_marketplace_sources()
+        response = mlrun.get_run_db().list_hub_sources()
 
         exclude_paths = [
             "root['source']['metadata']['updated']",
@@ -37,50 +37,50 @@ class TestMarketplace(tests.integration.sdk_api.base.TestMLRunIntegration):
                 == {}
             )
 
-    def test_marketplace(self):
+    def test_hub(self):
         db = mlrun.get_run_db()
 
-        default_source = mlrun.api.schemas.IndexedMarketplaceSource(
+        default_source = mlrun.api.schemas.IndexedHubSource(
             index=-1,
-            source=mlrun.api.schemas.MarketplaceSource.generate_default_source(),
+            source=mlrun.api.schemas.HubSource.generate_default_source(),
         )
         self._assert_source_lists_match([default_source])
 
-        new_source = mlrun.api.schemas.IndexedMarketplaceSource(
-            source=mlrun.api.schemas.MarketplaceSource(
-                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+        new_source = mlrun.api.schemas.IndexedHubSource(
+            source=mlrun.api.schemas.HubSource(
+                metadata=mlrun.api.schemas.HubObjectMetadata(
                     name="source-1", description="a private source"
                 ),
-                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                spec=mlrun.api.schemas.HubSourceSpec(
                     path="/local/path/to/source", channel="development"
                 ),
             )
         )
-        db.create_marketplace_source(new_source)
+        db.create_hub_source(new_source)
         new_source.index = 1
         self._assert_source_lists_match([new_source, default_source])
 
-        new_source_2 = mlrun.api.schemas.IndexedMarketplaceSource(
+        new_source_2 = mlrun.api.schemas.IndexedHubSource(
             index=1,
-            source=mlrun.api.schemas.MarketplaceSource(
-                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+            source=mlrun.api.schemas.HubSource(
+                metadata=mlrun.api.schemas.HubObjectMetadata(
                     name="source-2", description="2nd private source"
                 ),
-                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                spec=mlrun.api.schemas.HubSourceSpec(
                     path="/local/path/to/source", channel="prod"
                 ),
             ),
         )
 
-        db.create_marketplace_source(new_source_2)
+        db.create_hub_source(new_source_2)
         new_source.index = 2
         self._assert_source_lists_match([new_source_2, new_source, default_source])
 
         new_source.index = 1
-        db.store_marketplace_source(new_source.source.metadata.name, new_source)
+        db.store_hub_source(new_source.source.metadata.name, new_source)
         new_source_2.index = 2
         self._assert_source_lists_match([new_source, new_source_2, default_source])
 
-        db.delete_marketplace_source("source-1")
+        db.delete_hub_source("source-1")
         new_source_2.index = 1
         self._assert_source_lists_match([new_source_2, default_source])

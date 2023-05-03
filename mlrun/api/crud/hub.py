@@ -17,12 +17,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.schemas.marketplace import (
-    MarketplaceCatalog,
-    MarketplaceItem,
-    MarketplaceItemMetadata,
-    MarketplaceItemSpec,
-    MarketplaceSource,
+from mlrun.api.schemas.hub import (
+    HubCatalog,
+    HubItem,
+    HubItemMetadata,
+    HubItemSpec,
+    HubSource,
     ObjectStatus,
 )
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -36,9 +36,9 @@ from .secrets import Secrets, SecretsClientType
 secret_name_separator = "-__-"
 
 
-class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
+class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
-        self._internal_project_name = config.marketplace.k8s_secrets_project_name
+        self._internal_project_name = config.hub.k8s_secrets_project_name
         self._catalogs = {}
 
     @staticmethod
@@ -52,10 +52,10 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def _generate_credentials_secret_key(source, key=""):
         full_key = source + secret_name_separator + key
         return Secrets().generate_client_project_secret_key(
-            SecretsClientType.marketplace, full_key
+            SecretsClientType.hub, full_key
         )
 
-    def add_source(self, source: MarketplaceSource):
+    def add_source(self, source: HubSource):
         source_name = source.metadata.name
         credentials = source.spec.credentials
         if credentials:
@@ -83,7 +83,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
     def _store_source_credentials(self, source_name, credentials: dict):
         if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "MLRun is not configured with k8s, marketplace source credentials cannot be stored securely"
+                "MLRun is not configured with k8s, hub source credentials cannot be stored securely"
             )
 
         adjusted_credentials = {
@@ -122,13 +122,11 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         return source_secrets
 
     @staticmethod
-    def _get_asset_full_path(
-        source: MarketplaceSource, item: MarketplaceItem, asset: str
-    ):
+    def _get_asset_full_path(source: HubSource, item: HubItem, asset: str):
         """
         Combining the item path with the asset path.
 
-        :param source:  Marketplace source object.
+        :param source:  Hub source object.
         :param item:    The relevant item to get the asset from.
         :param asset:   The asset name
         :return:    Full path to the asset, relative to the item directory.
@@ -144,31 +142,27 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _transform_catalog_dict_to_schema(
-        source: MarketplaceSource, catalog_dict: Dict[str, Any]
-    ) -> MarketplaceCatalog:
+        source: HubSource, catalog_dict: Dict[str, Any]
+    ) -> HubCatalog:
         """
-        Transforms catalog dictionary to MarketplaceCatalog schema
-        :param source:          Marketplace source object.
+        Transforms catalog dictionary to HubCatalog schema
+        :param source:          Hub source object.
         :param catalog_dict:    raw catalog dict, top level keys are item names,
                                 second level keys are version tags ("latest, "1.1.0", ...) and
                                 bottom level keys include spec as a dict and all the rest is considered as metadata.
         :return: catalog object
         """
-        catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
+        catalog = HubCatalog(catalog=[], channel=source.spec.channel)
         # Loop over objects, then over object versions.
         for object_name, object_dict in catalog_dict.items():
             for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
                 assets = object_details_dict.pop("assets", {})
-                metadata = MarketplaceItemMetadata(
-                    tag=version_tag, **object_details_dict
-                )
+                metadata = HubItemMetadata(tag=version_tag, **object_details_dict)
                 item_uri = source.get_full_uri(metadata.get_relative_path())
-                spec = MarketplaceItemSpec(
-                    item_uri=item_uri, assets=assets, **spec_dict
-                )
-                item = MarketplaceItem(
+                spec = HubItemSpec(item_uri=item_uri, assets=assets, **spec_dict)
+                item = HubItem(
                     metadata=metadata,
                     spec=spec,
                     status=ObjectStatus(),
@@ -179,16 +173,16 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_source_catalog(
         self,
-        source: MarketplaceSource,
+        source: HubSource,
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
-    ) -> MarketplaceCatalog:
+    ) -> HubCatalog:
         """
         Getting the catalog object by source.
         If version and/or tag are given, the catalog will be filtered accordingly.
 
-        :param source:          Marketplace source object.
+        :param source:          Hub source object.
         :param version:         version of items to filter by
         :param tag:             tag of items to filter by
         :param force_refresh:   if True, the catalog will be loaded from source always,
@@ -206,7 +200,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog = self._catalogs[source_name]
 
-        result_catalog = MarketplaceCatalog(catalog=[], channel=source.spec.channel)
+        result_catalog = HubCatalog(catalog=[], channel=source.spec.channel)
         for item in catalog.catalog:
             # Because tag and version are optionals,
             # we filter the catalog by one of them with priority to tag
@@ -219,23 +213,23 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_item(
         self,
-        source: MarketplaceSource,
+        source: HubSource,
         item_name: str,
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
-    ) -> MarketplaceItem:
+    ) -> HubItem:
         """
         Retrieve item from source. The item is filtered by tag and version.
 
-        :param source:          Marketplace source object
+        :param source:          Hub source object
         :param item_name:       name of the item to retrieve
         :param version:         version of the item
         :param tag:             tag of the item
         :param force_refresh:   if True, the catalog will be loaded from source always,
                                 otherwise will be pulled from db (if loaded before)
 
-        :return: marketplace item object
+        :return: hub item object
 
         :raise if the number of collected items from catalog is not exactly one.
         """
@@ -256,9 +250,9 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _get_catalog_items_filtered_by_name(
-        catalog: List[MarketplaceItem],
+        catalog: List[HubItem],
         item_name: str,
-    ) -> List[MarketplaceItem]:
+    ) -> List[HubItem]:
         """
         Retrieve items from catalog filtered by name
 
@@ -269,7 +263,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         """
         return [item for item in catalog if item.metadata.name == item_name]
 
-    def get_item_object_using_source_credentials(self, source: MarketplaceSource, url):
+    def get_item_object_using_source_credentials(self, source: HubSource, url):
         credentials = self._get_source_credentials(source.metadata.name)
 
         if not url.startswith(source.spec.path):
@@ -289,15 +283,15 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_asset(
         self,
-        source: MarketplaceSource,
-        item: MarketplaceItem,
+        source: HubSource,
+        item: HubItem,
         asset_name: str,
     ) -> Tuple[bytes, str]:
         """
-        Retrieve asset object from marketplace source.
+        Retrieve asset object from hub source.
 
-        :param source:      marketplace source
-        :param item:        marketplace item which contains the assets
+        :param source:      hub source
+        :param item:        hub item which contains the assets
         :param asset_name:  asset name, like source, example, etc.
 
         :return: tuple of asset as bytes and url of asset

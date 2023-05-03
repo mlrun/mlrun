@@ -25,7 +25,7 @@ from mlrun.config import config
 
 # Defining a different base class (not ObjectMetadata), as there's no project, and it differs enough to
 # justify a new class
-class MarketplaceObjectMetadata(BaseModel):
+class HubObjectMetadata(BaseModel):
     name: str
     description: str = ""
     labels: Optional[dict] = {}
@@ -37,24 +37,22 @@ class MarketplaceObjectMetadata(BaseModel):
 
 
 # Currently only functions are supported. Will add more in the future.
-class MarketplaceSourceType(mlrun.api.utils.helpers.StrEnum):
+class HubSourceType(mlrun.api.utils.helpers.StrEnum):
     functions = "functions"
 
 
 # Sources-related objects
-class MarketplaceSourceSpec(ObjectSpec):
+class HubSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
     credentials: Optional[dict] = {}
-    object_type: MarketplaceSourceType = Field(
-        MarketplaceSourceType.functions, const=True
-    )
+    object_type: HubSourceType = Field(HubSourceType.functions, const=True)
 
 
-class MarketplaceSource(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.marketplace_source, const=True)
-    metadata: MarketplaceObjectMetadata
-    spec: MarketplaceSourceSpec
+class HubSource(BaseModel):
+    kind: ObjectKind = Field(ObjectKind.hub_source, const=True)
+    metadata: HubObjectMetadata
+    spec: HubSourceSpec
     status: Optional[ObjectStatus] = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path):
@@ -66,28 +64,26 @@ class MarketplaceSource(BaseModel):
         )
 
     def get_catalog_uri(self):
-        return self.get_full_uri(config.marketplace.catalog_filename)
+        return self.get_full_uri(config.hub.catalog_filename)
 
     @classmethod
     def generate_default_source(cls):
-        if not config.marketplace.default_source.create:
+        if not config.hub.default_source.create:
             return None
 
         now = datetime.now(timezone.utc)
-        hub_metadata = MarketplaceObjectMetadata(
-            name=config.marketplace.default_source.name,
-            description=config.marketplace.default_source.description,
+        hub_metadata = HubObjectMetadata(
+            name=config.hub.default_source.name,
+            description=config.hub.default_source.description,
             created=now,
             updated=now,
         )
         return cls(
             metadata=hub_metadata,
-            spec=MarketplaceSourceSpec(
-                path=config.marketplace.default_source.url,
-                channel=config.marketplace.default_source.channel,
-                object_type=MarketplaceSourceType(
-                    config.marketplace.default_source.object_type
-                ),
+            spec=HubSourceSpec(
+                path=config.hub.default_source.url,
+                channel=config.hub.default_source.channel,
+                object_type=HubSourceType(config.hub.default_source.object_type),
             ),
             status=ObjectStatus(state="created"),
         )
@@ -96,43 +92,43 @@ class MarketplaceSource(BaseModel):
 last_source_index = -1
 
 
-class IndexedMarketplaceSource(BaseModel):
+class IndexedHubSource(BaseModel):
     index: int = last_source_index  # Default last. Otherwise, must be > 0
-    source: MarketplaceSource
+    source: HubSource
 
 
 # Item-related objects
-class MarketplaceItemMetadata(MarketplaceObjectMetadata):
-    source: MarketplaceSourceType = Field(MarketplaceSourceType.functions, const=True)
+class HubItemMetadata(HubObjectMetadata):
+    source: HubSourceType = Field(HubSourceType.functions, const=True)
     version: str
     tag: Optional[str]
 
     def get_relative_path(self) -> str:
-        if self.source == MarketplaceSourceType.functions:
-            # This is needed since the marketplace deployment script modifies the paths to use _ instead of -.
+        if self.source == HubSourceType.functions:
+            # This is needed since the hub deployment script modifies the paths to use _ instead of -.
             modified_name = self.name.replace("-", "_")
             # Prefer using the tag if exists. Otherwise, use version.
             version = self.tag or self.version
             return f"{modified_name}/{version}/"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Bad source for marketplace item - {self.source}"
+                f"Bad source for hub item - {self.source}"
             )
 
 
-class MarketplaceItemSpec(ObjectSpec):
+class HubItemSpec(ObjectSpec):
     item_uri: str
     assets: Dict[str, str] = {}
 
 
-class MarketplaceItem(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.marketplace_item, const=True)
-    metadata: MarketplaceItemMetadata
-    spec: MarketplaceItemSpec
+class HubItem(BaseModel):
+    kind: ObjectKind = Field(ObjectKind.hub_item, const=True)
+    metadata: HubItemMetadata
+    spec: HubItemSpec
     status: ObjectStatus
 
 
-class MarketplaceCatalog(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.marketplace_catalog, const=True)
+class HubCatalog(BaseModel):
+    kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
     channel: str
-    catalog: List[MarketplaceItem]
+    catalog: List[HubItem]

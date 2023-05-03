@@ -417,26 +417,24 @@ class NopDB(RunDBInterface):
     def patch_model_endpoint(self, project: str, endpoint_id: str, attributes: dict):
         pass
 
-    def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def create_hub_source(self, source: Union[dict, schemas.IndexedHubSource]):
+        pass
+
+    def store_hub_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedHubSource]
     ):
         pass
 
-    def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
-    ):
+    def list_hub_sources(self):
         pass
 
-    def list_marketplace_sources(self):
+    def get_hub_source(self, source_name: str):
         pass
 
-    def get_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         pass
 
-    def delete_marketplace_source(self, source_name: str):
-        pass
-
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         channel: str = None,
@@ -446,7 +444,7 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,

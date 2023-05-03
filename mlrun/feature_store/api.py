@@ -491,10 +491,11 @@ def ingest(
                 f"Source.end_time is {str(source.end_time)}"
             )
 
-    if mlrun_context:
-        mlrun_context.logger.info(
-            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-        )
+        if mlrun_context:
+            mlrun_context.logger.info(
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+            )
+
         return_df = False
 
     if featureset.spec.passthrough:

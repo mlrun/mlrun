@@ -29,6 +29,7 @@ class Constants:
     helm_repo_url = "https://mlrun.github.io/ce"
     registry_credentials_secret_name = "registry-credentials"
     mlrun_image_values = ["mlrun.api", "mlrun.ui", "jupyterNotebook"]
+    disableable_deployments = ["pipelines", "kube-prometheus-stack", "spark-operator"]
 
 
 class CommunityEditionDeployer:
@@ -279,19 +280,25 @@ class CommunityEditionDeployer:
         if mlrun_version:
             self._set_mlrun_version_in_helm_values(helm_values, mlrun_version)
 
-        for value, overriden_image in [
-            ("mlrun.api", override_mlrun_api_image),
-            ("mlrun.ui", override_mlrun_ui_image),
-            ("jupyterNotebook", override_jupyter_image),
-        ]:
+        for value, overriden_image in zip(
+            Constants.mlrun_image_values,
+            [
+                override_mlrun_api_image,
+                override_mlrun_ui_image,
+                override_jupyter_image,
+            ],
+        ):
             if overriden_image:
                 self._override_image_in_helm_values(helm_values, value, overriden_image)
 
-        for deployment, disabled in [
-            ("pipelines", disable_pipelines),
-            ("kube-prometheus-stack", disable_prometheus_stack),
-            ("spark-operator", disable_spark_operator),
-        ]:
+        for deployment, disabled in zip(
+            Constants.disableable_deployments,
+            [
+                disable_pipelines,
+                disable_prometheus_stack,
+                disable_spark_operator,
+            ],
+        ):
             if disabled:
                 self._disable_deployment_in_helm_values(helm_values, deployment)
 

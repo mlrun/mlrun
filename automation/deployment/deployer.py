@@ -351,13 +351,13 @@ class CommunityEditionDeployer:
             helm_arguments.extend(
                 [
                     "--set",
-                    f'mlrun.httpDB.dbType="sqlite"',
+                    'mlrun.httpDB.dbType="sqlite"',
                     "--set",
                     f'mlrun.httpDB.dirPath="{dir_path}"',
                     "--set",
                     f'mlrun.httpDB.dsn="sqlite:///{sqlite}?check_same_thread=false"',
                     "--set",
-                    f'mlrun.httpDB.oldDsn=""',
+                    'mlrun.httpDB.oldDsn=""',
                 ]
             )
 

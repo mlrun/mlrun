@@ -63,12 +63,9 @@ def rename_hub_marketplace_table(current_name, new_name):
     hub_sources = sa.sql.table(
         new_name,
         sa.Column("name", sa.String(255), sa.Column("object"), sa.JSON),
-        sa.Column("index"),
-        sa.Integer,
-        sa.Column("created"),
-        sa.TIMESTAMP,
-        sa.Column("updated"),
-        sa.TIMESTAMP,
+        sa.Column("index", sa.Integer),
+        sa.Column("created", sa.TIMESTAMP),
+        sa.Column("updated", sa.TIMESTAMP),
     )
     conn = op.get_bind()
     res = conn.execute(

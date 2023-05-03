@@ -1,0 +1,2 @@
+> 2023-05-03 10:31:13,134 [warning] Cleaning up entire namespace: {'namespace': 'mlrun'}
+namespace "mlrun" deleted

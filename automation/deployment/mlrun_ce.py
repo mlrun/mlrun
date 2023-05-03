@@ -1,3 +1,17 @@
+# Copyright 2023 MLRun Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import platform
 import subprocess
 import sys
@@ -74,6 +88,7 @@ class CommunityEditionDeployer:
 
     def delete(
         self,
+        skip_uninstall: bool = False,
         cleanup_registry_secret: bool = True,
         cleanup_volumes: bool = False,
         cleanup_namespace: bool = False,
@@ -85,13 +100,19 @@ class CommunityEditionDeployer:
             self._run_command("kubectl", ["delete", "namespace", self._namespace])
             return
 
-        self._logger.info(
-            "Cleaning up helm release", release=Constants.helm_release_name
-        )
-        self._run_command(
-            "helm",
-            ["--namespace", self._namespace, "uninstall", Constants.helm_release_name],
-        )
+        if not skip_uninstall:
+            self._logger.info(
+                "Cleaning up helm release", release=Constants.helm_release_name
+            )
+            self._run_command(
+                "helm",
+                [
+                    "--namespace",
+                    self._namespace,
+                    "uninstall",
+                    Constants.helm_release_name,
+                ],
+            )
 
         if cleanup_volumes:
             self._logger.warning("Cleaning up mlrun volumes")
@@ -250,17 +271,13 @@ class CommunityEditionDeployer:
         helm_values = {
             "global.registry.url": registry_url,
             "global.registry.secretName": Constants.registry_credentials_secret_name,
-            "global.externalHostAddress": self._minikube_ip()
+            "global.externalHostAddress": self._get_minikube_ip()
             if minikube
             else self._get_host_ip(),
         }
 
         if mlrun_version:
-            self._logger.warning(
-                "Installing specific mlrun version", mlrun_version=mlrun_version
-            )
-            for image in Constants.mlrun_image_values:
-                helm_values[f"{image}.image.tag"] = mlrun_version
+            self._set_mlrun_version_in_helm_values(helm_values, mlrun_version)
 
         for value, overriden_image in [
             ("mlrun.api", override_mlrun_api_image),
@@ -268,15 +285,7 @@ class CommunityEditionDeployer:
             ("jupyterNotebook", override_jupyter_image),
         ]:
             if overriden_image:
-                (
-                    overriden_image_repo,
-                    overriden_image_tag,
-                ) = overriden_image.split(":")
-                self._logger.warning(
-                    "Overriding image", image=value, overriden_image=overriden_image
-                )
-                helm_values[f"{value}.image.repository"] = overriden_image_repo
-                helm_values[f"{value}.image.tag"] = overriden_image_tag
+                self._override_image_in_helm_values(helm_values, value, overriden_image)
 
         for deployment, disabled in [
             ("pipelines", disable_pipelines),
@@ -284,15 +293,14 @@ class CommunityEditionDeployer:
             ("spark-operator", disable_spark_operator),
         ]:
             if disabled:
-                self._logger.warning("Disabling deployment", deployment=deployment)
-                helm_values[f"{deployment}.enabled"] = "false"
+                self._disable_deployment_in_helm_values(helm_values, deployment)
 
         # TODO: We need to fix the pipelines metadata grpc server to work on arm
         if self._check_platform_architecture() == "arm":
             self._logger.warning(
                 "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation."
             )
-            helm_values["pipelines.enabled"] = "false"
+            self._disable_deployment_in_helm_values(helm_values, "pipelines")
 
         self._logger.debug(
             "Generated helm values",
@@ -351,8 +359,39 @@ class CommunityEditionDeployer:
                 f"Platform {platform.system()} is not supported for this action"
             )
 
-    def _minikube_ip(self) -> str:
+    def _get_minikube_ip(self) -> str:
         return self._run_command("minikube", ["ip"], live=False)[0].strip()
+
+    def _set_mlrun_version_in_helm_values(
+        self, helm_values: typing.Dict[str, str], mlrun_version: str
+    ) -> None:
+        self._logger.warning(
+            "Installing specific mlrun version", mlrun_version=mlrun_version
+        )
+        for image in Constants.mlrun_image_values:
+            helm_values[f"{image}.image.tag"] = mlrun_version
+
+    def _override_image_in_helm_values(
+        self,
+        helm_values: typing.Dict[str, str],
+        image_helm_value: str,
+        overriden_image: str,
+    ) -> None:
+        (
+            overriden_image_repo,
+            overriden_image_tag,
+        ) = overriden_image.split(":")
+        self._logger.warning(
+            "Overriding image", image=image_helm_value, overriden_image=overriden_image
+        )
+        helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
+        helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
+
+    def _disable_deployment_in_helm_values(
+        self, helm_values: typing.Dict[str, str], deployment: str
+    ) -> None:
+        self._logger.warning("Disabling deployment", deployment=deployment)
+        helm_values[f"{deployment}.enabled"] = "false"
 
     def _run_command(
         self,
@@ -396,18 +435,7 @@ class CommunityEditionDeployer:
         return stdout, stderr, exit_status
 
 
-@click.group()
-def main():
-    pass
-
-
-@main.command()
-@click.option(
-    "-n",
-    "--namespace",
-    default="mlrun",
-    help="Namespace to install the platform in. Defaults to 'mlrun'",
-)
+@click.group(help="MLRun Community Edition Deployment CLI Tool")
 @click.option(
     "-d",
     "--debug",
@@ -418,6 +446,19 @@ def main():
     "-f",
     "--log-file",
     help="Path to log file. If not specified, will log to stdout",
+)
+@click.pass_context
+def cli(ctx, debug: bool = False, log_file: str = None):
+    ctx.obj["DEBUG"] = debug
+    ctx.obj["LOG_FILE"] = log_file
+
+
+@cli.command()
+@click.option(
+    "-n",
+    "--namespace",
+    default="mlrun",
+    help="Namespace to install the platform in. Defaults to 'mlrun'",
 )
 @click.option(
     "-mv",
@@ -479,10 +520,10 @@ def main():
     is_flag=True,
     help="Install the mlrun chart in local minikube.",
 )
+@click.pass_context
 def deploy(
+    ctx,
     namespace: str = "mlrun",
-    debug: bool = False,
-    log_file: str = None,
     mlrun_version: str = None,
     chart_version: str = None,
     registry_url: str = None,
@@ -499,8 +540,8 @@ def deploy(
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
-        log_level="debug" if debug else "info",
-        log_file=log_file,
+        log_level="debug" if ctx.obj["DEBUG"] else "info",
+        log_file=ctx.obj["LOG_FILE"],
     )
     deployer.deploy(
         mlrun_version=mlrun_version,
@@ -519,7 +560,7 @@ def deploy(
     )
 
 
-@main.command()
+@cli.command()
 @click.option(
     "-n",
     "--namespace",
@@ -527,15 +568,9 @@ def deploy(
     help="Namespace to install the platform in. Defaults to 'mlrun'",
 )
 @click.option(
-    "-d",
-    "--debug",
+    "--skip-uninstall",
     is_flag=True,
-    help="Enable debug logging",
-)
-@click.option(
-    "-f",
-    "--log-file",
-    help="Path to log file. If not specified, will log to stdout",
+    help="Skip uninstalling the Helm chart. Useful if already uninstalled and you want to perform cleanup only",
 )
 @click.option(
     "--skip-cleanup-registry-secret",
@@ -553,38 +588,29 @@ def deploy(
     help="Delete the namespace created during installation. This overrides the other cleanup options. "
     "WARNING: This will result in data loss!",
 )
+@click.pass_context
 def delete(
+    ctx,
     namespace: str = "mlrun",
-    debug: bool = False,
-    log_file: str = None,
+    skip_uninstall: bool = False,
     skip_cleanup_registry_secret: bool = False,
     cleanup_volumes: bool = False,
     cleanup_namespace: bool = False,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
-        log_level="debug" if debug else "info",
-        log_file=log_file,
+        log_level="debug" if ctx.obj["DEBUG"] else "info",
+        log_file=ctx.obj["LOG_FILE"],
     )
     deployer.delete(
+        skip_uninstall=skip_uninstall,
         cleanup_registry_secret=not skip_cleanup_registry_secret,
         cleanup_volumes=cleanup_volumes,
         cleanup_namespace=cleanup_namespace,
     )
 
 
-@main.command()
-@click.option(
-    "-d",
-    "--debug",
-    is_flag=True,
-    help="Enable debug logging",
-)
-@click.option(
-    "-f",
-    "--log-file",
-    help="Path to log file. If not specified, will log to stdout",
-)
+@cli.command()
 @click.option(
     "--mlrun-api-image",
     help="Override the mlrun-api image. Format: <repo>:<tag>",
@@ -597,17 +623,17 @@ def delete(
     "--jupyter-image",
     help="Override the jupyter image. Format: <repo>:<tag>",
 )
+@click.pass_context
 def patch_minikube_images(
-    debug: bool = False,
-    log_file: str = None,
+    ctx,
     mlrun_api_image: str = None,
     mlrun_ui_image: str = None,
     jupyter_image: str = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace="",
-        log_level="debug" if debug else "info",
-        log_file=log_file,
+        log_level="debug" if ctx.obj["DEBUG"] else "info",
+        log_file=ctx.obj["LOG_FILE"],
     )
     deployer.patch_minikube_images(
         mlrun_api_image=mlrun_api_image,
@@ -617,4 +643,4 @@ def patch_minikube_images(
 
 
 if __name__ == "__main__":
-    main()
+    cli(obj={})

@@ -6,12 +6,10 @@ Create Date: 2023-04-24 11:06:36.177314
 
 """
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = '28383af526f3'
-down_revision = 'c905d15bd91d'
+revision = "28383af526f3"
+down_revision = "c905d15bd91d"
 branch_labels = None
 depends_on = None
 

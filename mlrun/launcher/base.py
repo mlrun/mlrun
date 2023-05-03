@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional, Union
 import mlrun.errors
 import mlrun.model
 import mlrun.runtimes
-from mlrun.model import RunObject
 from mlrun.utils import logger
 
 run_modes = ["pass"]
@@ -58,8 +57,8 @@ class BaseLauncher(abc.ABC):
 
     def launch(
         self,
-        runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -83,7 +82,7 @@ class BaseLauncher(abc.ABC):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ) -> mlrun.run.RunObject:
+    ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
 
@@ -94,8 +93,8 @@ class BaseLauncher(abc.ABC):
 
     def _validate_runtime(
         self,
-        runtime: mlrun.runtimes.BaseRuntime,
-        run: RunObject,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
     ):
         mlrun.utils.helpers.verify_dict_items_type(
             "Inputs", run.spec.inputs, [str], [str]
@@ -109,8 +108,8 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _validate_output_path(
-        runtime: mlrun.runtimes.BaseRuntime,
-        run: RunObject,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
     ):
         if not run.spec.output_path or "://" not in run.spec.output_path:
             message = ""

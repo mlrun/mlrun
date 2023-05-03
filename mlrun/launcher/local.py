@@ -17,7 +17,6 @@ import pathlib
 from typing import Dict, List, Optional, Union
 
 import mlrun.api.schemas.schedule
-import mlrun.db.httpdb
 import mlrun.errors
 import mlrun.run
 import mlrun.runtimes.generators
@@ -40,7 +39,7 @@ class ClientLocalLauncher(BaseLauncher):
         self._is_run_local = local
 
     @property
-    def db(self) -> mlrun.db.httpdb.HTTPRunDB:
+    def db(self) -> "mlrun.db.httpdb.HTTPRunDB":
         return self._db
 
     @staticmethod
@@ -53,8 +52,8 @@ class ClientLocalLauncher(BaseLauncher):
 
     def launch(
         self,
-        runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -78,10 +77,10 @@ class ClientLocalLauncher(BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ) -> mlrun.run.RunObject:
+    ) -> "mlrun.run.RunObject":
 
         # do not allow local function to be scheduled
-        if schedule is not None:
+        if self._is_run_local and schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "local and schedule cannot be used together"
             )
@@ -107,20 +106,28 @@ class ClientLocalLauncher(BaseLauncher):
                 "remote function cannot be executed locally"
             )
 
+        local_function = local_function or runtime
         run = self._enrich_run(
-            runtime=runtime,
+            runtime=local_function,
             run=run,
+            handler=handler,
             project_name=project,
             name=name,
             params=params,
             inputs=inputs,
             returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
             artifact_path=artifact_path,
+            workdir=workdir,
             notifications=notifications,
         )
-        self._validate_runtime(runtime, run)
+        self._validate_runtime(local_function, run)
         result = self.execute(
-            runtime=local_function or runtime,
+            runtime=local_function,
             run=run,
         )
 
@@ -193,8 +200,8 @@ class ClientLocalLauncher(BaseLauncher):
 
     def execute(
         self,
-        runtime: mlrun.runtimes.BaseRuntime,
-        run: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
 
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
@@ -206,7 +213,7 @@ class ClientLocalLauncher(BaseLauncher):
             uid=run.metadata.uid,
             db=runtime.spec.rundb,
         )
-        self.store_function(runtime, run, run.metadata)
+        self._store_function(runtime, run, run.metadata)
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
@@ -297,7 +304,7 @@ class ClientLocalLauncher(BaseLauncher):
         if execution._old_workdir:
             os.chdir(execution._old_workdir)
 
-    def store_function(self, runtime, runspec, meta):
+    def _store_function(self, runtime, runspec, meta):
         meta.labels["kind"] = runtime.kind
         if "owner" not in meta.labels:
             meta.labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()

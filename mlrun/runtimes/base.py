@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
 import mlrun.errors
+import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -371,8 +372,6 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
-        import mlrun.launcher.factory
-
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             self._is_remote, local
         )

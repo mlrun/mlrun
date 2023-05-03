@@ -19,7 +19,6 @@ import requests
 
 import mlrun.api.schemas.schedule
 import mlrun.db
-import mlrun.db.httpdb
 import mlrun.errors
 import mlrun.run
 import mlrun.runtimes
@@ -35,7 +34,7 @@ run_modes = ["pass"]
 
 class ClientRemoteLauncher(BaseLauncher):
     @property
-    def db(self) -> mlrun.db.httpdb.HTTPRunDB:
+    def db(self) -> "mlrun.db.httpdb.HTTPRunDB":
         return self._db
 
     def _save_or_push_notifications(self, runobj):
@@ -51,8 +50,8 @@ class ClientRemoteLauncher(BaseLauncher):
 
     def launch(
         self,
-        runtime: mlrun.runtimes.KubejobRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        runtime: "mlrun.runtimes.KubejobRuntime",
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -76,7 +75,7 @@ class ClientRemoteLauncher(BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ) -> mlrun.run.RunObject:
+    ) -> "mlrun.run.RunObject":
         self._enrich_runtime(runtime)
         run = self._create_run_object(task)
 
@@ -124,7 +123,7 @@ class ClientRemoteLauncher(BaseLauncher):
             uid=run.metadata.uid,
             db=runtime.spec.rundb,
         )
-        self.store_function(runtime, run)
+        self._store_function(runtime, run)
 
         return self.submit_job(runtime, run, schedule, watch)
 
@@ -135,8 +134,8 @@ class ClientRemoteLauncher(BaseLauncher):
 
     def submit_job(
         self,
-        runtime: mlrun.runtimes.KubejobRuntime,
-        run: mlrun.run.RunObject,
+        runtime: "mlrun.runtimes.KubejobRuntime",
+        run: "mlrun.run.RunObject",
         schedule: Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
         watch: Optional[bool] = None,
     ):
@@ -199,8 +198,8 @@ class ClientRemoteLauncher(BaseLauncher):
 
         return runtime._wrap_run_result(resp, run, schedule=schedule)
 
-    def store_function(
-        self, runtime: mlrun.runtimes.KubejobRuntime, run: mlrun.run.RunObject
+    def _store_function(
+        self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
     ):
         metadata = run.metadata
         metadata.labels["kind"] = runtime.kind

@@ -69,9 +69,7 @@ def rename_hub_marketplace_table(current_name, new_name):
         sa.Column("updated", sa.TIMESTAMP, nullable=True),
     )
     conn = op.get_bind()
-    res = conn.execute(
-        f"SELECT * FROM {current_name}"
-    )
+    res = conn.execute(f"SELECT * FROM {current_name}")
     results = res.fetchall()
     op.bulk_insert(hub_sources, results)
     op.drop_table(current_name)

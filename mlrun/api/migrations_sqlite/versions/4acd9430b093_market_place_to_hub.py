@@ -70,7 +70,7 @@ def rename_hub_marketplace_table(current_name, new_name):
     )
     conn = op.get_bind()
     res = conn.execute(
-        f"select index, name, object, created, updated, id from {current_name}"
+        f"SELECT * FROM {current_name}"
     )
     results = res.fetchall()
     op.bulk_insert(hub_sources, results)

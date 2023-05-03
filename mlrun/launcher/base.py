@@ -36,10 +36,12 @@ class BaseLauncher(abc.ABC):
     """
 
     def __init__(self):
-        self._db = mlrun.db.get_or_set_dburl()
+        self._db = None
 
     @property
     def db(self) -> mlrun.db.base.RunDBInterface:
+        if not self._db:
+            self._db = mlrun.db.get_run_db()
         return self._db
 
     @staticmethod

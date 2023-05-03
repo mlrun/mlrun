@@ -36,7 +36,7 @@ class ClientLocalLauncher(BaseLauncher):
     """
 
     def __init__(self, local: bool):
-        super(BaseLauncher).__init__()
+        super().__init__()
         self._is_run_local = local
 
     @property

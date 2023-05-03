@@ -66,7 +66,7 @@ def cli():
     pass
 
 
-@cli.command(help="Deploy MLRun Community Edition")
+@cli.command(help="Deploy (or upgrade) MLRun Community Edition")
 @click.option(
     "-mv",
     "--mlrun-version",

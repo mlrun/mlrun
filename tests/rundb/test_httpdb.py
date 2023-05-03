@@ -51,7 +51,7 @@ def free_port():
 
 def check_server_up(url):
     health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
-    timeout = 30
+    timeout = 90
     if not wait_for_server(health_url, timeout):
         raise RuntimeError(f"server did not start after {timeout} sec")
 

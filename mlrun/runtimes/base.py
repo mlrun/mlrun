@@ -260,7 +260,10 @@ class BaseRuntime(ModelObj):
     def _enrich_on_server_side(self):
         if self.metadata.project:
             project = mlrun.get_run_db().get_project(self.metadata.project)
-            project.enrich_function_object(self)
+            # this is mainly for tests with nop db
+            # in normal use cases if no project is found we will get an error
+            if project:
+                project.enrich_function_object(self)
 
     def _enrich_on_server_and_client_sides(self):
         """

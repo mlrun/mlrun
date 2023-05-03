@@ -501,7 +501,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests/serving/test_remote.py::test_remote_step
+		tests
 
 
 .PHONY: test-integration-dockerized

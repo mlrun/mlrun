@@ -930,7 +930,11 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            return self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe()
+            # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
+            if not isinstance(df, pd.DataFrame):
+                df = pd.concat(df)
+            return df
 
         target = get_offline_target(self, name=target_name)
         if not target:

@@ -511,6 +511,32 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
+    def test_kfp_from_local_code(self):
+        name = "kfp-from-local-code"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+
+        handler_fn = project.set_function(
+            func="./assets/handler.py",
+            handler="my_func",
+            name="my-func",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        project.build_function(handler_fn)
+
+        project.set_workflow(
+            "main", "./assets/handler_workflow.py", handler="job_pipeline"
+        )
+        project.save()
+
+        run = project.run(
+            "main",
+            watch=True,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"
@@ -818,3 +844,17 @@ class TestProject(TestMLRunSystem):
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
         assert schedule.scheduled_object["schedule"] == schedule_str
+
+    def test_remote_workflow_source_with_subpath(self):
+        # Test running remote workflow when the project files are store in a relative path (the subpath)
+        project_source = "git://github.com/mlrun/system-tests.git#main"
+        project_context = "./test_subpath_remote"
+        project_name = "test-remote-workflow-source-with-subpath"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.load_project(
+            context=project_context,
+            url=project_source,
+            subpath="./test_remote_workflow_subpath",
+            name=project_name,
+        )
+        project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)

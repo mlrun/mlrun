@@ -49,10 +49,7 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -213,10 +210,7 @@
       "pluginVersion": "9.2.2",
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-simple-json-datasource",
-            "uid": "PiBy-ta4z"
-          },
+          "datasource": "iguazio",
           "hide": false,
           "rawQuery": true,
           "refId": "A",
@@ -272,10 +266,7 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "grafana-simple-json-datasource",
-        "uid": "PiBy-ta4z"
-      },
+      "datasource": "iguazio",
       "description": "",
       "fieldConfig": {
         "defaults": {

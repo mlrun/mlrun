@@ -21,7 +21,6 @@ from datetime import datetime
 
 import fsspec
 import pandas as pd
-import pyspark.sql.utils
 import pytest
 import v3iofs
 from pandas._testing import assert_frame_equal
@@ -275,7 +274,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def set_targets(self, feature_set, also_in_remote=False):
         dir_name = self.test_name()
         if self.run_local or also_in_remote:
-            target_path = f"{self.output_dir()}/{dir_name}"
+            target_path = f"{self.output_dir(url=False)}/{dir_name}"
             feature_set.set_targets(
                 [ParquetTarget(path=target_path)], with_defaults=False
             )
@@ -1301,6 +1300,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 fstore.ingest(fset, source=source, targets=[target])
 
     def test_error_is_properly_propagated(self):
+        if self.run_local:
+            import pyspark.sql.utils
+
+            expected_error = pyspark.sql.utils.AnalysisException
+        else:
+            expected_error = mlrun.runtimes.utils.RunError
+
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1309,11 +1315,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
         )
         source = ParquetSource("myparquet", path="wrong-path.pq")
-        with pytest.raises(
-            pyspark.sql.utils.AnalysisException
-            if self.run_local
-            else mlrun.runtimes.utils.RunError
-        ):
+        with pytest.raises(expected_error):
             fstore.ingest(
                 measurements,
                 source,

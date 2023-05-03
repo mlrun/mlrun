@@ -181,7 +181,7 @@ class BaseLauncher(abc.ABC):
     @staticmethod
     def _enrich_run(
         runtime,
-        runspec,
+        run,
         handler=None,
         project_name=None,
         name=None,
@@ -197,111 +197,105 @@ class BaseLauncher(abc.ABC):
         workdir=None,
         notifications: List[mlrun.model.Notification] = None,
     ):
-        runspec.spec.handler = (
-            handler or runspec.spec.handler or runtime.spec.default_handler or ""
+        run.spec.handler = (
+            handler or run.spec.handler or runtime.spec.default_handler or ""
         )
-        if runspec.spec.handler and runtime.kind not in ["handler", "dask"]:
-            runspec.spec.handler = runspec.spec.handler_name
+        if run.spec.handler and runtime.kind not in ["handler", "dask"]:
+            run.spec.handler = run.spec.handler_name
 
         def_name = runtime.metadata.name
-        if runspec.spec.handler_name:
-            short_name = runspec.spec.handler_name
+        if run.spec.handler_name:
+            short_name = run.spec.handler_name
             for separator in ["#", "::", "."]:
                 # drop paths, module or class name from short name
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]
             def_name += "-" + short_name
 
-        runspec.metadata.name = mlrun.utils.normalize_name(
-            name=name or runspec.metadata.name or def_name,
+        run.metadata.name = mlrun.utils.normalize_name(
+            name=name or run.metadata.name or def_name,
             # if name or runspec.metadata.name are set then it means that is user defined name and we want to warn the
             # user that the passed name needs to be set without underscore, if its not user defined but rather enriched
             # from the handler(function) name then we replace the underscore without warning the user.
             # most of the time handlers will have `_` in the handler name (python convention is to separate function
             # words with `_`), therefore we don't want to be noisy when normalizing the run name
-            verbose=bool(name or runspec.metadata.name),
+            verbose=bool(name or run.metadata.name),
         )
         mlrun.utils.verify_field_regex(
-            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
+            "run.metadata.name", run.metadata.name, mlrun.utils.regex.run_name
         )
-        runspec.metadata.project = (
+        run.metadata.project = (
             project_name
-            or runspec.metadata.project
+            or run.metadata.project
             or runtime.metadata.project
             or mlrun.mlconf.default_project
         )
-        runspec.spec.parameters = params or runspec.spec.parameters
-        runspec.spec.inputs = inputs or runspec.spec.inputs
-        runspec.spec.returns = returns or runspec.spec.returns
-        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
-        runspec.spec.hyper_param_options = (
-            hyper_param_options or runspec.spec.hyper_param_options
+        run.spec.parameters = params or run.spec.parameters
+        run.spec.inputs = inputs or run.spec.inputs
+        run.spec.returns = returns or run.spec.returns
+        run.spec.hyperparams = hyperparams or run.spec.hyperparams
+        run.spec.hyper_param_options = (
+            hyper_param_options or run.spec.hyper_param_options
         )
-        runspec.spec.verbose = verbose or runspec.spec.verbose
+        run.spec.verbose = verbose or run.spec.verbose
         if scrape_metrics is None:
-            if runspec.spec.scrape_metrics is None:
+            if run.spec.scrape_metrics is None:
                 scrape_metrics = mlrun.mlconf.scrape_metrics
             else:
-                scrape_metrics = runspec.spec.scrape_metrics
-        runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.input_path = (
-            workdir or runspec.spec.input_path or runtime.spec.workdir
-        )
+                scrape_metrics = run.spec.scrape_metrics
+        run.spec.scrape_metrics = scrape_metrics
+        run.spec.input_path = workdir or run.spec.input_path or runtime.spec.workdir
         if runtime.spec.allow_empty_resources:
-            runspec.spec.allow_empty_resources = runtime.spec.allow_empty_resources
+            run.spec.allow_empty_resources = runtime.spec.allow_empty_resources
 
-        spec = runspec.spec
+        spec = run.spec
         if spec.secret_sources:
             runtime._secrets = mlrun.secrets.SecretsStore.from_list(spec.secret_sources)
 
         # update run metadata (uid, labels) and store in DB
-        meta = runspec.metadata
+        meta = run.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+        run.spec.output_path = out_path or artifact_path or run.spec.output_path
 
-        if not runspec.spec.output_path:
-            if runspec.metadata.project:
+        if not run.spec.output_path:
+            if run.metadata.project:
                 if (
                     mlrun.pipeline_context.project
-                    and runspec.metadata.project
+                    and run.metadata.project
                     == mlrun.pipeline_context.project.metadata.name
                 ):
-                    runspec.spec.output_path = (
+                    run.spec.output_path = (
                         mlrun.pipeline_context.project.spec.artifact_path
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not runspec.spec.output_path and runtime._get_db():
+                if not run.spec.output_path and runtime._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
                         # spec first as get_db() depends on it
-                        project = runtime._get_db().get_project(
-                            runspec.metadata.project
-                        )
+                        project = runtime._get_db().get_project(run.metadata.project)
                         # this is mainly for tests, so we won't need to mock get_project for so many tests
                         # in normal use cases if no project is found we will get an error
                         if project:
-                            runspec.spec.output_path = project.spec.artifact_path
+                            run.spec.output_path = project.spec.artifact_path
                     except mlrun.errors.MLRunNotFoundError:
                         logger.warning(
                             f"project {project_name} is not saved in DB yet, "
                             f"enriching output path with default artifact path: {mlrun.mlconf.artifact_path}"
                         )
 
-            if not runspec.spec.output_path:
-                runspec.spec.output_path = mlrun.mlconf.artifact_path
+            if not run.spec.output_path:
+                run.spec.output_path = mlrun.mlconf.artifact_path
 
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.uid}}", meta.uid
-            )
-            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
-                runspec.spec.output_path, runspec.metadata.project
+        if run.spec.output_path:
+            run.spec.output_path = run.spec.output_path.replace("{{run.uid}}", meta.uid)
+            run.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                run.spec.output_path, run.metadata.project
             )
 
-        runspec.spec.notifications = notifications or runspec.spec.notifications or []
-        return runspec
+        run.spec.notifications = notifications or run.spec.notifications or []
+        return run
 
     @staticmethod
     def _are_valid_notifications(runobj) -> bool:

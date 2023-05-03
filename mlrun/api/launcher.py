@@ -58,7 +58,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         run = self._create_run_object(task)
 
-        self._enrich_run(runtime, runspec=task)
+        run = self._enrich_run(runtime, run=run)
         self._validate_runtime(runtime, run)
 
         if runtime.verbose:

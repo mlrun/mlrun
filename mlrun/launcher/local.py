@@ -109,7 +109,7 @@ class ClientLocalLauncher(BaseLauncher):
 
         run = self._enrich_run(
             runtime=runtime,
-            runspec=task,
+            run=run,
             project_name=project,
             name=name,
             params=params,

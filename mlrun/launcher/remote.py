@@ -82,7 +82,7 @@ class ClientRemoteLauncher(BaseLauncher):
 
         run = self._enrich_run(
             runtime=runtime,
-            runspec=run,
+            run=run,
             handler=handler,
             project_name=project,
             name=name,

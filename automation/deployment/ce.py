@@ -61,12 +61,20 @@ def add_options(options):
     return _add_options
 
 
+def order_click_options(func):
+    func.__click_params__ = list(
+        reversed(sorted(func.__click_params__, key=lambda option: option.name))
+    )
+    return func
+
+
 @click.group(help="MLRun Community Edition Deployment CLI Tool")
 def cli():
     pass
 
 
 @cli.command(help="Deploy (or upgrade) MLRun Community Edition")
+@order_click_options
 @click.option(
     "-mv",
     "--mlrun-version",
@@ -190,6 +198,7 @@ def deploy(
 
 
 @cli.command(help="Uninstall MLRun Community Edition Deployment")
+@order_click_options
 @click.option(
     "--skip-uninstall",
     is_flag=True,
@@ -243,6 +252,7 @@ def delete(
     help="Patch MLRun Community Edition Deployment images to minikube. "
     "Useful if overriding images and running in minikube"
 )
+@order_click_options
 @click.option(
     "--mlrun-api-image",
     help="Override the mlrun-api image. Format: <repo>:<tag>",

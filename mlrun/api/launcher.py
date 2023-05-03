@@ -58,7 +58,24 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         run = self._create_run_object(task)
 
-        run = self._enrich_run(runtime, run=run)
+        run = self._enrich_run(
+            runtime,
+            run=run,
+            handler=handler,
+            project_name=project,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+        )
         self._validate_runtime(runtime, run)
 
         if runtime.verbose:

@@ -68,6 +68,7 @@ class CommunityEditionDeployer:
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
+        upgrade: bool = False,
         custom_values: typing.List[str] = None,
     ) -> None:
         """
@@ -87,6 +88,7 @@ class CommunityEditionDeployer:
         :param devel: Deploy the development version of the helm chart
         :param minikube: Deploy the helm chart with minikube configuration
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
+        :param upgrade: Upgrade an existing MLRun CE deployment
         :param custom_values: List of custom values to pass to the helm chart
         """
         self._prepare_prerequisites(
@@ -106,6 +108,7 @@ class CommunityEditionDeployer:
             devel,
             minikube,
             sqlite,
+            upgrade,
             custom_values,
         )
 
@@ -277,6 +280,7 @@ class CommunityEditionDeployer:
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
+        upgrade: bool = False,
         custom_values: typing.List[str] = None,
     ) -> typing.List[str]:
         """
@@ -294,6 +298,7 @@ class CommunityEditionDeployer:
         :param devel: Use development chart
         :param minikube: Use minikube
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
+        :param upgrade: Upgrade an existing MLRun CE deployment
         :param custom_values: List of custom values to use
         :return: List of helm install arguments
         """
@@ -310,6 +315,9 @@ class CommunityEditionDeployer:
 
         if self._debug:
             helm_arguments.append("--debug")
+
+        if upgrade:
+            helm_arguments.append("--reuse-values")
 
         for helm_key, helm_value in self._generate_helm_values(
             registry_url,

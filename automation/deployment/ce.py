@@ -80,6 +80,7 @@ def cli():
 @click.option(
     "--registry-url",
     help="URL of the container registry to use for storing images",
+    required=True,
 )
 @click.option(
     "--registry-username",
@@ -133,6 +134,11 @@ def cli():
     help="Set custom values for the mlrun chart. Format: <key>=<value>",
     multiple=True,
 )
+@click.option(
+    "--upgrade",
+    is_flag=True,
+    help="Upgrade the existing mlrun installation.",
+)
 @add_options(common_options)
 @add_options(common_deployment_options)
 def deploy(
@@ -154,6 +160,7 @@ def deploy(
     sqlite: str = None,
     devel: bool = False,
     minikube: bool = False,
+    upgrade: bool = False,
     set_: typing.List[str] = None,
 ):
     deployer = CommunityEditionDeployer(
@@ -177,6 +184,7 @@ def deploy(
         devel=devel,
         minikube=minikube,
         sqlite=sqlite,
+        upgrade=upgrade,
         custom_values=set_,
     )
 

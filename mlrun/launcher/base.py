@@ -112,12 +112,7 @@ class BaseLauncher(abc.ABC):
         runtime: mlrun.runtimes.BaseRuntime,
         run: RunObject,
     ):
-        def is_local(url):
-            if not url:
-                return True
-            return "://" not in url
-
-        if is_local(run.spec.output_path):
+        if not run.spec.output_path or "://" not in run.spec.output_path:
             message = ""
             if not os.path.isabs(run.spec.output_path):
                 message = (

@@ -20,7 +20,7 @@ from mlrun.api.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import StorePrefix, logger, mlconf, parse_versioned_object_uri
+from mlrun.utils import StorePrefix, logger, parse_versioned_object_uri
 
 from ..config import config
 
@@ -166,7 +166,7 @@ def verify_feature_set_exists(feature_set):
 def verify_feature_vector_permissions(
     feature_vector, action: mlrun.api.schemas.AuthorizationAction
 ):
-    project = feature_vector._metadata.project or mlconf.default_project
+    project = feature_vector._metadata.project or config.default_project
 
     resource = (
         mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(

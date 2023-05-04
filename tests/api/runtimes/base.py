@@ -39,7 +39,6 @@ from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
-from mlrun.utils.vault import VaultStore
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -361,8 +360,8 @@ class TestRuntimeBase:
 
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
-        secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
-        VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
+        # secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
+        # VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
 
         azure_secret_dict = {
             key: self.azure_secret_value for key in self.azure_vault_secrets

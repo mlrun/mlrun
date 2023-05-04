@@ -413,36 +413,36 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config(
             expected_env_from_secrets=expected_env_from_secrets,
         )
-
-    def test_run_with_vault_secrets(self, db: Session, client: TestClient):
-        self._mock_vault_functionality()
-        runtime = self._generate_runtime()
-
-        task = self._generate_task()
-
-        task.metadata.project = self.project
-        secret_source = {
-            "kind": "vault",
-            "source": {"project": self.project, "secrets": self.vault_secrets},
-        }
-        task.with_secrets(secret_source["kind"], self.vault_secrets)
-        vault_url = "/url/for/vault"
-        mlconf.secret_stores.vault.remote_url = vault_url
-        mlconf.secret_stores.vault.token_path = vault_url
-
-        self.execute_function(runtime, runspec=task)
-
-        self._assert_pod_creation_config(
-            expected_secrets=secret_source,
-            expected_env={
-                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-                "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
-            },
-        )
-
-        self._assert_secret_mount(
-            "vault-secret", self.vault_secret_name, 420, vault_url
-        )
+    # TODO: revert this once vault is supported again
+    # def test_run_with_vault_secrets(self, db: Session, client: TestClient):
+    #     self._mock_vault_functionality()
+    #     runtime = self._generate_runtime()
+    #
+    #     task = self._generate_task()
+    #
+    #     task.metadata.project = self.project
+    #     secret_source = {
+    #         "kind": "vault",
+    #         "source": {"project": self.project, "secrets": self.vault_secrets},
+    #     }
+    #     task.with_secrets(secret_source["kind"], self.vault_secrets)
+    #     vault_url = "/url/for/vault"
+    #     mlconf.secret_stores.vault.remote_url = vault_url
+    #     mlconf.secret_stores.vault.token_path = vault_url
+    #
+    #     self.execute_function(runtime, runspec=task)
+    #
+    #     self._assert_pod_creation_config(
+    #         expected_secrets=secret_source,
+    #         expected_env={
+    #             "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+    #             "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
+    #         },
+    #     )
+    #
+    #     self._assert_secret_mount(
+    #         "vault-secret", self.vault_secret_name, 420, vault_url
+    #     )
 
     def test_run_with_code(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

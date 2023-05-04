@@ -7,121 +7,96 @@ The CLI supports 3 commands:
 - `patch-minikube-images`: If using custom images and running from Minikube, this command will patch the images to the Minikube env.
 
 ## Command Usage:
-```
-$ python automation/deployment/ce.py --help       
-Usage: ce.py [OPTIONS] COMMAND [ARGS]...
-
-  MLRun Community Edition Deployment CLI Tool
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  delete                 Uninstall MLRun Community Edition Deployment
-  deploy                 Deploy MLRun Community Edition
-  patch-minikube-images  Patch MLRun Community Edition Deployment images...
-```
 
 ### Deploy:
+To deploy the CE the minimum needed is the registry url and registry credentials. You can run:
 ```
-$ python automation/deployment/ce.py deploy --help               
-Usage: ce.py deploy [OPTIONS]
-
-  Deploy (or upgrade) MLRun Community Edition
-
-Options:
-  -cv, --chart-version TEXT       Version of the mlrun chart to install. If
-                                  not specified, will install the latest
-                                  version
-  --devel                         Get the latest RC version of the mlrun
-                                  chart. (Only works if --chart-version is not
-                                  specified)
-  --disable-pipelines             Disable the installation of Kubeflow
-                                  Pipelines
-  --disable-prometheus-stack      Disable the installation of the Prometheus
-                                  stack
-  --disable-spark-operator        Disable the installation of the Spark
-                                  operator
-  -f, --log-file TEXT             Path to log file. If not specified, will log
-                                  only to stdout
-  -m, --minikube                  Install the mlrun chart in local minikube.
-  -mv, --mlrun-version TEXT       Version of mlrun to install. If not
-                                  specified, will install the latest version
-  -n, --namespace TEXT            Namespace to install the platform in.
-                                  Defaults to 'mlrun'
-  --override-jupyter-image TEXT   Override the jupyter image. Format:
-                                  <repo>:<tag>
-  --override-mlrun-api-image TEXT
-                                  Override the mlrun-api image. Format:
-                                  <repo>:<tag>
-  --override-mlrun-ui-image TEXT  Override the mlrun-ui image. Format:
-                                  <repo>:<tag>
-  --registry-password TEXT        Password of the container registry to use
-                                  for storing images
-  --registry-secret-name TEXT     Name of the secret containing the
-                                  credentials for the container registry to
-                                  use for storing images
-  --registry-url TEXT             URL of the container registry to use for
-                                  storing images  [required]
-  --registry-username TEXT        Username of the container registry to use
-                                  for storing images
-  --set TEXT                      Set custom values for the mlrun chart.
-                                  Format: <key>=<value>
-  --sqlite TEXT                   Path to sqlite file to use as the mlrun
-                                  database. If not supplied, will use MySQL
-                                  deployment
-  --upgrade                       Upgrade the existing mlrun installation.
-  -v, --verbose                   Enable debug logging
-  --help                          Show this message and exit.
+$ python automation/deployment/ce.py deploy \
+    --registry-url <REGISTRY_URL> \
+    --registry-username <REGISTRY_USERNAME> \
+    --registry-password <REGISTRY_PASSWORD>
 ```
+This will deploy the CE with the default configuration.
+
+Instead of passing the registry credentials as command line arguments, you can create a secret in the cluster and pass the secret name:
+```
+$ python automation/deployment/ce.py deploy \
+    --registry-url <REGISTRY_URL> \
+    --registry-secret-name <REGISTRY_SECRET_NAME>
+```
+
+#### Extra Configurations:
+
+You can override the mlrun version and chart version by using the flags `--mlrun-version` and `--chart-version` respectively.
+
+To disable the components that are installed by default, you can use the following flags:
+- `--disable-pipelines`: Disable the installation of Kubeflow Pipelines.
+- `--disable-prometheus-stack`: Disable the installation of the Prometheus stack.
+- `--disable-spark-operator`: Disable the installation of the Spark operator.
+
+To override the images used by the CE, you can use the following flags:
+- `--override-jupyter-image`: Override the jupyter image. Format: `<repo>:<tag>`
+- `--override-mlrun-api-image`: Override the mlrun-api image. Format: `<repo>:<tag>`
+- `--override-mlrun-ui-image`: Override the mlrun-ui image. Format: `<repo>:<tag>`
+
+To run mlrun with sqlite instead of MySQL, you can use the `--sqlite` flag. The value should be the path to the sqlite file to use.
+
+To set custom values for the mlrun chart, you can use the `--set` flag. The format is `<key>=<value>`. For example:
+```
+$ python automation/deployment/ce.py deploy \
+    --registry-url <REGISTRY_URL> \
+    --registry-username <REGISTRY_USERNAME> \
+    --registry-password <REGISTRY_PASSWORD> \
+    --set  mlrun.db.persistence.size="1Gi" \
+    --set mlrun.api.persistence.size="1Gi"
+```
+
+To install the CE in a different namespace, you can use the `--namespace` flag.
+
+To install the CE in minikube, you can use the `--minikube` flag.
+
+
+### Upgrade
+To upgrade the CE, you can use the same command as deploy with the flag `--upgrade`. 
+The CLI will detect that the CE is already installed and will perform an upgrade. The flag will instruct helm to reuse values from the previous deployment.
 
 ### Delete:
+To simply uninstall the CE deployment, you can run:
 ```
-$ python automation/deployment/ce.py delete --help
-Usage: ce.py delete [OPTIONS]
-
-  Uninstall MLRun Community Edition Deployment
-
-Options:
-  --cleanup-namespace             Delete the namespace created during
-                                  installation. This overrides the other
-                                  cleanup options. WARNING: This will result
-                                  in data loss!
-  --cleanup-volumes               Delete the PVCs created during installation.
-                                  WARNING: This will result in data loss!
-  -f, --log-file TEXT             Path to log file. If not specified, will log
-                                  only to stdout
-  -n, --namespace TEXT            Namespace to install the platform in.
-                                  Defaults to 'mlrun'
-  --registry-secret-name TEXT     Name of the secret containing the
-                                  credentials for the container registry to
-                                  use for storing images
-  --skip-cleanup-registry-secret  Skip deleting the registry secret created
-                                  during installation
-  --skip-uninstall                Skip uninstalling the Helm chart. Useful if
-                                  already uninstalled and you want to perform
-                                  cleanup only
-  --sqlite TEXT                   Path to sqlite file to use as the mlrun
-                                  database. If not supplied, will use MySQL
-                                  deployment
-  -v, --verbose                   Enable debug logging
-  --help                          Show this message and exit.
+$ python automation/deployment/ce.py delete
 ```
+
+To delete the CE deployment and clean up remaining volumes, you can run:
+```
+$ python automation/deployment/ce.py delete --cleanup-volumes
+```
+
+To cleanup the entire namespace, you can run:
+```
+$ python automation/deployment/ce.py delete --cleanup-namespace
+```
+
+If you already uninstalled, and only want to run cleanup, you can use the `--skip-uninstall` flag.
+
 
 ### Patch Minikube Images:
+Patch MLRun Community Edition Deployment images to minikube. Useful if overriding images and running in minikube.
+If you have some custom images, before deploying the CE, run:
 ```
-$ python automation/deployment/ce.py patch-minikube-images --help
-Usage: ce.py patch-minikube-images [OPTIONS]
+$ python automation/deployment/ce.py patch-minikube-images \
+    --mlrun-api-image <MLRUN_API_IMAGE> \
+    --mlrun-ui-image <MLRUN_UI_IMAGE> \
+    --jupyter-image <JUPYTER_IMAGE>
+```
 
-  Patch MLRun Community Edition Deployment images to minikube. Useful if
-  overriding images and running in minikube
-
-Options:
-  --jupyter-image TEXT    Override the jupyter image. Format: <repo>:<tag>
-  -f, --log-file TEXT     Path to log file. If not specified, will log only to
-                          stdout
-  --mlrun-api-image TEXT  Override the mlrun-api image. Format: <repo>:<tag>
-  --mlrun-ui-image TEXT   Override the mlrun-ui image. Format: <repo>:<tag>
-  -v, --verbose           Enable debug logging
-  --help                  Show this message and exit.
+Then you can deploy the CE with:
+```
+$ python automation/deployment/ce.py deploy \
+    --registry-url <REGISTRY_URL> \
+    --registry-username <REGISTRY_USERNAME> \
+    --registry-password <REGISTRY_PASSWORD> \
+    --minikube \
+    --override-mlrun-api-image <MLRUN_API_IMAGE> \
+    --override-mlrun-ui-image <MLRUN_UI_IMAGE> \
+    --override-jupyter-image <JUPYTER_IMAGE>
 ```

@@ -25,8 +25,9 @@ import click
 import paramiko
 import yaml
 
-import automation.common.helpers
 import mlrun.utils
+
+from ..common.helpers import run_command
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
@@ -190,7 +191,7 @@ class SystemTestPreparer:
             return ""
         try:
             if local:
-                stdout, stderr, exit_status = automation.common.helpers.run_command(
+                stdout, stderr, exit_status = run_command(
                     command, args, workdir, stdin, live
                 )
             else:

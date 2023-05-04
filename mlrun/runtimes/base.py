@@ -1525,12 +1525,11 @@ class BaseRuntimeHandler(ABC):
     kind = "base"
     class_modes: typing.Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    is_api_server = mlrun.config.is_running_as_api()
 
     def get_k8s(self):
         # ideally we are not supposed to access k8s helper through client side
         # once separated client and server this if statement will be redundant
-        if self.is_api_server:
+        if is_running_as_api():
             import mlrun.api.utils.singletons.k8s
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()

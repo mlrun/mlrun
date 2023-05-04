@@ -231,7 +231,7 @@ class BaseRuntime(ModelObj):
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
 
-        return get_k8s_helper()
+        return get_k8s_helper(silent=True)
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -1534,7 +1534,7 @@ class BaseRuntimeHandler(ABC):
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
 
-        return get_k8s_helper()
+        return get_k8s_helper(silent=True)
 
     @staticmethod
     @abstractmethod

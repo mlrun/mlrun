@@ -330,6 +330,7 @@ class CommunityEditionDeployer:
             disable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
+            sqlite,
             minikube,
         ).items():
             helm_arguments.extend(

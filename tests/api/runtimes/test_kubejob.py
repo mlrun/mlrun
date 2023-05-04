@@ -413,6 +413,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config(
             expected_env_from_secrets=expected_env_from_secrets,
         )
+
     # TODO: revert this once vault is supported again
     # def test_run_with_vault_secrets(self, db: Session, client: TestClient):
     #     self._mock_vault_functionality()

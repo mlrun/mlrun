@@ -116,6 +116,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def _execute_run(self, runtime, **kwargs):
+        if "watch" in kwargs:
+            # deploy_nuclio_function doesn't accept watch, so we need to remove it
+            del kwargs["watch"]
         mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
             runtime, **kwargs
         )

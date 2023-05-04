@@ -25,15 +25,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
+import mlrun.api.crud.runtimes.nuclio.function
 import tests.api.api.utils
 from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import (
-    NuclioStatus,
-    compile_function_config,
-    deploy_nuclio_function,
-)
+from mlrun.runtimes.function import NuclioStatus
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -75,7 +72,7 @@ class TestServingRuntime(TestNuclioRuntime):
     @staticmethod
     def _mock_db_remote_deploy_functions():
         def _remote_db_mock_function(func, with_mlrun, builder_env=None):
-            deploy_nuclio_function(func)
+            mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(func)
             return {
                 "data": {
                     "status": NuclioStatus(
@@ -317,7 +314,9 @@ class TestServingRuntime(TestNuclioRuntime):
         # test simple function (no source)
         function = new_function("serving", kind="serving", image="mlrun/mlrun")
         function.set_topology("flow")
-        _, _, config = compile_function_config(function)
+        _, _, config = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         # verify the code is filled with the mlrun serving wrapper
         assert config["spec"]["build"]["functionSourceCode"]
 
@@ -332,7 +331,9 @@ class TestServingRuntime(TestNuclioRuntime):
         get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
             return_value={}
         )
-        _, _, config = compile_function_config(function, builder_env={})
+        _, _, config = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(
+            function, builder_env={}
+        )
         get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
         # verify the handler points to mlrun serving wrapper handler

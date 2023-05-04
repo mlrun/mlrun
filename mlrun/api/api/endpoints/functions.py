@@ -34,6 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
@@ -51,7 +52,6 @@ from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
@@ -526,7 +526,7 @@ def _handle_nuclio_deploy_status(
         last_log_timestamp,
         text,
         status,
-    ) = get_nuclio_deploy_status(
+    ) = mlrun.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
         name,
         project,
         tag,
@@ -680,7 +680,7 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(
+            mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,

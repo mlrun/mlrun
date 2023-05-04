@@ -38,7 +38,6 @@ from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.schemas import SecretProviderName, SecurityContextEnrichmentModes
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
@@ -629,7 +628,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
 
 def process_function_service_account(function):
     # If we're not running inside k8s, skip this check as it's not relevant.
-    if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if not mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         return
 
     (

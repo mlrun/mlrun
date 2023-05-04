@@ -38,7 +38,6 @@ from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
-from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
@@ -698,20 +697,6 @@ def deploy(
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
         fp.write(function.status.nuclio_name)
-
-
-@main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("pod", type=str, callback=validate_base_argument)
-@click.option("--namespace", "-n", help="kubernetes namespace")
-@click.option(
-    "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
-)
-def watch(pod, namespace, timeout):
-    """Read current or previous task (pod) logs."""
-    print("This command will be deprecated in future version !!!\n")
-    k8s = K8sHelper(namespace)
-    status = k8s.watch(pod, namespace, timeout)
-    print(f"Pod {pod} last status is: {status}")
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))

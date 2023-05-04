@@ -48,7 +48,6 @@ from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
 from ..execution import MLClientCtx
-from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
 from ..lists import RunList
 from ..model import (
@@ -224,14 +223,12 @@ class BaseRuntime(ModelObj):
         self._status = self._verify_dict(status, "status", FunctionStatus)
 
     def _get_k8s(self):
-        # ideally we are not supposed to access k8s helper through client side
-        # once separated client and server this if statement will be redundant
         if is_running_as_api():
             import mlrun.api.utils.singletons.k8s
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
 
-        return get_k8s_helper(silent=True)
+        return None
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -1526,7 +1523,8 @@ class BaseRuntimeHandler(ABC):
     class_modes: typing.Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
 
-    def get_k8s(self):
+    @staticmethod
+    def get_k8s():
         # ideally we are not supposed to access k8s helper through client side
         # once separated client and server this if statement will be redundant
         if is_running_as_api():
@@ -1534,7 +1532,7 @@ class BaseRuntimeHandler(ABC):
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
 
-        return get_k8s_helper(silent=True)
+        return None
 
     @staticmethod
     @abstractmethod

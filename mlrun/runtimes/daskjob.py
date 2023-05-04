@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
@@ -33,7 +34,6 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..config import config
 from ..execution import MLClientCtx
-from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
 from ..utils import logger, normalize_name, update_in
@@ -203,9 +203,7 @@ class DaskCluster(KubejobRuntime):
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec, metadata)
         self._cluster = None
-        self.use_remote = not get_k8s_helper(
-            silent=True
-        ).is_running_inside_kubernetes_cluster()
+        self.use_remote = not mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
         self.spec.build.base_image = self.spec.build.base_image or "daskdev/dask:latest"
 
     @property
@@ -673,7 +671,9 @@ def get_obj_status(selector=None, namespace=None):
     if selector is None:
         selector = []
 
-    k8s = get_k8s_helper()
+    import mlrun.api.utils.singletons.k8s
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
     selector = ",".join(["dask.org/component=scheduler"] + selector)
     pods = k8s.list_pods(namespace, selector=selector)

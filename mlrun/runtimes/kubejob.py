@@ -30,7 +30,6 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import AsyncLogWriter
 
 
 class KubejobRuntime(KubeResource):
@@ -287,35 +286,6 @@ class KubejobRuntime(KubeResource):
         print()
         return self.status.state
 
-    def builder_status(self, watch=True, logs=True):
-        if self._is_remote_api():
-            return self._build_watch(watch, logs)
-
-        else:
-            pod = self.status.build_pod
-            if not self.status.state == "ready" and pod:
-                status = self._get_k8s().get_pod_status(pod)
-                if logs:
-                    if watch:
-                        status = self._get_k8s().watch(pod)
-                    else:
-                        resp = self._get_k8s().logs(pod)
-                        if resp:
-                            print(resp.encode())
-
-                if status == "succeeded":
-                    self.status.build_pod = None
-                    self.status.state = "ready"
-                    logger.info("build completed successfully")
-                    return "ready"
-                if status in ["failed", "error"]:
-                    self.status.state = status
-                    logger.error(f" build {status}, watch the build pod logs: {pod}")
-                    return status
-
-                logger.info(f"builder status is: {status}, wait for it to complete")
-            return None
-
     def deploy_step(
         self,
         image=None,
@@ -371,16 +341,9 @@ class KubejobRuntime(KubeResource):
         except ApiException as exc:
             raise RunError(err_to_str(exc))
 
-        if pod_name and self.kfp:
-            writer = AsyncLogWriter(self._db_conn, runobj)
-            status = self._get_k8s().watch(pod_name, namespace, writer=writer)
-
-            if status in ["failed", "error"]:
-                raise RunError(f"pod exited with {status}, check logs")
-        else:
-            txt = f"Job is running in the background, pod: {pod_name}"
-            logger.info(txt)
-            runobj.status.status_text = txt
+        txt = f"Job is running in the background, pod: {pod_name}"
+        logger.info(txt)
+        runobj.status.status_text = txt
 
         return None
 

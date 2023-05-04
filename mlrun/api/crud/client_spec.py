@@ -24,7 +24,7 @@ class ClientSpec(
     def get_client_spec(
         self, client_version: str = None, client_python_version: str = None
     ):
-        mpijob_crd_version = resolve_mpijob_crd_version(api_context=True)
+        mpijob_crd_version = resolve_mpijob_crd_version()
         return mlrun.api.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,

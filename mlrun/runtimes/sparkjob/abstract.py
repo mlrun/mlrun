@@ -825,26 +825,6 @@ with ctx:
             source, workdir, handler, pull_at_runtime, target_dir
         )
 
-    def get_pods(self, name=None, namespace=None, driver=False):
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        selector = "mlrun/class=spark"
-        if name:
-            selector += f",sparkoperator.k8s.io/app-name={name}"
-        if driver:
-            selector += ",spark-role=driver"
-        pods = k8s.list_pods(selector=selector, namespace=namespace)
-        if pods:
-            return {p.metadata.name: p.status.phase for p in pods}
-
-    def _get_driver(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, driver=True)
-        if not pods:
-            logger.error("no pod matches that job name")
-            return
-        _ = self._get_k8s()
-        return list(pods.items())[0]
-
     def is_deployed(self):
         if (
             not self.spec.build.source

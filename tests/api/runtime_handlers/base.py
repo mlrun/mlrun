@@ -481,7 +481,8 @@ class TestRuntimeHandlerBase:
             expected_label_selector or runtime_handler._get_default_label_selector()
         )
         get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
-            get_k8s_helper().resolve_namespace(), label_selector=expected_label_selector
+            get_k8s_helper().resolve_namespace(),
+            label_selector=expected_label_selector,
         )
 
     @staticmethod

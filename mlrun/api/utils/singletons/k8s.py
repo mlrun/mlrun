@@ -15,8 +15,6 @@ import base64
 import hashlib
 import time
 import typing
-from datetime import datetime
-from sys import stdout
 
 import kubernetes.client
 from kubernetes import client, config
@@ -216,113 +214,6 @@ class K8sHelper:
 
         return resp
 
-    def run_job(self, pod, timeout=600):
-        pod_name, namespace = self.create_pod(pod)
-        if not pod_name:
-            logger.error("failed to create pod")
-            return "error"
-        return self.watch(pod_name, namespace, timeout)
-
-    def watch(self, pod_name, namespace=None, timeout=600, writer=None):
-        namespace = self.resolve_namespace(namespace)
-        start_time = datetime.now()
-        while True:
-            try:
-                pod = self.get_pod(pod_name, namespace)
-                if not pod:
-                    return "error"
-                status = pod.status.phase.lower()
-                if status in ["running", "completed", "succeeded"]:
-                    print("")
-                    break
-                if status == "failed":
-                    return "failed"
-                elapsed_time = (datetime.now() - start_time).seconds
-                if elapsed_time > timeout:
-                    return "timeout"
-                time.sleep(2)
-                stdout.write(".")
-                if status != "pending":
-                    logger.warning(f"pod state in loop is {status}")
-            except ApiException as exc:
-                logger.error(
-                    f"failed waiting for pod: {mlrun.errors.err_to_str(exc)}\n"
-                )
-                return "error"
-        outputs = self.v1api.read_namespaced_pod_log(
-            name=pod_name, namespace=namespace, follow=True, _preload_content=False
-        )
-        for out in outputs:
-            print(out.decode("utf-8"), end="")
-            if writer:
-                writer.write(out)
-
-        for i in range(5):
-            pod_state = self.get_pod(pod_name, namespace).status.phase.lower()
-            if pod_state != "running":
-                break
-            logger.warning("pod still running, waiting 2 sec")
-            time.sleep(2)
-
-        if pod_state == "failed":
-            logger.error("pod exited with error")
-        if writer:
-            writer.flush()
-        return pod_state
-
-    def create_cfgmap(self, name, data, namespace="", labels=None):
-        body = client.api_client.V1ConfigMap()
-        namespace = self.resolve_namespace(namespace)
-        body.data = data
-        if name.endswith("*"):
-            body.metadata = client.V1ObjectMeta(
-                generate_name=name[:-1], namespace=namespace, labels=labels
-            )
-        else:
-            body.metadata = client.V1ObjectMeta(
-                name=name, namespace=namespace, labels=labels
-            )
-        try:
-            resp = self.v1api.create_namespaced_config_map(namespace, body)
-        except ApiException as exc:
-            logger.error(f"failed to create configmap: {mlrun.errors.err_to_str(exc)}")
-            raise exc
-
-        logger.info(f"ConfigMap {resp.metadata.name} created")
-        return resp.metadata.name
-
-    def del_cfgmap(self, name, namespace=None):
-        try:
-            api_response = self.v1api.delete_namespaced_config_map(
-                name,
-                self.resolve_namespace(namespace),
-                grace_period_seconds=0,
-                propagation_policy="Background",
-            )
-
-            return api_response
-        except ApiException as exc:
-            # ignore error if ConfigMap is already removed
-            if exc.status != 404:
-                logger.error(
-                    f"failed to delete ConfigMap: {mlrun.errors.err_to_str(exc)}"
-                )
-            raise exc
-
-    def list_cfgmap(self, namespace=None, selector=""):
-        try:
-            resp = self.v1api.list_namespaced_config_map(
-                self.resolve_namespace(namespace), watch=False, label_selector=selector
-            )
-        except ApiException as exc:
-            logger.error(f"failed to list ConfigMaps: {mlrun.errors.err_to_str(exc)}")
-            raise exc
-
-        items = []
-        for i in resp.items:
-            items.append(i)
-        return items
-
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
 
         # As this file is imported in mlrun.runtimes, we sadly cannot have this import in the top level imports
@@ -331,9 +222,7 @@ class K8sHelper:
         import mlrun.runtimes
 
         namespace = self.resolve_namespace(namespace)
-        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version(
-            api_context=True
-        )
+        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version()
         mpijob_role_label = (
             mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version
@@ -364,25 +253,6 @@ class K8sHelper:
             return
 
         return {p.metadata.name: p.status.phase for p in pods}
-
-    def create_project_service_account(self, project, service_account, namespace=""):
-        namespace = self.resolve_namespace(namespace)
-        k8s_service_account = client.V1ServiceAccount()
-        labels = {"mlrun/project": project}
-        k8s_service_account.metadata = client.V1ObjectMeta(
-            name=service_account, namespace=namespace, labels=labels
-        )
-        try:
-            api_response = self.v1api.create_namespaced_service_account(
-                namespace,
-                k8s_service_account,
-            )
-            return api_response
-        except ApiException as exc:
-            logger.error(
-                f"failed to create service account: {mlrun.errors.err_to_str(exc)}"
-            )
-            raise exc
 
     def get_project_vault_secret_name(
         self, project, service_account_name, namespace=""

@@ -29,13 +29,13 @@ from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.utils
 from mlrun.db import RunDBError
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
 from ..errors import err_to_str
-from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
@@ -1050,9 +1050,7 @@ class RemoteRuntime(KubeResource):
         if (
             not force_external_address
             and self.status.internal_invocation_urls
-            and get_k8s_helper(
-                silent=True, log=False
-            ).is_running_inside_kubernetes_cluster()
+            and mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
         ):
             return f"http://{self.status.internal_invocation_urls[0]}{path}"
 

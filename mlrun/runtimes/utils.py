@@ -30,11 +30,10 @@ from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
-from ..config import config
+from ..config import config, is_running_as_api
 from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
@@ -69,19 +68,21 @@ cached_nuclio_version = None
 # if not specified, try resolving it according to the mpi-operator, otherwise set to default
 # since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
 # will change in any context - cache it
-def resolve_mpijob_crd_version(api_context=False):
+def resolve_mpijob_crd_version():
     global cached_mpijob_crd_version
     if not cached_mpijob_crd_version:
 
         # config override everything
         mpijob_crd_version = config.mpijob_crd_version
 
-        if not mpijob_crd_version:
-            in_k8s_cluster = get_k8s_helper(
+        if not mpijob_crd_version and is_running_as_api():
+            import mlrun.api.utils.singletons.k8s
+
+            in_k8s_cluster = mlrun.api.utils.singletons.k8s.get_k8s_helper(
                 silent=True
             ).is_running_inside_kubernetes_cluster()
             if in_k8s_cluster:
-                k8s_helper = get_k8s_helper()
+                k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()
 
                 # try resolving according to mpi-operator that's running
@@ -93,7 +94,7 @@ def resolve_mpijob_crd_version(api_context=False):
                     mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
                         "crd-version"
                     )
-            elif not in_k8s_cluster and not api_context:
+            elif not in_k8s_cluster:
                 # connect will populate the config from the server config
                 # TODO: something nicer
                 get_run_db()
@@ -180,22 +181,6 @@ def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
         print(err, file=stderr)
         if not silent:
             raise RunError(err)
-
-
-class AsyncLogWriter:
-    def __init__(self, db, runobj):
-        self.db = db
-        self.uid = runobj.metadata.uid
-        self.project = runobj.metadata.project or ""
-        self.iter = runobj.metadata.iteration
-
-    def write(self, data):
-        if self.db:
-            self.db.store_log(self.uid, self.project, data, append=True)
-
-    def flush(self):
-        # todo: verify writes are large enough, if not cache and use flush
-        pass
 
 
 def add_code_metadata(path=""):

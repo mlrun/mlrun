@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud.runtimes.nuclio.function
+import mlrun.api.crud.runtimes.nuclio.helpers
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.function
@@ -389,10 +390,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             config,
         ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "NodePort"
-        mlrun.api.crud.runtimes.nuclio.function._enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.always, service_type
         )
-        ingresses = mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
             config["spec"]
         )
         assert len(ingresses) > 0, "Expected one ingress to be created"
@@ -411,10 +412,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             config,
         ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "NodePort"
-        mlrun.api.crud.runtimes.nuclio.function._enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.always, service_type
         )
-        ingresses = mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
             config["spec"]
         )
         assert ingresses[0]["hostTemplate"] != ""
@@ -431,12 +432,12 @@ class TestNuclioRuntime(TestRuntimeBase):
             config,
         ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "ClusterIP"
-        mlrun.api.crud.runtimes.nuclio.function._enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config,
             NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
             service_type,
         )
-        ingresses = mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
             config["spec"]
         )
         assert ingresses[0]["hostTemplate"] != ""
@@ -452,10 +453,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             config,
         ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "DoesNotMatter"
-        mlrun.api.crud.runtimes.nuclio.function._enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.never, service_type
         )
-        ingresses = mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
             config["spec"]
         )
         assert ingresses == []
@@ -1027,37 +1028,37 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_is_nuclio_version_in_range(self):
         mlrun.runtimes.utils.cached_nuclio_version = "1.7.2"
 
-        assert not mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.6.11", "1.7.2"
         )
-        assert not mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.0", "1.3.1"
         )
-        assert not mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.3", "1.8.5"
         )
-        assert not mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.2", "1.7.2"
         )
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.2", "1.7.3"
         )
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.0", "1.7.3"
         )
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "1.7.3"
         )
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "2.3.4"
         )
 
         # best effort - assumes compatibility
         mlrun.runtimes.utils.cached_nuclio_version = ""
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "2.3.4"
         )
-        assert mlrun.api.crud.runtimes.nuclio.function._is_nuclio_version_in_range(
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.7.2", "1.7.2"
         )
 
@@ -1544,7 +1545,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         if expected_ingress_host_template is None:
             # never
             ingresses = (
-                mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+                mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
                     deploy_spec
                 )
             )
@@ -1552,7 +1553,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         else:
             ingresses = (
-                mlrun.api.crud.runtimes.nuclio.function._resolve_function_ingresses(
+                mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
                     deploy_spec
                 )
             )
@@ -1570,7 +1571,7 @@ class TestNuclioMLRunRuntime(TestNuclioRuntime):
 def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
-    mlrun.api.crud.runtimes.nuclio.function._compile_nuclio_archive_config(
+    mlrun.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
         spec, function, secrets
     )
     spec.merge(config)

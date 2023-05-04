@@ -17,6 +17,7 @@ import pytest
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.function
+import mlrun.api.crud.runtimes.nuclio.helpers
 from tests.conftest import examples_path
 
 
@@ -74,9 +75,7 @@ def test_compiled_function_config_nuclio_python():
 def test_resolve_work_dir_and_handler(handler, expected):
     assert (
         expected
-        == mlrun.api.crud.runtimes.nuclio.function._resolve_work_dir_and_handler(
-            handler
-        )
+        == mlrun.api.crud.runtimes.nuclio.helpers.resolve_work_dir_and_handler(handler)
     )
 
 
@@ -99,7 +98,7 @@ def test_resolve_nuclio_runtime_python_image(
 ):
     assert (
         expected_runtime
-        == mlrun.api.crud.runtimes.nuclio.function._resolve_nuclio_runtime_python_image(
+        == mlrun.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
             mlrun_client_version, python_version
         )
     )

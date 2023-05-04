@@ -871,28 +871,28 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_marketplace_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         raise NotImplementedError()
 
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         source_name: str,
-        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         raise NotImplementedError()
 
-    def list_marketplace_sources(self):
+    def list_hub_sources(self):
         raise NotImplementedError()
 
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         raise NotImplementedError()
 
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         raise NotImplementedError()
 
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         version: str = None,
@@ -901,7 +901,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,

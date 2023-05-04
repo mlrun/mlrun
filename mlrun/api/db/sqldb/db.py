@@ -53,8 +53,8 @@ from mlrun.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
+    HubSource,
     Log,
-    MarketplaceSource,
     Notification,
     Project,
     Run,
@@ -3279,11 +3279,9 @@ class SQLDB(DBInterface):
             else:
                 start, end = move_to, move_from - 1
 
-        query = session.query(MarketplaceSource).filter(
-            MarketplaceSource.index >= start
-        )
+        query = session.query(HubSource).filter(HubSource.index >= start)
         if end:
-            query = query.filter(MarketplaceSource.index <= end)
+            query = query.filter(HubSource.index <= end)
 
         for source_record in query:
             source_record.index = source_record.index + modifier
@@ -3298,54 +3296,54 @@ class SQLDB(DBInterface):
         session.commit()
 
     @staticmethod
-    def _transform_marketplace_source_record_to_schema(
-        marketplace_source_record: MarketplaceSource,
-    ) -> mlrun.common.schemas.IndexedMarketplaceSource:
-        source_full_dict = marketplace_source_record.full_object
-        marketplace_source = mlrun.common.schemas.MarketplaceSource(**source_full_dict)
-        return mlrun.common.schemas.IndexedMarketplaceSource(
-            index=marketplace_source_record.index, source=marketplace_source
+    def _transform_hub_source_record_to_schema(
+        hub_source_record: HubSource,
+    ) -> mlrun.common.schemas.IndexedHubSource:
+        source_full_dict = hub_source_record.full_object
+        hub_source = mlrun.common.schemas.HubSource(**source_full_dict)
+        return mlrun.common.schemas.IndexedHubSource(
+            index=hub_source_record.index, source=hub_source
         )
 
     @staticmethod
-    def _transform_marketplace_source_schema_to_record(
-        marketplace_source_schema: mlrun.common.schemas.IndexedMarketplaceSource,
-        current_object: MarketplaceSource = None,
+    def _transform_hub_source_schema_to_record(
+        hub_source_schema: mlrun.common.schemas.IndexedHubSource,
+        current_object: HubSource = None,
     ):
         now = datetime.now(timezone.utc)
         if current_object:
-            if current_object.name != marketplace_source_schema.source.metadata.name:
+            if current_object.name != hub_source_schema.source.metadata.name:
                 raise mlrun.errors.MLRunInternalServerError(
                     "Attempt to update object while replacing its name"
                 )
             created_timestamp = current_object.created
         else:
-            created_timestamp = marketplace_source_schema.source.metadata.created or now
-        updated_timestamp = marketplace_source_schema.source.metadata.updated or now
+            created_timestamp = hub_source_schema.source.metadata.created or now
+        updated_timestamp = hub_source_schema.source.metadata.updated or now
 
-        marketplace_source_record = MarketplaceSource(
+        hub_source_record = HubSource(
             id=current_object.id if current_object else None,
-            name=marketplace_source_schema.source.metadata.name,
-            index=marketplace_source_schema.index,
+            name=hub_source_schema.source.metadata.name,
+            index=hub_source_schema.index,
             created=created_timestamp,
             updated=updated_timestamp,
         )
-        full_object = marketplace_source_schema.source.dict()
+        full_object = hub_source_schema.source.dict()
         full_object["metadata"]["created"] = str(created_timestamp)
         full_object["metadata"]["updated"] = str(updated_timestamp)
-        # Make sure we don't keep any credentials in the DB. These are handled in the marketplace crud object.
+        # Make sure we don't keep any credentials in the DB. These are handled in the hub crud object.
         full_object["spec"].pop("credentials", None)
 
-        marketplace_source_record.full_object = full_object
-        return marketplace_source_record
+        hub_source_record.full_object = full_object
+        return hub_source_record
 
     @staticmethod
-    def _validate_and_adjust_marketplace_order(session, order):
-        max_order = session.query(func.max(MarketplaceSource.index)).scalar()
+    def _validate_and_adjust_hub_order(session, order):
+        max_order = session.query(func.max(HubSource.index)).scalar()
         if not max_order or max_order < 0:
             max_order = 0
 
-        if order == mlrun.common.schemas.marketplace.last_source_index:
+        if order == mlrun.common.schemas.hub.last_source_index:
             order = max_order + 1
 
         if order > max_order + 1:
@@ -3355,62 +3353,54 @@ class SQLDB(DBInterface):
         if order < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Order of inserted source must be greater than 0 or "
-                + f"{mlrun.common.schemas.marketplace.last_source_index} (for last). order = {order}"
+                + f"{mlrun.common.schemas.hub.last_source_index} (for last). order = {order}"
             )
         return order
 
-    def create_marketplace_source(
-        self, session, ordered_source: mlrun.common.schemas.IndexedMarketplaceSource
+    def create_hub_source(
+        self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
     ):
         logger.debug(
-            "Creating marketplace source in DB",
+            "Creating hub source in DB",
             index=ordered_source.index,
             name=ordered_source.source.metadata.name,
         )
 
-        order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
         name = ordered_source.source.metadata.name
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if source_record:
             raise mlrun.errors.MLRunConflictError(
-                f"Marketplace source name already exists. name = {name}"
+                f"Hub source name already exists. name = {name}"
             )
-        source_record = self._transform_marketplace_source_schema_to_record(
-            ordered_source
-        )
+        source_record = self._transform_hub_source_schema_to_record(ordered_source)
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=order, move_from=None
         )
 
     @retry_on_conflict
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         session,
         name,
-        ordered_source: mlrun.common.schemas.IndexedMarketplaceSource,
+        ordered_source: mlrun.common.schemas.IndexedHubSource,
     ):
-        logger.debug(
-            "Storing marketplace source in DB", index=ordered_source.index, name=name
-        )
+        logger.debug("Storing hub source in DB", index=ordered_source.index, name=name)
 
         if name != ordered_source.source.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Conflict between resource name and metadata.name in the stored object"
             )
-        order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
 
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         current_order = source_record.index if source_record else None
-        if current_order == mlrun.common.schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.hub.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attempting to modify the global marketplace source."
+                "Attempting to modify the global hub source."
             )
-        source_record = self._transform_marketplace_source_schema_to_record(
+        source_record = self._transform_hub_source_schema_to_record(
             ordered_source, source_record
         )
 
@@ -3418,15 +3408,11 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=current_order
         )
 
-    def list_marketplace_sources(
-        self, session
-    ) -> List[mlrun.common.schemas.IndexedMarketplaceSource]:
+    def list_hub_sources(self, session) -> List[mlrun.common.schemas.IndexedHubSource]:
         results = []
-        query = self._query(session, MarketplaceSource).order_by(
-            MarketplaceSource.index.desc()
-        )
+        query = self._query(session, HubSource).order_by(HubSource.index.desc())
         for record in query:
-            ordered_source = self._transform_marketplace_source_record_to_schema(record)
+            ordered_source = self._transform_hub_source_record_to_schema(record)
             # Need this to make the list return such that the default source is last in the response.
             if ordered_source.index != mlrun.common.schemas.last_source_index:
                 results.insert(0, ordered_source)
@@ -3434,33 +3420,31 @@ class SQLDB(DBInterface):
                 results.append(ordered_source)
         return results
 
-    def delete_marketplace_source(self, session, name):
-        logger.debug("Deleting marketplace source from DB", name=name)
+    def delete_hub_source(self, session, name):
+        logger.debug("Deleting hub source from DB", name=name)
 
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if not source_record:
             return
 
         current_order = source_record.index
-        if current_order == mlrun.common.schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.hub.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attempting to delete the global marketplace source."
+                "Attempting to delete the global hub source."
             )
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_marketplace_source(
-        self, session, name
-    ) -> mlrun.common.schemas.IndexedMarketplaceSource:
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if not source_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Marketplace source not found. name = {name}"
+                f"Hub source not found. name = {name}"
             )
 
-        return self._transform_marketplace_source_record_to_schema(source_record)
+        return self._transform_hub_source_record_to_schema(source_record)
 
     def get_current_data_version(
         self, session, raise_on_not_found=True

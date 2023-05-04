@@ -56,7 +56,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     run = "run"
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
-    marketplace_source = "marketplace-source"
+    hub_source = "hub-source"
 
     def to_resource_string(
         self,
@@ -85,8 +85,8 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
-            # Marketplace sources are not project-scoped, and auth is globally on the sources endpoint.
-            AuthorizationResourceTypes.marketplace_source: "/marketplace/sources",
+            # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
+            AuthorizationResourceTypes.hub_source: "/hub/sources",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

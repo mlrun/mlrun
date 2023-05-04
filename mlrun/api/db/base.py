@@ -548,30 +548,26 @@ class DBInterface(ABC):
     ):
         return []
 
-    def create_marketplace_source(
-        self, session, ordered_source: mlrun.common.schemas.IndexedMarketplaceSource
+    def create_hub_source(
+        self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
     ):
         pass
 
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         session,
         name,
-        ordered_source: mlrun.common.schemas.IndexedMarketplaceSource,
+        ordered_source: mlrun.common.schemas.IndexedHubSource,
     ):
         pass
 
-    def list_marketplace_sources(
-        self, session
-    ) -> List[mlrun.common.schemas.IndexedMarketplaceSource]:
+    def list_hub_sources(self, session) -> List[mlrun.common.schemas.IndexedHubSource]:
         pass
 
-    def delete_marketplace_source(self, session, name):
+    def delete_hub_source(self, session, name):
         pass
 
-    def get_marketplace_source(
-        self, session, name
-    ) -> mlrun.common.schemas.IndexedMarketplaceSource:
+    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
         pass
 
     def store_background_task(

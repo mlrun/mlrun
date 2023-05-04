@@ -106,16 +106,12 @@ HTTPSessionRetryMode = DeprecationHelper(mlrun.common.schemas.HTTPSessionRetryMo
 NodeSelectorOperator = DeprecationHelper(mlrun.common.schemas.NodeSelectorOperator)
 Resources = DeprecationHelper(mlrun.common.schemas.Resources)
 ResourceSpec = DeprecationHelper(mlrun.common.schemas.ResourceSpec)
-IndexedMarketplaceSource = DeprecationHelper(
-    mlrun.common.schemas.IndexedMarketplaceSource
-)
-MarketplaceCatalog = DeprecationHelper(mlrun.common.schemas.MarketplaceCatalog)
-MarketplaceItem = DeprecationHelper(mlrun.common.schemas.MarketplaceItem)
-MarketplaceObjectMetadata = DeprecationHelper(
-    mlrun.common.schemas.MarketplaceObjectMetadata
-)
-MarketplaceSource = DeprecationHelper(mlrun.common.schemas.MarketplaceSource)
-MarketplaceSourceSpec = DeprecationHelper(mlrun.common.schemas.MarketplaceSourceSpec)
+IndexedHubSource = DeprecationHelper(mlrun.common.schemas.IndexedHubSource)
+HubCatalog = DeprecationHelper(mlrun.common.schemas.HubCatalog)
+HubItem = DeprecationHelper(mlrun.common.schemas.HubItem)
+HubObjectMetadata = DeprecationHelper(mlrun.common.schemas.HubObjectMetadata)
+HubSource = DeprecationHelper(mlrun.common.schemas.HubSource)
+HubSourceSpec = DeprecationHelper(mlrun.common.schemas.HubSourceSpec)
 last_source_index = DeprecationHelper(mlrun.common.schemas.last_source_index)
 MostCommonObjectTypesReport = DeprecationHelper(
     mlrun.common.schemas.MostCommonObjectTypesReport

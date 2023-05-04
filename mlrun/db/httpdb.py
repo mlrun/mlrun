@@ -2773,18 +2773,18 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
-    def create_marketplace_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         """
-        Add a new marketplace source.
+        Add a new hub source.
 
-        MLRun maintains an ordered list of marketplace sources (“sources”) Each source has
+        MLRun maintains an ordered list of hub sources (“sources”) Each source has
         its details registered and its order within the list. When creating a new source, the special order ``-1``
         can be used to mark this source as last in the list. However, once the source is in the MLRun list,
         its order will always be ``>0``.
 
-        The global marketplace source always exists in the list, and is always the last source
+        The global hub source always exists in the list, and is always the last source
         (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
@@ -2796,52 +2796,52 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedMarketplaceSource(
+            private_source = mlrun.common.schemas.IndexedHubeSource(
                 order=-1,
-                source=mlrun.common.schemas.MarketplaceSource(
-                    metadata=mlrun.common.schemas.MarketplaceObjectMetadata(
+                source=mlrun.common.schemas.HubSource(
+                    metadata=mlrun.common.schemas.HubObjectMetadata(
                         name="priv", description="a private source"
                     ),
-                    spec=mlrun.common.schemas.MarketplaceSourceSpec(path="/local/path/to/source", channel="development")
+                    spec=mlrun.common.schemas.HubSourceSpec(path="/local/path/to/source", channel="development")
                 )
             )
-            db.create_marketplace_source(private_source)
+            db.create_hub_source(private_source)
 
             # Add another source as 1st in the list - will push previous one to be #2
-            another_source = mlrun.common.schemas.IndexedMarketplaceSource(
+            another_source = mlrun.common.schemas.IndexedHubSource(
                 order=1,
-                source=mlrun.common.schemas.MarketplaceSource(
-                    metadata=mlrun.common.schemas.MarketplaceObjectMetadata(
+                source=mlrun.common.schemas.HubSource(
+                    metadata=mlrun.common.schemas.HubObjectMetadata(
                         name="priv-2", description="another source"
                     ),
-                    spec=mlrun.common.schemas.MarketplaceSourceSpec(
+                    spec=mlrun.common.schemas.HubSourceSpec(
                         path="/local/path/to/source/2",
                         channel="development",
                         credentials={...}
                     )
                 )
             )
-            db.create_marketplace_source(another_source)
+            db.create_hub_source(another_source)
 
         :param source: The source and its order, of type
-            :py:class:`~mlrun.common.schemas.marketplace.IndexedMarketplaceSource`, or in dictionary form.
+            :py:class:`~mlrun.common.schemas.hub.IndexedHubSource`, or in dictionary form.
         :returns: The source object as inserted into the database, with credentials stripped.
         """
-        path = "marketplace/sources"
-        if isinstance(source, mlrun.common.schemas.IndexedMarketplaceSource):
+        path = "hub/sources"
+        if isinstance(source, mlrun.common.schemas.IndexedHubSource):
             source = source.dict()
         response = self.api_call(method="POST", path=path, json=source)
-        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         source_name: str,
-        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         """
-        Create or replace a marketplace source.
+        Create or replace a hub source.
         For an example of the source format and explanation of the source order logic,
-        please see :py:func:`~create_marketplace_source`. This method can be used to modify the source itself or its
+        please see :py:func:`~create_hub_source`. This method can be used to modify the source itself or its
         order in the list of sources.
 
         :param source_name: Name of the source object to modify/create. It must match the ``source.metadata.name``
@@ -2849,47 +2849,47 @@ class HTTPRunDB(RunDBInterface):
         :param source: Source object to store in the database.
         :returns: The source object as stored in the DB.
         """
-        path = f"marketplace/sources/{source_name}"
-        if isinstance(source, mlrun.common.schemas.IndexedMarketplaceSource):
+        path = f"hub/sources/{source_name}"
+        if isinstance(source, mlrun.common.schemas.IndexedHubSource):
             source = source.dict()
 
         response = self.api_call(method="PUT", path=path, json=source)
-        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def list_marketplace_sources(self):
+    def list_hub_sources(self):
         """
-        List marketplace sources in the MLRun DB.
+        List hub sources in the MLRun DB.
         """
-        path = "marketplace/sources"
+        path = "hub/sources"
         response = self.api_call(method="GET", path=path).json()
         results = []
         for item in response:
-            results.append(mlrun.common.schemas.IndexedMarketplaceSource(**item))
+            results.append(mlrun.common.schemas.IndexedHubSource(**item))
         return results
 
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         """
-        Retrieve a marketplace source from the DB.
+        Retrieve a hub source from the DB.
 
-        :param source_name: Name of the marketplace source to retrieve.
+        :param source_name: Name of the hub source to retrieve.
         """
-        path = f"marketplace/sources/{source_name}"
+        path = f"hub/sources/{source_name}"
         response = self.api_call(method="GET", path=path)
-        return mlrun.common.schemas.IndexedMarketplaceSource(**response.json())
+        return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         """
-        Delete a marketplace source from the DB.
+        Delete a hub source from the DB.
         The source will be deleted from the list, and any following sources will be promoted - for example, if the
         1st source is deleted, the 2nd source will become #1 in the list.
-        The global marketplace source cannot be deleted.
+        The global hub source cannot be deleted.
 
-        :param source_name: Name of the marketplace source to delete.
+        :param source_name: Name of the hub source to delete.
         """
-        path = f"marketplace/sources/{source_name}"
+        path = f"hub/sources/{source_name}"
         self.api_call(method="DELETE", path=path)
 
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         version: str = None,
@@ -2897,29 +2897,29 @@ class HTTPRunDB(RunDBInterface):
         force_refresh: bool = False,
     ):
         """
-        Retrieve the item catalog for a specified marketplace source.
+        Retrieve the item catalog for a specified hub source.
         The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
+        :param force_refresh: Make the server fetch the catalog from the actual hub source,
             rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
-        :returns: :py:class:`~mlrun.common.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
-            of :py:class:`~mlrun.common.schemas.marketplace.MarketplaceItem` entries.
+        :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
+            of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
-        path = (f"marketplace/sources/{source_name}/items",)
+        path = (f"hub/sources/{source_name}/items",)
         params = {
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
-        return mlrun.common.schemas.MarketplaceCatalog(**response.json())
+        return mlrun.common.schemas.HubCatalog(**response.json())
 
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,
@@ -2928,27 +2928,27 @@ class HTTPRunDB(RunDBInterface):
         force_refresh: bool = False,
     ):
         """
-        Retrieve a specific marketplace item.
+        Retrieve a specific hub item.
 
         :param source_name: Name of source.
         :param item_name: Name of the item to retrieve, as it appears in the catalog.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual marketplace
+        :param force_refresh: Make the server fetch the information from the actual hub
             source, rather than
             rely on cached information. Default is ``False``.
-        :returns: :py:class:`~mlrun.common.schemas.marketplace.MarketplaceItem`.
+        :returns: :py:class:`~mlrun.common.schemas.hub.HubItem`.
         """
-        path = (f"marketplace/sources/{source_name}/items/{item_name}",)
+        path = (f"hub/sources/{source_name}/items/{item_name}",)
         params = {
             "version": version,
             "tag": tag,
             "force-refresh": force_refresh,
         }
         response = self.api_call(method="GET", path=path, params=params)
-        return mlrun.common.schemas.MarketplaceItem(**response.json())
+        return mlrun.common.schemas.HubItem(**response.json())
 
-    def get_marketplace_asset(
+    def get_hub_asset(
         self,
         source_name: str,
         item_name: str,
@@ -2957,7 +2957,7 @@ class HTTPRunDB(RunDBInterface):
         tag: str = "latest",
     ):
         """
-        Get marketplace asset from item.
+        Get hub asset from item.
 
         :param source_name: Name of source.
         :param item_name:   Name of the item which holds the asset.
@@ -2967,9 +2967,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (
-            f"marketplace/sources/{source_name}/items/{item_name}/assets/{asset_name}",
-        )
+        path = (f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
         params = {
             "version": version,
             "tag": tag,

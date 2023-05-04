@@ -550,33 +550,33 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_marketplace_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         pass
 
     @abstractmethod
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         source_name: str,
-        source: Union[dict, mlrun.common.schemas.IndexedMarketplaceSource],
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         pass
 
     @abstractmethod
-    def list_marketplace_sources(self):
+    def list_hub_sources(self):
         pass
 
     @abstractmethod
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         pass
 
     @abstractmethod
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         pass
 
     @abstractmethod
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         version: str = None,
@@ -586,7 +586,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,

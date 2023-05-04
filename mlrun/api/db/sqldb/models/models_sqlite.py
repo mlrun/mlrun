@@ -425,9 +425,9 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class MarketplaceSource(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "marketplace_sources"
-        __table_args__ = (UniqueConstraint("name", name="_marketplace_sources_uc"),)
+    class HubSource(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "hub_sources"
+        __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))

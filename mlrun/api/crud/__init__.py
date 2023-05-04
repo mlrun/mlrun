@@ -19,8 +19,8 @@ from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec
 from .feature_store import FeatureStore
 from .functions import Functions
+from .hub import Hub
 from .logs import Logs
-from .marketplace import Marketplace
 from .model_monitoring import ModelEndpoints
 from .notifications import Notifications
 from .pipelines import Pipelines

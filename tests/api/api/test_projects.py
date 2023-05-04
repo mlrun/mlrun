@@ -1165,7 +1165,7 @@ def _assert_db_resources_in_project(
     for cls in _classes:
         # User support is not really implemented or in use
         # Run tags support is not really implemented or in use
-        # Marketplace sources is not a project-level table, and hence is not relevant here.
+        # Hub sources is not a project-level table, and hence is not relevant here.
         # Version is not a project-level table, and hence is not relevant here.
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
@@ -1173,7 +1173,7 @@ def _assert_db_resources_in_project(
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
-            or cls.__tablename__ == "marketplace_sources"
+            or cls.__tablename__ == "hub_sources"
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"

@@ -19,7 +19,6 @@ import click
 
 from automation.deployment.deployer import CommunityEditionDeployer
 
-
 common_options = [
     click.option(
         "-v",
@@ -134,7 +133,7 @@ def cli():
     "-m",
     "--minikube",
     is_flag=True,
-    help="Install the mlrun chart in local minikube.",
+    help="Install the mlrun chart in local minikube",
 )
 @click.option(
     "--set",
@@ -145,7 +144,7 @@ def cli():
 @click.option(
     "--upgrade",
     is_flag=True,
-    help="Upgrade the existing mlrun installation.",
+    help="Upgrade the existing mlrun installation",
 )
 @add_options(common_options)
 @add_options(common_deployment_options)

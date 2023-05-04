@@ -13,11 +13,12 @@
 # limitations under the License.
 import os.path
 import platform
-import requests
 import typing
 
-import mlrun.utils
+import requests
+
 import automation.common.helpers
+import mlrun.utils
 
 
 class Constants:

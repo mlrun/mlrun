@@ -37,6 +37,7 @@ def run_command(
                 log_file_handler.write(line.decode(sys.stdout.encoding))
     else:
         stdout = process.stdout.read()
+        log_file_handler.write(stdout.decode(sys.stdout.encoding))
 
     stderr = process.stderr.read()
 

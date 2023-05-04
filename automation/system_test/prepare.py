@@ -25,8 +25,8 @@ import click
 import paramiko
 import yaml
 
-import mlrun.utils
 import automation.common.helpers
+import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)

@@ -228,6 +228,7 @@ class BaseRuntime(ModelObj):
         # once separated client and server this if statement will be redundant
         if self._is_api_server:
             import mlrun.api.utils.singletons.k8s
+
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
 
         return get_k8s_helper()

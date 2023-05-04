@@ -29,7 +29,7 @@ common_options = [
     click.option(
         "-f",
         "--log-file",
-        help="Path to log file. If not specified, will log to stdout",
+        help="Path to log file. If not specified, will log only to stdout",
     ),
 ]
 

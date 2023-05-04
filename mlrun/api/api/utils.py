@@ -39,7 +39,6 @@ from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
-from mlrun.common.schemas import SecretProviderName, SecurityContextEnrichmentModes
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
@@ -651,7 +650,7 @@ def process_function_service_account(function):
 def resolve_project_default_service_account(project_name: str):
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project_name,
-        SecretProviderName.kubernetes,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
         ),
@@ -666,7 +665,7 @@ def resolve_project_default_service_account(project_name: str):
 
     default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project_name,
-        SecretProviderName.kubernetes,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
         ),
@@ -706,7 +705,7 @@ def ensure_function_security_context(
     # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.disabled.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         # remote spark image currently requires running with user 1000 or root
@@ -722,7 +721,7 @@ def ensure_function_security_context(
     #  Enrichment with retain enrichment mode should occur on function creation only.
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.retain.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value
         and function.spec.security_context is not None
         and function.spec.security_context.run_as_user is not None
         and function.spec.security_context.run_as_group is not None
@@ -735,8 +734,8 @@ def ensure_function_security_context(
         return
 
     if mlrun.mlconf.function.spec.security_context.enrichment_mode in [
-        SecurityContextEnrichmentModes.override.value,
-        SecurityContextEnrichmentModes.retain.value,
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
+        mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
 
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers

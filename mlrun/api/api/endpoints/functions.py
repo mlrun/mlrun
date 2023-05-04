@@ -46,7 +46,6 @@ from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
-from mlrun.common.schemas import SecretProviderName, SecretsData
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
@@ -886,8 +885,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-
-    provider = SecretProviderName.kubernetes
+    provider = mlrun.common.schemas.SecretProviderName.kubernetes
     secret_value = Secrets().get_project_secret(
         project_name,
         provider,
@@ -926,7 +924,9 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 project_owner=project_owner.username,
             )
 
-    secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
+    secrets = mlrun.common.schemas.SecretsData(
+        provider=provider, secrets={internal_key_name: secret_value}
+    )
     Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
         logger.info(

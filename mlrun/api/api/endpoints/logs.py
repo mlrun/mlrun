@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import fastapi
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool

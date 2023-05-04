@@ -27,7 +27,6 @@ import mlrun.api.utils.auth.verifier
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
 from mlrun.api.api import deps
-from mlrun.common.schemas import GrafanaTable, GrafanaTimeSeriesTarget
 
 router = APIRouter()
 
@@ -102,12 +101,21 @@ async def grafana_proxy_model_endpoints_search(
 
 @router.post(
     "/grafana-proxy/model-endpoints/query",
-    response_model=List[Union[GrafanaTable, GrafanaTimeSeriesTarget]],
+    response_model=List[
+        Union[
+            mlrun.common.schemas.GrafanaTable,
+            mlrun.common.schemas.GrafanaTimeSeriesTarget,
+        ]
+    ],
 )
 async def grafana_proxy_model_endpoints_query(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
+) -> List[
+    Union[
+        mlrun.common.schemas.GrafanaTable, mlrun.common.schemas.GrafanaTimeSeriesTarget
+    ]
+]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.

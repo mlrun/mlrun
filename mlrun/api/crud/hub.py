@@ -15,17 +15,11 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+import mlrun.common.schemas
+import mlrun.common.schemas.hub
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.common.schemas.hub import (
-    HubCatalog,
-    HubItem,
-    HubItemMetadata,
-    HubItemSpec,
-    HubSource,
-    ObjectStatus,
-)
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
@@ -54,7 +48,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             SecretsClientType.hub, full_key
         )
 
-    def add_source(self, source: HubSource):
+    def add_source(self, source: mlrun.common.schemas.hub.HubSource):
         source_name = source.metadata.name
         credentials = source.spec.credentials
         if credentials:
@@ -122,7 +116,11 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         return source_secrets
 
     @staticmethod
-    def _get_asset_full_path(source: HubSource, item: HubItem, asset: str):
+    def _get_asset_full_path(
+        source: mlrun.common.schemas.hub.HubSource,
+        item: mlrun.common.schemas.hub.HubItem,
+        asset: str,
+    ):
         """
         Combining the item path with the asset path.
 
@@ -142,8 +140,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _transform_catalog_dict_to_schema(
-        source: HubSource, catalog_dict: Dict[str, Any]
-    ) -> HubCatalog:
+        source: mlrun.common.schemas.hub.HubSource, catalog_dict: Dict[str, Any]
+    ) -> mlrun.common.schemas.hub.HubCatalog:
         """
         Transforms catalog dictionary to HubCatalog schema
         :param source:          Hub source object.
@@ -152,20 +150,26 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                                 bottom level keys include spec as a dict and all the rest is considered as metadata.
         :return: catalog object
         """
-        catalog = HubCatalog(catalog=[], channel=source.spec.channel)
+        catalog = mlrun.common.schemas.hub.HubCatalog(
+            catalog=[], channel=source.spec.channel
+        )
         # Loop over objects, then over object versions.
         for object_name, object_dict in catalog_dict.items():
             for version_tag, version_dict in object_dict.items():
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
                 assets = object_details_dict.pop("assets", {})
-                metadata = HubItemMetadata(tag=version_tag, **object_details_dict)
+                metadata = mlrun.common.schemas.hub.HubItemMetadata(
+                    tag=version_tag, **object_details_dict
+                )
                 item_uri = source.get_full_uri(metadata.get_relative_path())
-                spec = HubItemSpec(item_uri=item_uri, assets=assets, **spec_dict)
-                item = HubItem(
+                spec = mlrun.common.schemas.hub.HubItemSpec(
+                    item_uri=item_uri, assets=assets, **spec_dict
+                )
+                item = mlrun.common.schemas.hub.HubItem(
                     metadata=metadata,
                     spec=spec,
-                    status=ObjectStatus(),
+                    status=mlrun.common.schemas.ObjectStatus(),
                 )
                 catalog.catalog.append(item)
 
@@ -173,11 +177,11 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_source_catalog(
         self,
-        source: HubSource,
+        source: mlrun.common.schemas.hub.HubSource,
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
-    ) -> HubCatalog:
+    ) -> mlrun.common.schemas.hub.HubCatalog:
         """
         Getting the catalog object by source.
         If version and/or tag are given, the catalog will be filtered accordingly.
@@ -200,7 +204,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog = self._catalogs[source_name]
 
-        result_catalog = HubCatalog(catalog=[], channel=source.spec.channel)
+        result_catalog = mlrun.common.schemas.hub.HubCatalog(
+            catalog=[], channel=source.spec.channel
+        )
         for item in catalog.catalog:
             # Because tag and version are optionals,
             # we filter the catalog by one of them with priority to tag
@@ -213,12 +219,12 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_item(
         self,
-        source: HubSource,
+        source: mlrun.common.schemas.hub.HubSource,
         item_name: str,
         version: Optional[str] = None,
         tag: Optional[str] = None,
         force_refresh: bool = False,
-    ) -> HubItem:
+    ) -> mlrun.common.schemas.hub.HubItem:
         """
         Retrieve item from source. The item is filtered by tag and version.
 
@@ -250,9 +256,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _get_catalog_items_filtered_by_name(
-        catalog: List[HubItem],
+        catalog: List[mlrun.common.schemas.hub.HubItem],
         item_name: str,
-    ) -> List[HubItem]:
+    ) -> List[mlrun.common.schemas.hub.HubItem]:
         """
         Retrieve items from catalog filtered by name
 
@@ -263,7 +269,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         """
         return [item for item in catalog if item.metadata.name == item_name]
 
-    def get_item_object_using_source_credentials(self, source: HubSource, url):
+    def get_item_object_using_source_credentials(
+        self, source: mlrun.common.schemas.hub.HubSource, url
+    ):
         credentials = self._get_source_credentials(source.metadata.name)
 
         if not url.startswith(source.spec.path):
@@ -283,8 +291,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_asset(
         self,
-        source: HubSource,
-        item: HubItem,
+        source: mlrun.common.schemas.hub.HubSource,
+        item: mlrun.common.schemas.hub.HubItem,
         asset_name: str,
     ) -> Tuple[bytes, str]:
         """

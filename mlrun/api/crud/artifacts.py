@@ -20,10 +20,10 @@ import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.common.schemas.artifact import ArtifactsFormat
 
 
 class Artifacts(
@@ -66,7 +66,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
-        format_: ArtifactsFormat = ArtifactsFormat.full,
+        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
@@ -76,7 +76,7 @@ class Artifacts(
             iter,
             project,
         )
-        if format_ == ArtifactsFormat.legacy:
+        if format_ == mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
             return _transform_artifact_struct_to_legacy_format(artifact)
         return artifact
 
@@ -93,7 +93,7 @@ class Artifacts(
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
-        format_: ArtifactsFormat = ArtifactsFormat.full,
+        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -111,7 +111,7 @@ class Artifacts(
             iter,
             best_iteration,
         )
-        if format_ != ArtifactsFormat.legacy:
+        if format_ != mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
             return artifacts
         return [
             _transform_artifact_struct_to_legacy_format(artifact)

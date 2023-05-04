@@ -33,10 +33,6 @@ run_modes = ["pass"]
 
 
 class ClientRemoteLauncher(BaseLauncher):
-    @property
-    def db(self) -> "mlrun.db.httpdb.HTTPRunDB":
-        return self._db
-
     def _save_or_push_notifications(self, runobj):
         pass
 

@@ -38,10 +38,6 @@ class ClientLocalLauncher(BaseLauncher):
         super().__init__()
         self._is_run_local = local
 
-    @property
-    def db(self) -> "mlrun.db.httpdb.HTTPRunDB":
-        return self._db
-
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -88,9 +84,8 @@ class ClientLocalLauncher(BaseLauncher):
         self._enrich_runtime(runtime)
         run = self._create_run_object(task)
 
-        local_function = None
         if self._is_run_local:
-            local_function = self._create_local_function_for_execution(
+            runtime = self._create_local_function_for_execution(
                 runtime=runtime,
                 run=run,
                 local_code_path=local_code_path,
@@ -106,9 +101,8 @@ class ClientLocalLauncher(BaseLauncher):
                 "remote function cannot be executed locally"
             )
 
-        local_function = local_function or runtime
         run = self._enrich_run(
-            runtime=local_function,
+            runtime=runtime,
             run=run,
             handler=handler,
             project_name=project,
@@ -125,9 +119,9 @@ class ClientLocalLauncher(BaseLauncher):
             workdir=workdir,
             notifications=notifications,
         )
-        self._validate_runtime(local_function, run)
+        self._validate_runtime(runtime, run)
         result = self.execute(
-            runtime=local_function,
+            runtime=runtime,
             run=run,
         )
 
@@ -233,7 +227,7 @@ class ClientLocalLauncher(BaseLauncher):
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()
-        self._pre_run(runtime, run, execution)  # hook for runtime specific prep
+        runtime._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
         # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
@@ -262,7 +256,7 @@ class ClientLocalLauncher(BaseLauncher):
 
         self._save_or_push_notifications(run)
         # run post run hooks
-        self._post_run(execution)  # hook for runtime specific cleanup
+        runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return runtime._wrap_run_result(result, run, err=last_err)
 

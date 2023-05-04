@@ -80,16 +80,16 @@ from .frontend_spec import (
 )
 from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
 from .http import HTTPSessionRetryMode
-from .k8s import NodeSelectorOperator, Resources, ResourceSpec
-from .marketplace import (
-    IndexedMarketplaceSource,
-    MarketplaceCatalog,
-    MarketplaceItem,
-    MarketplaceObjectMetadata,
-    MarketplaceSource,
-    MarketplaceSourceSpec,
+from .hub import (
+    HubCatalog,
+    HubItem,
+    HubObjectMetadata,
+    HubSource,
+    HubSourceSpec,
+    IndexedHubSource,
     last_source_index,
 )
+from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_endpoints import (
     Features,

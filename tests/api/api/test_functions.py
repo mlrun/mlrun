@@ -296,6 +296,7 @@ def test_tracking_on_serving(
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
+        mlrun.utils.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:

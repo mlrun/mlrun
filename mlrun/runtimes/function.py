@@ -569,66 +569,39 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        save_record = False
-        if not dashboard:
-            # Attempt auto-mounting, before sending to remote build
-            self.try_auto_mount_based_on_config()
-            self._fill_credentials()
-            db = self._get_db()
-            logger.info("Starting remote function deploy")
-            data = db.remote_builder(self, False, builder_env=builder_env)
-            self.status = data["data"].get("status")
-            self._update_credentials_from_remote_build(data["data"])
-
-            # when a function is deployed, we wait for it to be ready by default
-            # this also means that the function object will be updated with the function status
-            self._wait_for_function_deployment(db, verbose=verbose)
-
-            # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
-            #       now, functions can be not exposed (using service type ClusterIP) and hence
-            #       for BC we first try to populate the external invocation url, and then
-            #       if not exists, take the internal invocation url
-            if self.status.external_invocation_urls:
-                self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
-                save_record = True
-            elif self.status.internal_invocation_urls:
-                self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
-                save_record = True
-            elif self.status.address:
-                self.spec.command = f"http://{self.status.address}"
-                save_record = True
-
-        else:
-
+        if dashboard:
             warnings.warn(
-                "'dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
-                "Keep 'dashboard' value empty to allow auto-detection by MLRun API.",
-                # TODO: Remove in 1.5.0
-                FutureWarning,
+                "'dashboard' parameter is no longer supported on client side, "
+                "it is being configured through the MLRun API.",
             )
 
-            self.save(versioned=False)
-            self._ensure_run_db()
-            internal_invocation_urls, external_invocation_urls = deploy_nuclio_function(
-                self,
-                dashboard=dashboard,
-                watch=True,
-                auth_info=auth_info,
-            )
-            self.status.internal_invocation_urls = internal_invocation_urls
-            self.status.external_invocation_urls = external_invocation_urls
+        save_record = False
+        # Attempt auto-mounting, before sending to remote build
+        self.try_auto_mount_based_on_config()
+        self._fill_credentials()
+        db = self._get_db()
+        logger.info("Starting remote function deploy")
+        data = db.remote_builder(self, False, builder_env=builder_env)
+        self.status = data["data"].get("status")
+        self._update_credentials_from_remote_build(data["data"])
 
-            # save the (first) function external invocation url
-            # this is made for backwards compatability because the user, at this point, may
-            # work remotely and need the external invocation url on the spec.command
-            # TODO: when using `ClusterIP`, this block might not fulfilled
-            #       as long as function doesnt have ingresses
-            if self.status.external_invocation_urls:
-                address = self.status.external_invocation_urls[0]
-                self.spec.command = f"http://{address}"
-                self.status.state = "ready"
-                self.status.address = address
-                save_record = True
+        # when a function is deployed, we wait for it to be ready by default
+        # this also means that the function object will be updated with the function status
+        self._wait_for_function_deployment(db, verbose=verbose)
+
+        # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
+        #       now, functions can be not exposed (using service type ClusterIP) and hence
+        #       for BC we first try to populate the external invocation url, and then
+        #       if not exists, take the internal invocation url
+        if self.status.external_invocation_urls:
+            self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
+            save_record = True
+        elif self.status.internal_invocation_urls:
+            self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
+            save_record = True
+        elif self.status.address:
+            self.spec.command = f"http://{self.status.address}"
+            save_record = True
 
         logger.info(
             "successfully deployed function",

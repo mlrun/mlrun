@@ -403,6 +403,37 @@ class OutputStream:
             )
 
 
+class HTTPOutputStream:
+    """HTTP output source that usually used for CE mode and debugging process"""
+
+    def __init__(self, stream_path: str):
+        self._stream_path = stream_path
+
+    def push(self, data):
+        def dump_record(rec):
+            if isinstance(rec, bytes):
+                return rec
+
+            if not isinstance(rec, str):
+                rec = dict_to_json(rec)
+
+            return rec.encode("UTF-8")
+
+        if not isinstance(data, list):
+            data = [data]
+
+        for record in data:
+
+            # Convert the new record to the required format
+            serialized_record = dump_record(record)
+            response = requests.post(self._stream_path, data=serialized_record)
+            if not response:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"API call failed push a new record through {self._stream_path}"
+                    f"status {response.status_code}: {response.reason}"
+                )
+
+
 class KafkaOutputStream:
     def __init__(
         self,

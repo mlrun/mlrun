@@ -793,6 +793,7 @@ def code_to_function(
 
     def update_common(fn, spec):
         fn.spec.image = image or get_in(spec, "spec.image", "")
+        fn.spec.filename = filename or get_in(spec, "spec.filename", "")
         fn.spec.build.base_image = get_in(spec, "spec.build.baseImage")
         fn.spec.build.commands = get_in(spec, "spec.build.commands")
         fn.spec.build.secret = get_in(spec, "spec.build.secret")

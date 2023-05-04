@@ -114,7 +114,7 @@ def new_project(
 
     example::
 
-        # create a project with local and marketplace functions, a workflow, and an artifact
+        # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
         project.set_function('hub://auto-trainer', 'train')
@@ -585,8 +585,6 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
-        if self._source in [".", "./"]:
-            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -1044,8 +1042,14 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
-            if self.spec.context and not workflow_path.startswith("/"):
-                workflow_path = path.join(self.spec.context, workflow_path)
+            if (
+                self.context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(self.context)
+            ):
+                workflow_path = path.join(self.context, workflow_path)
             with open(workflow_path, "r") as fp:
                 txt = fp.read()
             workflow = {"name": name, "code": txt}
@@ -2143,13 +2147,17 @@ class MlrunProject(ModelObj):
                 remove(tmp_path)
 
     def set_model_monitoring_credentials(
-        self, access_key: str = None, endpoint_store_connection: str = None
+        self,
+        access_key: str = None,
+        endpoint_store_connection: str = None,
+        stream_path: str = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
+        :param stream_path:               Path to the model monitoring stream
         """
 
         secrets_dict = {}
@@ -2162,6 +2170,15 @@ class MlrunProject(ModelObj):
             secrets_dict[
                 model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
+
+        if stream_path:
+            if stream_path.startswith("kafka://") and "?topic" in stream_path:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Custom kafka topic is not allowed"
+                )
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+            ] = stream_path
 
         self.set_secrets(
             secrets=secrets_dict,
@@ -2195,7 +2212,7 @@ class MlrunProject(ModelObj):
 
         example (use with project)::
 
-            # create a project with two functions (local and from marketplace)
+            # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://auto-trainer", "train")

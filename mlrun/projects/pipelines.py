@@ -116,7 +116,13 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
-            if context and not workflow_path.startswith("/"):
+            if (
+                context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(context)
+            ):
                 workflow_path = os.path.join(context, workflow_path)
         return workflow_path
 
@@ -755,6 +761,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str,
         workflow_handler: str,
         namespace: str,
+        subpath: str,
     ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
         """
         Helper function for creating the runspec of the load and run function.
@@ -767,6 +774,7 @@ class _RemoteRunner(_PipelineRunner):
         :param artifact_path:       path to store artifacts
         :param workflow_handler:    workflow function handler (for running workflow function directly)
         :param namespace:           kubernetes namespace if other than default
+        :param subpath:             project subpath (within the archive)
         :return:
         """
         # Creating the load project and workflow running function:
@@ -792,6 +800,7 @@ class _RemoteRunner(_PipelineRunner):
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
                     "schedule": workflow_spec.schedule,
+                    "subpath": subpath,
                 },
                 handler="mlrun.projects.load_and_run",
             ),
@@ -840,6 +849,7 @@ class _RemoteRunner(_PipelineRunner):
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
             namespace=namespace,
+            subpath=project.spec.subpath,
         )
 
         # The returned engine for this runner is the engine of the workflow.

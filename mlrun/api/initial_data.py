@@ -218,7 +218,7 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
-    _add_default_marketplace_source_if_needed(db, db_session)
+    _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)
 
 
@@ -494,32 +494,32 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
-def _add_default_marketplace_source_if_needed(
+def _add_default_hub_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
-        hub_marketplace_source = db.get_marketplace_source(
-            db_session, config.marketplace.default_source.name
+        hub_marketplace_source = db.get_hub_source(
+            db_session, config.hub.default_source.name
         )
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None
 
     if not hub_marketplace_source:
-        hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
-        # hub_source will be None if the configuration has marketplace.default_source.create=False
+        hub_source = mlrun.api.schemas.HubSource.generate_default_source()
+        # hub_source will be None if the configuration has hub.default_source.create=False
         if hub_source:
-            logger.info("Adding default marketplace source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
-            hub_record = db._transform_marketplace_source_schema_to_record(
-                mlrun.api.schemas.IndexedMarketplaceSource(
-                    index=mlrun.api.schemas.marketplace.last_source_index,
+            logger.info("Adding default hub source")
+            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
+            hub_record = db._transform_hub_source_schema_to_record(
+                mlrun.api.schemas.IndexedHubSource(
+                    index=mlrun.api.schemas.hub.last_source_index,
                     source=hub_source,
                 )
             )
             db_session.add(hub_record)
             db_session.commit()
         else:
-            logger.info("Not adding default marketplace source, per configuration")
+            logger.info("Not adding default hub source, per configuration")
     return
 
 

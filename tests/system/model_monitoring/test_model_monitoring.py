@@ -238,6 +238,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
+        # 3 - invalid records are considered in the aggregated error count value
 
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
@@ -282,9 +283,19 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating Requests
-        iris_data = iris["data"].tolist()
+        # Simulating invalid requests
+        invalid_input = ["n", "s", "o", "-"]
+        for _ in range(10):
+            try:
+                serving_fn.invoke(
+                    f"v2/models/{model_name}/infer",
+                    json.dumps({"inputs": [invalid_input]}),
+                )
+            except RuntimeError:
+                pass
 
+        # Simulating valid requests
+        iris_data = iris["data"].tolist()
         t_end = monotonic() + simulation_time
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -293,7 +304,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.1))
 
-        # test metrics
+        # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -307,6 +318,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ]
         total = sum((m[1] for m in predictions_per_second))
         assert total > 0
+
+        # Validate error count value
+        assert endpoint.status.error_count == 10
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -368,7 +382,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
             fv, target=mlrun.datastore.targets.ParquetTarget()
         )
 
-        # Train the model using the auto trainer from the marketplace
+        # Train the model using the auto trainer from the hub
         train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
@@ -446,7 +460,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun marketplace is upgraded to 1.0.8
+        #  from mlrun hub is upgraded to 1.0.8
         # assert len(model_obj.spec.feature_stats) == len(
         #     model_endpoint.spec.feature_names
         # ) + len(model_endpoint.spec.label_names)
@@ -529,7 +543,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # Import the auto trainer function from the marketplace (hub://)
+        # Import the auto trainer function from the hub (hub://)
         train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
@@ -693,3 +707,105 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Check if model monitoring stream function is ready
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
         assert base_runtime.status.state == "ready", stat
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringKafka(TestMLRunSystem):
+    """Deploy a basic iris model configured with kafka stream"""
+
+    brokers = (
+        os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        if "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS" in os.environ
+        and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        else None
+    )
+    project_name = "pr-kafka-model-monitoring"
+
+    @pytest.mark.timeout(300)
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_model_monitoring_with_kafka_stream(self):
+        project = mlrun.get_run_db().get_project(self.project_name)
+
+        iris = load_iris()
+        train_set = pd.DataFrame(
+            iris["data"],
+            columns=[
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ],
+        )
+
+        # Import the serving function from the function hub
+        serving_fn = mlrun.import_function(
+            "hub://v2_model_server", project=self.project_name
+        ).apply(mlrun.auto_mount())
+
+        model_name = "sklearn_RandomForestClassifier"
+
+        # Upload the model through the projects API so that it is available to the serving function
+        project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
+        )
+        # Add the model to the serving function's routing spec
+        serving_fn.add_model(
+            model_name,
+            model_path=project.get_artifact_uri(
+                key=model_name, category="model", tag="latest"
+            ),
+        )
+
+        project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
+
+        # enable model monitoring
+        serving_fn.set_tracking()
+        # Deploy the function
+        serving_fn.deploy()
+
+        monitoring_stream_fn = project.get_function("model-monitoring-stream")
+
+        function_config = monitoring_stream_fn.spec.config
+
+        # Validate kakfa stream trigger configurations
+        assert function_config["spec.triggers.kafka"]
+        assert (
+            function_config["spec.triggers.kafka"]["attributes"]["topics"][0]
+            == f"monitoring_stream_{self.project_name}"
+        )
+        assert (
+            function_config["spec.triggers.kafka"]["attributes"]["brokers"][0]
+            == self.brokers
+        )
+
+        import kafka
+
+        # Validate that the topic exist as expected
+        consumer = kafka.KafkaConsumer(bootstrap_servers=[self.brokers])
+        topics = consumer.topics()
+        assert f"monitoring_stream_{self.project_name}" in topics
+
+        # Simulating Requests
+        iris_data = iris["data"].tolist()
+
+        for i in range(100):
+            data_point = choice(iris_data)
+            serving_fn.invoke(
+                f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
+            )
+            sleep(uniform(0.02, 0.03))
+
+        # Validate that the model endpoint metrics were updated as indication for the sanity of the flow
+        model_endpoint = mlrun.get_run_db().list_model_endpoints(
+            project=self.project_name
+        )[0]
+
+        assert model_endpoint.status.metrics["generic"]["latency_avg_5m"] > 0
+        assert model_endpoint.status.metrics["generic"]["predictions_count_5m"] > 0

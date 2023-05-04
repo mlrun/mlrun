@@ -543,25 +543,19 @@ class DBInterface(ABC):
     ):
         return []
 
-    def create_marketplace_source(
-        self, session, ordered_source: schemas.IndexedMarketplaceSource
-    ):
+    def create_hub_source(self, session, ordered_source: schemas.IndexedHubSource):
         pass
 
-    def store_marketplace_source(
-        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
-    ):
+    def store_hub_source(self, session, name, ordered_source: schemas.IndexedHubSource):
         pass
 
-    def list_marketplace_sources(
-        self, session
-    ) -> List[schemas.IndexedMarketplaceSource]:
+    def list_hub_sources(self, session) -> List[schemas.IndexedHubSource]:
         pass
 
-    def delete_marketplace_source(self, session, name):
+    def delete_hub_source(self, session, name):
         pass
 
-    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+    def get_hub_source(self, session, name) -> schemas.IndexedHubSource:
         pass
 
     def store_background_task(

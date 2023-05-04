@@ -330,6 +330,7 @@ class CommunityEditionDeployer:
             disable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
+            sqlite,
             minikube,
         ).items():
             helm_arguments.extend(
@@ -344,21 +345,6 @@ class CommunityEditionDeployer:
                 [
                     "--set",
                     value,
-                ]
-            )
-
-        if sqlite:
-            dir_path = os.path.dirname(sqlite)
-            helm_arguments.extend(
-                [
-                    "--set",
-                    'mlrun.httpDB.dbType="sqlite"',
-                    "--set",
-                    f'mlrun.httpDB.dirPath="{dir_path}"',
-                    "--set",
-                    f'mlrun.httpDB.dsn="sqlite:///{sqlite}?check_same_thread=false"',
-                    "--set",
-                    'mlrun.httpDB.oldDsn=""',
                 ]
             )
 
@@ -392,6 +378,7 @@ class CommunityEditionDeployer:
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        sqlite: str = None,
         minikube: bool = False,
     ) -> typing.Dict[str, str]:
         """
@@ -405,6 +392,7 @@ class CommunityEditionDeployer:
         :param disable_pipelines: Disable pipelines
         :param disable_prometheus_stack: Disable Prometheus stack
         :param disable_spark_operator: Disable Spark operator
+        :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
         :param minikube: Use minikube
         :return: Dictionary of helm values
         """
@@ -442,6 +430,17 @@ class CommunityEditionDeployer:
         ):
             if disabled:
                 self._disable_deployment_in_helm_values(helm_values, deployment)
+
+        if sqlite:
+            dir_path = os.path.dirname(sqlite)
+            helm_values.update(
+                {
+                    "mlrun.httpDB.dbType": "sqlite",
+                    "mlrun.httpDB.dirPath": {dir_path},
+                    "mlrun.httpDB.dsn": f"sqlite:///{sqlite}?check_same_thread=false",
+                    "mlrun.httpDB.oldDsn": "",
+                }
+            )
 
         # TODO: We need to fix the pipelines metadata grpc server to work on arm
         if self._check_platform_architecture() == "arm":

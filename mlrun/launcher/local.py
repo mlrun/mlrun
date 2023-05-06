@@ -78,7 +78,7 @@ class ClientLocalLauncher(BaseLauncher):
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "local and schedule cannot be used together"
+                "Local run and schedule cannot be used together"
             )
 
         self._enrich_runtime(runtime)
@@ -98,11 +98,9 @@ class ClientLocalLauncher(BaseLauncher):
         # sanity check
         elif runtime._is_remote:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "remote function cannot be executed locally"
+                "Remote function cannot be executed locally"
             )
 
-        print(run.spec.selector)
-        print(run.spec.hyper_param_options.selector)
         run = self._enrich_run(
             runtime=runtime,
             run=run,
@@ -122,8 +120,6 @@ class ClientLocalLauncher(BaseLauncher):
             notifications=notifications,
         )
         self._validate_runtime(runtime, run)
-        print(run.spec.selector)
-        print(run.spec.hyper_param_options.selector)
         result = self.execute(
             runtime=runtime,
             run=run,
@@ -131,70 +127,6 @@ class ClientLocalLauncher(BaseLauncher):
 
         self._save_or_push_notifications(result)
         return result
-
-    @staticmethod
-    def _enrich_runtime(runtime):
-        runtime.try_auto_mount_based_on_config()
-        runtime._fill_credentials()
-
-    def _create_local_function_for_execution(
-        self,
-        runtime,
-        run,
-        local_code_path,
-        project,
-        name,
-        workdir,
-        handler,
-    ):
-
-        project = project or runtime.metadata.project
-        function_name = name or runtime.metadata.name
-        command, args = self._resolve_local_code_path(local_code_path)
-        if command:
-            function_name = name or pathlib.Path(command).stem
-
-        meta = mlrun.model.BaseMetadata(function_name, project=project)
-
-        command, runtime = mlrun.run.load_func_code(
-            command or runtime, workdir, name=name
-        )
-        if runtime:
-            if run:
-                handler = handler or run.spec.handler
-            handler = handler or runtime.spec.default_handler or ""
-            meta = runtime.metadata.copy()
-            meta.project = project or meta.project
-
-        # if the handler has module prefix force "local" (vs "handler") runtime
-        kind = "local" if isinstance(handler, str) and "." in handler else ""
-        fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
-        fn.metadata = meta
-        setattr(fn, "_is_run_local", True)
-        if workdir:
-            fn.spec.workdir = str(workdir)
-        fn.spec.allow_empty_resources = runtime.spec.allow_empty_resources
-        if runtime:
-            # copy the code/base-spec to the local function (for the UI and code logging)
-            fn.spec.description = runtime.spec.description
-            fn.spec.build = runtime.spec.build
-
-        run.spec.handler = handler
-        return fn
-
-    @staticmethod
-    def _resolve_local_code_path(local_code_path: str) -> (str, List[str]):
-        command = None
-        args = []
-        if local_code_path:
-            command = local_code_path
-            if command:
-                sp = command.split()
-                # split command and args
-                command = sp[0]
-                if len(sp) > 1:
-                    args = sp[1:]
-        return command, args
 
     def execute(
         self,
@@ -265,50 +197,80 @@ class ClientLocalLauncher(BaseLauncher):
         return runtime._wrap_run_result(result, run, err=last_err)
 
     @staticmethod
-    def _pre_run(runtime, runobj, execution):
-        workdir = runtime.spec.workdir
-        execution._current_workdir = workdir
-        execution._old_workdir = None
+    def _enrich_runtime(runtime):
+        runtime.try_auto_mount_based_on_config()
+        runtime._fill_credentials()
 
-        # TODO client-server, might not need the _is_run_local any more
-        if runtime.spec.build.source and not hasattr(runtime, "_is_run_local"):
-            target_dir = mlrun.utils.clones.extract_source(
-                runtime.spec.build.source,
-                runtime.spec.clone_target_dir,
-                secrets=execution._secrets_manager,
-            )
-            if workdir and not workdir.startswith("/"):
-                execution._current_workdir = os.path.join(target_dir, workdir)
-            else:
-                execution._current_workdir = workdir or target_dir
+    def _create_local_function_for_execution(
+        self,
+        runtime,
+        run,
+        local_code_path,
+        project,
+        name,
+        workdir,
+        handler,
+    ):
 
-        if execution._current_workdir:
-            execution._old_workdir = os.getcwd()
-            workdir = os.path.realpath(execution._current_workdir)
-            mlrun.utils.helpers.set_paths(workdir)
-            os.chdir(workdir)
-        else:
-            mlrun.utils.helpers.set_paths(os.path.realpath("."))
+        project = project or runtime.metadata.project
+        function_name = name or runtime.metadata.name
+        command, args = self._resolve_local_code_path(local_code_path)
+        if command:
+            function_name = name or pathlib.Path(command).stem
 
-        if (
-            runobj.metadata.labels.get("kind") == mlrun.runtimes.RemoteSparkRuntime.kind
-            and os.environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
-        ):
-            mlrun.runtimes.remotesparkjob.igz_spark_pre_hook()
+        meta = mlrun.model.BaseMetadata(function_name, project=project)
+
+        command, runtime = mlrun.run.load_func_code(
+            command or runtime, workdir, name=name
+        )
+        if runtime:
+            if run:
+                handler = handler or run.spec.handler
+            handler = handler or runtime.spec.default_handler or ""
+            meta = runtime.metadata.copy()
+            meta.project = project or meta.project
+
+        # if the handler has module prefix force "local" (vs "handler") runtime
+        kind = "local" if isinstance(handler, str) and "." in handler else ""
+        fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)
+        fn.metadata = meta
+        setattr(fn, "_is_run_local", True)
+        if workdir:
+            fn.spec.workdir = str(workdir)
+        fn.spec.allow_empty_resources = runtime.spec.allow_empty_resources
+        if runtime:
+            # copy the code/base-spec to the local function (for the UI and code logging)
+            fn.spec.description = runtime.spec.description
+            fn.spec.build = runtime.spec.build
+
+        run.spec.handler = handler
+        return fn
 
     @staticmethod
-    def _post_run(execution):
-        # hook for runtime specific cleanup
-        if execution._old_workdir:
-            os.chdir(execution._old_workdir)
+    def _resolve_local_code_path(local_code_path: str) -> (str, List[str]):
+        command = None
+        args = []
+        if local_code_path:
+            command = local_code_path
+            if command:
+                sp = command.split()
+                # split command and args
+                command = sp[0]
+                if len(sp) > 1:
+                    args = sp[1:]
+        return command, args
 
-    def _store_function(self, runtime, runspec, meta):
-        meta.labels["kind"] = runtime.kind
-        if "owner" not in meta.labels:
-            meta.labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels["owner"]
+    def _store_function(
+        self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
+    ):
+        run.metadata.labels["kind"] = runtime.kind
+        if "owner" not in run.metadata.labels:
+            run.metadata.labels["owner"] = (
+                os.environ.get("V3IO_USERNAME") or getpass.getuser()
+            )
+        if run.spec.output_path:
+            run.spec.output_path = run.spec.output_path.replace(
+                "{{run.user}}", run.metadata.labels["owner"]
             )
 
         if self.db and runtime.kind != "handler":
@@ -316,7 +278,7 @@ class ClientLocalLauncher(BaseLauncher):
             hash_key = self.db.store_function(
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
-            runspec.spec.function = runtime._function_uri(hash_key=hash_key)
+            run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _save_or_push_notifications(self, runobj):
         if not self._are_valid_notifications(runobj):

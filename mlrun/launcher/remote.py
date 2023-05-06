@@ -197,15 +197,14 @@ class ClientRemoteLauncher(BaseLauncher):
     def _store_function(
         self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
     ):
-        metadata = run.metadata
-        metadata.labels["kind"] = runtime.kind
-        if "owner" not in metadata.labels:
-            metadata.labels["owner"] = (
+        run.metadata.labels["kind"] = runtime.kind
+        if "owner" not in run.metadata.labels:
+            run.metadata.labels["owner"] = (
                 os.environ.get("V3IO_USERNAME") or getpass.getuser()
             )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", metadata.labels["owner"]
+                "{{run.user}}", run.metadata.labels["owner"]
             )
         struct = runtime.to_dict()
         hash_key = self.db.store_function(

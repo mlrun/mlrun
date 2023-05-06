@@ -101,6 +101,8 @@ class ClientLocalLauncher(BaseLauncher):
                 "remote function cannot be executed locally"
             )
 
+        print(run.spec.selector)
+        print(run.spec.hyper_param_options.selector)
         run = self._enrich_run(
             runtime=runtime,
             run=run,
@@ -120,6 +122,8 @@ class ClientLocalLauncher(BaseLauncher):
             notifications=notifications,
         )
         self._validate_runtime(runtime, run)
+        print(run.spec.selector)
+        print(run.spec.hyper_param_options.selector)
         result = self.execute(
             runtime=runtime,
             run=run,
@@ -222,8 +226,8 @@ class ClientLocalLauncher(BaseLauncher):
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
-            for run in tasks:
-                runtime._validate_run_params(run.spec.parameters)
+            for task in tasks:
+                runtime._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()

@@ -34,8 +34,8 @@ from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
 from ..config import config, is_running_as_api
-from ..utils import get_in, helpers, logger, verify_field_regex
 from ..k8s_utils import is_running_inside_kubernetes_cluster
+from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
 

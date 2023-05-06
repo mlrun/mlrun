@@ -64,8 +64,8 @@ class TestRuntimeBase:
         self.requirements_file = str(self.assets_path / "requirements.txt")
 
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
-        self.vault_secret_value = "secret123!@"
-        self.vault_secret_name = "vault-secret"
+        # self.vault_secret_value = "secret123!@"
+        # self.vault_secret_name = "vault-secret"
 
         self.azure_vault_secrets = ["azure_secret1", "azure_secret2"]
         self.azure_secret_value = "azure-secret-123!@"

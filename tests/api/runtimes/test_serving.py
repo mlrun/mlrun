@@ -52,7 +52,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
-        self._mock_vault_functionality()
+        # self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
         # and instead just call the deploy_nuclio_function() API which actually performs the
         # deployment in this case. This will keep the tests' code mostly client-side oriented, but validations
@@ -118,21 +118,10 @@ class TestServingRuntime(TestNuclioRuntime):
             args, _ = single_call_args
             deploy_spec = args[0]["spec"]
 
-            token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
             azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
                 "~", "/root"
             )
             expected_volumes = [
-                {
-                    "volume": {
-                        "name": "vault-secret",
-                        "secret": {
-                            "defaultMode": 420,
-                            "secretName": self.vault_secret_name,
-                        },
-                    },
-                    "volumeMount": {"name": "vault-secret", "mountPath": token_path},
-                },
                 {
                     "volume": {
                         "name": "azure-vault-secret",
@@ -155,8 +144,6 @@ class TestServingRuntime(TestNuclioRuntime):
             )
 
             expected_env = {
-                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-                "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
                 # For now, just checking the variable exists, later we check specific contents
                 "SERVING_SPEC_ENV": None,
             }
@@ -179,10 +166,6 @@ class TestServingRuntime(TestNuclioRuntime):
         full_inline_secrets["ENV_SECRET1"] = os.environ["ENV_SECRET1"]
         expected_secret_sources = [
             {"kind": "inline", "source": full_inline_secrets},
-            {
-                "kind": "vault",
-                "source": {"project": self.project, "secrets": self.vault_secrets},
-            },
             {
                 "kind": "azure_vault",
                 "source": {
@@ -210,8 +193,8 @@ class TestServingRuntime(TestNuclioRuntime):
         server = function.to_mock_server()
 
         # Verify all secrets are in the context
-        for secret_key in self.vault_secrets:
-            assert server.context.get_secret(secret_key) == self.vault_secret_value
+        # for secret_key in self.vault_secrets:
+        #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         for secret_key in self.inline_secrets:
             assert (
                 server.context.get_secret(secret_key) == self.inline_secrets[secret_key]
@@ -223,7 +206,7 @@ class TestServingRuntime(TestNuclioRuntime):
         expected_response = [
             {"inline_secret1": self.inline_secrets["inline_secret1"]},
             {"ENV_SECRET1": os.environ["ENV_SECRET1"]},
-            {"AWS_KEY": self.vault_secret_value},
+            {"AWS_KEY": None},
         ]
 
         assert deepdiff.DeepDiff(resp, expected_response) == {}

@@ -143,7 +143,7 @@ class ClientLocalLauncher(BaseLauncher):
             uid=run.metadata.uid,
             db=runtime.spec.rundb,
         )
-        self._store_function(runtime, run, run.metadata)
+        self._store_function(runtime, run)
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
@@ -261,7 +261,7 @@ class ClientLocalLauncher(BaseLauncher):
         return command, args
 
     def _store_function(
-        self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
+        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         run.metadata.labels["kind"] = runtime.kind
         if "owner" not in run.metadata.labels:

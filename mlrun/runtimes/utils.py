@@ -35,6 +35,7 @@ from mlrun.runtimes.constants import MPIJobCRDVersions
 from ..artifacts import TableArtifact
 from ..config import config, is_running_as_api
 from ..utils import get_in, helpers, logger, verify_field_regex
+from ..k8s_utils import is_running_inside_kubernetes_cluster
 from .generators import selector
 
 
@@ -75,13 +76,12 @@ def resolve_mpijob_crd_version():
         # config override everything
         mpijob_crd_version = config.mpijob_crd_version
 
-        if not mpijob_crd_version and is_running_as_api():
-            import mlrun.api.utils.singletons.k8s
+        if not mpijob_crd_version:
+            in_k8s_cluster = is_running_inside_kubernetes_cluster()
 
-            in_k8s_cluster = mlrun.api.utils.singletons.k8s.get_k8s_helper(
-                silent=True
-            ).is_running_inside_kubernetes_cluster()
-            if in_k8s_cluster:
+            if in_k8s_cluster and is_running_as_api():
+                import mlrun.api.utils.singletons.k8s
+
                 k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
                 namespace = k8s_helper.resolve_namespace()
 

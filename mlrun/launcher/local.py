@@ -78,7 +78,7 @@ class ClientLocalLauncher(BaseLauncher):
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Local run and schedule cannot be used together"
+                "local and schedule cannot be used together"
             )
 
         self._enrich_runtime(runtime)

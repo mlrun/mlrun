@@ -21,13 +21,18 @@ import mlrun.launcher.remote
 class LauncherFactory(object):
     @staticmethod
     def create_launcher(
-        is_remote, local: bool = False
+        is_remote: bool, local: bool = False
     ) -> mlrun.launcher.base.BaseLauncher:
         """
         Creates the appropriate launcher for the specified run.
         ServerSideLauncher - if running as API.
         ClientRemoteLauncher - if run is remote and local was not specified.
         ClientLocalLauncher - if run is not remote or local was specified.
+
+        :param is_remote:   Whether the runtime requires remote execution.
+        :param local:       Run the function locally, regardless of whether remote execution is required.
+
+        :return:            The appropriate launcher for the specified run.
         """
         if mlrun.config.is_running_as_api():
             if local:

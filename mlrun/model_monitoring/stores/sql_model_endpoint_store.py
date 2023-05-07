@@ -82,7 +82,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         with self._engine.connect() as connection:
-
             # Adjust timestamps fields
             endpoint[
                 model_monitoring_constants.EventFieldType.FIRST_REQUEST
@@ -112,7 +111,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Update the model endpoint record using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
-
             # Remove endpoint id (foreign key) from the update query
             attributes.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID, None)
 
@@ -131,7 +129,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Delete the model endpoint record using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
-
             # Generate and commit the delete query
             session.query(self.ModelEndpointsTable).filter_by(uid=endpoint_id).delete()
             session.commit()
@@ -152,7 +149,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Get the model endpoint record using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
-
             # Generate the get query
             endpoint_record = (
                 session.query(self.ModelEndpointsTable)
@@ -195,7 +191,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
-
             # Generate the list query
             query = session.query(self.ModelEndpointsTable).filter_by(
                 project=self.project
@@ -225,8 +220,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
                     combined=False,
                 )
             if top_level:
-                node_ep = str(mlrun.model_monitoring.EndpointType.NODE_EP.value)
-                router_ep = str(mlrun.model_monitoring.EndpointType.ROUTER.value)
+                node_ep = str(mlrun.common.model_monitoring.EndpointType.NODE_EP.value)
+                router_ep = str(mlrun.common.model_monitoring.EndpointType.ROUTER.value)
                 endpoint_types = [node_ep, router_ep]
                 query = self._filter_values(
                     query=query,

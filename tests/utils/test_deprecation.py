@@ -84,7 +84,7 @@ def test_deprecation_helper():
         # validate that the warning is shown
         assert len(w) == 1
         assert (
-            "mlrun.api.schemas.ObjectMetadata is deprecated. "
+            "mlrun.api.schemas.ObjectMetadata is deprecated in version 1.4.0, "
             "Please use mlrun.common.schemas.ObjectMetadata instead."
             in str(w[-1].message)
         )
@@ -113,6 +113,6 @@ def test_deprecated_schema_as_argument():
         # validate that the warning is shown
         assert len(w) == 1
     assert (
-        "mlrun.api.schemas.AuthInfo is deprecated. "
+        "mlrun.api.schemas.AuthInfo is deprecated in version 1.4.0, "
         "Please use mlrun.common.schemas.AuthInfo instead." in str(w[-1].message)
     )

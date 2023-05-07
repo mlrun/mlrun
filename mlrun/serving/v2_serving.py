@@ -17,14 +17,9 @@ import traceback
 from typing import Dict, Union
 
 import mlrun
-import mlrun.model_monitoring
+import mlrun.common.model_monitoring
+import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact  # noqa: F401
-from mlrun.common.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
@@ -486,7 +481,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{model.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    uid = mlrun.model_monitoring.create_model_endpoint_uid(
+    uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -498,11 +493,11 @@ def _init_endpoint_record(
         logger.info("Creating a new model endpoint record", endpoint_id=uid)
 
         try:
-            model_endpoint = ModelEndpoint(
-                metadata=ModelEndpointMetadata(
+            model_endpoint = mlrun.common.schemas.ModelEndpoint(
+                metadata=mlrun.common.schemas.ModelEndpointMetadata(
                     project=project, labels=model.labels, uid=uid
                 ),
-                spec=ModelEndpointSpec(
+                spec=mlrun.common.schemas.ModelEndpointSpec(
                     function_uri=graph_server.function_uri,
                     model=versioned_model_name,
                     model_class=model.__class__.__name__,
@@ -511,12 +506,12 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.common.model_monitoring.ModelMonitoringMode.enabled
                     if model.context.server.track_models
-                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
+                    else mlrun.common.model_monitoring.ModelMonitoringMode.disabled,
                 ),
-                status=ModelEndpointStatus(
-                    endpoint_type=mlrun.model_monitoring.EndpointType.NODE_EP
+                status=mlrun.common.schemas.ModelEndpointStatus(
+                    endpoint_type=mlrun.common.model_monitoring.EndpointType.NODE_EP
                 ),
             )
 

@@ -1300,12 +1300,13 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
 class DeprecationHelper(object):
     """A helper class to deprecate old schemas"""
 
-    def __init__(self, new_target):
+    def __init__(self, new_target, version="1.4.0"):
         self._new_target = new_target
+        self._version = version
 
     def _warn(self):
         warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version 1.4.0, "
+            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
             f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
             FutureWarning,
         )

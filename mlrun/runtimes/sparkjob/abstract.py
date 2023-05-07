@@ -947,14 +947,14 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        config_maps = self.get_k8s().v1api.list_namespaced_config_map(
+        config_maps = self._get_k8s().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    self.get_k8s().v1api.delete_namespaced_config_map(
+                    self._get_k8s().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

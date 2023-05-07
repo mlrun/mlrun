@@ -1524,14 +1524,13 @@ class BaseRuntimeHandler(ABC):
     wait_for_deletion_interval = 10
 
     @staticmethod
-    def get_k8s():
+    def _get_k8s():
         # ideally we are not supposed to access k8s helper through client side
         # once separated client and server this if statement will be redundant
         if is_running_as_api():
             import mlrun.api.utils.singletons.k8s
 
             return mlrun.api.utils.singletons.k8s.get_k8s_helper()
-
         return None
 
     @staticmethod
@@ -1573,9 +1572,9 @@ class BaseRuntimeHandler(ABC):
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support removing runtime resources in non k8s env
-        if not self.get_k8s().is_running_inside_kubernetes_cluster():
+        if not self._get_k8s().is_running_inside_kubernetes_cluster():
             return {}
-        namespace = self.get_k8s().resolve_namespace()
+        namespace = self._get_k8s().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
@@ -1618,9 +1617,9 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if not self.get_k8s().is_running_inside_kubernetes_cluster():
+        if not self._get_k8s().is_running_inside_kubernetes_cluster():
             return
-        namespace = self.get_k8s().resolve_namespace()
+        namespace = self._get_k8s().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -1668,7 +1667,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session):
-        namespace = self.get_k8s().resolve_namespace()
+        namespace = self._get_k8s().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = False
@@ -1996,7 +1995,7 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
-        pods = self.get_k8s().list_pods(namespace, selector=label_selector)
+        pods = self._get_k8s().list_pods(namespace, selector=label_selector)
         # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
         # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
         pods = [pod.to_dict() for pod in pods]
@@ -2007,7 +2006,7 @@ class BaseRuntimeHandler(ABC):
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = self.get_k8s().crdapi.list_namespaced_custom_object(
+                crd_objects = self._get_k8s().crdapi.list_namespaced_custom_object(
                     crd_group,
                     crd_version,
                     namespace,
@@ -2076,7 +2075,7 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = self.get_k8s().v1api.list_namespaced_pod(
+            pods = self._get_k8s().v1api.list_namespaced_pod(
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
@@ -2180,7 +2179,7 @@ class BaseRuntimeHandler(ABC):
     ) -> List[Dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = self.get_k8s().v1api.list_namespaced_pod(
+        pods = self._get_k8s().v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
         )
         deleted_pods = []
@@ -2221,7 +2220,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                self.get_k8s().delete_pod(pod.metadata.name, namespace)
+                self._get_k8s().delete_pod(pod.metadata.name, namespace)
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
@@ -2245,7 +2244,7 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = self.get_k8s().crdapi.list_namespaced_custom_object(
+            crd_objects = self._get_k8s().crdapi.list_namespaced_custom_object(
                 crd_group,
                 crd_version,
                 namespace,
@@ -2297,7 +2296,7 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    self.get_k8s().delete_crd(
+                    self._get_k8s().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,

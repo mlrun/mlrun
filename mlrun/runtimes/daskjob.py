@@ -750,7 +750,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        services = self.get_k8s().v1api.list_namespaced_service(
+        services = self._get_k8s().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -846,13 +846,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        services = self.get_k8s().v1api.list_namespaced_service(
+        services = self._get_k8s().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         for service in services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    self.get_k8s().v1api.delete_namespaced_service(
+                    self._get_k8s().v1api.delete_namespaced_service(
                         service.metadata.name, namespace
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")

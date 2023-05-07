@@ -68,3 +68,12 @@ def ensure_running_on_chief(function):
     if asyncio.iscoroutinefunction(function):
         return async_wrapper
     return wrapper
+
+
+def minimize_project_schema(
+    project: mlrun.api.schemas.Project,
+) -> mlrun.api.schemas.Project:
+    project.spec.functions = None
+    project.spec.workflows = None
+    project.spec.artifacts = None
+    return project

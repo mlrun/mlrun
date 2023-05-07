@@ -168,7 +168,6 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
-
             cursor = self.client.kv.new_cursor(
                 container=self.container,
                 table_path=self.path,
@@ -219,8 +218,17 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
+            if model_monitoring_constants.EventFieldType.UID not in endpoint_dict:
+                # This is kept for backwards compatibility - in old versions the key column named endpoint_id
+                endpoint_id = endpoint_dict[
+                    model_monitoring_constants.EventFieldType.ENDPOINT_ID
+                ]
+            else:
+                endpoint_id = endpoint_dict[
+                    model_monitoring_constants.EventFieldType.UID
+                ]
             self.delete_model_endpoint(
-                endpoint_dict[model_monitoring_constants.EventFieldType.UID],
+                endpoint_id,
             )
 
         # Delete remain records in the KV
@@ -420,7 +428,6 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Add labels filters
         if labels:
-
             for label in labels:
                 if not label.startswith("_"):
                     label = f"_{label}"

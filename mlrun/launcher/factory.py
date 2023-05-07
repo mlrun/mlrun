@@ -11,18 +11,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.config
 import mlrun.errors
-from mlrun.launcher import BaseLauncher, ClientLocalLauncher, ClientRemoteLauncher
+import mlrun.launcher.base
+import mlrun.launcher.local
+import mlrun.launcher.remote
 
 
 class LauncherFactory(object):
     @staticmethod
-    def create_launcher(local: bool = False) -> BaseLauncher:
+    def create_launcher(
+        is_remote: bool, local: bool = False
+    ) -> mlrun.launcher.base.BaseLauncher:
         """
-        Creates a ServerSideLauncher if running as API.
-        Otherwise, ClientLocalLauncher or ClientRemoteLauncher according to the if local run was specified.
+        Creates the appropriate launcher for the specified run.
+        ServerSideLauncher - if running as API.
+        ClientRemoteLauncher - if run is remote and local was not specified.
+        ClientLocalLauncher - if run is not remote or local was specified.
+
+        :param is_remote:   Whether the runtime requires remote execution.
+        :param local:       Run the function locally vs on the Runtime/Cluster
+
+        :return:            The appropriate launcher for the specified run.
         """
-        if mlrun.mlconf.is_running_as_api:
+        if mlrun.config.is_running_as_api():
             if local:
                 raise mlrun.errors.MLRunInternalServerError(
                     "Launch of local run inside the server is not allowed"
@@ -32,7 +44,7 @@ class LauncherFactory(object):
 
             return ServerSideLauncher()
 
-        if local:
-            return ClientLocalLauncher()
+        if is_remote and not local:
+            return mlrun.launcher.remote.ClientRemoteLauncher()
 
-        return ClientRemoteLauncher()
+        return mlrun.launcher.local.ClientLocalLauncher(local)

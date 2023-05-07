@@ -2137,6 +2137,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: Format of the results. Possible values are:
 
             - ``full`` (default value) - Return full project objects.
+            - ``minimal`` - Return minimal project objects (minimization happens in the BE).
             - ``name_only`` - Return just the names of the projects.
 
         :param labels: Filter by labels attached to the project.

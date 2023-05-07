@@ -30,6 +30,7 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
+from .utils import get_k8s
 
 
 class KubejobRuntime(KubeResource):
@@ -337,7 +338,7 @@ class KubejobRuntime(KubeResource):
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace = self._get_k8s().create_pod(pod)
+            pod_name, namespace = get_k8s().create_pod(pod)
         except ApiException as exc:
             raise RunError(err_to_str(exc))
 

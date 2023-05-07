@@ -41,7 +41,7 @@ from .base import FunctionStatus, RuntimeClassMode
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
 from .pod import KubeResourceSpec, kube_resource_spec_to_pod_spec
-from .utils import RunError, get_func_selector, get_resource_labels, log_std
+from .utils import RunError, get_func_selector, get_k8s, get_resource_labels, log_std
 
 
 def get_dask_resource():
@@ -752,7 +752,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        services = self._get_k8s().v1api.list_namespaced_service(
+        services = get_k8s().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -854,13 +854,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        services = self._get_k8s().v1api.list_namespaced_service(
+        services = get_k8s().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         for service in services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    self._get_k8s().v1api.delete_namespaced_service(
+                    get_k8s().v1api.delete_namespaced_service(
                         service.metadata.name, namespace
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")

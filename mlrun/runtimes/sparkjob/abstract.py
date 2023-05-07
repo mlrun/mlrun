@@ -44,7 +44,7 @@ from ...utils import (
 from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import get_item_name
+from ..utils import get_item_name, get_k8s
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -591,7 +591,7 @@ with ctx:
         code=None,
     ):
         namespace = meta.namespace
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = client.V1ConfigMap()
@@ -635,7 +635,7 @@ with ctx:
             raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
@@ -947,14 +947,14 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        config_maps = self._get_k8s().v1api.list_namespaced_config_map(
+        config_maps = get_k8s().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    self._get_k8s().v1api.delete_namespaced_config_map(
+                    get_k8s().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

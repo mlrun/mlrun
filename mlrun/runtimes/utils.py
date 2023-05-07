@@ -217,6 +217,19 @@ def add_code_metadata(path=""):
     return None
 
 
+def get_k8s():
+    """
+    Get the k8s helper object
+    :return: k8s helper object or None if not running as API
+    """
+    if is_running_as_api():
+        import mlrun.api.utils.singletons.k8s
+
+        return mlrun.api.utils.singletons.k8s.get_k8s_helper()
+
+    return None
+
+
 def set_if_none(struct, key, value):
     if not struct.get(key):
         struct[key] = value

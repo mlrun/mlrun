@@ -66,8 +66,9 @@ class BaseLauncher(abc.ABC):
         :return:            function uri
         """
         if not self.db:
-            logger.error("database connection is not configured")
-            return ""
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Database connection is not configured"
+            )
 
         if refresh:
             self._refresh_function_metadata(runtime)
@@ -75,7 +76,7 @@ class BaseLauncher(abc.ABC):
         tag = tag or runtime.metadata.tag
 
         obj = runtime.to_dict()
-        logger.debug(f"saving function: {runtime.metadata.name}, tag: {tag}")
+        logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
         hash_key = self.db.store_function(
             obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
         )

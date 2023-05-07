@@ -197,5 +197,5 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
-        """metadata refresh is not required in the API"""
+        """This overrides the base implementation as metadata refresh is not required in the API"""
         pass

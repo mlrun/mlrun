@@ -28,6 +28,7 @@ import semver
 
 import mlrun
 import mlrun.projects
+import mlrun.api.utils.helpers
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 
@@ -2153,7 +2154,10 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return response.json()["projects"]
-        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
+        elif format_ in [
+            mlrun.api.schemas.ProjectsFormat.full,
+            mlrun.api.schemas.ProjectsFormat.minimal,
+        ]:
             return [
                 mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]

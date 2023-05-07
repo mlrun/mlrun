@@ -50,6 +50,9 @@ class Projects(
             "Creating project",
             name=project.metadata.name,
             owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
             function_amount=len(project.spec.functions),
             artifact_amount=len(project.spec.artifacts),
         )
@@ -65,6 +68,9 @@ class Projects(
             "Storing project",
             name=project.metadata.name,
             owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
             function_amount=len(project.spec.functions),
             artifact_amount=len(project.spec.artifacts),
         )

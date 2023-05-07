@@ -30,7 +30,7 @@ class LauncherFactory(object):
         ClientLocalLauncher - if run is not remote or local was specified.
 
         :param is_remote:   Whether the runtime requires remote execution.
-        :param local:       Run the function locally, regardless of whether remote execution is required.
+        :param local:       Run the function locally vs on the Runtime/Cluster
 
         :return:            The appropriate launcher for the specified run.
         """

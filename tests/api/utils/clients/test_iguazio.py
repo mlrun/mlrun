@@ -310,7 +310,6 @@ def test_list_project_with_updated_after(
             "filter[updated_at]": [
                 f"[$gt]{updated_after.isoformat().split('+')[0]}Z".lower()
             ],
-            "include": ["owner"],
             "page[size]": [
                 str(
                     mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
@@ -325,6 +324,14 @@ def test_list_project_with_updated_after(
     requests_mock.get(
         f"{api_url}/api/projects",
         json=verify_list,
+    )
+    requests_mock.get(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json={
+            "data": _build_project_response(
+                iguazio_client, project, with_mlrun_project=True
+            )
+        },
     )
     iguazio_client.list_projects(
         session,
@@ -354,22 +361,35 @@ def test_list_project(
             "annotations": {"annotation-key2": "annotation-value2"},
         },
     ]
+    project_objects = [
+        _generate_project(
+            mock_project["name"],
+            mock_project.get("description", ""),
+            mock_project.get("labels", {}),
+            mock_project.get("annotations", {}),
+            owner=mock_project.get("owner", None),
+        )
+        for mock_project in mock_projects
+    ]
     response_body = {
         "data": [
             _build_project_response(
                 iguazio_client,
-                _generate_project(
-                    mock_project["name"],
-                    mock_project.get("description", ""),
-                    mock_project.get("labels", {}),
-                    mock_project.get("annotations", {}),
-                    owner=mock_project.get("owner", None),
-                ),
+                mock_project,
             )
-            for mock_project in mock_projects
+            for mock_project in project_objects
         ]
     }
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
+    for mock_project in project_objects:
+        requests_mock.get(
+            f"{api_url}/api/projects/__name__/{mock_project.metadata.name}",
+            json={
+                "data": _build_project_response(
+                    iguazio_client, mock_project, with_mlrun_project=True
+                )
+            },
+        )
     projects, latest_updated_at = iguazio_client.list_projects(None)
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
@@ -656,7 +676,7 @@ def test_format_as_leader_project(
     iguazio_project = iguazio_client.format_as_leader_project(project)
     assert (
         deepdiff.DeepDiff(
-            _build_project_response(iguazio_client, project),
+            _build_project_response(iguazio_client, project, with_mlrun_project=True),
             iguazio_project.data,
             ignore_order=True,
             exclude_paths=[
@@ -851,6 +871,7 @@ def _build_project_response(
     job_id: typing.Optional[str] = None,
     operational_status: typing.Optional[mlrun.api.schemas.ProjectState] = None,
     owner_access_key: typing.Optional[str] = None,
+    with_mlrun_project: bool = False,
 ):
     body = {
         "type": "project",
@@ -862,11 +883,14 @@ def _build_project_response(
             "updated_at": datetime.datetime.utcnow().isoformat(),
             "admin_status": project.spec.desired_state
             or mlrun.api.schemas.ProjectState.online,
-            "mlrun_project": iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
-                project
-            ),
         },
     }
+    if with_mlrun_project:
+        body["attributes"][
+            "mlrun_project"
+        ] = iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
+            project
+        )
     if project.spec.description:
         body["attributes"]["description"] = project.spec.description
     if project.spec.owner:

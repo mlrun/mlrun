@@ -46,7 +46,17 @@ class Projects(
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
     ):
-        logger.debug("Creating project", project=project)
+        logger.debug(
+            "Creating project",
+            name=project.metadata.name,
+            owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
+        )
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
 
     def store_project(
@@ -55,7 +65,17 @@ class Projects(
         name: str,
         project: mlrun.api.schemas.Project,
     ):
-        logger.debug("Storing project", name=name, project=project)
+        logger.debug(
+            "Storing project",
+            name=project.metadata.name,
+            owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
+        )
         mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
 
     def patch_project(

@@ -174,6 +174,47 @@ def test_list_project(
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_list_project_minimal(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+):
+    expected_projects = ["project-name-1", "project-name-2", "project-name-3"]
+    for project in expected_projects:
+        db.create_project(
+            db_session,
+            mlrun.api.schemas.Project(
+                metadata=mlrun.api.schemas.ProjectMetadata(
+                    name=project,
+                ),
+                spec=mlrun.api.schemas.ProjectSpec(
+                    description="some-proj",
+                    artifacts=[{"key": "value"}],
+                    workflows=[{"key": "value"}],
+                    functions=[{"key": "value"}],
+                ),
+            ),
+        )
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.minimal
+    )
+    for index, project in enumerate(projects_output.projects):
+        assert project.metadata.name == expected_projects[index]
+        assert project.spec.artifacts is None
+        assert project.spec.workflows is None
+        assert project.spec.functions is None
+
+    projects_output = db.list_projects(db_session)
+    for index, project in enumerate(projects_output.projects):
+        assert project.metadata.name == expected_projects[index]
+        assert project.spec.artifacts == [{"key": "value"}]
+        assert project.spec.workflows == [{"key": "value"}]
+        assert project.spec.functions == [{"key": "value"}]
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_list_project_names_filter(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,

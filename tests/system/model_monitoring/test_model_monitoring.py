@@ -33,6 +33,7 @@ import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.feature_store
 import mlrun.utils
+from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.common.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -41,7 +42,6 @@ from mlrun.common.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -547,7 +547,6 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
-
             # Run the function and specify input dataset path and some parameters (algorithm and label column name)
             train_run = train.run(
                 name=name,

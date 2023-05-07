@@ -194,7 +194,9 @@ def test_list_project_minimal(
                 ),
             ),
         )
-    projects_output = db.list_projects(db_session, format_=mlrun.api.schemas.ProjectsFormat.minimal)
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.minimal
+    )
     for index, project in enumerate(projects_output.projects):
         assert project.metadata.name == expected_projects[index]
         assert project.spec.artifacts is None

@@ -53,7 +53,8 @@ def grafana_proxy_model_endpoints_check_connection(
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    if not mlrun.mlconf.is_ce_mode():
+        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     return Response(status_code=HTTPStatus.OK.value)
 
 

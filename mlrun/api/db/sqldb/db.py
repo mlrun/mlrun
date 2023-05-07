@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.api.db.session
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
@@ -1446,6 +1447,14 @@ class SQLDB(DBInterface):
             if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
                 projects = [project_record.name for project_record in project_records]
             # leader format is only for follower mode which will format the projects returned from here
+            elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+                projects.append(
+                    mlrun.api.utils.helpers.minimize_project_schema(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
+                    )
+                )
             elif format_ in [
                 mlrun.common.schemas.ProjectsFormat.full,
                 mlrun.common.schemas.ProjectsFormat.leader,

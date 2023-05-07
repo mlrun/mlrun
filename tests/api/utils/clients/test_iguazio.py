@@ -676,7 +676,7 @@ def test_format_as_leader_project(
     iguazio_project = iguazio_client.format_as_leader_project(project)
     assert (
         deepdiff.DeepDiff(
-            _build_project_response(iguazio_client, project),
+            _build_project_response(iguazio_client, project, with_mlrun_project=True),
             iguazio_project.data,
             ignore_order=True,
             exclude_paths=[

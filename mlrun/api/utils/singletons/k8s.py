@@ -16,7 +16,6 @@ import hashlib
 import time
 import typing
 
-import kubernetes.client
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 

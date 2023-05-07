@@ -64,6 +64,7 @@ class TestRuntimeBase:
         self.requirements_file = str(self.assets_path / "requirements.txt")
 
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
+        # TODO: Vault:
         # self.vault_secret_value = "secret123!@"
         # self.vault_secret_name = "vault-secret"
 
@@ -360,6 +361,7 @@ class TestRuntimeBase:
 
     # Vault now supported in KubeJob and Serving, so moved to base.
     def _mock_vault_functionality(self):
+        # TODO: Vault:
         # secret_dict = {key: self.vault_secret_value for key in self.vault_secrets}
         # VaultStore.get_secrets = unittest.mock.Mock(return_value=secret_dict)
 

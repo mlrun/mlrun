@@ -653,7 +653,7 @@ def build_runtime(
 
 
 def _generate_builder_env(project, builder_env):
-    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 

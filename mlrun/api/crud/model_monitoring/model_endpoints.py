@@ -32,7 +32,6 @@ import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring.helpers
-import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients

@@ -149,10 +149,6 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         pass
 
     @staticmethod
-    def save(runtime):
-        pass
-
-    @staticmethod
     def _enrich_runtime(runtime):
         """
         Enrich the function with:
@@ -199,3 +195,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
+
+    def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
+        """metadata refresh is not required in the API"""
+        pass

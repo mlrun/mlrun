@@ -49,11 +49,38 @@ class BaseLauncher(abc.ABC):
         """resolves and sets the build base image if build is needed"""
         pass
 
-    @staticmethod
-    @abc.abstractmethod
-    def save(runtime):
-        """store the function to the db"""
-        pass
+    def save_function(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        tag: str = "",
+        versioned: bool = False,
+        refresh: bool = False,
+    ) -> str:
+        """
+        store the function to the db
+        :param runtime:     runtime object
+        :param tag:         function tag to store
+        :param versioned:   whether we want to version this function object so that it will queryable by its hash key
+        :param refresh:     refresh function metadata
+
+        :return:            function uri
+        """
+        if not self.db:
+            logger.error("database connection is not configured")
+            return ""
+
+        if refresh:
+            self._refresh_function_metadata(runtime)
+
+        tag = tag or runtime.metadata.tag
+
+        obj = runtime.to_dict()
+        logger.debug(f"saving function: {runtime.metadata.name}, tag: {tag}")
+        hash_key = self.db.store_function(
+            obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
+        )
+        hash_key = hash_key if versioned else None
+        return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
     def launch(
         self,
@@ -313,3 +340,20 @@ class BaseLauncher(abc.ABC):
             return False
 
         return True
+
+    def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
+        try:
+            meta = runtime.metadata
+            db_func = self.db.get_function(meta.name, meta.project, meta.tag)
+            if db_func and "status" in db_func:
+                runtime.status = db_func["status"]
+                if (
+                    runtime.status.state
+                    and runtime.status.state == "ready"
+                    and not hasattr(runtime.status, "nuclio_name")
+                ):
+                    runtime.spec.image = mlrun.utils.get_in(
+                        db_func, "spec.image", runtime.spec.image
+                    )
+        except mlrun.errors.MLRunNotFoundError:
+            pass

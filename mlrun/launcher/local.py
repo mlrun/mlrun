@@ -42,10 +42,6 @@ class ClientLocalLauncher(BaseLauncher):
     def verify_base_image(runtime):
         pass
 
-    @staticmethod
-    def save(runtime):
-        pass
-
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",

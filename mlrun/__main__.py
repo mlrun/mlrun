@@ -1499,7 +1499,7 @@ def send_workflow_error_notification(
         f"error: ```{err_to_str(error)}```"
     )
     project.notifiers.push(
-        message=message, severity=mlrun.api.schemas.NotificationSeverity.ERROR
+        message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
     )
 
 

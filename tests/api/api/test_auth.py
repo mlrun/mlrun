@@ -17,15 +17,18 @@ import http
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 
 
 def test_verify_authorization(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    authorization_verification_input = mlrun.api.schemas.AuthorizationVerificationInput(
-        resource="/some-resource", action=mlrun.api.schemas.AuthorizationAction.create
+    authorization_verification_input = (
+        mlrun.common.schemas.AuthorizationVerificationInput(
+            resource="/some-resource",
+            action=mlrun.common.schemas.AuthorizationAction.create,
+        )
     )
 
     async def _mock_successful_query_permissions(resource, action, *args):

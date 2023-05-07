@@ -26,12 +26,12 @@ import sqlalchemy.orm
 import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
-import mlrun.api.schemas
 import mlrun.api.utils.db.alembic
 import mlrun.api.utils.db.backup
 import mlrun.api.utils.db.mysql
 import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
+import mlrun.common.schemas
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
@@ -62,7 +62,7 @@ def init_data(
         and not perform_migrations_if_needed
         and is_migration_needed
     ):
-        state = mlrun.api.schemas.APIStates.waiting_for_migrations
+        state = mlrun.common.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing API state", state=state)
         config.httpdb.state = state
         return
@@ -73,7 +73,7 @@ def init_data(
         db_backup.backup_database()
 
     logger.info("Creating initial data")
-    config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
+    config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
     if is_migration_from_scratch or is_migration_needed:
         try:
@@ -89,7 +89,7 @@ def init_data(
             finally:
                 close_session(db_session)
         except Exception:
-            state = mlrun.api.schemas.APIStates.migrations_failed
+            state = mlrun.common.schemas.APIStates.migrations_failed
             logger.warning("Migrations failed, changing API state", state=state)
             config.httpdb.state = state
             raise
@@ -97,9 +97,9 @@ def init_data(
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
     if not is_migration_from_scratch and is_migration_needed:
-        config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
+        config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
-        config.httpdb.state = mlrun.api.schemas.APIStates.online
+        config.httpdb.state = mlrun.common.schemas.APIStates.online
     logger.info("Initial data created")
 
 
@@ -482,7 +482,7 @@ def _enrich_project_state(
         changed = False
         if not project.spec.desired_state:
             changed = True
-            project.spec.desired_state = mlrun.api.schemas.ProjectState.online
+            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
         if not project.status.state:
             changed = True
             project.status.state = project.spec.desired_state
@@ -505,14 +505,14 @@ def _add_default_hub_source_if_needed(
         hub_marketplace_source = None
 
     if not hub_marketplace_source:
-        hub_source = mlrun.api.schemas.HubSource.generate_default_source()
+        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
         # hub_source will be None if the configuration has hub.default_source.create=False
         if hub_source:
             logger.info("Adding default hub source")
             # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
             hub_record = db._transform_hub_source_schema_to_record(
-                mlrun.api.schemas.IndexedHubSource(
-                    index=mlrun.api.schemas.hub.last_source_index,
+                mlrun.common.schemas.IndexedHubSource(
+                    index=mlrun.common.schemas.hub.last_source_index,
                     source=hub_source,
                 )
             )

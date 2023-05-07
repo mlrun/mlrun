@@ -15,9 +15,9 @@
 import datetime
 import typing
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.errors
 
 
@@ -26,12 +26,12 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         super().__init__()
         self.db_session = None
         self.project_owner_access_key = ""
-        self._project_role = mlrun.api.schemas.ProjectsRole.nop
+        self._project_role = mlrun.common.schemas.ProjectsRole.nop
 
     def create_project(
         self,
         session: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
         wait_for_completion: bool = True,
     ) -> bool:
         self._update_state(project)
@@ -47,7 +47,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self,
         session: str,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         self._update_state(project)
         mlrun.api.utils.singletons.project_member.get_project_member().store_project(
@@ -55,12 +55,13 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     @staticmethod
-    def _update_state(project: mlrun.api.schemas.Project):
+    def _update_state(project: mlrun.common.schemas.Project):
         if (
             not project.status.state
-            or project.status.state in mlrun.api.schemas.ProjectState.terminal_states()
+            or project.status.state
+            in mlrun.common.schemas.ProjectState.terminal_states()
         ):
-            project.status.state = mlrun.api.schemas.ProjectState(
+            project.status.state = mlrun.common.schemas.ProjectState(
                 project.spec.desired_state
             )
 
@@ -68,7 +69,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self,
         session: str,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
         return mlrun.api.utils.singletons.project_member.get_project_member().delete_project(
@@ -80,7 +81,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
-        typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
+        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
     ]:
         return (
             mlrun.api.utils.singletons.project_member.get_project_member()
@@ -93,7 +94,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         return (
             mlrun.api.utils.singletons.project_member.get_project_member().get_project(
                 self.db_session, name
@@ -101,16 +102,16 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def format_as_leader_project(
-        self, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.IguazioProject:
-        return mlrun.api.schemas.IguazioProject(data=project.dict())
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
+        return mlrun.common.schemas.IguazioProject(data=project.dict())
 
     def get_project_owner(
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.ProjectOwner:
+    ) -> mlrun.common.schemas.ProjectOwner:
         project = self.get_project(session, name)
-        return mlrun.api.schemas.ProjectOwner(
+        return mlrun.common.schemas.ProjectOwner(
             username=project.spec.owner, access_key=self.project_owner_access_key
         )

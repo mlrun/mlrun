@@ -22,8 +22,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.constants
 from mlrun.api.db.sqldb.models import Run
@@ -262,9 +262,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         client,
         {
             "project": projects[0],
-            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.api.schemas.SortField.created,
-            "partition-order": mlrun.api.schemas.OrderType.asc,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.created,
+            "partition-order": mlrun.common.schemas.OrderType.asc,
         },
         3,
     )
@@ -277,9 +277,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         client,
         {
             "project": projects[0],
-            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.api.schemas.SortField.updated,
-            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
         },
         3,
     )
@@ -292,9 +292,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         client,
         {
             "project": projects[0],
-            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.api.schemas.SortField.updated,
-            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
         },
         15,
@@ -305,9 +305,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         client,
         {
             "project": projects[0],
-            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.api.schemas.SortField.updated,
-            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
             "max-partitions": 2,
         },
@@ -323,9 +323,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         {
             "project": projects[0],
             "iter": False,
-            "partition-by": mlrun.api.schemas.RunPartitionByField.name,
-            "partition-sort-by": mlrun.api.schemas.SortField.updated,
-            "partition-order": mlrun.api.schemas.OrderType.desc,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 2,
             "max-partitions": 1,
         },

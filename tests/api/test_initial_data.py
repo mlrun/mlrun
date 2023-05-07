@@ -24,8 +24,8 @@ import mlrun.api.db.init_db
 import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.session
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.common.schemas
 
 
 def test_add_data_version_empty_db():
@@ -54,8 +54,8 @@ def test_add_data_version_non_empty_db():
     # fill db
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
         ),
     )
     mlrun.api.initial_data._add_initial_data(db_session)
@@ -122,8 +122,8 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
     # fill db
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
         ),
     )
     assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 1

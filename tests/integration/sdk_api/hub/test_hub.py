@@ -40,18 +40,18 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_hub(self):
         db = mlrun.get_run_db()
 
-        default_source = mlrun.api.schemas.IndexedHubSource(
+        default_source = mlrun.common.schemas.IndexedHubSource(
             index=-1,
-            source=mlrun.api.schemas.HubSource.generate_default_source(),
+            source=mlrun.common.schemas.HubSource.generate_default_source(),
         )
         self._assert_source_lists_match([default_source])
 
-        new_source = mlrun.api.schemas.IndexedHubSource(
-            source=mlrun.api.schemas.HubSource(
-                metadata=mlrun.api.schemas.HubObjectMetadata(
+        new_source = mlrun.common.schemas.IndexedHubSource(
+            source=mlrun.common.schemas.HubSource(
+                metadata=mlrun.common.schemas.HubObjectMetadata(
                     name="source-1", description="a private source"
                 ),
-                spec=mlrun.api.schemas.HubSourceSpec(
+                spec=mlrun.common.schemas.HubSourceSpec(
                     path="/local/path/to/source", channel="development"
                 ),
             )
@@ -60,13 +60,13 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         new_source.index = 1
         self._assert_source_lists_match([new_source, default_source])
 
-        new_source_2 = mlrun.api.schemas.IndexedHubSource(
+        new_source_2 = mlrun.common.schemas.IndexedHubSource(
             index=1,
-            source=mlrun.api.schemas.HubSource(
-                metadata=mlrun.api.schemas.HubObjectMetadata(
+            source=mlrun.common.schemas.HubSource(
+                metadata=mlrun.common.schemas.HubObjectMetadata(
                     name="source-2", description="2nd private source"
                 ),
-                spec=mlrun.api.schemas.HubSourceSpec(
+                spec=mlrun.common.schemas.HubSourceSpec(
                     path="/local/path/to/source", channel="prod"
                 ),
             ),

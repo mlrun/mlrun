@@ -13,10 +13,10 @@
 # limitations under the License.
 
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
-class NotificationSeverity(mlrun.api.utils.helpers.StrEnum):
+class NotificationSeverity(mlrun.common.types.StrEnum):
     INFO = "info"
     DEBUG = "debug"
     VERBOSE = "verbose"
@@ -24,7 +24,7 @@ class NotificationSeverity(mlrun.api.utils.helpers.StrEnum):
     ERROR = "error"
 
 
-class NotificationStatus(mlrun.api.utils.helpers.StrEnum):
+class NotificationStatus(mlrun.common.types.StrEnum):
     PENDING = "pending"
     SENT = "sent"
     ERROR = "error"

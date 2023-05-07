@@ -27,8 +27,8 @@ import starlette.datastructures
 from aioresponses import CallbackResult
 from requests.cookies import cookiejar_from_dict
 
-import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.api.utils.asyncio import maybe_coroutine
@@ -641,8 +641,8 @@ async def test_create_project_minimal_project(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
             name="some-name",
         ),
     )
@@ -856,7 +856,7 @@ def _generate_session_verification_response_headers(
 
 
 def _assert_auth_info_from_session_verification_mock_response_headers(
-    auth_info: mlrun.api.schemas.AuthInfo, response_headers: dict
+    auth_info: mlrun.common.schemas.AuthInfo, response_headers: dict
 ):
     _assert_auth_info(
         auth_info,
@@ -869,7 +869,7 @@ def _assert_auth_info_from_session_verification_mock_response_headers(
 
 
 def _assert_auth_info(
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     username: str,
     session: str,
     data_session: str,
@@ -888,7 +888,7 @@ async def _create_project_and_assert(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
 ):
     session = "1234"
     job_id = "1d4c9d25-9c5c-4a34-b052-c1d3665fec5e"
@@ -920,7 +920,7 @@ def _verify_deletion(project_name, session, job_id, request, context):
     assert request.json()["data"]["attributes"]["name"] == project_name
     assert (
         request.headers["igz-project-deletion-strategy"]
-        == mlrun.api.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
+        == mlrun.common.schemas.DeletionStrategy.default().to_iguazio_deletion_strategy()
     )
     _verify_project_request_headers(request.headers, session)
     context.status_code = http.HTTPStatus.ACCEPTED.value
@@ -933,7 +933,7 @@ def _verify_creation(iguazio_client, project, session, job_id, request, context)
     _verify_project_request_headers(request.headers, session)
     return {
         "data": _build_project_response(
-            iguazio_client, project, job_id, mlrun.api.schemas.ProjectState.creating
+            iguazio_client, project, job_id, mlrun.common.schemas.ProjectState.creating
         )
     }
 
@@ -961,7 +961,7 @@ def _verify_request_cookie(headers: dict, session: str):
 
 def _verify_project_request_headers(headers: dict, session: str):
     _verify_request_cookie(headers, session)
-    assert headers[mlrun.api.schemas.HeaderNames.projects_role] == "mlrun"
+    assert headers[mlrun.common.schemas.HeaderNames.projects_role] == "mlrun"
 
 
 def _mock_job_progress(
@@ -1006,7 +1006,7 @@ def _generate_project(
     annotations=None,
     created=None,
     owner="project-owner",
-) -> mlrun.api.schemas.Project:
+) -> mlrun.common.schemas.Project:
     if labels is None:
         labels = {
             "some-label": "some-label-value",
@@ -1015,21 +1015,21 @@ def _generate_project(
         annotations = {
             "some-annotation": "some-annotation-value",
         }
-    return mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
             name=name,
             created=created or datetime.datetime.utcnow(),
             labels=labels,
             annotations=annotations,
             some_extra_field="some value",
         ),
-        spec=mlrun.api.schemas.ProjectSpec(
+        spec=mlrun.common.schemas.ProjectSpec(
             description=description,
-            desired_state=mlrun.api.schemas.ProjectState.online,
+            desired_state=mlrun.common.schemas.ProjectState.online,
             owner=owner,
             some_extra_field="some value",
         ),
-        status=mlrun.api.schemas.ProjectStatus(
+        status=mlrun.common.schemas.ProjectStatus(
             some_extra_field="some value",
         ),
     )
@@ -1037,9 +1037,9 @@ def _generate_project(
 
 def _build_project_response(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
     job_id: typing.Optional[str] = None,
-    operational_status: typing.Optional[mlrun.api.schemas.ProjectState] = None,
+    operational_status: typing.Optional[mlrun.common.schemas.ProjectState] = None,
     owner_access_key: typing.Optional[str] = None,
 ):
     body = {
@@ -1051,7 +1051,7 @@ def _build_project_response(
             else datetime.datetime.utcnow().isoformat(),
             "updated_at": datetime.datetime.utcnow().isoformat(),
             "admin_status": project.spec.desired_state
-            or mlrun.api.schemas.ProjectState.online,
+            or mlrun.common.schemas.ProjectState.online,
             "mlrun_project": iguazio_client._transform_mlrun_project_to_iguazio_mlrun_project_attribute(
                 project
             ),
@@ -1090,7 +1090,7 @@ def _build_project_response(
 def _assert_project_creation(
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     request_body: dict,
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
 ):
     assert request_body["data"]["attributes"]["name"] == project.metadata.name
     assert request_body["data"]["attributes"]["description"] == project.spec.description

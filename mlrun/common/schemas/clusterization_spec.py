@@ -16,24 +16,14 @@ import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
-class PipelinesFormat(mlrun.api.utils.helpers.StrEnum):
-    full = "full"
-    metadata_only = "metadata_only"
-    summary = "summary"
-    name_only = "name_only"
+class ClusterizationSpec(pydantic.BaseModel):
+    chief_api_state: typing.Optional[str]
+    chief_version: typing.Optional[str]
 
 
-class PipelinesPagination(str):
-    default_page_size = 20
-    # https://github.com/kubeflow/pipelines/blob/master/backend/src/apiserver/list/list.go#L363
-    max_page_size = 200
-
-
-class PipelinesOutput(pydantic.BaseModel):
-    # use the format query param to control what is returned
-    runs: typing.List[typing.Union[dict, str]]
-    total_size: int
-    next_page_token: typing.Optional[str]
+class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.common.types.StrEnum):
+    enabled = "enabled"
+    disabled = "disabled"

@@ -24,16 +24,11 @@ import numpy
 import numpy as np
 
 import mlrun
-import mlrun.model_monitoring
+import mlrun.common.model_monitoring
+import mlrun.common.schemas
 import mlrun.utils.model_monitoring
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
-from ..api.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
 from ..config import config
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
@@ -1041,7 +1036,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{voting_ensemble.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    endpoint_uid = mlrun.model_monitoring.create_model_endpoint_uid(
+    endpoint_uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
@@ -1059,9 +1054,11 @@ def _init_endpoint_record(
                 if hasattr(c, "endpoint_uid"):
                     children_uids.append(c.endpoint_uid)
 
-            model_endpoint = ModelEndpoint(
-                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-                spec=ModelEndpointSpec(
+            model_endpoint = mlrun.common.schemas.ModelEndpoint(
+                metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                    project=project, uid=endpoint_uid
+                ),
+                spec=mlrun.common.schemas.ModelEndpointSpec(
                     function_uri=graph_server.function_uri,
                     model=versioned_model_name,
                     model_class=voting_ensemble.__class__.__name__,
@@ -1069,13 +1066,13 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=mlrun.model_monitoring.ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.common.model_monitoring.ModelMonitoringMode.enabled
                     if voting_ensemble.context.server.track_models
-                    else mlrun.model_monitoring.ModelMonitoringMode.disabled,
+                    else mlrun.common.model_monitoring.ModelMonitoringMode.disabled,
                 ),
-                status=ModelEndpointStatus(
+                status=mlrun.common.schemas.ModelEndpointStatus(
                     children=list(voting_ensemble.routes.keys()),
-                    endpoint_type=mlrun.model_monitoring.EndpointType.ROUTER,
+                    endpoint_type=mlrun.common.model_monitoring.EndpointType.ROUTER,
                     children_uids=children_uids,
                 ),
             )
@@ -1094,7 +1091,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = (
-                    mlrun.model_monitoring.EndpointType.LEAF_EP
+                    mlrun.common.model_monitoring.EndpointType.LEAF_EP
                 )
                 db.create_model_endpoint(
                     project=project,

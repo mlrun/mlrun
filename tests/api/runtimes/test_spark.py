@@ -23,8 +23,8 @@ import kubernetes
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base

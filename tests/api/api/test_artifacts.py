@@ -19,8 +19,8 @@ import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
 import mlrun.artifacts
+import mlrun.common.schemas
 from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
@@ -45,9 +45,9 @@ def test_list_artifact_tags(db: Session, client: TestClient) -> None:
 
 
 def _create_project(client: TestClient, project_name: str = PROJECT):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.api.schemas.ProjectSpec(
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
@@ -134,7 +134,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
         "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
         json={
             "kind": "artifact",
-            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+            "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
 
@@ -145,7 +145,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
         "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
         json={
             "kind": "artifact",
-            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+            "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
@@ -368,7 +368,7 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
         "projects/{project}/tags/{tag}".format(project=PROJECT, tag=new_tag),
         json={
             "kind": "artifact",
-            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+            "identifiers": [(mlrun.common.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
 

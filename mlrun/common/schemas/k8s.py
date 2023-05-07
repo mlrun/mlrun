@@ -16,7 +16,7 @@ import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
 class ResourceSpec(pydantic.BaseModel):
@@ -30,7 +30,7 @@ class Resources(pydantic.BaseModel):
     limits: ResourceSpec = ResourceSpec()
 
 
-class NodeSelectorOperator(mlrun.api.utils.helpers.StrEnum):
+class NodeSelectorOperator(mlrun.common.types.StrEnum):
     """
     A node selector operator is the set of operators that can be used in a node selector requirement
     https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765

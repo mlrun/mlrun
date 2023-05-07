@@ -19,7 +19,7 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.schemas.constants
+import mlrun.common.schemas.constants
 import mlrun.utils.version
 
 
@@ -51,20 +51,20 @@ def test_ui_clear_cache_middleware(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.constants.HeaderNames.ui_version: ui_version,
+                mlrun.common.schemas.constants.HeaderNames.ui_version: ui_version,
             },
         )
 
     if clear_cache:
         assert response.headers["Clear-Site-Data"] == '"cache"'
         assert (
-            response.headers[mlrun.api.schemas.constants.HeaderNames.ui_clear_cache]
+            response.headers[mlrun.common.schemas.constants.HeaderNames.ui_clear_cache]
             == "true"
         )
     else:
         assert "Clear-Site-Data" not in response.headers
         assert (
-            mlrun.api.schemas.constants.HeaderNames.ui_clear_cache
+            mlrun.common.schemas.constants.HeaderNames.ui_clear_cache
             not in response.headers
         )
 
@@ -77,6 +77,6 @@ def test_ensure_be_version_middleware(
     ) as mock_version_get:
         response = client.get("client-spec")
         assert (
-            response.headers[mlrun.api.schemas.constants.HeaderNames.backend_version]
+            response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version]
             == mock_version_get.return_value["version"]
         )

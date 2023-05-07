@@ -13,11 +13,12 @@
 # limitations under the License.
 import os.path
 import platform
+import subprocess
+import sys
 import typing
 
 import requests
 
-import automation.common.helpers
 import mlrun.utils
 
 
@@ -116,7 +117,7 @@ class CommunityEditionDeployer:
         self._logger.info(
             "Installing helm chart with arguments", helm_arguments=helm_arguments
         )
-        automation.common.helpers.run_command("helm", helm_arguments)
+        run_command("helm", helm_arguments)
 
         self._teardown()
 
@@ -142,16 +143,14 @@ class CommunityEditionDeployer:
             self._logger.warning(
                 "Cleaning up entire namespace", namespace=self._namespace
             )
-            automation.common.helpers.run_command(
-                "kubectl", ["delete", "namespace", self._namespace]
-            )
+            run_command("kubectl", ["delete", "namespace", self._namespace])
             return
 
         if not skip_uninstall:
             self._logger.info(
                 "Cleaning up helm release", release=Constants.helm_release_name
             )
-            automation.common.helpers.run_command(
+            run_command(
                 "helm",
                 [
                     "--namespace",
@@ -163,7 +162,7 @@ class CommunityEditionDeployer:
 
         if cleanup_volumes:
             self._logger.warning("Cleaning up mlrun volumes")
-            automation.common.helpers.run_command(
+            run_command(
                 "kubectl",
                 [
                     "--namespace",
@@ -180,7 +179,7 @@ class CommunityEditionDeployer:
                 "Cleaning up registry secret",
                 secret_name=registry_secret_name,
             )
-            automation.common.helpers.run_command(
+            run_command(
                 "kubectl",
                 [
                     "--namespace",
@@ -210,7 +209,7 @@ class CommunityEditionDeployer:
         """
         for image in [mlrun_api_image, mlrun_ui_image, jupyter_image]:
             if image:
-                automation.common.helpers.run_command("minikube", ["load", image])
+                run_command("minikube", ["load", image])
 
         self._teardown()
 
@@ -241,17 +240,15 @@ class CommunityEditionDeployer:
         self._validate_registry_url(registry_url)
 
         self._logger.info("Creating namespace", namespace=self._namespace)
-        automation.common.helpers.run_command(
-            "kubectl", ["create", "namespace", self._namespace]
-        )
+        run_command("kubectl", ["create", "namespace", self._namespace])
 
         self._logger.debug("Adding helm repo")
-        automation.common.helpers.run_command(
+        run_command(
             "helm", ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url]
         )
 
         self._logger.debug("Updating helm repo")
-        automation.common.helpers.run_command("helm", ["repo", "update"])
+        run_command("helm", ["repo", "update"])
 
         if registry_username and registry_password:
             self._create_registry_credentials_secret(
@@ -477,7 +474,7 @@ class CommunityEditionDeployer:
             "Creating registry credentials secret",
             secret_name=registry_secret_name,
         )
-        automation.common.helpers.run_command(
+        run_command(
             "kubectl",
             [
                 "--namespace",
@@ -500,7 +497,7 @@ class CommunityEditionDeployer:
         :return: Platform architecture
         """
         if platform.system() == "Darwin":
-            translated, _, exit_status = automation.common.helpers.run_command(
+            translated, _, exit_status = run_command(
                 "sysctl",
                 ["-n", "sysctl.proc_translated"],
                 live=False,
@@ -518,15 +515,9 @@ class CommunityEditionDeployer:
         :return: Host IP
         """
         if platform.system() == "Darwin":
-            return automation.common.helpers.run_command(
-                "ipconfig", ["getifaddr", "en0"], live=False
-            )[0].strip()
+            return run_command("ipconfig", ["getifaddr", "en0"], live=False)[0].strip()
         elif platform.system() == "Linux":
-            return (
-                automation.common.helpers.run_command("hostname", ["-I"], live=False)[0]
-                .split()[0]
-                .strip()
-            )
+            return run_command("hostname", ["-I"], live=False)[0].split()[0].strip()
         else:
             raise NotImplementedError(
                 f"Platform {platform.system()} is not supported for this action"
@@ -538,9 +529,7 @@ class CommunityEditionDeployer:
         Get the minikube IP.
         :return: Minikube IP
         """
-        return automation.common.helpers.run_command("minikube", ["ip"], live=False)[
-            0
-        ].strip()
+        return run_command("minikube", ["ip"], live=False)[0].strip()
 
     def _validate_registry_url(self, registry_url):
         """
@@ -602,3 +591,57 @@ class CommunityEditionDeployer:
         """
         self._logger.warning("Disabling deployment", deployment=deployment)
         helm_values[f"{deployment}.enabled"] = "false"
+
+
+def run_command(
+    command: str,
+    args: list = None,
+    workdir: str = None,
+    stdin: str = None,
+    live: bool = True,
+    log_file_handler: typing.IO[str] = None,
+) -> (str, str, int):
+    if workdir:
+        command = f"cd {workdir}; " + command
+    if args:
+        command += " " + " ".join(args)
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        shell=True,
+    )
+
+    if stdin:
+        process.stdin.write(bytes(stdin, "ascii"))
+        process.stdin.close()
+
+    stdout = _handle_command_stdout(process.stdout, log_file_handler, live)
+    stderr = process.stderr.read()
+    exit_status = process.wait()
+
+    return stdout, stderr, exit_status
+
+
+def _handle_command_stdout(
+    stdout_stream: typing.IO[bytes],
+    log_file_handler: typing.IO[str] = None,
+    live: bool = True,
+) -> str:
+    def _write_to_log_file(text: bytes):
+        if log_file_handler:
+            log_file_handler.write(text.decode(sys.stdout.encoding))
+
+    stdout = ""
+    if live:
+        for line in iter(stdout_stream.readline, b""):
+            stdout += str(line)
+            sys.stdout.write(line.decode(sys.stdout.encoding))
+            _write_to_log_file(line)
+    else:
+        stdout = stdout_stream.read()
+        _write_to_log_file(stdout)
+
+    return stdout

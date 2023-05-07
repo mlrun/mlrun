@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
+from typing import Dict, List, Optional, Union
 
 import mlrun.api.crud
 import mlrun.api.db.sqldb.session
+import mlrun.api.schemas.schedule
 import mlrun.execution
 import mlrun.launcher.base
 import mlrun.runtimes
@@ -28,17 +29,54 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: typing.Optional[
-            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
+        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        # TODO: don't use schedule from API schemas but rather from mlrun client
+        schedule: Optional[
+            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        param_file_secrets=None,
-    ):
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    ) -> mlrun.run.RunObject:
         self._enrich_runtime(runtime)
 
         run = self._create_run_object(task)
 
-        self._enrich_run(runtime, runspec=task)
-        self._verify_run_params(run.spec.parameters)
+        run = self._enrich_run(
+            runtime,
+            run=run,
+            handler=handler,
+            project_name=project,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+        )
+        self._validate_runtime(runtime, run)
 
         if runtime.verbose:
             mlrun.utils.logger.info(f"Run:\n{run.to_yaml()}")

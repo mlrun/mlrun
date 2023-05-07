@@ -13,16 +13,15 @@
 # limitations under the License.
 import getpass
 import os
-import typing
 from typing import Dict, List, Optional, Union
 
 import requests
 
 import mlrun.api.schemas.schedule
 import mlrun.db
-import mlrun.db.httpdb
 import mlrun.errors
 import mlrun.run
+import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
@@ -34,10 +33,6 @@ run_modes = ["pass"]
 
 
 class ClientRemoteLauncher(BaseLauncher):
-    @property
-    def db(self) -> mlrun.db.httpdb.HTTPRunDB:
-        return self._db
-
     def _save_or_push_notifications(self, runobj):
         pass
 
@@ -51,48 +46,38 @@ class ClientRemoteLauncher(BaseLauncher):
 
     def launch(
         self,
-        runtime: mlrun.runtimes.KubejobRuntime,
-        task: typing.Optional[
-            typing.Union[mlrun.run.RunTemplate, mlrun.run.RunObject]
-        ] = None,
-        handler: typing.Optional[str] = None,
-        name: typing.Optional[str] = "",
-        project: typing.Optional[str] = "",
-        params: typing.Optional[dict] = None,
-        inputs: typing.Optional[Dict[str, str]] = None,
-        out_path: typing.Optional[str] = "",
-        workdir: typing.Optional[str] = "",
-        artifact_path: typing.Optional[str] = "",
-        watch: typing.Optional[bool] = True,
+        runtime: "mlrun.runtimes.KubejobRuntime",
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
         # TODO: don't use schedule from API schemas but rather from mlrun client
-        schedule: typing.Optional[
-            typing.Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+        schedule: Optional[
+            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
-        hyper_param_options: typing.Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: typing.Optional[bool] = None,
-        scrape_metrics: typing.Optional[bool] = None,
-        local: typing.Optional[bool] = False,
-        local_code_path: typing.Optional[str] = None,
-        auto_build: typing.Optional[bool] = None,
-        param_file_secrets: typing.Optional[Dict[str, str]] = None,
-        notifications: typing.Optional[List[mlrun.model.Notification]] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ):
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
-
-        if runtime.spec.mode and runtime.spec.mode not in run_modes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f'run mode can only be {",".join(run_modes)}'
-            )
-
+    ) -> "mlrun.run.RunObject":
         self._enrich_runtime(runtime)
-
         run = self._create_run_object(task)
 
         run = self._enrich_run(
             runtime=runtime,
-            runspec=run,
+            run=run,
             handler=handler,
             project_name=project,
             name=name,
@@ -108,8 +93,7 @@ class ClientRemoteLauncher(BaseLauncher):
             workdir=workdir,
             notifications=notifications,
         )
-
-        runtime._validate_output_path(run)
+        self._validate_runtime(runtime, run)
 
         if not runtime.is_deployed():
             if runtime.spec.build.auto_build or auto_build:
@@ -135,7 +119,7 @@ class ClientRemoteLauncher(BaseLauncher):
             uid=run.metadata.uid,
             db=runtime.spec.rundb,
         )
-        self.store_function(runtime, run)
+        self._store_function(runtime, run)
 
         return self.submit_job(runtime, run, schedule, watch)
 
@@ -144,16 +128,12 @@ class ClientRemoteLauncher(BaseLauncher):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
 
-    @staticmethod
-    def _validate_runtime(runtime):
-        pass
-
     def submit_job(
         self,
-        runtime: mlrun.runtimes.KubejobRuntime,
-        run: mlrun.run.RunObject,
-        schedule: typing.Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
-        watch: typing.Optional[bool] = None,
+        runtime: "mlrun.runtimes.KubejobRuntime",
+        run: "mlrun.run.RunObject",
+        schedule: Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
+        watch: Optional[bool] = None,
     ):
         if runtime._secrets:
             run.spec.secret_sources = runtime._secrets.to_serial()
@@ -214,18 +194,17 @@ class ClientRemoteLauncher(BaseLauncher):
 
         return runtime._wrap_run_result(resp, run, schedule=schedule)
 
-    def store_function(
-        self, runtime: mlrun.runtimes.KubejobRuntime, run: mlrun.run.RunObject
+    def _store_function(
+        self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
     ):
-        metadata = run.metadata
-        metadata.labels["kind"] = runtime.kind
-        if "owner" not in metadata.labels:
-            metadata.labels["owner"] = (
+        run.metadata.labels["kind"] = runtime.kind
+        if "owner" not in run.metadata.labels:
+            run.metadata.labels["owner"] = (
                 os.environ.get("V3IO_USERNAME") or getpass.getuser()
             )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", metadata.labels["owner"]
+                "{{run.user}}", run.metadata.labels["owner"]
             )
         struct = runtime.to_dict()
         hash_key = self.db.store_function(

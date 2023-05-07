@@ -1136,19 +1136,20 @@ class HTTPRunDB(RunDBInterface):
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         """Retrieve the status of a build operation currently in progress.
 
-        :param func: Function object that is being built.
-        :param offset: Offset into the build logs to retrieve logs from.
-        :param logs: Should build logs be retrieved.
-        :param last_log_timestamp: Last timestamp of logs that were already retrieved. Function will return only logs
-            later than this parameter.
-        :param verbose: Add verbose logs into the output.
+        :param func:                Function object that is being built.
+        :param offset:              Offset into the build logs to retrieve logs from.
+        :param logs:                Should build logs be retrieved.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
         :returns: The following parameters:
 
             - Text of builder logs.

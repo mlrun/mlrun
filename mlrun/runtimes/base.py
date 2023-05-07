@@ -189,14 +189,12 @@ class BaseRuntime(ModelObj):
         self.is_child = False
         self._status = None
         self.status = None
-        self._is_api_server = False
         self.verbose = False
         self._enriched_image = False
 
     def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
-        self._is_api_server = mlrun.config.is_running_as_api()
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -242,16 +240,6 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
-    def _use_remote_api(self):
-        if (
-            self._is_remote
-            and not self._is_api_server
-            and self._get_db()
-            and self._get_db().kind == "http"
-        ):
-            return True
-        return False
-
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -268,7 +256,6 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
-                self._is_api_server = mlrun.config.is_running_as_api()
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.

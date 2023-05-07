@@ -30,6 +30,8 @@ _k8s = None
 
 def get_k8s_helper(namespace=None, silent=True, log=False) -> "K8sHelper":
     """
+    Get a k8s helper singleton object
+    :param namespace: the namespace to use, if not specified will use the namespace configured in mlrun config
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
     :param log: sometimes we want to avoid logging when executing init_k8s_config

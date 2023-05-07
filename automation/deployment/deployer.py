@@ -13,6 +13,8 @@
 # limitations under the License.
 import os.path
 import platform
+import subprocess
+import sys
 import typing
 
 import requests

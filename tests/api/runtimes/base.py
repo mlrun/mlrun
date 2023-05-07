@@ -30,7 +30,7 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
@@ -818,7 +818,7 @@ class TestRuntimeBase:
             json.dumps(preemptible_node_selector).encode("utf-8")
         )
         mlrun.mlconf.function_defaults.preemption_mode = (
-            mlrun.api.schemas.PreemptionModes.prevent.value
+            mlrun.common.schemas.PreemptionModes.prevent.value
         )
 
         # set default preemptible tolerations
@@ -837,21 +837,25 @@ class TestRuntimeBase:
         preemptible_affinity = self._generate_preemptible_affinity()
         preemptible_tolerations = self._generate_preemptible_tolerations()
         logger.info("prevent -> constrain, expecting preemptible affinity")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=preemptible_affinity, tolerations=preemptible_tolerations
         )
 
         logger.info("constrain -> allow, expecting only preemption tolerations to stay")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(tolerations=preemptible_tolerations)
 
         logger.info(
             "allow -> constrain, expecting preemptible affinity with tolerations"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=preemptible_affinity, tolerations=preemptible_tolerations
@@ -860,19 +864,19 @@ class TestRuntimeBase:
         logger.info(
             "constrain -> prevent, expecting affinity and tolerations to be removed"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection()
 
         logger.info("prevent -> allow, expecting preemptible tolerations")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(tolerations=preemptible_tolerations)
 
         logger.info(
             "allow -> prevent, expecting affinity and tolerations to be removed"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection()
 
@@ -884,7 +888,7 @@ class TestRuntimeBase:
             json.dumps(preemptible_node_selector).encode("utf-8")
         )
         mlrun.mlconf.function_defaults.preemption_mode = (
-            mlrun.api.schemas.PreemptionModes.prevent.value
+            mlrun.common.schemas.PreemptionModes.prevent.value
         )
 
         # set default preemptible tolerations
@@ -909,7 +913,9 @@ class TestRuntimeBase:
             "and preemptible anti-affinity to be removed and preemptible affinity to be added"
         )
         runtime.with_node_selection(node_selector=self._generate_node_selector())
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=preemptible_node_selector,
@@ -920,7 +926,7 @@ class TestRuntimeBase:
             "constrain -> allow, with preemptible node selector and affinity and tolerations,"
             " expecting affinity and node selector to be removed and only preemptible tolerations to stay"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(tolerations=preemptible_tolerations)
 
@@ -938,7 +944,7 @@ class TestRuntimeBase:
         logger.info(
             "allow -> prevent, with not preemptible node selector, expecting to stay"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=not_preemptible_node_selector,
@@ -948,7 +954,9 @@ class TestRuntimeBase:
             "prevent -> constrain, with not preemptible node selector, expecting to stay and"
             " preemptible affinity and tolerations to be added"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=not_preemptible_node_selector,
@@ -968,14 +976,18 @@ class TestRuntimeBase:
             "prevent -> constrain, with not preemptible affinity,"
             " expecting to override affinity with preemptible affinity and add tolerations"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=preemptible_affinity, tolerations=preemptible_tolerations
         )
 
         logger.info("constrain > constrain, expecting to stay the same")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=preemptible_affinity, tolerations=preemptible_tolerations
@@ -987,7 +999,7 @@ class TestRuntimeBase:
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(affinity=self._generate_not_preemptible_affinity())
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=self._generate_not_preemptible_affinity(),
@@ -995,7 +1007,7 @@ class TestRuntimeBase:
         )
 
         logger.info("allow -> allow, expecting to stay the same")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=self._generate_not_preemptible_affinity(),
@@ -1005,14 +1017,14 @@ class TestRuntimeBase:
         logger.info(
             "allow -> prevent, with not preemptible affinity expecting tolerations to be removed"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
 
         logger.info(
             "prevent -> prevent, with not preemptible affinity expecting to stay the same"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
 
@@ -1024,7 +1036,9 @@ class TestRuntimeBase:
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(affinity=self._generate_affinity())
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         expected_affinity = self._generate_affinity()
         expected_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
@@ -1059,7 +1073,7 @@ class TestRuntimeBase:
             + self._generate_preemptible_tolerations()
         )
         runtime.with_preemption_mode(
-            mode=mlrun.api.schemas.PreemptionModes.constrain.value
+            mode=mlrun.common.schemas.PreemptionModes.constrain.value
         )
         self.execute_function(runtime)
         self.assert_node_selection(
@@ -1071,7 +1085,9 @@ class TestRuntimeBase:
             "constrain -> allow, with merged preemptible tolerations and preemptible affinity, "
             "expecting only merged preemptible tolerations"
         )
-        runtime.with_preemption_mode(mode=mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(
+            mode=mlrun.common.schemas.PreemptionModes.allow.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             tolerations=merged_preemptible_tolerations,
@@ -1086,7 +1102,7 @@ class TestRuntimeBase:
             json.dumps(preemptible_node_selector).encode("utf-8")
         )
         mlrun.mlconf.function_defaults.preemption_mode = (
-            mlrun.api.schemas.PreemptionModes.prevent.value
+            mlrun.common.schemas.PreemptionModes.prevent.value
         )
         logger.info(
             "prevent, without setting any node selection expecting preemptible anti-affinity to be set"
@@ -1096,32 +1112,36 @@ class TestRuntimeBase:
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         logger.info("prevent -> constrain, expecting preemptible affinity")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
         logger.info("constrain -> allow, expecting no node selection to be set")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection()
 
         logger.info("allow -> constrain, expecting preemptible affinity")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
         logger.info("constrain -> prevent, expecting preemptible anti-affinity")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         logger.info("prevent -> allow, expecting no node selection to be set")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection()
 
         logger.info("allow -> prevent, expecting preemptible anti-affinity")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
@@ -1134,7 +1154,7 @@ class TestRuntimeBase:
             json.dumps(preemptible_node_selector).encode("utf-8")
         )
         mlrun.mlconf.function_defaults.preemption_mode = (
-            mlrun.api.schemas.PreemptionModes.prevent.value
+            mlrun.common.schemas.PreemptionModes.prevent.value
         )
 
         logger.info(
@@ -1150,7 +1170,9 @@ class TestRuntimeBase:
             "and preemptible anti-affinity to be removed and preemptible affinity to be added"
         )
         runtime.with_node_selection(node_selector=preemptible_node_selector)
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=preemptible_node_selector,
@@ -1159,7 +1181,7 @@ class TestRuntimeBase:
         logger.info(
             "constrain -> allow with preemptible node selector and affinity, expecting both to be removed"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection()
 
@@ -1175,7 +1197,7 @@ class TestRuntimeBase:
             "allow -> prevent, with not preemptible node selector, expecting to stay and preemptible"
             " anti-affinity"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=not_preemptible_node_selector,
@@ -1185,7 +1207,9 @@ class TestRuntimeBase:
             "prevent -> constrain, with not preemptible node selector, expecting to stay and"
             " preemptible affinity to be add and anti affinity to be remove"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             node_selector=not_preemptible_node_selector,
@@ -1205,12 +1229,16 @@ class TestRuntimeBase:
             "prevent -> constrain, with preemptible anti-affinity,"
             " expecting to override anti-affinity with preemptible affinity"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
         logger.info("constrain > constrain, expecting to stay the same")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_affinity())
 
@@ -1219,26 +1247,26 @@ class TestRuntimeBase:
         logger.info("prevent -> allow, with not preemptible affinity expecting to stay")
         runtime = self._generate_runtime()
         runtime.with_node_selection(affinity=self._generate_not_preemptible_affinity())
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
 
         logger.info("allow -> allow, expecting to stay the same")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_not_preemptible_affinity())
 
         logger.info(
             "allow -> prevent, with not preemptible affinity expecting to be overridden with anti-affinity"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         logger.info(
             "prevent -> prevent, with anti-affinity, expecting to stay the same"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.prevent.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.prevent.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
@@ -1249,7 +1277,9 @@ class TestRuntimeBase:
         )
         runtime = self._generate_runtime()
         runtime.with_node_selection(affinity=self._generate_affinity())
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         expected_affinity = self._generate_affinity()
         expected_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
@@ -1279,7 +1309,7 @@ class TestRuntimeBase:
         )
 
         runtime.with_preemption_mode(
-            mode=mlrun.api.schemas.PreemptionModes.constrain.value
+            mode=mlrun.common.schemas.PreemptionModes.constrain.value
         )
         self.execute_function(runtime)
         self.assert_node_selection(
@@ -1291,7 +1321,9 @@ class TestRuntimeBase:
             "constrain -> allow, with not preemptible tolerations and preemptible affinity, "
             "expecting only not preemptible tolerations"
         )
-        runtime.with_preemption_mode(mode=mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(
+            mode=mlrun.common.schemas.PreemptionModes.allow.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             tolerations=self._generate_not_preemptible_tolerations(),
@@ -1304,7 +1336,7 @@ class TestRuntimeBase:
             json.dumps(preemptible_node_selector).encode("utf-8")
         )
         mlrun.mlconf.function_defaults.preemption_mode = (
-            mlrun.api.schemas.PreemptionModes.prevent.value
+            mlrun.common.schemas.PreemptionModes.prevent.value
         )
 
         logger.info("prevent, expecting anti affinity")
@@ -1314,7 +1346,7 @@ class TestRuntimeBase:
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
         logger.info("prevent -> none, expecting to stay the same")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.none.value)
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
@@ -1331,7 +1363,9 @@ class TestRuntimeBase:
         logger.info(
             "none -> constrain, expecting preemptible affinity and user's tolerations"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        runtime.with_preemption_mode(
+            mlrun.common.schemas.PreemptionModes.constrain.value
+        )
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=self._generate_preemptible_affinity(),
@@ -1341,7 +1375,7 @@ class TestRuntimeBase:
         logger.info(
             "constrain -> none, expecting preemptible affinity to stay and user's tolerations"
         )
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.none.value)
         self.execute_function(runtime)
         self.assert_node_selection(
             affinity=self._generate_preemptible_affinity(),
@@ -1349,12 +1383,12 @@ class TestRuntimeBase:
         )
 
         logger.info("none -> allow, expecting user's tolerations to stay")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         self.execute_function(runtime)
         self.assert_node_selection(tolerations=self._generate_tolerations())
 
         logger.info("allow -> none, expecting user's tolerations to stay")
-        runtime.with_preemption_mode(mlrun.api.schemas.PreemptionModes.none.value)
+        runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.none.value)
         self.execute_function(runtime)
         self.assert_node_selection(tolerations=self._generate_tolerations())
 
@@ -1403,7 +1437,7 @@ class TestRuntimeBase:
                 if test_case.get("tolerations", False)
                 else None
             )
-            for preemption_mode in mlrun.api.schemas.PreemptionModes:
+            for preemption_mode in mlrun.common.schemas.PreemptionModes:
                 runtime = self._generate_runtime()
                 runtime.with_node_selection(
                     node_name=node_name,

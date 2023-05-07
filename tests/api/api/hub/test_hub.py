@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.api.conftest
 from mlrun.config import config
 
@@ -206,7 +206,7 @@ def test_hub_source_manager(
                 for key, value in credentials.items()
             }
         )
-        source_object = mlrun.api.schemas.HubSource(**source_dict["source"])
+        source_object = mlrun.common.schemas.HubSource(**source_dict["source"])
         manager.add_source(source_object)
 
     k8s_secrets_mock.assert_project_secrets(
@@ -251,7 +251,7 @@ def test_hub_default_source(
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
     manager = mlrun.api.crud.Hub()
-    source_object = mlrun.api.schemas.HubSource.generate_default_source()
+    source_object = mlrun.common.schemas.HubSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
     print(f"Retrieved function catalog. Has {len(catalog.catalog)} functions in it.")
@@ -337,7 +337,7 @@ def test_hub_get_asset(
             "source", "secret"
         ): credentials["secret"]
     }
-    source_object = mlrun.api.schemas.HubSource(**source_dict["source"])
+    source_object = mlrun.common.schemas.HubSource(**source_dict["source"])
     manager.add_source(source_object)
     k8s_secrets_mock.assert_project_secrets(
         config.hub.k8s_secrets_project_name, expected_credentials

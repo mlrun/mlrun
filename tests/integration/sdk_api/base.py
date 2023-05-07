@@ -21,7 +21,7 @@ import sys
 import pymysql
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.conftest
 from mlrun.db.httpdb import HTTPRunDB
 from mlrun.utils import create_logger, retry_until_successful

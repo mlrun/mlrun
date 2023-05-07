@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-import mlrun.model_monitoring
-from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+import mlrun.common.model_monitoring
+from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 
 
 class ModelMonitoringStoreKinds:
@@ -48,7 +48,7 @@ class ModelEndpointMetadata(BaseModel):
         """
         new_object = cls()
         if json_parse_values is None:
-            json_parse_values = [mlrun.model_monitoring.EventFieldType.LABELS]
+            json_parse_values = [mlrun.common.model_monitoring.EventFieldType.LABELS]
 
         return _mapping_attributes(
             base_model=new_object,
@@ -69,8 +69,8 @@ class ModelEndpointSpec(ObjectSpec):
     monitor_configuration: Optional[dict] = {}
     active: Optional[bool] = True
     monitoring_mode: Optional[
-        mlrun.model_monitoring.ModelMonitoringMode
-    ] = mlrun.model_monitoring.ModelMonitoringMode.disabled.value
+        mlrun.common.model_monitoring.ModelMonitoringMode
+    ] = mlrun.common.model_monitoring.ModelMonitoringMode.disabled.value
 
     @classmethod
     def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
@@ -83,9 +83,9 @@ class ModelEndpointSpec(ObjectSpec):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                mlrun.model_monitoring.EventFieldType.FEATURE_NAMES,
-                mlrun.model_monitoring.EventFieldType.LABEL_NAMES,
-                mlrun.model_monitoring.EventFieldType.MONITOR_CONFIGURATION,
+                mlrun.common.model_monitoring.EventFieldType.FEATURE_NAMES,
+                mlrun.common.model_monitoring.EventFieldType.LABEL_NAMES,
+                mlrun.common.model_monitoring.EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -148,17 +148,17 @@ class ModelEndpointStatus(ObjectStatus):
     drift_status: Optional[str] = ""
     drift_measures: Optional[dict] = {}
     metrics: Optional[Dict[str, Dict[str, Any]]] = {
-        mlrun.model_monitoring.EventKeyMetrics.GENERIC: {
-            mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-            mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC: {
+            mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+            mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
         }
     }
     features: Optional[List[Features]] = []
     children: Optional[List[str]] = []
     children_uids: Optional[List[str]] = []
     endpoint_type: Optional[
-        mlrun.model_monitoring.EndpointType
-    ] = mlrun.model_monitoring.EndpointType.NODE_EP.value
+        mlrun.common.model_monitoring.EndpointType
+    ] = mlrun.common.model_monitoring.EndpointType.NODE_EP.value
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
 
@@ -176,13 +176,13 @@ class ModelEndpointStatus(ObjectStatus):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                mlrun.model_monitoring.EventFieldType.FEATURE_STATS,
-                mlrun.model_monitoring.EventFieldType.CURRENT_STATS,
-                mlrun.model_monitoring.EventFieldType.DRIFT_MEASURES,
-                mlrun.model_monitoring.EventFieldType.METRICS,
-                mlrun.model_monitoring.EventFieldType.CHILDREN,
-                mlrun.model_monitoring.EventFieldType.CHILDREN_UIDS,
-                mlrun.model_monitoring.EventFieldType.ENDPOINT_TYPE,
+                mlrun.common.model_monitoring.EventFieldType.FEATURE_STATS,
+                mlrun.common.model_monitoring.EventFieldType.CURRENT_STATS,
+                mlrun.common.model_monitoring.EventFieldType.DRIFT_MEASURES,
+                mlrun.common.model_monitoring.EventFieldType.METRICS,
+                mlrun.common.model_monitoring.EventFieldType.CHILDREN,
+                mlrun.common.model_monitoring.EventFieldType.CHILDREN_UIDS,
+                mlrun.common.model_monitoring.EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -203,7 +203,7 @@ class ModelEndpoint(BaseModel):
     def __init__(self, **data: Any):
         super().__init__(**data)
         if self.metadata.uid is None:
-            uid = mlrun.model_monitoring.create_model_endpoint_uid(
+            uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
                 function_uri=self.spec.function_uri,
                 versioned_model=self.spec.model,
             )
@@ -234,16 +234,16 @@ class ModelEndpoint(BaseModel):
                 else:
                     flatten_dict[key] = model_endpoint_dictionary[k_object][key]
 
-        if mlrun.model_monitoring.EventFieldType.METRICS not in flatten_dict:
+        if mlrun.common.model_monitoring.EventFieldType.METRICS not in flatten_dict:
             # Initialize metrics dictionary
-            flatten_dict[mlrun.model_monitoring.EventFieldType.METRICS] = {
-                mlrun.model_monitoring.EventKeyMetrics.GENERIC: {
-                    mlrun.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-                    mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+            flatten_dict[mlrun.common.model_monitoring.EventFieldType.METRICS] = {
+                mlrun.common.model_monitoring.EventKeyMetrics.GENERIC: {
+                    mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+                    mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
-        flatten_dict.pop(mlrun.model_monitoring.EventFieldType.FEATURES, None)
+        flatten_dict.pop(mlrun.common.model_monitoring.EventFieldType.FEATURES, None)
         return flatten_dict
 
     @classmethod

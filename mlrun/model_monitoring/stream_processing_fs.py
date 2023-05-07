@@ -22,13 +22,14 @@ import pandas as pd
 import storey
 
 import mlrun
+import mlrun.common.model_monitoring
 import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring import (
+from mlrun.common.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
@@ -607,7 +608,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = mlrun.model_monitoring.create_model_endpoint_uid(
+        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
             function_uri=function_uri,
             versioned_model=versioned_model,
         )

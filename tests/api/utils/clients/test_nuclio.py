@@ -18,8 +18,8 @@ import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 
-import mlrun.api.schemas
 import mlrun.api.utils.clients.nuclio
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
@@ -179,13 +179,13 @@ def test_create_project(
     requests_mock.post(f"{api_url}/api/projects", json=verify_creation)
     nuclio_client.create_project(
         None,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name,
                 labels=project_labels,
                 annotations=project_annotations,
             ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
         ),
     )
 
@@ -230,13 +230,13 @@ def test_store_project_creation(
     nuclio_client.store_project(
         None,
         project_name,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name,
                 labels=project_labels,
                 annotations=project_annotations,
             ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
         ),
     )
 
@@ -281,13 +281,13 @@ def test_store_project_update(
     nuclio_client.store_project(
         None,
         project_name,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name,
                 labels=project_labels,
                 annotations=project_annotations,
             ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
         ),
     )
 
@@ -399,7 +399,7 @@ def test_delete_project(
         )
         assert (
             request.headers["x-nuclio-delete-project-strategy"]
-            == mlrun.api.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
+            == mlrun.common.schemas.DeletionStrategy.default().to_nuclio_deletion_strategy()
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 

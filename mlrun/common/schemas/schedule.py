@@ -17,9 +17,9 @@ from typing import Any, List, Optional, Union
 
 from pydantic import BaseModel
 
-import mlrun.api.utils.helpers
-from mlrun.api.schemas.auth import Credentials
-from mlrun.api.schemas.object import LabelRecord
+import mlrun.common.types
+from mlrun.common.schemas.auth import Credentials
+from mlrun.common.schemas.object import LabelRecord
 
 
 class ScheduleCronTrigger(BaseModel):
@@ -78,7 +78,7 @@ class ScheduleCronTrigger(BaseModel):
         return f"{self.minute} {self.hour} {self.day} {self.month} {self.day_of_week}"
 
 
-class ScheduleKinds(mlrun.api.utils.helpers.StrEnum):
+class ScheduleKinds(mlrun.common.types.StrEnum):
     job = "job"
     pipeline = "pipeline"
 

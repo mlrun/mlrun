@@ -18,7 +18,7 @@ import json
 import pytest
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path
 
@@ -77,9 +77,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
-            partition_by=mlrun.api.schemas.RunPartitionByField.name,
-            partition_sort_by=mlrun.api.schemas.SortField.created,
-            partition_order=mlrun.api.schemas.OrderType.asc,
+            partition_by=mlrun.common.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.created,
+            partition_order=mlrun.common.schemas.OrderType.asc,
         )
         # sorted by ascending created so only the first ones created
         for run in runs:
@@ -89,9 +89,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
-            partition_by=mlrun.api.schemas.RunPartitionByField.name,
-            partition_sort_by=mlrun.api.schemas.SortField.updated,
-            partition_order=mlrun.api.schemas.OrderType.desc,
+            partition_by=mlrun.common.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
         )
         # sorted by descending updated so only the third ones created
         for run in runs:
@@ -101,9 +101,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         runs = _list_and_assert_objects(
             15,
             project=projects[0],
-            partition_by=mlrun.api.schemas.RunPartitionByField.name,
-            partition_sort_by=mlrun.api.schemas.SortField.updated,
-            partition_order=mlrun.api.schemas.OrderType.desc,
+            partition_by=mlrun.common.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
             rows_per_partition=5,
             iter=True,
         )
@@ -112,9 +112,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         runs = _list_and_assert_objects(
             10,
             project=projects[0],
-            partition_by=mlrun.api.schemas.RunPartitionByField.name,
-            partition_sort_by=mlrun.api.schemas.SortField.updated,
-            partition_order=mlrun.api.schemas.OrderType.desc,
+            partition_by=mlrun.common.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
             rows_per_partition=5,
             max_partitions=2,
             iter=True,
@@ -125,9 +125,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         runs = _list_and_assert_objects(
             6,
             project=projects[0],
-            partition_by=mlrun.api.schemas.RunPartitionByField.name,
-            partition_sort_by=mlrun.api.schemas.SortField.updated,
-            partition_order=mlrun.api.schemas.OrderType.desc,
+            partition_by=mlrun.common.schemas.RunPartitionByField.name,
+            partition_sort_by=mlrun.common.schemas.SortField.updated,
+            partition_order=mlrun.common.schemas.OrderType.desc,
             rows_per_partition=4,
             max_partitions=2,
             iter=False,
@@ -138,7 +138,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             _list_and_assert_objects(
                 0,
                 project=projects[0],
-                partition_by=mlrun.api.schemas.RunPartitionByField.name,
+                partition_by=mlrun.common.schemas.RunPartitionByField.name,
             )
         # An invalid partition-by field - will be failed by fastapi due to schema validation.
         with pytest.raises(mlrun.errors.MLRunHTTPError) as excinfo:
@@ -146,7 +146,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 0,
                 project=projects[0],
                 partition_by="key",
-                partition_sort_by=mlrun.api.schemas.SortField.updated,
+                partition_sort_by=mlrun.common.schemas.SortField.updated,
             )
         assert (
             excinfo.value.response.status_code

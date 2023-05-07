@@ -17,9 +17,9 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 import mlrun.errors
-from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 from mlrun.config import config
 
 
@@ -37,7 +37,7 @@ class HubObjectMetadata(BaseModel):
 
 
 # Currently only functions are supported. Will add more in the future.
-class HubSourceType(mlrun.api.utils.helpers.StrEnum):
+class HubSourceType(mlrun.common.types.StrEnum):
     functions = "functions"
 
 

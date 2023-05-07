@@ -70,7 +70,7 @@ def run_function(
     selector: str = None,
     project_object=None,
     auto_build: bool = None,
-    schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
     notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,

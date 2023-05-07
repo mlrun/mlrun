@@ -24,8 +24,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
@@ -33,17 +33,17 @@ router = APIRouter()
 
 @router.put(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=mlrun.api.schemas.ModelEndpoint,
+    response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def create_or_patch(
     project: str,
     endpoint_id: str,
-    model_endpoint: mlrun.api.schemas.ModelEndpoint,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-) -> mlrun.api.schemas.ModelEndpoint:
+) -> mlrun.common.schemas.ModelEndpoint:
     """
     Either create or update the record of a given `ModelEndpoint` object.
     Leaving here for backwards compatibility.
@@ -57,10 +57,10 @@ async def create_or_patch(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.store,
+        mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
     # get_access_key will validate the needed auth (which is used later) exists in the request
@@ -87,17 +87,17 @@ async def create_or_patch(
 
 @router.post(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=mlrun.api.schemas.ModelEndpoint,
+    response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def create_model_endpoint(
     project: str,
     endpoint_id: str,
-    model_endpoint: mlrun.api.schemas.ModelEndpoint,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-) -> mlrun.api.schemas.ModelEndpoint:
+) -> mlrun.common.schemas.ModelEndpoint:
     """
     Create a DB record of a given `ModelEndpoint` object.
 
@@ -113,10 +113,10 @@ async def create_model_endpoint(
     """
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.api.schemas.AuthorizationAction.store,
+        action=mlrun.common.schemas.AuthorizationAction.store,
         auth_info=auth_info,
     )
 
@@ -139,16 +139,16 @@ async def create_model_endpoint(
 
 @router.patch(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=mlrun.api.schemas.ModelEndpoint,
+    response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def patch_model_endpoint(
     project: str,
     endpoint_id: str,
     attributes: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> mlrun.api.schemas.ModelEndpoint:
+) -> mlrun.common.schemas.ModelEndpoint:
     """
     Update a DB record of a given `ModelEndpoint` object.
 
@@ -168,10 +168,10 @@ async def patch_model_endpoint(
     """
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.api.schemas.AuthorizationAction.update,
+        action=mlrun.common.schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
 
@@ -194,7 +194,7 @@ async def patch_model_endpoint(
 async def delete_model_endpoint(
     project: str,
     endpoint_id: str,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -208,10 +208,10 @@ async def delete_model_endpoint(
     """
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
-        action=mlrun.api.schemas.AuthorizationAction.delete,
+        action=mlrun.common.schemas.AuthorizationAction.delete,
         auth_info=auth_info,
     )
 
@@ -224,7 +224,7 @@ async def delete_model_endpoint(
 
 @router.get(
     "/projects/{project}/model-endpoints",
-    response_model=mlrun.api.schemas.ModelEndpointList,
+    response_model=mlrun.common.schemas.ModelEndpointList,
 )
 async def list_model_endpoints(
     project: str,
@@ -236,10 +236,10 @@ async def list_model_endpoints(
     metrics: List[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
     uids: List[str] = Query(None, alias="uid"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> mlrun.api.schemas.ModelEndpointList:
+) -> mlrun.common.schemas.ModelEndpointList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
     labels or top level. By default, when no filters are applied, all available endpoints for the given project will be
@@ -284,7 +284,7 @@ async def list_model_endpoints(
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
-        action=mlrun.api.schemas.AuthorizationAction.read,
+        action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
 
@@ -302,7 +302,7 @@ async def list_model_endpoints(
         uids=uids,
     )
     allowed_endpoints = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (
             _endpoint.metadata.project,
@@ -317,7 +317,7 @@ async def list_model_endpoints(
 
 @router.get(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=mlrun.api.schemas.ModelEndpoint,
+    response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def get_model_endpoint(
     project: str,
@@ -326,10 +326,10 @@ async def get_model_endpoint(
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> mlrun.api.schemas.ModelEndpoint:
+) -> mlrun.common.schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
 
@@ -356,10 +356,10 @@ async def get_model_endpoint(
     :return:  A `ModelEndpoint` object.
     """
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
 

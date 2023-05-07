@@ -19,7 +19,7 @@ import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -317,7 +317,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
-    kind = mlrun.api.schemas.ObjectKind.feature_set.value
+    kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -529,7 +529,7 @@ class FeatureSet(ModelObj):
         :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
-            self, mlrun.api.schemas.AuthorizationAction.delete
+            self, mlrun.common.schemas.AuthorizationAction.delete
         )
 
         purge_targets = self._reload_and_get_status_targets(

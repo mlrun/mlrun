@@ -33,7 +33,7 @@ import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
 import tests.api.api.utils
-from mlrun.api.schemas import AuthInfo
+from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
@@ -152,7 +152,7 @@ def test_submit_job_auto_mount(
         "V3IO_USERNAME": username,
         "V3IO_ACCESS_KEY": (
             secret_name,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
@@ -182,7 +182,7 @@ def test_submit_job_ensure_function_has_auth_set(
     expected_env_vars = {
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
             secret_name,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
@@ -345,7 +345,7 @@ def test_submit_job_with_hyper_params_file(
     )
 
     async def auth_info_mock(*args, **kwargs):
-        return mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
+        return mlrun.common.schemas.AuthInfo(username="user", data_session=access_key)
 
     # Create test-specific mocks
     monkeypatch.setattr(
@@ -534,7 +534,7 @@ def _create_submit_job_body(function, project, with_output_path=True):
 
 def _create_submit_job_body_with_schedule(function, project):
     job_body = _create_submit_job_body(function, project)
-    job_body["schedule"] = mlrun.api.schemas.ScheduleCronTrigger(year=1999).dict()
+    job_body["schedule"] = mlrun.common.schemas.ScheduleCronTrigger(year=1999).dict()
     return job_body
 
 

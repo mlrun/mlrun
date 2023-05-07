@@ -11,20 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+
+import enum
 
 
-import mlrun.api.utils.helpers
+# TODO: From python 3.11 StrEnum is built-in and this will not be needed
+class StrEnum(str, enum.Enum):
+    def __str__(self):
+        return self.value
 
-
-class NotificationSeverity(mlrun.api.utils.helpers.StrEnum):
-    INFO = "info"
-    DEBUG = "debug"
-    VERBOSE = "verbose"
-    WARNING = "warning"
-    ERROR = "error"
-
-
-class NotificationStatus(mlrun.api.utils.helpers.StrEnum):
-    PENDING = "pending"
-    SENT = "sent"
-    ERROR = "error"
+    def __repr__(self):
+        return self.value

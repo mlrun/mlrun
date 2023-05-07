@@ -24,12 +24,12 @@ from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex
-
-from ..api.schemas import (
+from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
+
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
@@ -1115,7 +1115,7 @@ class KubeResource(BaseRuntime):
         The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
         by default it's set to **prevent**
 
-        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
         preemptible_mode = PreemptionModes(mode)
         self.spec.preemption_mode = preemptible_mode.value
@@ -1124,7 +1124,7 @@ class KubeResource(BaseRuntime):
         """
         Set security context for the pod.
         For Iguazio we handle security context internally -
-        see mlrun.api.schemas.function.SecurityContextEnrichmentModes
+        see mlrun.common.schemas.function.SecurityContextEnrichmentModes
 
         Example:
 

@@ -439,7 +439,7 @@ class RunDBMock:
 
     def verify_authorization(
         self,
-        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass
 

@@ -15,6 +15,9 @@ import typing
 
 import kubernetes.client
 
+import mlrun.common.schemas
+import mlrun.errors
+
 from .config import config as mlconfig
 
 _running_inside_kubernetes_cluster = None
@@ -37,7 +40,7 @@ def generate_preemptible_node_selector_requirements(
     """
     Generate node selector requirements based on the pre-configured node selector of the preemptible nodes.
     node selector operator represents a key's relationship to a set of values.
-    Valid operators are listed in :py:class:`~mlrun.api.schemas.NodeSelectorOperator`
+    Valid operators are listed in :py:class:`~mlrun.common.schemas.NodeSelectorOperator`
     :param node_selector_operator: The operator of V1NodeSelectorRequirement
     :return: List[V1NodeSelectorRequirement]
     """
@@ -67,12 +70,9 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
     :return: List contains one nodeSelectorTerm with multiple expressions.
     """
-    # import here to avoid circular imports
-    from mlrun.api.schemas import NodeSelectorOperator
-
     # compile affinities with operator NotIn to make sure pods are not running on preemptible nodes.
     node_selector_requirements = generate_preemptible_node_selector_requirements(
-        NodeSelectorOperator.node_selector_op_not_in.value
+        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_not_in.value
     )
     return [
         kubernetes.client.V1NodeSelectorTerm(
@@ -90,14 +90,11 @@ def generate_preemptible_nodes_affinity_terms() -> typing.List[
     then the pod can be scheduled onto a node if at least one of the nodeSelectorTerms can be satisfied.
     :return: List of nodeSelectorTerms associated with the preemptible nodes.
     """
-    # import here to avoid circular imports
-    from mlrun.api.schemas import NodeSelectorOperator
-
     node_selector_terms = []
 
     # compile affinities with operator In so pods could schedule on at least one of the preemptible nodes.
     node_selector_requirements = generate_preemptible_node_selector_requirements(
-        NodeSelectorOperator.node_selector_op_in.value
+        mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
     )
     for expression in node_selector_requirements:
         node_selector_terms.append(

@@ -31,9 +31,9 @@ from nuclio.triggers import V3IOStreamTrigger
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
+from mlrun.common.schemas import AuthInfo
 from mlrun.db import RunDBError
 
-from ..api.schemas import AuthInfo
 from ..config import config as mlconf
 from ..errors import err_to_str
 from ..kfpops import deploy_op
@@ -661,7 +661,7 @@ class RemoteRuntime(KubeResource):
         The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
         by default it's set to **prevent**
 
-        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
         super().with_preemption_mode(mode=mode)
 

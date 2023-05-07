@@ -25,8 +25,8 @@ import starlette.datastructures
 from aiohttp import ClientConnectorError
 from aiohttp.test_utils import TestClient, TestServer
 
-import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 from tests.common_fixtures import aioresponses_mock
@@ -72,10 +72,12 @@ async def test_get_background_task_from_chief_success(
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
-    background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.succeeded
+    background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
     aioresponses_mock.get(
@@ -86,7 +88,8 @@ async def test_get_background_task_from_chief_success(
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
     assert background_task.metadata.created == background_schema.metadata.created
     assert background_task.metadata.updated == background_schema.metadata.updated
@@ -159,10 +162,12 @@ async def test_trigger_migration_succeeded(
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
-    background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.succeeded
+    background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
     aioresponses_mock.post(
@@ -175,7 +180,8 @@ async def test_trigger_migration_succeeded(
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
     assert background_task.metadata.created == background_schema.metadata.created
     assert background_task.metadata.updated == background_schema.metadata.updated
@@ -229,12 +235,14 @@ async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
     # in internal background tasks, failed state is only when the background task doesn't exists in memory,
     # which means the api was restarted
-    background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.failed
+    background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.failed
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
     aioresponses_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
@@ -243,29 +251,31 @@ async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
 
 def _transform_response_to_background_task(response: fastapi.Response):
     decoded_body = response.body.decode("utf-8")
     body_dict = json.loads(decoded_body)
-    return mlrun.api.schemas.BackgroundTask(**body_dict)
+    return mlrun.common.schemas.BackgroundTask(**body_dict)
 
 
 def _generate_background_task(
     background_task_name,
-    state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
-) -> mlrun.api.schemas.BackgroundTask:
+    state: mlrun.common.schemas.BackgroundTaskState = mlrun.common.schemas.BackgroundTaskState.running,
+) -> mlrun.common.schemas.BackgroundTask:
     now = datetime.datetime.utcnow()
-    return mlrun.api.schemas.BackgroundTask(
-        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+    return mlrun.common.schemas.BackgroundTask(
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(
             name=background_task_name,
             created=now,
             updated=now,
         ),
-        status=mlrun.api.schemas.BackgroundTaskStatus(state=state.value),
-        spec=mlrun.api.schemas.BackgroundTaskSpec(),
+        status=mlrun.common.schemas.BackgroundTaskStatus(state=state.value),
+        spec=mlrun.common.schemas.BackgroundTaskSpec(),
     )
 
 

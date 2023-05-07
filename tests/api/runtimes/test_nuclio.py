@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.crud.runtimes.nuclio.helpers
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.function
 import mlrun.runtimes.pod
@@ -524,7 +524,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
-        auth_info = mlrun.api.schemas.AuthInfo()
+        auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
@@ -551,17 +551,17 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         user_unix_id = 1000
-        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=user_unix_id)
         mlrun.mlconf.igz_version = "3.6"
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         function = self._generate_runtime(self.runtime_kind)
         _build_function(db, auth_info, function)
         self.assert_security_context({})
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         function = self._generate_runtime(self.runtime_kind)
         _build_function(db, auth_info, function)
@@ -577,7 +577,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         service_account_name = "default-sa"
         mlconf.function.spec.service_account.default = service_account_name
-        auth_info = mlrun.api.schemas.AuthInfo()
+        auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
@@ -1370,20 +1370,20 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)
         assert fn.spec.preemption_mode == "prevent"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.constrain.value)
         assert fn.spec.preemption_mode == "constrain"
 
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
         mlconf.nuclio_version = "1.7.5"
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-            fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+            fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
 
         mlconf.nuclio_version = "1.8.6"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
     def test_preemption_mode_without_preemptible_configuration(

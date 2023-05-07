@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.config import Config, config, default_config
 from mlrun.runtimes.utils import resolve_mpijob_crd_version, resolve_nuclio_version
@@ -25,7 +25,7 @@ class ClientSpec(
         self, client_version: str = None, client_python_version: str = None
     ):
         mpijob_crd_version = resolve_mpijob_crd_version()
-        return mlrun.api.schemas.ClientSpec(
+        return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,
             docker_registry=config.httpdb.builder.docker_registry,

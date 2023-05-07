@@ -21,7 +21,7 @@ import pandas as pd
 import sqlalchemy as db
 
 import mlrun
-import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.model_monitoring.model_endpoint
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients

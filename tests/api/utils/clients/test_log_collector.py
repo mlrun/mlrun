@@ -21,8 +21,8 @@ import pytest
 import sqlalchemy.orm.session
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
+import mlrun.common.schemas
 
 
 class BaseLogCollectorResponse:
@@ -67,7 +67,7 @@ class HasLogsResponse:
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
-mlrun.mlconf.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
+mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
 
 class TestLogCollector:

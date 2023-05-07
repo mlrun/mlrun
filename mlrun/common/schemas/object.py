@@ -17,7 +17,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra
 
-import mlrun.api.utils.helpers
+import mlrun.common.types
 
 
 class ObjectMetadata(BaseModel):
@@ -69,7 +69,7 @@ class ObjectRecord(BaseModel):
         orm_mode = True
 
 
-class ObjectKind(mlrun.api.utils.helpers.StrEnum):
+class ObjectKind(mlrun.common.types.StrEnum):
     project = "project"
     feature_set = "FeatureSet"
     background_task = "BackgroundTask"

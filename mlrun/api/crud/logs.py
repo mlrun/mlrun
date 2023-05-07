@@ -21,9 +21,9 @@ from http import HTTPStatus
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector as log_collector
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
@@ -85,7 +85,7 @@ class Logs(
         log_stream = None
         if (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.best_effort
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
             and source == LogSources.AUTO
         ):
             try:
@@ -112,7 +112,7 @@ class Logs(
                 )
         elif (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.sidecar
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
             and source == LogSources.AUTO
         ):
             log_stream = self._get_logs_from_logs_collector(
@@ -123,7 +123,7 @@ class Logs(
             )
         elif (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.legacy
+            == mlrun.common.schemas.LogsCollectorMode.legacy
             or source != LogSources.AUTO
         ):
             log_stream = self._get_logs_legacy_method_generator_wrapper(

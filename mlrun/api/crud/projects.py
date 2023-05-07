@@ -55,6 +55,7 @@ class Projects(
             state=project.status.state,
             function_amount=len(project.spec.functions or []),
             artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
         )
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
 
@@ -73,6 +74,7 @@ class Projects(
             state=project.status.state,
             function_amount=len(project.spec.functions or []),
             artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
         )
         mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
 

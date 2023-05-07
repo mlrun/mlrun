@@ -579,7 +579,6 @@ class RunDBInterface(ABC):
     ):
         pass
 
-    @abstractmethod
     def get_builder_status(
         self,
         func: "mlrun.runtimes.BaseRuntime",

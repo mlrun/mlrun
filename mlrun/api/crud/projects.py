@@ -53,8 +53,8 @@ class Projects(
             created_time=project.metadata.created,
             desired_state=project.spec.desired_state,
             state=project.status.state,
-            function_amount=len(project.spec.functions),
-            artifact_amount=len(project.spec.artifacts),
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
         )
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
 
@@ -71,8 +71,8 @@ class Projects(
             created_time=project.metadata.created,
             desired_state=project.spec.desired_state,
             state=project.status.state,
-            function_amount=len(project.spec.functions),
-            artifact_amount=len(project.spec.artifacts),
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
         )
         mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
 

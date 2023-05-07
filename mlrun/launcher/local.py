@@ -97,9 +97,14 @@ class ClientLocalLauncher(BaseLauncher):
 
         # sanity check
         elif runtime._is_remote:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Remote function cannot be executed locally"
+            message = "Remote function cannot be executed locally"
+            logger.error(
+                message,
+                is_remote=runtime._is_remote,
+                local=self._is_run_local,
+                runtime=runtime.to_dict(),
             )
+            raise mlrun.errors.MLRunRuntimeError(message)
 
         run = self._enrich_run(
             runtime=runtime,

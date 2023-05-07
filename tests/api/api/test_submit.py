@@ -108,9 +108,9 @@ def pod_create_mock():
         update_run_state_orig_function
     )
     # mlrun.runtimes.base.BaseRuntime._wrap_run_result = wrap_run_result_orig_function
-    # mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
-    #     authenticate_request_orig_function
-    # )
+    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+        authenticate_request_orig_function
+    )
 
 
 def test_submit_job_auto_mount(

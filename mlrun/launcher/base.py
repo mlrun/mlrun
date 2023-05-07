@@ -20,12 +20,12 @@ from typing import Any, Dict, List, Optional, Union
 
 import IPython
 
+import mlrun.config
 import mlrun.errors
-import mlrun.model
-import mlrun.runtimes
 import mlrun.kfpops
 import mlrun.lists
-import mlrun.config
+import mlrun.model
+import mlrun.runtimes
 from mlrun.utils import logger
 
 run_modes = ["pass"]
@@ -357,9 +357,12 @@ class BaseLauncher(abc.ABC):
         pass
 
     def _wrap_run_result(
-            self,
-            runtime: "mlrun.runtimes.BaseRuntime",
-         result: dict, run: "mlrun.run.RunObject", schedule=None, err=None
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        result: dict,
+        run: "mlrun.run.RunObject",
+        schedule=None,
+        err=None,
     ):
         # if the purpose was to schedule (and not to run) nothing to wrap
         if schedule:

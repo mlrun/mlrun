@@ -318,8 +318,9 @@ class CommunityEditionDeployer:
             "--namespace",
             self._namespace,
             "upgrade",
-            "--install",
             Constants.helm_release_name,
+            Constants.helm_chart_name,
+            "--install",
             "--wait",
             "--timeout",
             "960s",
@@ -358,8 +359,6 @@ class CommunityEditionDeployer:
                     value,
                 ]
             )
-
-        helm_arguments.append(Constants.helm_chart_name)
 
         if chart_version:
             self._logger.warning(

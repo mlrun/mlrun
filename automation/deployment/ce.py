@@ -17,7 +17,7 @@ import typing
 
 import click
 
-from automation.deployment.deployer import CommunityEditionDeployer
+from deployer import CommunityEditionDeployer
 
 common_options = [
     click.option(

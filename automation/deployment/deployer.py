@@ -30,6 +30,7 @@ class Constants:
     default_registry_secret_name = "registry-credentials"
     mlrun_image_values = ["mlrun.api", "mlrun.ui", "jupyterNotebook"]
     disableable_deployments = ["pipelines", "kube-prometheus-stack", "spark-operator"]
+    minikube_registry_port = 5000
 
 
 class CommunityEditionDeployer:
@@ -88,6 +89,7 @@ class CommunityEditionDeployer:
         :param disable_pipelines: Disable the deployment of the pipelines component
         :param disable_prometheus_stack: Disable the deployment of the Prometheus stack component
         :param disable_spark_operator: Disable the deployment of the Spark operator component
+        :param skip_registry_validation: Skip the validation of the registry URL
         :param devel: Deploy the development version of the helm chart
         :param minikube: Deploy the helm chart with minikube configuration
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
@@ -100,6 +102,7 @@ class CommunityEditionDeployer:
             registry_password,
             registry_secret_name,
             skip_registry_validation,
+            minikube,
         )
         helm_arguments = self._generate_helm_install_arguments(
             registry_url,
@@ -240,6 +243,7 @@ class CommunityEditionDeployer:
         registry_password: str = None,
         registry_secret_name: str = None,
         skip_registry_validation: bool = False,
+        minikube: bool = False,
     ) -> None:
         """
         Prepare the prerequisites for the MLRun CE stack deployment.
@@ -248,8 +252,13 @@ class CommunityEditionDeployer:
         :param registry_username: Username of the registry to use (not required if registry_secret_name is provided)
         :param registry_password: Password of the registry to use (not required if registry_secret_name is provided)
         :param registry_secret_name: Name of the registry secret to use
+        :param skip_registry_validation: Skip the validation of the registry URL
+        :param minikube: Whether to deploy on minikube
         """
         self._logger.info("Preparing prerequisites")
+        skip_registry_validation = skip_registry_validation or (
+            registry_url is None and minikube
+        )
         if not skip_registry_validation:
             self._validate_registry_url(registry_url)
 
@@ -407,14 +416,16 @@ class CommunityEditionDeployer:
         :return: Dictionary of helm values
         """
         host_ip = self._get_minikube_ip() if minikube else self._get_host_ip()
+        if not registry_url and minikube:
+            registry_url = f"{host_ip}:{Constants.minikube_registry_port}"
 
         helm_values = {
             "global.registry.url": registry_url,
             "global.registry.secretName": f'"{registry_secret_name}"'  # adding quotes in case of empty string
             if registry_secret_name is not None
             else Constants.default_registry_secret_name,
-            "global.externalHostAddress": host_ip.decode("utf-8"),
-            "nuclio.dashboard.externalIPAddresses[0]": host_ip.decode("utf-8"),
+            "global.externalHostAddress": host_ip,
+            "nuclio.dashboard.externalIPAddresses[0]": host_ip,
         }
 
         if mlrun_version:
@@ -525,27 +536,36 @@ class CommunityEditionDeployer:
 
         return platform.processor()
 
-    def _get_host_ip(self) -> bytes:
+    def _get_host_ip(self) -> str:
         """
         Get the host machine IP.
         :return: Host IP
         """
         if platform.system() == "Darwin":
-            return run_command("ipconfig", ["getifaddr", "en0"], live=False)[0].strip()
+            return (
+                run_command("ipconfig", ["getifaddr", "en0"], live=False)[0]
+                .strip()
+                .decode("utf-8")
+            )
         elif platform.system() == "Linux":
-            return run_command("hostname", ["-I"], live=False)[0].split()[0].strip()
+            return (
+                run_command("hostname", ["-I"], live=False)[0]
+                .split()[0]
+                .strip()
+                .decode("utf-8")
+            )
         else:
             raise NotImplementedError(
                 f"Platform {platform.system()} is not supported for this action"
             )
 
     @staticmethod
-    def _get_minikube_ip() -> bytes:
+    def _get_minikube_ip() -> str:
         """
         Get the minikube IP.
         :return: Minikube IP
         """
-        return run_command("minikube", ["ip"], live=False)[0].strip()
+        return run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
 
     def _validate_registry_url(self, registry_url):
         """

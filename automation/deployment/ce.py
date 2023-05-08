@@ -87,7 +87,6 @@ def cli():
 @click.option(
     "--registry-url",
     help="URL of the container registry to use for storing images",
-    required=True,
 )
 @click.option(
     "--registry-username",

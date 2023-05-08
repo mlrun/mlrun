@@ -441,7 +441,7 @@ class CommunityEditionDeployer:
             helm_values.update(
                 {
                     "mlrun.httpDB.dbType": "sqlite",
-                    "mlrun.httpDB.dirPath": {dir_path},
+                    "mlrun.httpDB.dirPath": dir_path,
                     "mlrun.httpDB.dsn": f"sqlite:///{sqlite}?check_same_thread=false",
                     "mlrun.httpDB.oldDsn": "",
                 }

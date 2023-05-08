@@ -146,6 +146,11 @@ def cli():
     is_flag=True,
     help="Upgrade the existing mlrun installation",
 )
+@click.option(
+    "--skip-registry-validation",
+    is_flag=True,
+    help="Skip validation of the registry URL",
+)
 @add_options(common_options)
 @add_options(common_deployment_options)
 def deploy(
@@ -164,6 +169,7 @@ def deploy(
     disable_pipelines: bool = False,
     disable_prometheus_stack: bool = False,
     disable_spark_operator: bool = False,
+    skip_registry_validation: bool = False,
     sqlite: str = None,
     devel: bool = False,
     minikube: bool = False,
@@ -188,6 +194,7 @@ def deploy(
         disable_pipelines=disable_pipelines,
         disable_prometheus_stack=disable_prometheus_stack,
         disable_spark_operator=disable_spark_operator,
+        skip_registry_validation=skip_registry_validation,
         devel=devel,
         minikube=minikube,
         sqlite=sqlite,

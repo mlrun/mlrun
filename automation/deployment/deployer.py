@@ -67,6 +67,7 @@ class CommunityEditionDeployer:
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        skip_registry_validation: bool = False,
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
@@ -94,7 +95,11 @@ class CommunityEditionDeployer:
         :param custom_values: List of custom values to pass to the helm chart
         """
         self._prepare_prerequisites(
-            registry_url, registry_username, registry_password, registry_secret_name
+            registry_url,
+            registry_username,
+            registry_password,
+            registry_secret_name,
+            skip_registry_validation,
         )
         helm_arguments = self._generate_helm_install_arguments(
             registry_url,
@@ -227,6 +232,7 @@ class CommunityEditionDeployer:
         registry_username: str = None,
         registry_password: str = None,
         registry_secret_name: str = None,
+        skip_registry_validation: bool = False,
     ) -> None:
         """
         Prepare the prerequisites for the MLRun CE stack deployment.
@@ -237,7 +243,8 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to use
         """
         self._logger.info("Preparing prerequisites")
-        self._validate_registry_url(registry_url)
+        if not skip_registry_validation:
+            self._validate_registry_url(registry_url)
 
         self._logger.info("Creating namespace", namespace=self._namespace)
         run_command("kubectl", ["create", "namespace", self._namespace])

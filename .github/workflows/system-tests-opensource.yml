@@ -181,6 +181,7 @@ jobs:
             --namespace=${NAMESPACE} \
             --registry-url=$(minikube ip):5000 \
             --registry-secret-name="" \
+            --skip-registry-validation \
             --disable-prometheus-stack \
             --sqlite \
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \

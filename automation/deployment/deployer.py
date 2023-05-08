@@ -254,7 +254,7 @@ class CommunityEditionDeployer:
             self._create_registry_credentials_secret(
                 registry_url, registry_username, registry_password
             )
-        elif registry_secret_name:
+        elif registry_secret_name is not None:
             self._logger.warning(
                 "Using existing registry secret", secret_name=registry_secret_name
             )
@@ -393,14 +393,15 @@ class CommunityEditionDeployer:
         :param minikube: Use minikube
         :return: Dictionary of helm values
         """
+        host_ip = self._get_minikube_ip() if minikube else self._get_host_ip()
 
         helm_values = {
             "global.registry.url": registry_url,
-            "global.registry.secretName": registry_secret_name
-            or Constants.default_registry_secret_name,
-            "global.externalHostAddress": self._get_minikube_ip()
-            if minikube
-            else self._get_host_ip(),
+            "global.registry.secretName": f'"{registry_secret_name}"'  # adding quotes in case of empty string
+            if registry_secret_name is not None
+            else Constants.default_registry_secret_name,
+            "global.externalHostAddress": host_ip.decode("utf-8"),
+            "nuclio.dashboard.externalIPAddresses[0]": host_ip.decode("utf-8"),
         }
 
         if mlrun_version:
@@ -468,7 +469,9 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to use
         """
         registry_secret_name = (
-            registry_secret_name or Constants.default_registry_secret_name
+            registry_secret_name
+            if registry_secret_name is not None
+            else Constants.default_registry_secret_name
         )
         self._logger.debug(
             "Creating registry credentials secret",
@@ -509,7 +512,7 @@ class CommunityEditionDeployer:
 
         return platform.processor()
 
-    def _get_host_ip(self) -> str:
+    def _get_host_ip(self) -> bytes:
         """
         Get the host machine IP.
         :return: Host IP
@@ -524,7 +527,7 @@ class CommunityEditionDeployer:
             )
 
     @staticmethod
-    def _get_minikube_ip() -> str:
+    def _get_minikube_ip() -> bytes:
         """
         Get the minikube IP.
         :return: Minikube IP

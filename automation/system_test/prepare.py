@@ -341,8 +341,8 @@ class SystemTestPreparer:
         # make provctl executable
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
         self._run_command("git", args=["clone", urlscript, "dev_utilities"])
-        self._run_command("python3", args=["uninstall", "--redis", "--mysql", "--redisinsight", "--kafka"], workdir="/home/iguazio/dev_utilities")
-        self._run_command("python3", args=["install", "--redis", "--mysql", "--redisinsight", "--kafka", ipaddr], workdir="/home/iguazio/dev_utilities")
+        self._run_command("python3", args=["dev_utilities.py", "uninstall", "--redis", "--mysql", "--redisinsight", "--kafka"], workdir="/home/iguazio/dev_utilities")
+        self._run_command("python3", args=["dev_utilities.py", "install", "--redis", "--mysql", "--redisinsight", "--kafka", ipaddr], workdir="/home/iguazio/dev_utilities")
 
 
 

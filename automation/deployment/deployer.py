@@ -30,6 +30,7 @@ class Constants:
     default_registry_secret_name = "registry-credentials"
     mlrun_image_values = ["mlrun.api", "mlrun.ui", "jupyterNotebook"]
     disableable_deployments = ["pipelines", "kube-prometheus-stack", "spark-operator"]
+    minikube_registry_port = 5000
 
 
 class CommunityEditionDeployer:
@@ -67,6 +68,7 @@ class CommunityEditionDeployer:
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        skip_registry_validation: bool = False,
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
@@ -87,6 +89,7 @@ class CommunityEditionDeployer:
         :param disable_pipelines: Disable the deployment of the pipelines component
         :param disable_prometheus_stack: Disable the deployment of the Prometheus stack component
         :param disable_spark_operator: Disable the deployment of the Spark operator component
+        :param skip_registry_validation: Skip the validation of the registry URL
         :param devel: Deploy the development version of the helm chart
         :param minikube: Deploy the helm chart with minikube configuration
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
@@ -94,7 +97,12 @@ class CommunityEditionDeployer:
         :param custom_values: List of custom values to pass to the helm chart
         """
         self._prepare_prerequisites(
-            registry_url, registry_username, registry_password, registry_secret_name
+            registry_url,
+            registry_username,
+            registry_password,
+            registry_secret_name,
+            skip_registry_validation,
+            minikube,
         )
         helm_arguments = self._generate_helm_install_arguments(
             registry_url,
@@ -117,7 +125,14 @@ class CommunityEditionDeployer:
         self._logger.info(
             "Installing helm chart with arguments", helm_arguments=helm_arguments
         )
-        run_command("helm", helm_arguments)
+        stdout, stderr, exit_status = run_command("helm", helm_arguments)
+        if exit_status != 0:
+            self._logger.error(
+                "Failed to install helm chart",
+                stderr=stderr,
+                exit_status=exit_status,
+            )
+            raise RuntimeError("Failed to install helm chart")
 
         self._teardown()
 
@@ -227,6 +242,8 @@ class CommunityEditionDeployer:
         registry_username: str = None,
         registry_password: str = None,
         registry_secret_name: str = None,
+        skip_registry_validation: bool = False,
+        minikube: bool = False,
     ) -> None:
         """
         Prepare the prerequisites for the MLRun CE stack deployment.
@@ -235,9 +252,15 @@ class CommunityEditionDeployer:
         :param registry_username: Username of the registry to use (not required if registry_secret_name is provided)
         :param registry_password: Password of the registry to use (not required if registry_secret_name is provided)
         :param registry_secret_name: Name of the registry secret to use
+        :param skip_registry_validation: Skip the validation of the registry URL
+        :param minikube: Whether to deploy on minikube
         """
         self._logger.info("Preparing prerequisites")
-        self._validate_registry_url(registry_url)
+        skip_registry_validation = skip_registry_validation or (
+            registry_url is None and minikube
+        )
+        if not skip_registry_validation:
+            self._validate_registry_url(registry_url)
 
         self._logger.info("Creating namespace", namespace=self._namespace)
         run_command("kubectl", ["create", "namespace", self._namespace])
@@ -254,7 +277,7 @@ class CommunityEditionDeployer:
             self._create_registry_credentials_secret(
                 registry_url, registry_username, registry_password
             )
-        elif registry_secret_name:
+        elif registry_secret_name is not None:
             self._logger.warning(
                 "Using existing registry secret", secret_name=registry_secret_name
             )
@@ -304,8 +327,9 @@ class CommunityEditionDeployer:
             "--namespace",
             self._namespace,
             "upgrade",
-            "--install",
             Constants.helm_release_name,
+            Constants.helm_chart_name,
+            "--install",
             "--wait",
             "--timeout",
             "960s",
@@ -344,8 +368,6 @@ class CommunityEditionDeployer:
                     value,
                 ]
             )
-
-        helm_arguments.append(Constants.helm_chart_name)
 
         if chart_version:
             self._logger.warning(
@@ -393,14 +415,17 @@ class CommunityEditionDeployer:
         :param minikube: Use minikube
         :return: Dictionary of helm values
         """
+        host_ip = self._get_minikube_ip() if minikube else self._get_host_ip()
+        if not registry_url and minikube:
+            registry_url = f"{host_ip}:{Constants.minikube_registry_port}"
 
         helm_values = {
             "global.registry.url": registry_url,
-            "global.registry.secretName": registry_secret_name
-            or Constants.default_registry_secret_name,
-            "global.externalHostAddress": self._get_minikube_ip()
-            if minikube
-            else self._get_host_ip(),
+            "global.registry.secretName": f'"{registry_secret_name}"'  # adding quotes in case of empty string
+            if registry_secret_name is not None
+            else Constants.default_registry_secret_name,
+            "global.externalHostAddress": host_ip,
+            "nuclio.dashboard.externalIPAddresses[0]": host_ip,
         }
 
         if mlrun_version:
@@ -433,9 +458,9 @@ class CommunityEditionDeployer:
             helm_values.update(
                 {
                     "mlrun.httpDB.dbType": "sqlite",
-                    "mlrun.httpDB.dirPath": {dir_path},
+                    "mlrun.httpDB.dirPath": dir_path,
                     "mlrun.httpDB.dsn": f"sqlite:///{sqlite}?check_same_thread=false",
-                    "mlrun.httpDB.oldDsn": "",
+                    "mlrun.httpDB.oldDsn": '""',
                 }
             )
 
@@ -468,7 +493,9 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to use
         """
         registry_secret_name = (
-            registry_secret_name or Constants.default_registry_secret_name
+            registry_secret_name
+            if registry_secret_name is not None
+            else Constants.default_registry_secret_name
         )
         self._logger.debug(
             "Creating registry credentials secret",
@@ -515,9 +542,18 @@ class CommunityEditionDeployer:
         :return: Host IP
         """
         if platform.system() == "Darwin":
-            return run_command("ipconfig", ["getifaddr", "en0"], live=False)[0].strip()
+            return (
+                run_command("ipconfig", ["getifaddr", "en0"], live=False)[0]
+                .strip()
+                .decode("utf-8")
+            )
         elif platform.system() == "Linux":
-            return run_command("hostname", ["-I"], live=False)[0].split()[0].strip()
+            return (
+                run_command("hostname", ["-I"], live=False)[0]
+                .split()[0]
+                .strip()
+                .decode("utf-8")
+            )
         else:
             raise NotImplementedError(
                 f"Platform {platform.system()} is not supported for this action"
@@ -529,7 +565,7 @@ class CommunityEditionDeployer:
         Get the minikube IP.
         :return: Minikube IP
         """
-        return run_command("minikube", ["ip"], live=False)[0].strip()
+        return run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
 
     def _validate_registry_url(self, registry_url):
         """

@@ -136,6 +136,7 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
+        self._install_devutilities
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -332,7 +333,7 @@ class SystemTestPreparer:
         )
 
 
-    def _download_provctl(self):
+    def _install_devutilities(self):
 
         urlscript= ("https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git")
         ipaddr = ("--ipaddr " + os.environ.get('IP_ADDR_PREFIX'))

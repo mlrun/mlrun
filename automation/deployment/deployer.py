@@ -122,7 +122,14 @@ class CommunityEditionDeployer:
         self._logger.info(
             "Installing helm chart with arguments", helm_arguments=helm_arguments
         )
-        run_command("helm", helm_arguments)
+        stdout, stderr, exit_status = run_command("helm", helm_arguments)
+        if exit_status != 0:
+            self._logger.error(
+                "Failed to install helm chart",
+                stderr=stderr,
+                exit_status=exit_status,
+            )
+            raise RuntimeError("Failed to install helm chart")
 
         self._teardown()
 
@@ -443,7 +450,7 @@ class CommunityEditionDeployer:
                     "mlrun.httpDB.dbType": "sqlite",
                     "mlrun.httpDB.dirPath": dir_path,
                     "mlrun.httpDB.dsn": f"sqlite:///{sqlite}?check_same_thread=false",
-                    "mlrun.httpDB.oldDsn": "",
+                    "mlrun.httpDB.oldDsn": '""',
                 }
             )
 

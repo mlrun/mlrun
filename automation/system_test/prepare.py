@@ -136,7 +136,7 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
-        self._install_devutilities
+        self._install_devutilities()
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 

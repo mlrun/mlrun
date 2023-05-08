@@ -17,21 +17,32 @@
 
 ## v1.3.1
 
+### New and updated features
+#### Model monitoring
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3041 | CE Model Monitoring now uses Kafka stream instead of V3IO |
-| ML-3373 | `get_offline_features` is now fully supported by the Spark retrieval engine |
+| ML-3041 | CE model monitoring now uses Kafka stream instead of V3IO. |
+
+
+#### Feature store
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3373 | `get_offline_features` is now fully supported by the Spark retrieval engine. |
+
 
 ### Closed issues
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3443 | Spark ingestion engine now supports more than two keys in an online target |
-| ML-3586 | Can now deploy a Spark function with git repo |
-| ML-3631 | Running a function with source from gitlab is processed successfully on authentication |
-| ML-3682 | Running a Gitlab CI/CD pipeline to run a Kubeflow pipeline to deploy a serving function is successful |
-| ML-3713 | User-configured job spec parameter in a Kubeflow is processed successfully |
-| ML-3652 | V3IO_API is now inferred from DBPATH |
+| ML-3443 | The Spark ingestion engine now supports more than two keys in an online target. [View in Git](https://github.com/mlrun/mlrun/pull/3379).|
+| ML-3586 | Spark functions can be deployed with a git repo. [View in Git](https://github.com/mlrun/mlrun/pull/???????????). |
+| ML-3631 | Running a function with source from gitlab is authenticated successfully. [View in Git](https://github.com/mlrun/mlrun/pull/3297). |
+| ML-3713 | User-configured job spec parameter in a Kubeflow is processed successfully. [View in Git](https://github.com/mlrun/mlrun/pull/??????). |
+| ML-3652 | V3IO_API is now inferred from DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
+| ML-3782 | Unauthorized naming for features in online targets. See documentation updates in ???????????????.  [View in Git](https://github.com/mlrun/mlrun/pull/3462). |
+| ML-3743 | EKS configured with ECR builds successfully with AWS credentials as project secret. [View in Git](https://github.com/mlrun/mlrun/pull/3410). |
+| ML-3720 | Resolved the serialization error in ParallelRun Process execution. [View in Git](https://github.com/mlrun/mlrun/pull/3383). |
+
 
 
 ## v1.3.0

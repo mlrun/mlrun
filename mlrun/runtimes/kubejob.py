@@ -44,12 +44,13 @@ class KubejobRuntime(KubeResource):
         if self.spec.image:
             return True
 
-        if self._is_remote_api():
-            db = self._get_db()
-            try:
-                db.get_builder_status(self, logs=False)
-            except Exception:
-                pass
+        db = self._get_db()
+        try:
+            # getting builder status enriches the runtime when it needs to be fetched from the API,
+            # otherwise it's a no-op
+            db.get_builder_status(self, logs=False)
+        except Exception:
+            pass
 
         if self.spec.image:
             return True

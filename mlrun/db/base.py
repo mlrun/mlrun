@@ -578,3 +578,13 @@ class RunDBInterface(ABC):
         self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):
         pass
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        pass

@@ -122,7 +122,19 @@ class TestServingRuntime(TestNuclioRuntime):
             azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
                 "~", "/root"
             )
+            # TODO: Vault: uncomment when vault returns to be relevant
+            # token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
             expected_volumes = [
+                # {
+                #     "volume": {
+                #         "name": "vault-secret",
+                #         "secret": {
+                #             "defaultMode": 420,
+                #             "secretName": self.vault_secret_name,
+                #         },
+                #     },
+                #     "volumeMount": {"name": "vault-secret", "mountPath": token_path},
+                # },
                 {
                     "volume": {
                         "name": "azure-vault-secret",
@@ -145,6 +157,9 @@ class TestServingRuntime(TestNuclioRuntime):
             )
 
             expected_env = {
+                # TODO: Vault: uncomment when vault returns to be relevant
+                # "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+                # "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
                 # For now, just checking the variable exists, later we check specific contents
                 "SERVING_SPEC_ENV": None,
             }
@@ -167,6 +182,11 @@ class TestServingRuntime(TestNuclioRuntime):
         full_inline_secrets["ENV_SECRET1"] = os.environ["ENV_SECRET1"]
         expected_secret_sources = [
             {"kind": "inline", "source": full_inline_secrets},
+            # TODO: Vault: uncomment when vault returns to be relevant
+            # {
+            #     "kind": "vault",
+            #     "source": {"project": self.project, "secrets": self.vault_secrets},
+            # },
             {
                 "kind": "azure_vault",
                 "source": {
@@ -197,8 +217,6 @@ class TestServingRuntime(TestNuclioRuntime):
         # Verify all secrets are in the context
         # for secret_key in self.vault_secrets:
         #     assert server.context.get_secret(secret_key) == self.vault_secret_value
-        # for secret_key in self.vault_secrets:
-        #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         for secret_key in self.inline_secrets:
             assert (
                 server.context.get_secret(secret_key) == self.inline_secrets[secret_key]
@@ -210,6 +228,8 @@ class TestServingRuntime(TestNuclioRuntime):
         expected_response = [
             {"inline_secret1": self.inline_secrets["inline_secret1"]},
             {"ENV_SECRET1": os.environ["ENV_SECRET1"]},
+            # TODO: Vault: uncomment when vault returns to be relevant, and replace the AWS_KEY with the current key
+            # {"AWS_KEY": self.vault_secret_value},
             {"AWS_KEY": None},
         ]
 

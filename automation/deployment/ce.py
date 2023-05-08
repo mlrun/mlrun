@@ -16,7 +16,6 @@ import sys
 import typing
 
 import click
-
 from deployer import CommunityEditionDeployer
 
 common_options = [

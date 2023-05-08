@@ -21,6 +21,7 @@ class EventFieldType:
     VERSIONED_MODEL = "versioned_model"
     MODEL_CLASS = "model_class"
     TIMESTAMP = "timestamp"
+    # `endpoint_id` is deprecated as a field in the model endpoint schema since 1.3.1, replaced by `uid`.
     ENDPOINT_ID = "endpoint_id"
     UID = "uid"
     ENDPOINT_TYPE = "endpoint_type"
@@ -31,7 +32,6 @@ class EventFieldType:
     NAMED_FEATURES = "named_features"
     LABELS = "labels"
     LATENCY = "latency"
-    LABEL_COLUMNS = "label_columns"
     LABEL_NAMES = "label_names"
     PREDICTION = "prediction"
     PREDICTIONS = "predictions"
@@ -41,12 +41,9 @@ class EventFieldType:
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
     METRICS = "metrics"
-    BATCH_TIMESTAMP = "batch_timestamp"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
     DEFAULT_BATCH_INTERVALS = "default_batch_intervals"
-    DEFAULT_BATCH_IMAGE = "default_batch_image"
-    STREAM_IMAGE = "stream_image"
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
@@ -65,7 +62,6 @@ class EventFieldType:
     MONITOR_CONFIGURATION = "monitor_configuration"
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
-    ACCURACY = "accuracy"
 
 
 class EventLiveStats:
@@ -111,4 +107,3 @@ class FileTargetKind:
     STREAM = "stream"
     PARQUET = "parquet"
     LOG_STREAM = "log_stream"
-    DEFAULT_HTTP_SINK = "default_http_sink"

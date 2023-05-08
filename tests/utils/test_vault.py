@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# TODO: Vault: uncomment when vault returns to be relevant
 # import pytest
 #
 # import mlrun

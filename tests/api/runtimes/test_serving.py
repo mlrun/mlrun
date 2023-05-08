@@ -52,6 +52,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
+        # TODO: Vault: uncomment when vault returns to be relevant
         # self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
         # and instead just call the deploy_nuclio_function() API which actually performs the
@@ -192,7 +193,10 @@ class TestServingRuntime(TestNuclioRuntime):
 
         server = function.to_mock_server()
 
+        # TODO: Vault: uncomment when vault returns to be relevant
         # Verify all secrets are in the context
+        # for secret_key in self.vault_secrets:
+        #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         # for secret_key in self.vault_secrets:
         #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         for secret_key in self.inline_secrets:

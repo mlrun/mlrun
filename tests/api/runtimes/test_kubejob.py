@@ -414,7 +414,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    # TODO: revert this once vault is supported again
+    # TODO: Vault: uncomment when vault returns to be relevant
     # def test_run_with_vault_secrets(self, db: Session, client: TestClient):
     #     self._mock_vault_functionality()
     #     runtime = self._generate_runtime()

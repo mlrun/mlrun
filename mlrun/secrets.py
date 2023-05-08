@@ -59,7 +59,7 @@ class SecretsStore:
             for key in source.split(","):
                 k = key.strip()
                 self._secrets[prefix + k] = environ.get(k)
-        # TODO: Vault
+        # TODO: Vault: uncomment when vault returns to be relevant
         # elif kind == "vault":
         #     if isinstance(source, str):
         #         source = literal_eval(source)

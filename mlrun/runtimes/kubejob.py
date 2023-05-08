@@ -287,36 +287,6 @@ class KubejobRuntime(KubeResource):
         print()
         return self.status.state
 
-    def builder_status(self, watch=True, logs=True):
-        if self._is_remote_api():
-            return self._build_watch(watch, logs)
-
-        else:
-            pod = self.status.build_pod
-            if not self.status.state == "ready" and pod:
-                k8s = self._get_k8s()
-                status = k8s.get_pod_status(pod)
-                if logs:
-                    if watch:
-                        status = k8s.watch(pod)
-                    else:
-                        resp = k8s.logs(pod)
-                        if resp:
-                            print(resp.encode())
-
-                if status == "succeeded":
-                    self.status.build_pod = None
-                    self.status.state = "ready"
-                    logger.info("build completed successfully")
-                    return "ready"
-                if status in ["failed", "error"]:
-                    self.status.state = status
-                    logger.error(f" build {status}, watch the build pod logs: {pod}")
-                    return status
-
-                logger.info(f"builder status is: {status}, wait for it to complete")
-            return None
-
     def deploy_step(
         self,
         image=None,

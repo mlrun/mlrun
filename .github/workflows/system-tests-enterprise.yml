@@ -310,7 +310,7 @@ jobs:
       run: sudo apt-get install curl jq
     - name: Prepare System Test env.yaml and MLRun installation from current branch
       env:
-        MY_SECRET: ${{ secrets.IP_ADDR_PREFIX }}
+        IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
       timeout-minutes: 5
       run: |
         python automation/system_test/prepare.py env \

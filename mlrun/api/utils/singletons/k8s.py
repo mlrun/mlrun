@@ -56,7 +56,10 @@ class K8sHelper:
             self._init_k8s_config(log)
             self.v1api = client.CoreV1Api()
             self.crdapi = client.CustomObjectsApi()
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
+            )
             if not silent:
                 raise
 

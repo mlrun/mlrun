@@ -17,6 +17,7 @@ import typing
 import mergedeep
 import sqlalchemy.orm
 
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.common.schemas
 import mlrun.errors
@@ -95,6 +96,13 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
             ]
         if format_ == mlrun.common.schemas.ProjectsFormat.full:
             return mlrun.common.schemas.ProjectsOutput(projects=projects)
+        elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+            return mlrun.common.schemas.ProjectsOutput(
+                projects=[
+                    mlrun.api.utils.helpers.minimize_project_schema(project)
+                    for project in projects
+                ]
+            )
         elif format_ == mlrun.common.schemas.ProjectsFormat.name_only:
             project_names = [project.metadata.name for project in projects]
             return mlrun.common.schemas.ProjectsOutput(projects=project_names)

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os.path
 import platform
 import subprocess
@@ -19,7 +20,7 @@ import typing
 
 import requests
 
-import mlrun.utils
+logging.basicConfig(format="> %(asctime)s [%(levelname)s] %(message)s")
 
 
 class Constants:
@@ -46,12 +47,15 @@ class CommunityEditionDeployer:
     ) -> None:
         self._debug = log_level == "debug"
         self._log_file_handler = None
-        self._logger = mlrun.utils.create_logger(level=log_level, name="automation")
+        self._logger = logging.getLogger("automation")
+        self._logger.setLevel(log_level.upper())
+
         if log_file:
-            self._log_file_handler = open(log_file, "w")
-            self._logger.set_handler(
-                "file", self._log_file_handler, mlrun.utils.HumanReadableFormatter()
-            )
+            self._log_file_handler = open(log_file, "a")
+            # using StreamHandler instead of FileHandler (which opens a file descriptor) so the same file descriptor
+            # can be used for command stdout as well as the logs.
+            self._logger.addHandler(logging.StreamHandler(self._log_file_handler))
+
         self._namespace = namespace
 
     def deploy(
@@ -122,12 +126,17 @@ class CommunityEditionDeployer:
             custom_values,
         )
 
-        self._logger.info(
-            "Installing helm chart with arguments", helm_arguments=helm_arguments
+        self._log(
+            "info",
+            "Installing helm chart with arguments",
+            helm_arguments=helm_arguments,
         )
-        stdout, stderr, exit_status = run_command("helm", helm_arguments)
+        stdout, stderr, exit_status = run_command(
+            "helm", helm_arguments, log_file_handler=self._log_file_handler
+        )
         if exit_status != 0:
-            self._logger.error(
+            self._log(
+                "error",
                 "Failed to install helm chart",
                 stderr=stderr,
                 exit_status=exit_status,
@@ -155,15 +164,19 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to delete
         """
         if cleanup_namespace:
-            self._logger.warning(
-                "Cleaning up entire namespace", namespace=self._namespace
+            self._log(
+                "warning", "Cleaning up entire namespace", namespace=self._namespace
             )
-            run_command("kubectl", ["delete", "namespace", self._namespace])
+            run_command(
+                "kubectl",
+                ["delete", "namespace", self._namespace],
+                log_file_handler=self._log_file_handler,
+            )
             return
 
         if not skip_uninstall:
-            self._logger.info(
-                "Cleaning up helm release", release=Constants.helm_release_name
+            self._log(
+                "info", "Cleaning up helm release", release=Constants.helm_release_name
             )
             run_command(
                 "helm",
@@ -173,10 +186,11 @@ class CommunityEditionDeployer:
                     "uninstall",
                     Constants.helm_release_name,
                 ],
+                log_file_handler=self._log_file_handler,
             )
 
         if cleanup_volumes:
-            self._logger.warning("Cleaning up mlrun volumes")
+            self._log("warning", "Cleaning up mlrun volumes")
             run_command(
                 "kubectl",
                 [
@@ -187,10 +201,12 @@ class CommunityEditionDeployer:
                     "-l",
                     f"app.kubernetes.io/name={Constants.helm_release_name}",
                 ],
+                log_file_handler=self._log_file_handler,
             )
 
         if cleanup_registry_secret:
-            self._logger.warning(
+            self._log(
+                "warning",
                 "Cleaning up registry secret",
                 secret_name=registry_secret_name,
             )
@@ -203,6 +219,7 @@ class CommunityEditionDeployer:
                     "secret",
                     registry_secret_name,
                 ],
+                log_file_handler=self._log_file_handler,
             )
 
         if sqlite:
@@ -224,7 +241,9 @@ class CommunityEditionDeployer:
         """
         for image in [mlrun_api_image, mlrun_ui_image, jupyter_image]:
             if image:
-                run_command("minikube", ["load", image])
+                run_command(
+                    "minikube", ["load", image], log_file_handler=self._log_file_handler
+                )
 
         self._teardown()
 
@@ -255,31 +274,39 @@ class CommunityEditionDeployer:
         :param skip_registry_validation: Skip the validation of the registry URL
         :param minikube: Whether to deploy on minikube
         """
-        self._logger.info("Preparing prerequisites")
+        self._log("info", "Preparing prerequisites")
         skip_registry_validation = skip_registry_validation or (
             registry_url is None and minikube
         )
         if not skip_registry_validation:
             self._validate_registry_url(registry_url)
 
-        self._logger.info("Creating namespace", namespace=self._namespace)
-        run_command("kubectl", ["create", "namespace", self._namespace])
-
-        self._logger.debug("Adding helm repo")
+        self._log("info", "Creating namespace", namespace=self._namespace)
         run_command(
-            "helm", ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url]
+            "kubectl",
+            ["create", "namespace", self._namespace],
+            log_file_handler=self._log_file_handler,
         )
 
-        self._logger.debug("Updating helm repo")
-        run_command("helm", ["repo", "update"])
+        self._log("debug", "Adding helm repo")
+        run_command(
+            "helm",
+            ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url],
+            log_file_handler=self._log_file_handler,
+        )
+
+        self._log("debug", "Updating helm repo")
+        run_command("helm", ["repo", "update"], log_file_handler=self._log_file_handler)
 
         if registry_username and registry_password:
             self._create_registry_credentials_secret(
                 registry_url, registry_username, registry_password
             )
         elif registry_secret_name is not None:
-            self._logger.warning(
-                "Using existing registry secret", secret_name=registry_secret_name
+            self._log(
+                "warning",
+                "Using existing registry secret",
+                secret_name=registry_secret_name,
             )
         else:
             raise ValueError(
@@ -370,8 +397,10 @@ class CommunityEditionDeployer:
             )
 
         if chart_version:
-            self._logger.warning(
-                "Installing specific chart version", chart_version=chart_version
+            self._log(
+                "warning",
+                "Installing specific chart version",
+                chart_version=chart_version,
             )
             helm_arguments.extend(
                 [
@@ -381,7 +410,7 @@ class CommunityEditionDeployer:
             )
 
         if devel:
-            self._logger.warning("Installing development chart version")
+            self._log("warning", "Installing development chart version")
             helm_arguments.append("--devel")
 
         return helm_arguments
@@ -466,12 +495,14 @@ class CommunityEditionDeployer:
 
         # TODO: We need to fix the pipelines metadata grpc server to work on arm
         if self._check_platform_architecture() == "arm":
-            self._logger.warning(
-                "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation."
+            self._log(
+                "warning",
+                "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation.",
             )
             self._disable_deployment_in_helm_values(helm_values, "pipelines")
 
-        self._logger.debug(
+        self._log(
+            "debug",
             "Generated helm values",
             helm_values=helm_values,
         )
@@ -497,7 +528,8 @@ class CommunityEditionDeployer:
             if registry_secret_name is not None
             else Constants.default_registry_secret_name
         )
-        self._logger.debug(
+        self._log(
+            "debug",
             "Creating registry credentials secret",
             secret_name=registry_secret_name,
         )
@@ -514,6 +546,7 @@ class CommunityEditionDeployer:
                 f"--docker-username={registry_username}",
                 f"--docker-password={registry_password}",
             ],
+            log_file_handler=self._log_file_handler,
         )
 
     @staticmethod
@@ -578,7 +611,7 @@ class CommunityEditionDeployer:
             response = requests.get(registry_url)
             response.raise_for_status()
         except Exception as exc:
-            self._logger.error("Failed to validate registry url", exc=exc)
+            self._log("error", "Failed to validate registry url", exc=exc)
             raise exc
 
     def _set_mlrun_version_in_helm_values(
@@ -589,8 +622,8 @@ class CommunityEditionDeployer:
         :param helm_values: Helm values to update
         :param mlrun_version: MLRun version to use
         """
-        self._logger.warning(
-            "Installing specific mlrun version", mlrun_version=mlrun_version
+        self._log(
+            "warning", "Installing specific mlrun version", mlrun_version=mlrun_version
         )
         for image in Constants.mlrun_image_values:
             helm_values[f"{image}.image.tag"] = mlrun_version
@@ -611,8 +644,11 @@ class CommunityEditionDeployer:
             overriden_image_repo,
             overriden_image_tag,
         ) = overriden_image.split(":")
-        self._logger.warning(
-            "Overriding image", image=image_helm_value, overriden_image=overriden_image
+        self._log(
+            "warning",
+            "Overriding image",
+            image=image_helm_value,
+            overriden_image=overriden_image,
         )
         helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
@@ -625,8 +661,12 @@ class CommunityEditionDeployer:
         :param helm_values: Helm values to update
         :param deployment: Deployment to disable
         """
-        self._logger.warning("Disabling deployment", deployment=deployment)
+        self._log("warning", "Disabling deployment", deployment=deployment)
         helm_values[f"{deployment}.enabled"] = "false"
+
+    def _log(self, level: str, message: str, **kwargs: typing.Any) -> None:
+        more = f": {kwargs}" if kwargs else ""
+        self._logger.log(logging.getLevelName(level.upper()), f"{message}{more}")
 
 
 def run_command(

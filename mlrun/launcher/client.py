@@ -19,9 +19,6 @@ import mlrun.errors
 import mlrun.launcher.base
 import mlrun.model
 import mlrun.runtimes
-from mlrun.utils import logger
-
-run_modes = ["pass"]
 
 
 class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):

@@ -32,11 +32,13 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
             assert len(runs) == 1
             assert len(runs[0]["status"]["notifications"]) == 2
-            for notification in runs[0]["status"]["notifications"]:
+            for notification_name, notification in runs[0]["status"][
+                "notifications"
+            ].items():
                 if notification["name"] == error_notification.name:
-                    assert notification["status"] == "error"
+                    assert notification_name["status"] == "error"
                 elif notification["name"] == success_notification.name:
-                    assert notification["status"] == "sent"
+                    assert notification_name["status"] == "sent"
 
         error_notification = self._create_notification(
             name=error_notification_name,

@@ -61,7 +61,9 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
                     runtime.status.state
                     and runtime.status.state == "ready"
                     and runtime.kind
-                    not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+                    # We don't want to override the nuclio image here because the build happens in nuclio
+                    # TODO: have a better way to check if nuclio function deploy started
+                    and not hasattr(runtime.status, "nuclio_name")
                 ):
                     runtime.spec.image = mlrun.utils.get_in(
                         db_func, "spec.image", runtime.spec.image

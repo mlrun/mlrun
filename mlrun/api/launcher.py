@@ -187,8 +187,3 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
-
-    @staticmethod
-    def _log_track_results(project: str = "", uid: str = ""):
-        """This overrides the base implementation to avoid logging the CLI command in the API"""
-        pass

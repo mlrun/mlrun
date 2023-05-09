@@ -53,6 +53,20 @@ class LogCollectorErrorCode(enum.Enum):
         return mlrun_error_class(message)
 
 
+class LogCollectorErrorRegex:
+    # when multiple routines in the log collector service try to search the same directory,
+    # one of them can fail with this error
+    readdirent_resource_temporarily_unavailable = (
+        "readdirent.*resource temporarily unavailable"
+    )
+
+    @classmethod
+    def has_logs_retryable_errors(cls):
+        return [
+            cls.readdirent_resource_temporarily_unavailable,
+        ]
+
+
 class LogCollectorClient(
     mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
     metaclass=mlrun.utils.singleton.Singleton,
@@ -204,24 +218,16 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: Whether the log collector service has logs for the given run
         """
-
-        def _retryable_error(error_message: str) -> bool:
-            retryable_error_regex = [
-                # when multiple routines in the log collector service try to search the same directory,
-                # one of them can fail with this error
-                "readdirent.*resource temporarily unavailable"
-            ]
-            if any(re.match(regex, error_message) for regex in retryable_error_regex):
-                return True
-            return False
-
         request = self._log_collector_pb2.HasLogsRequest(
             runUID=run_uid, projectName=project
         )
 
         response = await self._call("HasLogs", request)
         if not response.success:
-            if _retryable_error(response.errorMessage):
+            if self._retryable_error(
+                response.errorMessage,
+                LogCollectorErrorRegex.has_logs_retryable_errors(),
+            ):
                 if verbose:
                     logger.warning(
                         "Failed to check if run has logs to collect, retrying",
@@ -254,7 +260,6 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: None
         """
-
         request = self._log_collector_pb2.StopLogsRequest(
             project=project, runUIDs=run_uids
         )
@@ -298,3 +303,14 @@ class LogCollectorClient(
                 )
             if verbose:
                 logger.warning(msg, error=response.errorMessage)
+
+    def _retryable_error(self, error_message, retryable_error_patterns) -> bool:
+        """
+        Check if the error is retryable
+        :param error_message: The error message
+        :param retryable_error_patterns: The retryable error regex patterns
+        :return: Whether the error is retryable
+        """
+        if any(re.match(regex, error_message) for regex in retryable_error_patterns):
+            return True
+        return False

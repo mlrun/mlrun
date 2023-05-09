@@ -14,6 +14,7 @@
 import asyncio
 import enum
 import http
+import re
 import typing
 
 import mlrun.api.utils.clients.protocols.grpc
@@ -203,12 +204,32 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: Whether the log collector service has logs for the given run
         """
+
+        def _retryable_error(error_message: str) -> bool:
+            retryable_error_regex = [
+                # when multiple routines in the log collector service try to search the same directory,
+                # one of them can fail with this error
+                "readdirent.*resource temporarily unavailable"
+            ]
+            if any(re.match(regex, error_message) for regex in retryable_error_regex):
+                return True
+            return False
+
         request = self._log_collector_pb2.HasLogsRequest(
             runUID=run_uid, projectName=project
         )
 
         response = await self._call("HasLogs", request)
         if not response.success:
+            if _retryable_error(response.errorMessage):
+                if verbose:
+                    logger.warning(
+                        "Failed to check if run has logs to collect, retrying",
+                        run_uid=run_uid,
+                        error=response.errorMessage,
+                    )
+                return False
+
             msg = f"Failed to check if run has logs to collect for {run_uid}"
             if verbose:
                 logger.warning(msg, error=response.errorMessage)

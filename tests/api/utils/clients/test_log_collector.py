@@ -151,6 +151,43 @@ class TestLogCollector:
             assert log == b""
 
     @pytest.mark.asyncio
+    async def test_get_log_with_retryable_error(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uid = "123"
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        # mock responses for HasLogs to return a retryable error
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(
+                False,
+                "readdirent /var/mlrun/logs/blabla: resource temporarily unavailable",
+                True,
+            )
+        )
+
+        log_stream = log_collector.get_logs(
+            run_uid=run_uid, project=project_name, raise_on_error=False
+        )
+        async for log in log_stream:
+            assert log == b""
+
+        # mock responses for HasLogs to return a retryable error
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(
+                False,
+                "I'm an error that should not be retried",
+                True,
+            )
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            async for log in log_collector.get_logs(
+                run_uid=run_uid, project=project_name
+            ):
+                assert log == b""  # should not get here
+
+    @pytest.mark.asyncio
     async def test_stop_logs(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):

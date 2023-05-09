@@ -75,7 +75,7 @@ def pod_create_mock():
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
     )
-    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.Mock()
+    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.MagicMock()
 
     mock_run_object = mlrun.RunObject()
     mock_run_object.metadata.uid = "1234567890"

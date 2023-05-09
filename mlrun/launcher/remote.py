@@ -19,16 +19,16 @@ import requests
 import mlrun.api.schemas.schedule
 import mlrun.db
 import mlrun.errors
+import mlrun.launcher.client
 import mlrun.run
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.utils import logger
 
 
-class ClientRemoteLauncher(ClientBaseLauncher):
+class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
     def _save_or_push_notifications(self, runobj):
         pass
 

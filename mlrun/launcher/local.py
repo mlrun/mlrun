@@ -17,15 +17,15 @@ from typing import Dict, List, Optional, Union
 
 import mlrun.api.schemas.schedule
 import mlrun.errors
+import mlrun.launcher.client
 import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.utils import logger
 
 
-class ClientLocalLauncher(ClientBaseLauncher):
+class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
     """
     ClientLocalLauncher is a launcher that runs the job locally.
     Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).

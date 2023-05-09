@@ -87,7 +87,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 name=run.metadata.name,
                 uid=run.metadata.uid,
             )
-            self._store_function(runtime, run, self.db)
+            self._store_function(runtime, run)
 
         execution = mlrun.execution.MLClientCtx.from_dict(
             run.to_dict(),

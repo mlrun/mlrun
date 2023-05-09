@@ -84,11 +84,11 @@ class KubejobRuntime(KubeResource):
                     workdir=workdir,
                 )
 
-            if source.endswith(".zip"):
-                logger.warn(
-                    "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
-                    source=source,
-                )
+        if not pull_at_runtime and source.endswith(".zip"):
+            logger.warn(
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
+                source=source,
+            )
 
         self.spec.build.source = source
         if handler:

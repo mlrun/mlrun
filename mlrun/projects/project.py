@@ -920,11 +920,11 @@ class MlrunProject(ModelObj):
                     workdir=workdir,
                 )
 
-            if source.endswith(".zip"):
-                logger.warn(
-                    "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
-                    source=source,
-                )
+        if not pull_at_runtime and source.endswith(".zip"):
+            logger.warn(
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
+                source=source,
+            )
 
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source

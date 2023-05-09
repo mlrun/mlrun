@@ -30,6 +30,20 @@ common_options = [
         "--log-file",
         help="Path to log file. If not specified, will log only to stdout",
     ),
+    click.option(
+        "--remote",
+        help="Remote host to deploy to. If not specified, will deploy to the local host",
+    ),
+    click.option(
+        "--remote-ssh-username",
+        help="Username to use when connecting to the remote host via SSH. "
+        "If not specified, will use MLRUN_REMOTE_SSH_USERNAME environment variable",
+    ),
+    click.option(
+        "--remote-ssh-password",
+        help="Password to use when connecting to the remote host via SSH. "
+        "If not specified, will use MLRUN_REMOTE_SSH_PASSWORD environment variable",
+    ),
 ]
 
 common_deployment_options = [
@@ -155,6 +169,9 @@ def deploy(
     verbose: bool = False,
     log_file: str = None,
     namespace: str = "mlrun",
+    remote: str = None,
+    remote_ssh_username: str = None,
+    remote_ssh_password: str = None,
     mlrun_version: str = None,
     chart_version: str = None,
     registry_url: str = None,
@@ -178,6 +195,9 @@ def deploy(
         namespace=namespace,
         log_level="debug" if verbose else "info",
         log_file=log_file,
+        remote=remote,
+        remote_ssh_username=remote_ssh_username,
+        remote_ssh_password=remote_ssh_password,
     )
     deployer.deploy(
         registry_url=registry_url,
@@ -230,6 +250,9 @@ def delete(
     verbose: bool = False,
     log_file: str = None,
     namespace: str = "mlrun",
+    remote: str = None,
+    remote_ssh_username: str = None,
+    remote_ssh_password: str = None,
     registry_secret_name: str = None,
     skip_uninstall: bool = False,
     skip_cleanup_registry_secret: bool = False,
@@ -241,6 +264,9 @@ def delete(
         namespace=namespace,
         log_level="debug" if verbose else "info",
         log_file=log_file,
+        remote=remote,
+        remote_ssh_username=remote_ssh_username,
+        remote_ssh_password=remote_ssh_password,
     )
     deployer.delete(
         skip_uninstall=skip_uninstall,
@@ -271,6 +297,9 @@ def delete(
 )
 @add_options(common_options)
 def patch_minikube_images(
+    remote: str = None,
+    remote_ssh_username: str = None,
+    remote_ssh_password: str = None,
     verbose: bool = False,
     log_file: str = None,
     mlrun_api_image: str = None,
@@ -281,6 +310,9 @@ def patch_minikube_images(
         namespace="",
         log_level="debug" if verbose else "info",
         log_file=log_file,
+        remote=remote,
+        remote_ssh_username=remote_ssh_username,
+        remote_ssh_password=remote_ssh_password,
     )
     deployer.patch_minikube_images(
         mlrun_api_image=mlrun_api_image,

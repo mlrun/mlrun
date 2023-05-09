@@ -1,0 +1,6 @@
+Connecting to remote machine: {'remote': '192.168.50.113'}
+Cleaning up entire namespace: {'namespace': 'mlrun'}
+adam ubuntu-liranb mlrun
+> 2023-05-09 16:47:11,823 [INFO] Connecting to remote machine: {'remote': '192.168.50.113'}
+> 2023-05-09 16:47:12,003 [WARNING] Cleaning up entire namespace: {'namespace': 'mlrun'}
+adam ubuntu-liranb mlrun

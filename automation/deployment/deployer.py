@@ -19,8 +19,7 @@ import sys
 import typing
 
 import requests
-
-logging.basicConfig(format="> %(asctime)s [%(levelname)s] %(message)s")
+import paramiko
 
 
 class Constants:
@@ -32,6 +31,7 @@ class Constants:
     mlrun_image_values = ["mlrun.api", "mlrun.ui", "jupyterNotebook"]
     disableable_deployments = ["pipelines", "kube-prometheus-stack", "spark-operator"]
     minikube_registry_port = 5000
+    log_format = "> %(asctime)s [%(levelname)s] %(message)s"
 
 
 class CommunityEditionDeployer:
@@ -44,9 +44,13 @@ class CommunityEditionDeployer:
         namespace: str,
         log_level: str = "info",
         log_file: str = None,
+        remote: str = None,
+        remote_ssh_username: str = None,
+        remote_ssh_password: str = None,
     ) -> None:
         self._debug = log_level == "debug"
         self._log_file_handler = None
+        logging.basicConfig(format="> %(asctime)s [%(levelname)s] %(message)s")
         self._logger = logging.getLogger("automation")
         self._logger.setLevel(log_level.upper())
 
@@ -54,9 +58,31 @@ class CommunityEditionDeployer:
             self._log_file_handler = open(log_file, "a")
             # using StreamHandler instead of FileHandler (which opens a file descriptor) so the same file descriptor
             # can be used for command stdout as well as the logs.
-            self._logger.addHandler(logging.StreamHandler(self._log_file_handler))
+            handler = logging.StreamHandler(self._log_file_handler)
+            handler.setFormatter(logging.Formatter(Constants.log_format))
+            self._logger.addHandler(handler)
 
         self._namespace = namespace
+        self._remote = remote
+        self._remote_ssh_username = remote_ssh_username or os.environ.get(
+            "MLRUN_REMOTE_SSH_USERNAME"
+        )
+        self._remote_ssh_password = remote_ssh_password or os.environ.get(
+            "MLRUN_REMOTE_SSH_PASSWORD"
+        )
+        self._ssh_client = None
+        if self._remote:
+            self.connect_to_remote()
+
+    def connect_to_remote(self):
+        self._log("info", "Connecting to remote machine", remote=self._remote)
+        self._ssh_client = paramiko.SSHClient()
+        self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+        self._ssh_client.connect(
+            self._remote,
+            username=self._remote_ssh_username,
+            password=self._remote_ssh_password,
+        )
 
     def deploy(
         self,
@@ -131,9 +157,7 @@ class CommunityEditionDeployer:
             "Installing helm chart with arguments",
             helm_arguments=helm_arguments,
         )
-        stdout, stderr, exit_status = run_command(
-            "helm", helm_arguments, log_file_handler=self._log_file_handler
-        )
+        stdout, stderr, exit_status = self._run_command("helm", helm_arguments)
         if exit_status != 0:
             self._log(
                 "error",
@@ -167,18 +191,14 @@ class CommunityEditionDeployer:
             self._log(
                 "warning", "Cleaning up entire namespace", namespace=self._namespace
             )
-            run_command(
-                "kubectl",
-                ["delete", "namespace", self._namespace],
-                log_file_handler=self._log_file_handler,
-            )
+            self._run_command("kubectl", ["delete", "namespace", self._namespace])
             return
 
         if not skip_uninstall:
             self._log(
                 "info", "Cleaning up helm release", release=Constants.helm_release_name
             )
-            run_command(
+            self._run_command(
                 "helm",
                 [
                     "--namespace",
@@ -186,12 +206,11 @@ class CommunityEditionDeployer:
                     "uninstall",
                     Constants.helm_release_name,
                 ],
-                log_file_handler=self._log_file_handler,
             )
 
         if cleanup_volumes:
             self._log("warning", "Cleaning up mlrun volumes")
-            run_command(
+            self._run_command(
                 "kubectl",
                 [
                     "--namespace",
@@ -201,7 +220,6 @@ class CommunityEditionDeployer:
                     "-l",
                     f"app.kubernetes.io/name={Constants.helm_release_name}",
                 ],
-                log_file_handler=self._log_file_handler,
             )
 
         if cleanup_registry_secret:
@@ -210,7 +228,7 @@ class CommunityEditionDeployer:
                 "Cleaning up registry secret",
                 secret_name=registry_secret_name,
             )
-            run_command(
+            self._run_command(
                 "kubectl",
                 [
                     "--namespace",
@@ -219,7 +237,6 @@ class CommunityEditionDeployer:
                     "secret",
                     registry_secret_name,
                 ],
-                log_file_handler=self._log_file_handler,
             )
 
         if sqlite:
@@ -241,9 +258,7 @@ class CommunityEditionDeployer:
         """
         for image in [mlrun_api_image, mlrun_ui_image, jupyter_image]:
             if image:
-                run_command(
-                    "minikube", ["load", image], log_file_handler=self._log_file_handler
-                )
+                self._run_command("minikube", ["load", image])
 
         self._teardown()
 
@@ -282,21 +297,15 @@ class CommunityEditionDeployer:
             self._validate_registry_url(registry_url)
 
         self._log("info", "Creating namespace", namespace=self._namespace)
-        run_command(
-            "kubectl",
-            ["create", "namespace", self._namespace],
-            log_file_handler=self._log_file_handler,
-        )
+        self._run_command("kubectl", ["create", "namespace", self._namespace])
 
         self._log("debug", "Adding helm repo")
-        run_command(
-            "helm",
-            ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url],
-            log_file_handler=self._log_file_handler,
+        self._run_command(
+            "helm", ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url]
         )
 
         self._log("debug", "Updating helm repo")
-        run_command("helm", ["repo", "update"], log_file_handler=self._log_file_handler)
+        self._run_command("helm", ["repo", "update"])
 
         if registry_username and registry_password:
             self._create_registry_credentials_secret(
@@ -533,7 +542,7 @@ class CommunityEditionDeployer:
             "Creating registry credentials secret",
             secret_name=registry_secret_name,
         )
-        run_command(
+        self._run_command(
             "kubectl",
             [
                 "--namespace",
@@ -546,18 +555,23 @@ class CommunityEditionDeployer:
                 f"--docker-username={registry_username}",
                 f"--docker-password={registry_password}",
             ],
-            log_file_handler=self._log_file_handler,
         )
 
-    @staticmethod
-    def _check_platform_architecture() -> str:
+    def _check_platform_architecture(self) -> str:
         """
         Check the platform architecture. If running on macOS, check if Rosetta is enabled.
         Used for kubeflow pipelines which is not supported on ARM architecture (specifically the metadata grpc server).
         :return: Platform architecture
         """
+        if self._remote:
+            self._log(
+                "warning",
+                "Cannot check platform architecture on remote machine, assuming x86",
+            )
+            return "x86"
+
         if platform.system() == "Darwin":
-            translated, _, exit_status = run_command(
+            translated, _, exit_status = self._run_command(
                 "sysctl",
                 ["-n", "sysctl.proc_translated"],
                 live=False,
@@ -576,13 +590,13 @@ class CommunityEditionDeployer:
         """
         if platform.system() == "Darwin":
             return (
-                run_command("ipconfig", ["getifaddr", "en0"], live=False)[0]
+                self._run_command("ipconfig", ["getifaddr", "en0"], live=False)[0]
                 .strip()
                 .decode("utf-8")
             )
         elif platform.system() == "Linux":
             return (
-                run_command("hostname", ["-I"], live=False)[0]
+                self._run_command("hostname", ["-I"], live=False)[0]
                 .split()[0]
                 .strip()
                 .decode("utf-8")
@@ -592,13 +606,14 @@ class CommunityEditionDeployer:
                 f"Platform {platform.system()} is not supported for this action"
             )
 
-    @staticmethod
-    def _get_minikube_ip() -> str:
+    def _get_minikube_ip(self) -> str:
         """
         Get the minikube IP.
         :return: Minikube IP
         """
-        return run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
+        return (
+            self._run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
+        )
 
     def _validate_registry_url(self, registry_url):
         """
@@ -664,6 +679,34 @@ class CommunityEditionDeployer:
         self._log("warning", "Disabling deployment", deployment=deployment)
         helm_values[f"{deployment}.enabled"] = "false"
 
+    def _run_command(
+        self,
+        command: str,
+        args: list = None,
+        workdir: str = None,
+        stdin: str = None,
+        live: bool = True,
+    ) -> (str, str, int):
+        if self._remote:
+            return run_command_remotely(
+                self._ssh_client,
+                command=command,
+                args=args,
+                workdir=workdir,
+                stdin=stdin,
+                live=live,
+                log_file_handler=self._log_file_handler,
+            )
+        else:
+            return run_command(
+                command=command,
+                args=args,
+                workdir=workdir,
+                stdin=stdin,
+                live=live,
+                log_file_handler=self._log_file_handler,
+            )
+
     def _log(self, level: str, message: str, **kwargs: typing.Any) -> None:
         more = f": {kwargs}" if kwargs else ""
         self._logger.log(logging.getLevelName(level.upper()), f"{message}{more}")
@@ -701,20 +744,56 @@ def run_command(
     return stdout, stderr, exit_status
 
 
+def run_command_remotely(
+    ssh_client: paramiko.SSHClient,
+    command: str,
+    args: list = None,
+    workdir: str = None,
+    stdin: str = None,
+    live: bool = True,
+    log_file_handler: typing.IO[str] = None,
+) -> (str, str, int):
+    if workdir:
+        command = f"cd {workdir}; " + command
+    if args:
+        command += " " + " ".join(args)
+
+    stdin_stream, stdout_stream, stderr_stream = ssh_client.exec_command(command)
+
+    if stdin:
+        stdin_stream.write(stdin)
+        stdin_stream.close()
+
+    stdout = _handle_command_stdout(stdout_stream, log_file_handler, live, remote=True)
+    stderr = stderr_stream.read()
+    exit_status = stdout_stream.channel.recv_exit_status()
+
+    return stdout, stderr, exit_status
+
+
 def _handle_command_stdout(
-    stdout_stream: typing.IO[bytes],
+    stdout_stream: typing.Union[typing.IO[bytes], paramiko.channel.ChannelFile],
     log_file_handler: typing.IO[str] = None,
     live: bool = True,
+    remote: bool = False,
 ) -> str:
+    def _maybe_decode(text: typing.Union[str, bytes]) -> str:
+        if isinstance(text, bytes):
+            return text.decode(sys.stdout.encoding)
+        return text
+
     def _write_to_log_file(text: bytes):
         if log_file_handler:
-            log_file_handler.write(text.decode(sys.stdout.encoding))
+            log_file_handler.write(_maybe_decode(text))
 
     stdout = ""
     if live:
         for line in iter(stdout_stream.readline, b""):
+            # remote stream never ends, so we need to break when there's no more data
+            if remote and not line:
+                break
             stdout += str(line)
-            sys.stdout.write(line.decode(sys.stdout.encoding))
+            sys.stdout.write(_maybe_decode(line))
             _write_to_log_file(line)
     else:
         stdout = stdout_stream.read()

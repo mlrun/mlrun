@@ -370,8 +370,7 @@ def build_image(
     to_mount = False
     v3io = False
     if source:
-        # TODO: check if abs paths work (/User/.. /v3io/..)
-        v3io = "v3io" in source or "://" not in source
+        v3io = source.startswith("v3io://") or source.startswith("v3ios://")
 
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
@@ -405,7 +404,6 @@ def build_image(
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
         else:
-            # TODO: support mount non-v3io paths
             source_to_copy = source
 
     user_unix_id = None
@@ -462,7 +460,6 @@ def build_image(
         registry=registry,
     )
 
-    # we currently mount v3io only, other local paths are not supported - use remote URL instead
     if to_mount:
         kpod.mount_v3io(
             remote=source_dir_to_mount,

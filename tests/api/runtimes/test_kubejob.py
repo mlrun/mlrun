@@ -799,6 +799,15 @@ def my_func(context):
         pod = self._get_pod_creation_args()
         assert pod.spec.containers[0].working_dir == expected_workdir
 
+    def test_with_source_archive_validation(self):
+        runtime = self._generate_runtime()
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as e:
+            runtime.with_source_archive("./some/relative/path", pull_at_runtime=False)
+        assert (
+            "Source must be a valid url or absolute path when 'pull_at_runtime' is False"
+            in str(e.value)
+        )
+
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):
         assert (

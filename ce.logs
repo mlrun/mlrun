@@ -1,0 +1,7 @@
+Cleaning up helm release: {'release': 'mlrun-ce'}
+Cleaning up mlrun volumes
+Cleaning up registry secret: {'secret_name': None}
+Cleaning up entire namespace: {'namespace': 'mlrun'}
+Cleaning up entire namespace: {'namespace': 'mlrun'}
+Cleaning up entire namespace: {'namespace': 'mlrun'}
+namespace "mlrun" deleted

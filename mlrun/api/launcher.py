@@ -87,7 +87,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 name=run.metadata.name,
                 uid=run.metadata.uid,
             )
-            self._store_function(runtime, run, self.db)
+            self._store_function(runtime, run)
 
         execution = mlrun.execution.MLClientCtx.from_dict(
             run.to_dict(),
@@ -149,18 +149,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         pass
 
     @staticmethod
-    def save(runtime):
-        pass
-
-    @staticmethod
     def _enrich_runtime(runtime):
-        """
-        Enrich the function with:
-            1. Default values
-            2. mlrun config values
-            3. Project context values
-            4. Run specific parameters
-        """
         pass
 
     def _save_or_push_notifications(self, runobj):
@@ -188,14 +177,13 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             runobj.metadata.project,
         )
 
-    @staticmethod
     def _store_function(
-        runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject, db
+        self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels["kind"] = runtime.kind
-        if db and runtime.kind != "handler":
+        if self.db and runtime.kind != "handler":
             struct = runtime.to_dict()
-            hash_key = db.store_function(
+            hash_key = self.db.store_function(
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)

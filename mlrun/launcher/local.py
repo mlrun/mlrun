@@ -11,24 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import getpass
 import os
 import pathlib
 from typing import Dict, List, Optional, Union
 
 import mlrun.api.schemas.schedule
 import mlrun.errors
+import mlrun.launcher.client
 import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.launcher.base import BaseLauncher
 from mlrun.utils import logger
 
-run_modes = ["pass"]
 
-
-class ClientLocalLauncher(BaseLauncher):
+class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
     """
     ClientLocalLauncher is a launcher that runs the job locally.
     Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).
@@ -40,10 +37,6 @@ class ClientLocalLauncher(BaseLauncher):
 
     @staticmethod
     def verify_base_image(runtime):
-        pass
-
-    @staticmethod
-    def save(runtime):
         pass
 
     def launch(
@@ -201,11 +194,6 @@ class ClientLocalLauncher(BaseLauncher):
 
         return runtime._wrap_run_result(result, run, err=last_err)
 
-    @staticmethod
-    def _enrich_runtime(runtime):
-        runtime.try_auto_mount_based_on_config()
-        runtime._fill_credentials()
-
     def _create_local_function_for_execution(
         self,
         runtime,
@@ -264,26 +252,6 @@ class ClientLocalLauncher(BaseLauncher):
                 if len(sp) > 1:
                     args = sp[1:]
         return command, args
-
-    def _store_function(
-        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
-        run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            run.metadata.labels["owner"] = (
-                os.environ.get("V3IO_USERNAME") or getpass.getuser()
-            )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels["owner"]
-            )
-
-        if self.db and runtime.kind != "handler":
-            struct = runtime.to_dict()
-            hash_key = self.db.store_function(
-                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
-            )
-            run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _save_or_push_notifications(self, runobj):
         if not self._are_valid_notifications(runobj):

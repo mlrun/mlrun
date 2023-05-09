@@ -18,8 +18,6 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
-import IPython
-
 import mlrun.config
 import mlrun.errors
 import mlrun.kfpops
@@ -332,6 +330,36 @@ class BaseLauncher(abc.ABC):
 
         return True
 
+    def _wrap_run_result(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        result: dict,
+        run: "mlrun.run.RunObject",
+        schedule=None,
+        err=None,
+    ):
+        # if the purpose was to schedule (and not to run) nothing to wrap
+        if schedule:
+            return
+
+        if result and runtime.kfp and err is None:
+            mlrun.kfpops.write_kfpmeta(result)
+
+        self._log_track_results(runtime, result, run)
+
+        if result:
+            run = mlrun.run.RunObject.from_dict(result)
+            logger.info(
+                f"run executed, status={run.status.state}", name=run.metadata.name
+            )
+            if run.status.state == "error":
+                if runtime._is_remote and not runtime.is_child:
+                    logger.error(f"runtime error: {run.status.error}")
+                raise mlrun.runtimes.utils.RunError(run.status.error)
+            return run
+
+        return None
+
     def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
         pass
 
@@ -356,70 +384,8 @@ class BaseLauncher(abc.ABC):
     ):
         pass
 
-    def _wrap_run_result(
-        self,
-        runtime: "mlrun.runtimes.BaseRuntime",
-        result: dict,
-        run: "mlrun.run.RunObject",
-        schedule=None,
-        err=None,
-    ):
-        # if the purpose was to schedule (and not to run) nothing to wrap
-        if schedule:
-            return
-
-        if result and runtime.kfp and err is None:
-            mlrun.kfpops.write_kfpmeta(result)
-
-        # show ipython/jupyter result table widget
-        results_tbl = mlrun.lists.RunList()
-        if result:
-            results_tbl.append(result)
-        else:
-            logger.info("no returned result (job may still be in progress)")
-            results_tbl.append(run.to_dict())
-
-        uid = run.metadata.uid
-        project = run.metadata.project
-        if mlrun.utils.is_ipython and mlrun.config.ipython_widget:
-            results_tbl.show()
-            print()
-            ui_url = mlrun.utils.get_ui_url(project, uid)
-            if ui_url:
-                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
-            IPython.display.display(
-                IPython.display.HTML(
-                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
-                )
-            )
-        elif not runtime.is_child:
-            self._log_track_results(project, uid)
-        if result:
-            run = mlrun.run.RunObject.from_dict(result)
-            logger.info(
-                f"run executed, status={run.status.state}", name=run.metadata.name
-            )
-            if run.status.state == "error":
-                if runtime._is_remote and not runtime.is_child:
-                    logger.error(f"runtime error: {run.status.error}")
-                raise mlrun.runtimes.utils.RunError(run.status.error)
-            return run
-
-        return None
-
     @staticmethod
-    def _log_track_results(project: str = "", uid: str = ""):
-        """
-        log CLI commands to track results
-        :param project:  project name
-        :param uid:      run uid
-        """
-        project_flag = f"-p {project}" if project else ""
-        info_cmd = f"mlrun get run {uid} {project_flag}"
-        logs_cmd = f"mlrun logs {uid} {project_flag}"
-        logger.info(
-            "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
-        )
-        ui_url = mlrun.utils.get_ui_url(project, uid)
-        if ui_url:
-            logger.info("Or click for UI", ui_url=ui_url)
+    def _log_track_results(
+        runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"
+    ):
+        pass

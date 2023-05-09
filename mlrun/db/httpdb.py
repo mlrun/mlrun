@@ -618,7 +618,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
-            "with_notifications": with_notifications,
+            "with-notifications": with_notifications,
         }
 
         if partition_by:

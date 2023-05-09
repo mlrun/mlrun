@@ -44,6 +44,7 @@ from .utils import (
     apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
+    get_k8s,
     get_resource_labels,
     set_named_item,
     verify_limits,
@@ -1157,7 +1158,7 @@ class KubeResource(BaseRuntime):
         return mlconf.default_function_priority_class_name
 
     def _get_meta(self, runobj, unique=False):
-        namespace = self._get_k8s().resolve_namespace()
+        namespace = get_k8s().resolve_namespace()
 
         labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
         new_meta = k8s_client.V1ObjectMeta(
@@ -1225,7 +1226,7 @@ class KubeResource(BaseRuntime):
             mlconf.secret_stores.kubernetes.global_function_env_secret_name
         )
         if mlrun.config.is_running_as_api() and global_secret_name:
-            global_secrets = self._get_k8s().get_secret_data(global_secret_name)
+            global_secrets = get_k8s().get_secret_data(global_secret_name)
             for key, value in global_secrets.items():
                 env_var_name = (
                     SecretsStore.k8s_env_variable_name_for_secret(key)
@@ -1247,10 +1248,10 @@ class KubeResource(BaseRuntime):
             logger.warning("No project provided. Cannot add k8s secrets")
             return
 
-        secret_name = self._get_k8s().get_project_secret_name(project_name)
+        secret_name = get_k8s().get_project_secret_name(project_name)
         # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
         # in the nuclio remote-dashboard flow, which causes dependency problems.
-        existing_secret_keys = self._get_k8s().get_project_secret_keys(
+        existing_secret_keys = get_k8s().get_project_secret_keys(
             project_name, filter_internal=True
         )
 
@@ -1284,7 +1285,7 @@ class KubeResource(BaseRuntime):
             )
         )
 
-        project_vault_secret_name = self._get_k8s().get_project_vault_secret_name(
+        project_vault_secret_name = get_k8s().get_project_vault_secret_name(
             project_name, service_account_name
         )
         if project_vault_secret_name is None:

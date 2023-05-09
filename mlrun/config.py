@@ -1065,12 +1065,10 @@ def _do_populate(env=None, skip_errors=False):
 
 
 def _validate_config(config):
-    import mlrun.k8s_utils
-
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
         requests_gpu = config.default_function_pod_resources.requests.gpu
-        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+        _verify_gpu_requests_and_limits(
             requests_gpu=requests_gpu,
             limits_gpu=limits_gpu,
         )
@@ -1078,6 +1076,19 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+
+
+def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )
 
 
 def _convert_resources_to_str(config: dict = None):

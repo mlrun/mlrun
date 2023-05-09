@@ -24,12 +24,12 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -62,7 +62,9 @@ async def list_pipelines(
             auth_info,
         )
     total_size, next_page_token, runs = None, None, []
-    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
         # "*"), so we can't really get back only the names here
         computed_format = (

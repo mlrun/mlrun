@@ -42,7 +42,6 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
@@ -261,7 +260,7 @@ def unmask_notification_params_secret(
     if not params_secret:
         return notification_object
 
-    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
     if not k8s:
         raise mlrun.errors.MLRunRuntimeError(
             "Not running in k8s environment, cannot load notification params secret"
@@ -288,7 +287,7 @@ def delete_notification_params_secret(
     if not params_secret:
         return
 
-    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
     if not k8s:
         raise mlrun.errors.MLRunRuntimeError(
             "Not running in k8s environment, cannot delete notification params secret"
@@ -634,7 +633,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
 
 def process_function_service_account(function):
     # If we're not running inside k8s, skip this check as it's not relevant.
-    if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if not mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         return
 
     (

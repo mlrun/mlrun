@@ -34,23 +34,23 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
@@ -464,7 +464,9 @@ def _handle_job_deploy_status(
         )
 
     logger.info(f"get pod {pod} status")
-    state = get_k8s().get_pod_status(pod)
+    state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
+        pod
+    )
     logger.info(f"pod state={state}")
 
     if state == "succeeded":
@@ -475,7 +477,7 @@ def _handle_job_deploy_status(
         state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = get_k8s().logs(pod)
+        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -523,7 +525,7 @@ def _handle_nuclio_deploy_status(
         last_log_timestamp,
         text,
         status,
-    ) = get_nuclio_deploy_status(
+    ) = mlrun.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
         name,
         project,
         tag,
@@ -677,7 +679,7 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(
+            mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,

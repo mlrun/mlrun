@@ -21,6 +21,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
+import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts
 import mlrun.common.model_monitoring as model_monitoring_constants
@@ -31,7 +32,6 @@ import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring.helpers
-import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
@@ -801,7 +801,7 @@ class ModelEndpoints:
         )
         try:
             # validate that the model monitoring stream has not yet been deployed
-            mlrun.runtimes.function.get_nuclio_deploy_status(
+            mlrun.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
                 name="model-monitoring-stream",
                 project=project,
                 tag="",

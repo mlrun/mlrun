@@ -102,8 +102,8 @@ class Secrets(
             if secrets_to_store:
                 mlrun.utils.vault.store_vault_project_secrets(project, secrets_to_store)
         elif secrets.provider == mlrun.common.schemas.SecretProviderName.kubernetes:
-            if mlrun.api.utils.singletons.k8s.get_k8s():
-                mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets(
+            if mlrun.api.utils.singletons.k8s.get_k8s_helper():
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().store_project_secrets(
                     project, secrets_to_store
                 )
             else:
@@ -121,7 +121,7 @@ class Secrets(
         (
             username,
             access_key,
-        ) = mlrun.api.utils.singletons.k8s.get_k8s().read_auth_secret(
+        ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().read_auth_secret(
             secret_name, raise_on_not_found=raise_on_not_found
         )
         return mlrun.common.schemas.AuthSecretData(
@@ -138,11 +138,11 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Storing auth secret is not implemented for provider {secret.provider}"
             )
-        if not mlrun.api.utils.singletons.k8s.get_k8s():
+        if not mlrun.api.utils.singletons.k8s.get_k8s_helper():
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        return mlrun.api.utils.singletons.k8s.get_k8s().store_auth_secret(
+        return mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
             secret.username, secret.access_key
         )
 
@@ -155,11 +155,11 @@ class Secrets(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Storing auth secret is not implemented for provider {provider}"
             )
-        if not mlrun.api.utils.singletons.k8s.get_k8s():
+        if not mlrun.api.utils.singletons.k8s.get_k8s_helper():
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_auth_secret(secret_name)
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_auth_secret(secret_name)
 
     def delete_project_secrets(
         self,
@@ -191,8 +191,8 @@ class Secrets(
                 f"Delete secret is not implemented for provider {provider}"
             )
         elif provider == mlrun.common.schemas.SecretProviderName.kubernetes:
-            if mlrun.api.utils.singletons.k8s.get_k8s():
-                mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(
+            if mlrun.api.utils.singletons.k8s.get_k8s_helper():
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                     project, secrets
                 )
             else:
@@ -226,9 +226,9 @@ class Secrets(
                     "Cannot specify token when requesting k8s secret keys"
                 )
 
-            if mlrun.api.utils.singletons.k8s.get_k8s():
+            if mlrun.api.utils.singletons.k8s.get_k8s_helper():
                 secret_keys = (
-                    mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
                         project
                     )
                     or []
@@ -276,7 +276,7 @@ class Secrets(
                     "Not allowed to list secrets data from kubernetes provider"
                 )
             secrets_data = (
-                mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_data(
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
                     project, secrets
                 )
             )

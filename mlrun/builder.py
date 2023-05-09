@@ -22,13 +22,13 @@ from urllib.parse import urlparse
 
 from kubernetes import client
 
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
 
 from .config import config
 from .datastore import store_manager
-from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
@@ -162,7 +162,7 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
-    kpod = BasePod(
+    kpod = mlrun.api.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -467,7 +467,7 @@ def build_image(
             user=username,
         )
 
-    k8s = get_k8s_helper()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     kpod.namespace = k8s.resolve_namespace(namespace)
 
     if interactive:
@@ -653,7 +653,7 @@ def build_runtime(
 
 
 def _generate_builder_env(project, builder_env):
-    k8s = get_k8s_helper()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 

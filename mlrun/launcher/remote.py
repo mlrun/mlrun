@@ -25,14 +25,11 @@ import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.launcher.base import BaseLauncher
+from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.utils import logger
 
-# TODO client-server-separation: share between all launchers
-run_modes = ["pass"]
 
-
-class ClientRemoteLauncher(BaseLauncher):
+class ClientRemoteLauncher(ClientBaseLauncher):
     def _save_or_push_notifications(self, runobj):
         pass
 
@@ -119,11 +116,6 @@ class ClientRemoteLauncher(BaseLauncher):
 
         return self.submit_job(runtime, run, schedule, watch)
 
-    @staticmethod
-    def _enrich_runtime(runtime):
-        runtime.try_auto_mount_based_on_config()
-        runtime._fill_credentials()
-
     def submit_job(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
@@ -189,21 +181,3 @@ class ClientRemoteLauncher(BaseLauncher):
             resp = runtime._get_db_run(run)
 
         return runtime._wrap_run_result(resp, run, schedule=schedule)
-
-    def _store_function(
-        self, runtime: "mlrun.runtimes.KubejobRuntime", run: "mlrun.run.RunObject"
-    ):
-        run.metadata.labels["kind"] = runtime.kind
-        if "owner" not in run.metadata.labels:
-            run.metadata.labels["owner"] = (
-                os.environ.get("V3IO_USERNAME") or getpass.getuser()
-            )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels["owner"]
-            )
-        struct = runtime.to_dict()
-        hash_key = self.db.store_function(
-            struct, runtime.metadata.name, runtime.metadata.project, versioned=True
-        )
-        run.spec.function = runtime._function_uri(hash_key=hash_key)

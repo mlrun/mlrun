@@ -43,12 +43,6 @@ class BaseLauncher(abc.ABC):
             self._db = mlrun.db.get_run_db()
         return self._db
 
-    @staticmethod
-    @abc.abstractmethod
-    def verify_base_image(runtime):
-        """resolves and sets the build base image if build is needed"""
-        pass
-
     def save_function(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -114,11 +108,6 @@ class BaseLauncher(abc.ABC):
         """run the function from the server/client[local/remote]"""
         pass
 
-    @staticmethod
-    @abc.abstractmethod
-    def _enrich_runtime(runtime):
-        pass
-
     def _validate_runtime(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -176,10 +165,6 @@ class BaseLauncher(abc.ABC):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"parameter {param_name} value {param_value} exceeds int64"
                 )
-
-    @abc.abstractmethod
-    def _save_or_push_notifications(self, runobj):
-        pass
 
     @staticmethod
     def _create_run_object(task):
@@ -343,18 +328,25 @@ class BaseLauncher(abc.ABC):
         return True
 
     def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
-        try:
-            meta = runtime.metadata
-            db_func = self.db.get_function(meta.name, meta.project, meta.tag)
-            if db_func and "status" in db_func:
-                runtime.status = db_func["status"]
-                if (
-                    runtime.status.state
-                    and runtime.status.state == "ready"
-                    and not hasattr(runtime.status, "nuclio_name")
-                ):
-                    runtime.spec.image = mlrun.utils.get_in(
-                        db_func, "spec.image", runtime.spec.image
-                    )
-        except mlrun.errors.MLRunNotFoundError:
-            pass
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def verify_base_image(runtime):
+        """resolves and sets the build base image if build is needed"""
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def _enrich_runtime(runtime):
+        pass
+
+    @abc.abstractmethod
+    def _save_or_push_notifications(self, runobj):
+        pass
+
+    @abc.abstractmethod
+    def _store_function(
+        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        pass

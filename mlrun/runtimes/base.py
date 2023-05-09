@@ -1204,35 +1204,12 @@ class BaseRuntime(ModelObj):
         return self
 
     def save(self, tag="", versioned=False, refresh=False) -> str:
-        db = self._get_db()
-        if not db:
-            logger.error("database connection is not configured")
-            return ""
-
-        if refresh and self._is_remote_api():
-            try:
-                meta = self.metadata
-                db_func = db.get_function(meta.name, meta.project, meta.tag)
-                if db_func and "status" in db_func:
-                    self.status = db_func["status"]
-                    if (
-                        self.status.state
-                        and self.status.state == "ready"
-                        and not hasattr(self.status, "nuclio_name")
-                    ):
-                        self.spec.image = get_in(db_func, "spec.image", self.spec.image)
-            except mlrun.errors.MLRunNotFoundError:
-                pass
-
-        tag = tag or self.metadata.tag
-
-        obj = self.to_dict()
-        logger.debug(f"saving function: {self.metadata.name}, tag: {tag}")
-        hash_key = db.store_function(
-            obj, self.metadata.name, self.metadata.project, tag, versioned
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            is_remote=self._is_remote
         )
-        hash_key = hash_key if versioned else None
-        return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
+        return launcher.save_function(
+            self, tag=tag, versioned=versioned, refresh=refresh
+        )
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)

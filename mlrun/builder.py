@@ -402,7 +402,14 @@ def build_image(
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
-        else:
+
+        # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
+        # in the image, however, it is recommended to use `workdir` instead in such cases
+        # which is set during runtime (mlrun.runtimes.local.LocalRuntime._pre_run).
+        # relative paths are not supported at build time
+        # "." and "./" are considered as 'project context'
+        # TODO: enrich with project context if pulling on build time
+        elif path.abspath(source):
             source_to_copy = source
 
     user_unix_id = None

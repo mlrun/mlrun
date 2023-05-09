@@ -28,12 +28,13 @@ from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.feature_store
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils
-from mlrun.api.schemas import (
+from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
+from mlrun.common.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
@@ -41,7 +42,6 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -382,7 +382,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
             fv, target=mlrun.datastore.targets.ParquetTarget()
         )
 
-        # Train the model using the auto trainer from the marketplace
+        # Train the model using the auto trainer from the hub
         train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
@@ -460,7 +460,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun marketplace is upgraded to 1.0.8
+        #  from mlrun hub is upgraded to 1.0.8
         # assert len(model_obj.spec.feature_stats) == len(
         #     model_endpoint.spec.feature_names
         # ) + len(model_endpoint.spec.label_names)
@@ -543,11 +543,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # Import the auto trainer function from the marketplace (hub://)
+        # Import the auto trainer function from the hub (hub://)
         train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
-
             # Run the function and specify input dataset path and some parameters (algorithm and label column name)
             train_run = train.run(
                 name=name,

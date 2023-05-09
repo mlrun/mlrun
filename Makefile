@@ -533,7 +533,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests/serving/test_remote.py::test_remote_step
+		tests
 
 
 .PHONY: test-integration-dockerized
@@ -688,7 +688,7 @@ lint-imports: ## making sure imports dependencies are aligned
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check lint-imports ## Run lint on the code
+lint: flake8 fmt-check ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

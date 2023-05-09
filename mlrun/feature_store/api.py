@@ -79,7 +79,7 @@ def _features_to_vector_and_check_permissions(features, update_stats):
                 "feature vector name must be specified"
             )
         verify_feature_vector_permissions(
-            vector, mlrun.api.schemas.AuthorizationAction.update
+            vector, mlrun.common.schemas.AuthorizationAction.update
         )
 
         vector.save()
@@ -447,7 +447,7 @@ def ingest(
             )
         # remote job execution
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
@@ -479,7 +479,7 @@ def ingest(
 
         featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -508,10 +508,11 @@ def ingest(
                 f"Source.end_time is {str(source.end_time)}"
             )
 
-    if mlrun_context:
-        mlrun_context.logger.info(
-            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-        )
+        if mlrun_context:
+            mlrun_context.logger.info(
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+            )
+
         return_df = False
 
     if featureset.spec.passthrough:
@@ -693,7 +694,7 @@ def preview(
         source = mlrun.store_manager.object(url=source).as_df()
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
@@ -789,7 +790,7 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     verify_feature_set_exists(featureset)

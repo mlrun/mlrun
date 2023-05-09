@@ -18,7 +18,7 @@ import time
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.runtimes.base import BaseRuntimeHandler
 
@@ -30,7 +30,7 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import AsyncLogWriter
+from .utils import get_k8s
 
 
 class KubejobRuntime(KubeResource):
@@ -248,7 +248,7 @@ class KubejobRuntime(KubeResource):
         else:
             self.save(versioned=False)
             ready = build_runtime(
-                mlrun.api.schemas.AuthInfo(),
+                mlrun.common.schemas.AuthInfo(),
                 self,
                 with_mlrun,
                 mlrun_version_specifier,
@@ -292,36 +292,6 @@ class KubejobRuntime(KubeResource):
         print()
         return self.status.state
 
-    def builder_status(self, watch=True, logs=True):
-        if self._is_remote_api():
-            return self._build_watch(watch, logs)
-
-        else:
-            pod = self.status.build_pod
-            if not self.status.state == "ready" and pod:
-                k8s = self._get_k8s()
-                status = k8s.get_pod_status(pod)
-                if logs:
-                    if watch:
-                        status = k8s.watch(pod)
-                    else:
-                        resp = k8s.logs(pod)
-                        if resp:
-                            print(resp.encode())
-
-                if status == "succeeded":
-                    self.status.build_pod = None
-                    self.status.state = "ready"
-                    logger.info("build completed successfully")
-                    return "ready"
-                if status in ["failed", "error"]:
-                    self.status.state = status
-                    logger.error(f" build {status}, watch the build pod logs: {pod}")
-                    return status
-
-                logger.info(f"builder status is: {status}, wait for it to complete")
-            return None
-
     def deploy_step(
         self,
         image=None,
@@ -353,7 +323,6 @@ class KubejobRuntime(KubeResource):
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
@@ -374,20 +343,13 @@ class KubejobRuntime(KubeResource):
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace = k8s.create_pod(pod)
+            pod_name, namespace = get_k8s().create_pod(pod)
         except ApiException as exc:
             raise RunError(err_to_str(exc))
 
-        if pod_name and self.kfp:
-            writer = AsyncLogWriter(self._db_conn, runobj)
-            status = k8s.watch(pod_name, namespace, writer=writer)
-
-            if status in ["failed", "error"]:
-                raise RunError(f"pod exited with {status}, check logs")
-        else:
-            txt = f"Job is running in the background, pod: {pod_name}"
-            logger.info(txt)
-            runobj.status.status_text = txt
+        txt = f"Job is running in the background, pod: {pod_name}"
+        logger.info(txt)
+        runobj.status.status_text = txt
 
         return None
 

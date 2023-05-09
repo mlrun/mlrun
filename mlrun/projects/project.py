@@ -33,10 +33,10 @@ import kfp
 import nuclio
 import yaml
 
-import mlrun.api.schemas
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
@@ -114,7 +114,7 @@ def new_project(
 
     example::
 
-        # create a project with local and marketplace functions, a workflow, and an artifact
+        # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
         project.set_function('hub://auto-trainer', 'train')
@@ -195,7 +195,7 @@ def new_project(
         if overwrite:
             logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
             _delete_project_from_db(
-                name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+                name, secrets, mlrun.common.schemas.DeletionStrategy.cascade
             )
 
         try:
@@ -538,7 +538,7 @@ class ProjectSpec(ModelObj):
         goals=None,
         load_source_on_run=None,
         default_requirements: typing.Union[str, typing.List[str]] = None,
-        desired_state=mlrun.api.schemas.ProjectState.online.value,
+        desired_state=mlrun.common.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=None,
         workdir=None,
@@ -1030,7 +1030,7 @@ class MlrunProject(ModelObj):
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
         handler=None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl=None,
         **args,
     ):
@@ -1874,7 +1874,7 @@ class MlrunProject(ModelObj):
         self,
         secrets: dict = None,
         file_path: str = None,
-        provider: typing.Union[str, mlrun.api.schemas.SecretProviderName] = None,
+        provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
         """set project secrets from dict or secrets env file
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
@@ -1912,7 +1912,7 @@ class MlrunProject(ModelObj):
             for key, val in secrets.items()
             if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
         }
-        provider = provider or mlrun.api.schemas.SecretProviderName.kubernetes
+        provider = provider or mlrun.common.schemas.SecretProviderName.kubernetes
         mlrun.db.get_run_db().create_project_secrets(
             self.metadata.name, provider=provider, secrets=env_vars
         )
@@ -1957,7 +1957,9 @@ class MlrunProject(ModelObj):
         ttl: int = None,
         engine: str = None,
         local: bool = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
+        schedule: typing.Union[
+            str, mlrun.common.schemas.ScheduleCronTrigger, bool
+        ] = None,
         timeout: int = None,
         overwrite: bool = False,
         source: str = None,
@@ -2236,7 +2238,7 @@ class MlrunProject(ModelObj):
 
         self.set_secrets(
             secrets=secrets_dict,
-            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(
@@ -2257,7 +2259,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
         notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
@@ -2266,7 +2268,7 @@ class MlrunProject(ModelObj):
 
         example (use with project)::
 
-            # create a project with two functions (local and from marketplace)
+            # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://auto-trainer", "train")
@@ -2441,7 +2443,7 @@ class MlrunProject(ModelObj):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: typing.Union[str, mlrun.api.schemas.ArtifactCategories] = None,
+        category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 

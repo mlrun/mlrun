@@ -155,7 +155,7 @@ default_config = {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
-                # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
+                # see mlrun.common.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
                 # default 65534 (nogroup), set to -1 to use the user unix id or
                 # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
@@ -178,7 +178,7 @@ default_config = {
             "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
-        # and mlrun.api.schemas.function.PreemptionModes for available options
+        # and mlrun.common.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {
@@ -219,7 +219,7 @@ default_config = {
         "allowed_file_paths": "s3://,gcs://,gs://,az://",
         "db_type": "sqldb",
         "max_workers": 64,
-        # See mlrun.api.schemas.APIStates for options
+        # See mlrun.common.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
@@ -400,7 +400,7 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.api.schemas.ModelEndpointStoreType for available options
+        # See mlrun.common.schemas.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -446,8 +446,8 @@ default_config = {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
-    "marketplace": {
-        "k8s_secrets_project_name": "-marketplace-secrets",
+    "hub": {
+        "k8s_secrets_project_name": "-hub-secrets",
         "catalog_filename": "catalog.json",
         "default_source": {
             # Set false to avoid creating a global source (for example in a dark site)
@@ -1065,12 +1065,10 @@ def _do_populate(env=None, skip_errors=False):
 
 
 def _validate_config(config):
-    import mlrun.k8s_utils
-
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
         requests_gpu = config.default_function_pod_resources.requests.gpu
-        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+        _verify_gpu_requests_and_limits(
             requests_gpu=requests_gpu,
             limits_gpu=limits_gpu,
         )
@@ -1078,6 +1076,19 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+
+
+def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )
 
 
 def _convert_resources_to_str(config: dict = None):

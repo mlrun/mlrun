@@ -16,10 +16,10 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.lists
@@ -120,10 +120,10 @@ class Runs(
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
-        partition_by: mlrun.api.schemas.RunPartitionByField = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: mlrun.api.schemas.SortField = None,
-        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,

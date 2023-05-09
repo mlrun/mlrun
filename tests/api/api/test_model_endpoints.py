@@ -22,7 +22,7 @@ import deepdiff
 import pytest
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring import ModelMonitoringStoreKinds
 from mlrun.model_monitoring.stores import (  # noqa: F401
@@ -84,12 +84,12 @@ def test_build_kv_cursor_filter_expression():
 
 def test_get_access_key():
     key = mlrun.api.crud.ModelEndpoints().get_access_key(
-        mlrun.api.schemas.AuthInfo(data_session="asd")
+        mlrun.common.schemas.AuthInfo(data_session="asd")
     )
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.api.schemas.AuthInfo())
+        mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.common.schemas.AuthInfo())
 
 
 def test_get_endpoint_features_function():
@@ -300,26 +300,26 @@ def test_generating_tsdb_paths():
     assert filtered_path == full_path[-len(filtered_path) + 1 :] + "/"
 
 
-def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
-    return mlrun.api.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
+def _get_auth_info() -> mlrun.common.schemas.AuthInfo:
+    return mlrun.common.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 
 
 def _mock_random_endpoint(
     state: Optional[str] = None,
-) -> mlrun.api.schemas.ModelEndpoint:
+) -> mlrun.common.schemas.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
-    return mlrun.api.schemas.ModelEndpoint(
-        metadata=mlrun.api.schemas.ModelEndpointMetadata(
+    return mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
             project=TEST_PROJECT, labels=random_labels(), uid=str(randint(1000, 5000))
         ),
-        spec=mlrun.api.schemas.ModelEndpointSpec(
+        spec=mlrun.common.schemas.ModelEndpointSpec(
             function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
             model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
             model_class="classifier",
         ),
-        status=mlrun.api.schemas.ModelEndpointStatus(state=state),
+        status=mlrun.common.schemas.ModelEndpointStatus(state=state),
     )
 
 
@@ -426,7 +426,7 @@ def test_sql_target_patch_endpoint():
 
 def test_validate_model_endpoints_schema():
     # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
-    model_endpoint_basemodel = mlrun.api.schemas.ModelEndpoint()
+    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint()
     model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
 
     # Compare status

@@ -18,9 +18,9 @@ import fastapi
 import semver
 
 import mlrun.api.api.deps
-import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.builder
+import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
@@ -33,10 +33,10 @@ router = fastapi.APIRouter()
 
 @router.get(
     "/frontend-spec",
-    response_model=mlrun.api.schemas.FrontendSpec,
+    response_model=mlrun.common.schemas.FrontendSpec,
 )
 def get_frontend_spec(
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
@@ -66,7 +66,7 @@ def get_frontend_spec(
     function_target_image_name_prefix_template = (
         config.httpdb.builder.function_target_image_name_prefix_template
     )
-    return mlrun.api.schemas.FrontendSpec(
+    return mlrun.common.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
         feature_flags=feature_flags,
@@ -102,25 +102,25 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     return None
 
 
-def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
-    project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
+def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
+    project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
-        project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
+        project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
+    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
         mlrun.mlconf.httpdb.authentication.mode
     )
-    nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+    nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
         mlrun.runtimes.utils.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
-        nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
+        nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 
-    preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+    preemption_nodes = mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled
     if mlrun.mlconf.is_preemption_nodes_configured():
-        preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.enabled
+        preemption_nodes = mlrun.common.schemas.PreemptionNodesFeatureFlag.enabled
 
-    return mlrun.api.schemas.FeatureFlags(
+    return mlrun.common.schemas.FeatureFlags(
         project_membership=project_membership,
         authentication=authentication,
         nuclio_streams=nuclio_streams,

@@ -23,9 +23,8 @@ import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api import schemas
-from mlrun.utils.vault import add_vault_user_secrets
 
 router = fastapi.APIRouter()
 
@@ -33,8 +32,8 @@ router = fastapi.APIRouter()
 @router.post("/projects/{project}/secrets", status_code=HTTPStatus.CREATED.value)
 async def store_project_secrets(
     project: str,
-    secrets: schemas.SecretsData,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    secrets: mlrun.common.schemas.SecretsData,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -50,10 +49,10 @@ async def store_project_secrets(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         secrets.provider,
-        mlrun.api.schemas.AuthorizationAction.create,
+        mlrun.common.schemas.AuthorizationAction.create,
         auth_info,
     )
     await run_in_threadpool(
@@ -66,9 +65,9 @@ async def store_project_secrets(
 @router.delete("/projects/{project}/secrets", status_code=HTTPStatus.NO_CONTENT.value)
 async def delete_project_secrets(
     project: str,
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
+    provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -81,10 +80,10 @@ async def delete_project_secrets(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.delete,
+        mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
     await run_in_threadpool(
@@ -94,12 +93,17 @@ async def delete_project_secrets(
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/projects/{project}/secret-keys", response_model=schemas.SecretKeysData)
+@router.get(
+    "/projects/{project}/secret-keys",
+    response_model=mlrun.common.schemas.SecretKeysData,
+)
 async def list_project_secret_keys(
     project: str,
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
-    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+    token: str = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -111,10 +115,10 @@ async def list_project_secret_keys(
         auth_info.session,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return await run_in_threadpool(
@@ -122,13 +126,17 @@ async def list_project_secret_keys(
     )
 
 
-@router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
+@router.get(
+    "/projects/{project}/secrets", response_model=mlrun.common.schemas.SecretsData
+)
 async def list_project_secrets(
     project: str,
     secrets: List[str] = fastapi.Query(None, alias="secret"),
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
-    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+    token: str = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -140,10 +148,10 @@ async def list_project_secrets(
         auth_info.session,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
         provider,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return await run_in_threadpool(
@@ -153,13 +161,10 @@ async def list_project_secrets(
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
 def add_user_secrets(
-    secrets: schemas.UserSecretCreationRequest,
+    secrets: mlrun.common.schemas.UserSecretCreationRequest,
 ):
-    if secrets.provider != schemas.SecretProviderName.vault:
-        return fastapi.Response(
-            status_code=HTTPStatus.BAD_REQUEST.vault,
-            content=f"Invalid secrets provider {secrets.provider}",
-        )
-
-    add_vault_user_secrets(secrets.user, secrets.secrets)
-    return fastapi.Response(status_code=HTTPStatus.CREATED.value)
+    # vault is not used
+    return fastapi.Response(
+        status_code=HTTPStatus.BAD_REQUEST.value,
+        content=f"Invalid secrets provider {secrets.provider}",
+    )

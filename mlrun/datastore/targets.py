@@ -1763,12 +1763,12 @@ def _get_target_path(driver, resource, run_id_mode=False):
     if not suffix:
         if (
             kind == ParquetTarget.kind
-            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+            and resource.kind == mlrun.common.schemas.ObjectKind.feature_vector
         ):
             suffix = ".parquet"
     kind_prefix = (
         "sets"
-        if resource.kind == mlrun.api.schemas.ObjectKind.feature_set
+        if resource.kind == mlrun.common.schemas.ObjectKind.feature_set
         else "vectors"
     )
     name = resource.metadata.name

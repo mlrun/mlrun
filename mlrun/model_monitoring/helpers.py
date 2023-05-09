@@ -21,12 +21,12 @@ from fastapi import Depends
 import mlrun
 import mlrun.api.api.utils
 import mlrun.api.crud.secrets
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.feature_store as fstore
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
@@ -44,7 +44,7 @@ def initial_model_monitoring_stream_processing_function(
     project: str,
     model_monitoring_access_key: str,
     tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     parquet_target: str,
 ):
     """
@@ -104,7 +104,7 @@ def get_model_monitoring_batch_function(
     project: str,
     model_monitoring_access_key: str,
     db_session: sqlalchemy.orm.Session,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
 ):
     """
@@ -153,7 +153,7 @@ def _apply_stream_trigger(
     project: str,
     function: mlrun.runtimes.ServingRuntime,
     model_monitoring_access_key: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ) -> mlrun.runtimes.ServingRuntime:
     """Adding stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
     with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema that is
@@ -208,7 +208,7 @@ def _apply_access_key_and_mount_function(
         mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
     ],
     model_monitoring_access_key: str,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
 ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
     """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
     mount the V3IO path for the provided function to configure the access to the system files.
@@ -226,7 +226,9 @@ def _apply_access_key_and_mount_function(
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
         model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
-        mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+            project
+        ),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
             model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,

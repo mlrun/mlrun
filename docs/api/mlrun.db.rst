@@ -6,7 +6,7 @@ mlrun.db
    :show-inheritance:
    :undoc-members:
 
-.. autoclass:: mlrun.api.schemas.secret::SecretProviderName
+.. autoclass:: mlrun.common.schemas.secret::SecretProviderName
    :members:
    :show-inheritance:
    :undoc-members:

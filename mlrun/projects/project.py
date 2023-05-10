@@ -634,7 +634,6 @@ class ProjectSpec(ModelObj):
                 raise ValueError("function must be an object or dict")
             if isinstance(function, dict):
                 name = function.get("name", "")
-                name = mlrun.utils.helpers.normalize_name(name)
                 if not name:
                     raise ValueError("function name must be specified in dict")
             else:

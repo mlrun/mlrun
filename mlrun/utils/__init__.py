@@ -18,4 +18,3 @@ from .clones import get_git_username_password_from_token  # noqa
 from .helpers import *  # noqa
 from .http import *  # noqa
 from .logger import *  # noqa
-from .vault import *  # noqa

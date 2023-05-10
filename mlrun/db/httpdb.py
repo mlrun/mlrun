@@ -27,6 +27,7 @@ import requests
 import semver
 
 import mlrun
+import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
@@ -617,7 +618,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
-            "with_notifications": with_notifications,
+            "with-notifications": with_notifications,
         }
 
         if partition_by:
@@ -2122,6 +2123,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: Format of the results. Possible values are:
 
             - ``full`` (default value) - Return full project objects.
+            - ``minimal`` - Return minimal project objects (minimization happens in the BE).
             - ``name_only`` - Return just the names of the projects.
 
         :param labels: Filter by labels attached to the project.
@@ -2139,7 +2141,10 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
             return response.json()["projects"]
-        elif format_ == mlrun.common.schemas.ProjectsFormat.full:
+        elif format_ in [
+            mlrun.common.schemas.ProjectsFormat.full,
+            mlrun.common.schemas.ProjectsFormat.minimal,
+        ]:
             return [
                 mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]

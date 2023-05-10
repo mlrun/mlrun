@@ -22,12 +22,12 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.clients.log_collector as log_collector
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import logger
 
@@ -178,10 +178,12 @@ class Logs(
                 fp.seek(offset)
                 log_contents = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
-            k8s = get_k8s()
+            k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
                 run_kind = run.get("metadata", {}).get("labels", {}).get("kind")
-                pods = get_k8s().get_logger_pods(project, uid, run_kind)
+                pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().get_logger_pods(
+                    project, uid, run_kind
+                )
                 if pods:
                     if len(pods) > 1:
 
@@ -195,7 +197,7 @@ class Logs(
                         )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
-                        resp = get_k8s().logs(pod)
+                        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper().logs(pod)
                         if resp:
                             if size == -1:
                                 log_contents = resp.encode()[offset:]

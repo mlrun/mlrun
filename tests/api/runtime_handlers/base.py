@@ -29,7 +29,7 @@ import mlrun.common.schemas
 import mlrun.runtimes.constants
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
@@ -80,9 +80,9 @@ class TestRuntimeHandlerBase:
         # We want this mock for every test, ideally we would have simply put it in the setup_method
         # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
         # in order to be able to mock k8s stuff
-        get_k8s().v1api = unittest.mock.Mock()
-        get_k8s().crdapi = unittest.mock.Mock()
-        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        get_k8s_helper().v1api = unittest.mock.Mock()
+        get_k8s_helper().crdapi = unittest.mock.Mock()
+        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
             return_value=True
         )
         # enable inheriting classes to do the same
@@ -124,7 +124,7 @@ class TestRuntimeHandlerBase:
         )
         status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
         metadata = client.V1ObjectMeta(
-            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+            name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
         )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
@@ -132,7 +132,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_config_map(name, labels, data=None):
         metadata = client.V1ObjectMeta(
-            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+            name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
         )
         if data is None:
             data = {"key": "value"}
@@ -185,21 +185,21 @@ class TestRuntimeHandlerBase:
             raise NotImplementedError("Unsupported group by value")
         resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
-        get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
-            get_k8s().resolve_namespace(),
+        get_k8s_helper().v1api.list_namespaced_pod.assert_called_once_with(
+            get_k8s_helper().resolve_namespace(),
             label_selector=label_selector,
         )
         if expected_crds:
-            get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
+            get_k8s_helper().crdapi.list_namespaced_custom_object.assert_called_once_with(
                 crd_group,
                 crd_version,
-                get_k8s().resolve_namespace(),
+                get_k8s_helper().resolve_namespace(),
                 crd_plural,
                 label_selector=label_selector,
             )
         if expected_services:
-            get_k8s().v1api.list_namespaced_service.assert_called_once_with(
-                get_k8s().resolve_namespace(),
+            get_k8s_helper().v1api.list_namespaced_service.assert_called_once_with(
+                get_k8s_helper().resolve_namespace(),
                 label_selector=label_selector,
             )
         assertion_func(
@@ -361,7 +361,9 @@ class TestRuntimeHandlerBase:
         for list_pods_call_response in list_pods_call_responses:
             pods = client.V1PodList(items=list_pods_call_response)
             calls.append(pods)
-        get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
+        get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
+            side_effect=calls
+        )
         return calls
 
     @staticmethod
@@ -378,9 +380,9 @@ class TestRuntimeHandlerBase:
             for expected_pod_name in expected_pod_names
         ]
         if not expected_pod_names:
-            assert get_k8s().v1api.delete_namespaced_pod.call_count == 0
+            assert get_k8s_helper().v1api.delete_namespaced_pod.call_count == 0
         else:
-            get_k8s().v1api.delete_namespaced_pod.assert_has_calls(calls)
+            get_k8s_helper().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod
     def _assert_delete_namespaced_services(
@@ -391,9 +393,9 @@ class TestRuntimeHandlerBase:
             for expected_service_name in expected_service_names
         ]
         if not expected_service_names:
-            assert get_k8s().v1api.delete_namespaced_service.call_count == 0
+            assert get_k8s_helper().v1api.delete_namespaced_service.call_count == 0
         else:
-            get_k8s().v1api.delete_namespaced_service.assert_has_calls(calls)
+            get_k8s_helper().v1api.delete_namespaced_service.assert_has_calls(calls)
 
     @staticmethod
     def _assert_delete_namespaced_custom_objects(
@@ -413,26 +415,32 @@ class TestRuntimeHandlerBase:
             for expected_custom_object_name in expected_custom_object_names
         ]
         if not expected_custom_object_names:
-            assert get_k8s().crdapi.delete_namespaced_custom_object.call_count == 0
+            assert (
+                get_k8s_helper().crdapi.delete_namespaced_custom_object.call_count == 0
+            )
         else:
-            get_k8s().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
+            get_k8s_helper().crdapi.delete_namespaced_custom_object.assert_has_calls(
+                calls
+            )
 
     @staticmethod
     def _mock_delete_namespaced_pods():
-        get_k8s().v1api.delete_namespaced_pod = unittest.mock.Mock()
+        get_k8s_helper().v1api.delete_namespaced_pod = unittest.mock.Mock()
 
     @staticmethod
     def _mock_delete_namespaced_custom_objects():
-        get_k8s().crdapi.delete_namespaced_custom_object = unittest.mock.Mock()
+        get_k8s_helper().crdapi.delete_namespaced_custom_object = unittest.mock.Mock()
 
     @staticmethod
     def _mock_delete_namespaced_services():
-        get_k8s().v1api.delete_namespaced_service = unittest.mock.Mock()
+        get_k8s_helper().v1api.delete_namespaced_service = unittest.mock.Mock()
 
     @staticmethod
     def _mock_read_namespaced_pod_log():
         log = "Some log string"
-        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
+            return_value=log
+        )
         return log
 
     @staticmethod
@@ -440,7 +448,7 @@ class TestRuntimeHandlerBase:
         calls = []
         for crd_dicts_call_response in crd_dicts_call_responses:
             calls.append({"items": crd_dicts_call_response})
-        get_k8s().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+        get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
             side_effect=calls
         )
         return calls
@@ -448,7 +456,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _mock_list_namespaced_config_map(config_maps):
         config_maps_list = client.V1ConfigMapList(items=config_maps)
-        get_k8s().v1api.list_namespaced_config_map = unittest.mock.Mock(
+        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
             return_value=config_maps_list
         )
         return config_maps
@@ -456,7 +464,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _mock_list_services(services):
         services_list = client.V1ServiceList(items=services)
-        get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(
+        get_k8s_helper().v1api.list_namespaced_service = unittest.mock.Mock(
             return_value=services_list
         )
         return services
@@ -468,13 +476,15 @@ class TestRuntimeHandlerBase:
         expected_label_selector: str = None,
     ):
         assert (
-            get_k8s().v1api.list_namespaced_pod.call_count == expected_number_of_calls
+            get_k8s_helper().v1api.list_namespaced_pod.call_count
+            == expected_number_of_calls
         )
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()
         )
-        get_k8s().v1api.list_namespaced_pod.assert_any_call(
-            get_k8s().resolve_namespace(), label_selector=expected_label_selector
+        get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
+            get_k8s_helper().resolve_namespace(),
+            label_selector=expected_label_selector,
         )
 
     @staticmethod
@@ -483,13 +493,13 @@ class TestRuntimeHandlerBase:
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         assert (
-            get_k8s().crdapi.list_namespaced_custom_object.call_count
+            get_k8s_helper().crdapi.list_namespaced_custom_object.call_count
             == expected_number_of_calls
         )
-        get_k8s().crdapi.list_namespaced_custom_object.assert_any_call(
+        get_k8s_helper().crdapi.list_namespaced_custom_object.assert_any_call(
             crd_group,
             crd_version,
-            get_k8s().resolve_namespace(),
+            get_k8s_helper().resolve_namespace(),
             crd_plural,
             label_selector=runtime_handler._get_default_label_selector(),
         )
@@ -503,9 +513,9 @@ class TestRuntimeHandlerBase:
         logger_pod_name: str = None,
     ):
         if logger_pod_name is not None:
-            get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
+            get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
                 name=logger_pod_name,
-                namespace=get_k8s().resolve_namespace(),
+                namespace=get_k8s_helper().resolve_namespace(),
             )
         _, logs = await crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY

@@ -89,7 +89,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
-            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
 
         assert self._get_create_custom_object_namespace_arg() == self.namespace
 

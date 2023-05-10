@@ -15,11 +15,11 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
@@ -36,7 +36,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _in_k8s():
-        k8s_helper = get_k8s()
+        k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
         return (
             k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
         )

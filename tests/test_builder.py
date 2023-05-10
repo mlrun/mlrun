@@ -119,7 +119,7 @@ def test_build_runtime_insecure_registries(
     assert (
         insecure_flags.issubset(
             set(
-                mlrun.builder.get_k8s_helper()
+                mlrun.api.utils.singletons.k8s.get_k8s_helper()
                 .create_pod.call_args[0][0]
                 .pod.spec.containers[0]
                 .args
@@ -843,7 +843,11 @@ def _get_target_image_from_create_pod_mock():
 
 
 def _create_pod_mock_pod_spec():
-    return mlrun.builder.get_k8s_helper().create_pod.call_args[0][0].pod.spec
+    return (
+        mlrun.api.utils.singletons.k8s.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec
+    )
 
 
 def _patch_k8s_helper(monkeypatch):
@@ -861,14 +865,8 @@ def _patch_k8s_helper(monkeypatch):
         side_effect=lambda project, keys: {"KEY": "val"}
     )
     monkeypatch.setattr(
-        mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    monkeypatch.setattr(
-        mlrun.k8s_utils, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
-    )
-    monkeypatch.setattr(
         mlrun.api.utils.singletons.k8s,
-        "get_k8s",
+        "get_k8s_helper",
         lambda *args, **kwargs: get_k8s_helper_mock,
     )
 

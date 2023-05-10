@@ -46,7 +46,17 @@ class Projects(
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
-        logger.debug("Creating project", project=project)
+        logger.debug(
+            "Creating project",
+            name=project.metadata.name,
+            owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
+        )
         mlrun.api.utils.singletons.db.get_db().create_project(session, project)
 
     def store_project(
@@ -55,7 +65,17 @@ class Projects(
         name: str,
         project: mlrun.common.schemas.Project,
     ):
-        logger.debug("Storing project", name=name, project=project)
+        logger.debug(
+            "Storing project",
+            name=project.metadata.name,
+            owner=project.spec.owner,
+            created_time=project.metadata.created,
+            desired_state=project.spec.desired_state,
+            state=project.status.state,
+            function_amount=len(project.spec.functions or []),
+            artifact_amount=len(project.spec.artifacts or []),
+            workflows_amount=len(project.spec.workflows or []),
+        )
         mlrun.api.utils.singletons.db.get_db().store_project(session, name, project)
 
     def patch_project(
@@ -114,7 +134,7 @@ class Projects(
         # Therefore, this check should remain at the end of the verification flow.
         if (
             mlrun.mlconf.is_api_running_on_k8s()
-            and mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+            and mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
                 project
             )
         ):
@@ -156,7 +176,9 @@ class Projects(
 
         # delete project secrets - passing None will delete all secrets
         if mlrun.mlconf.is_api_running_on_k8s():
-            mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
+                name, None
+            )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

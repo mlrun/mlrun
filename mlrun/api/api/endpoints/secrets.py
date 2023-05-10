@@ -25,7 +25,6 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.utils.vault import add_vault_user_secrets
 
 router = fastapi.APIRouter()
 
@@ -164,11 +163,8 @@ async def list_project_secrets(
 def add_user_secrets(
     secrets: mlrun.common.schemas.UserSecretCreationRequest,
 ):
-    if secrets.provider != mlrun.common.schemas.SecretProviderName.vault:
-        return fastapi.Response(
-            status_code=HTTPStatus.BAD_REQUEST.vault,
-            content=f"Invalid secrets provider {secrets.provider}",
-        )
-
-    add_vault_user_secrets(secrets.user, secrets.secrets)
-    return fastapi.Response(status_code=HTTPStatus.CREATED.value)
+    # vault is not used
+    return fastapi.Response(
+        status_code=HTTPStatus.BAD_REQUEST.value,
+        content=f"Invalid secrets provider {secrets.provider}",
+    )

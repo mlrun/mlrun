@@ -16,7 +16,7 @@ import unittest.mock
 
 import pytest
 
-import mlrun.k8s_utils
+import mlrun.api.utils.singletons.k8s
 import mlrun.runtimes
 
 
@@ -44,7 +44,7 @@ def test_get_logger_pods_label_selector(
     if extra_selector:
         selector += f",{extra_selector}"
 
-    k8s_helper = mlrun.k8s_utils.K8sHelper(namespace, silent=True)
+    k8s_helper = mlrun.api.utils.singletons.k8s.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)

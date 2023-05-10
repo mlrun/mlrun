@@ -15,9 +15,7 @@
 from os import path
 
 from mlrun import code_to_function, new_model_server
-from mlrun.runtimes.function import compile_function_config
-from mlrun.utils import get_in
-from tests.conftest import examples_path, results, tests_root_directory
+from tests.conftest import examples_path, results
 
 
 def test_job_nb():
@@ -88,24 +86,3 @@ def test_local_file_codeout():
     assert path.isfile(out), "output not generated"
 
     fn.run(handler="training", params={"p1": 5})
-
-
-def test_nuclio_py():
-    name = f"{examples_path}/training.py"
-    fn = code_to_function("nuclio", filename=name, kind="nuclio", handler="my_hand")
-    name, project, config = compile_function_config(fn)
-    assert fn.kind == "remote", "kind not set, test failed"
-    assert get_in(config, "spec.build.functionSourceCode"), "no source code"
-    assert get_in(config, "spec.runtime").startswith("py"), "runtime not set"
-    assert get_in(config, "spec.handler") == "training:my_hand", "wrong handler"
-
-
-def test_nuclio_golang():
-    name = f"{tests_root_directory}/assets/hello.go"
-    fn = code_to_function(
-        "nuclio", filename=name, kind="nuclio", handler="main:Handler"
-    )
-    name, project, config = compile_function_config(fn)
-    assert fn.kind == "remote", "kind not set, test failed"
-    assert get_in(config, "spec.runtime") == "golang", "golang was not detected and set"
-    assert get_in(config, "spec.handler") == "main:Handler", "wrong handler"

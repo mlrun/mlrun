@@ -196,7 +196,7 @@ class TestProject(TestMLRunSystem):
 
     def test_run_git_build(self):
         name = "pipe3"
-        # self.custom_project_names_to_delete.append(name)
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 
@@ -210,7 +210,6 @@ class TestProject(TestMLRunSystem):
             "main",
             artifact_path=f"v3io:///projects/{name}",
             arguments={"build": 1},
-            # workflow_path=str(self.assets_path / "kflow.py"),
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"

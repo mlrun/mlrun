@@ -18,8 +18,8 @@ import subprocess
 import sys
 import typing
 
-import requests
 import paramiko
+import requests
 
 
 class Constants:

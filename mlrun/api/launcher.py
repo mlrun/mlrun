@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Union
 
 import mlrun.api.crud
 import mlrun.api.db.sqldb.session
-import mlrun.api.schemas.schedule
+import mlrun.common.schemas.schedule
 import mlrun.execution
 import mlrun.launcher.base
 import mlrun.runtimes
@@ -39,9 +39,8 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        # TODO: don't use schedule from API schemas but rather from mlrun client
         schedule: Optional[
-            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,

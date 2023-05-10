@@ -26,8 +26,8 @@ class LauncherFactory(object):
         """
         Creates the appropriate launcher for the specified run.
         ServerSideLauncher - if running as API.
-        ClientRemoteLauncher - if run is remote and local was not specified.
-        ClientLocalLauncher - if run is not remote or local was specified.
+        ClientRemoteLauncher - if the run is remote and local was not specified.
+        ClientLocalLauncher - if the run is not remote or local was specified.
 
         :param is_remote:   Whether the runtime requires remote execution.
         :param local:       Run the function locally vs on the Runtime/Cluster

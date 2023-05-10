@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Union
 
 import requests
 
-import mlrun.api.schemas.schedule
+import mlrun.common.schemas.schedule
 import mlrun.db
 import mlrun.errors
 import mlrun.launcher.client
@@ -49,9 +49,8 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        # TODO: don't use schedule from API schemas but rather from mlrun client
         schedule: Optional[
-            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
@@ -119,7 +118,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
         run: "mlrun.run.RunObject",
-        schedule: Optional[mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
         watch: Optional[bool] = None,
     ):
         if runtime._secrets:

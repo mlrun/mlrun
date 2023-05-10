@@ -335,8 +335,9 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime",
         result: dict,
         run: "mlrun.run.RunObject",
-        schedule=None,
-        err=None,
+        # TODO: import schema from common
+        schedule: Optional["mlrun.api.schemas.ScheduleCronTrigger"] = None,
+        err: Optional[Exception] = None,
     ):
         # if the purpose was to schedule (and not to run) nothing to wrap
         if schedule:

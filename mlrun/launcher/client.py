@@ -111,6 +111,7 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
                 )
             )
         elif not runtime.is_child:
+            # TODO: Log sdk commands to track results instead of CLI commands
             project_flag = f"-p {project}" if project else ""
             info_cmd = f"mlrun get run {uid} {project_flag}"
             logs_cmd = f"mlrun logs {uid} {project_flag}"

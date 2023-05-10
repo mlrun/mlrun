@@ -28,13 +28,12 @@ from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
 import mlrun.api.crud
+import mlrun.api.schemas
 import mlrun.artifacts.model
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils
-from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
-from mlrun.common.schemas import (
+from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
@@ -42,8 +41,9 @@ from mlrun.common.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
-from mlrun.utils.v3io_clients import get_frames_client
+from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 from tests.system.base import TestMLRunSystem
 
 
@@ -238,7 +238,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
-        # 3 - invalid records are considered in the aggregated error count value
 
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
@@ -257,7 +256,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2-model-server", project=self.project_name
+            "hub://v2_model_server", project=self.project_name
         ).apply(mlrun.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
@@ -283,17 +282,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating invalid requests
-        invalid_input = ["n", "s", "o", "-"]
-        for _ in range(10):
-            try:
-                serving_fn.invoke(
-                    f"v2/models/{model_name}/infer",
-                    json.dumps({"inputs": [invalid_input]}),
-                )
-            except RuntimeError:
-                pass
-
         # Simulating valid requests
         iris_data = iris["data"].tolist()
         t_end = monotonic() + simulation_time
@@ -318,9 +306,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ]
         total = sum((m[1] for m in predictions_per_second))
         assert total > 0
-
-        # Validate error count value
-        assert endpoint.status.error_count == 10
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -382,8 +367,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
             fv, target=mlrun.datastore.targets.ParquetTarget()
         )
 
-        # Train the model using the auto trainer from the hub
-        train = mlrun.import_function("hub://auto-trainer", new_name="train")
+        # Train the model using the auto trainer from the marketplace
+        train = mlrun.import_function("hub://auto_trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
         model_name = "diabetes_model"
@@ -413,7 +398,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Set the serving topology to simple model routing
         # with data enrichment and imputing from the feature vector
-        serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
         serving_fn.set_topology(
             "router",
             mlrun.serving.routers.EnrichmentModelRouter(
@@ -460,7 +445,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun hub is upgraded to 1.0.8
+        #  from mlrun marketplace is upgraded to 1.0.8
         # assert len(model_obj.spec.feature_stats) == len(
         #     model_endpoint.spec.feature_names
         # ) + len(model_endpoint.spec.label_names)
@@ -487,7 +472,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 class TestVotingModelMonitoring(TestMLRunSystem):
     """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
 
-    project_name = "pr-voting-model-monitoring"
+    project_name = "pr-voting-model-monitoring-v4"
 
     @pytest.mark.timeout(300)
     def test_model_monitoring_voting_ensemble(self):
@@ -496,6 +481,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # 2 - deployment status of monitoring stream nuclio function
         # 3 - model endpoints types for both children and router
         # 4 - metrics and drift status per model endpoint
+        # 5 - invalid records are considered in the aggregated error count value
+        # 6 - KV schema file is generated is expected
 
         simulation_time = 120  # 120 seconds to allow tsdb batching
 
@@ -526,7 +513,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2-model-server", project=self.project_name
+            "hub://v2_model_server", project=self.project_name
         ).apply(mlrun.auto_mount())
 
         serving_fn.set_topology(
@@ -543,8 +530,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # Import the auto trainer function from the hub (hub://)
-        train = mlrun.import_function("hub://auto-trainer")
+        # Import the auto trainer function from the marketplace (hub://)
+        train = mlrun.import_function("hub://auto_trainer")
 
         for name, pkg in model_names.items():
             # Run the function and specify input dataset path and some parameters (algorithm and label column name)
@@ -597,6 +584,18 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
 
+        # Simulating invalid requests
+        invalid_input = ["n", "s", "o", "-"]
+        for _ in range(10):
+            try:
+                serving_fn.invoke(
+                    "v2/models/VotingEnsemble/infer",
+                    json.dumps({"inputs": [invalid_input]}),
+                )
+            except RuntimeError:
+                pass
+
+        # Simulating valid requests
         t_end = monotonic() + simulation_time
         start_time = datetime.now(timezone.utc)
         data_sent = 0
@@ -614,6 +613,18 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
         sleep(60)
+
+        # Validate that the KV schema has been generated as expected
+        client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+        cursor = client.kv.new_cursor(
+            container="users",
+            table_path=f"pipelines/{self.project_name}/model-endpoints/endpoints/",
+            access_key=os.environ.get("V3IO_ACCESS_KEY"),
+        )
+
+        # List all the files from the KV table path and validate that the schema file is exist
+        records = cursor.all()
+        assert {"__name": ".#schema"} in records
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(
@@ -701,6 +712,9 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                 for measure in measures:
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
+
+                # Validate error count value
+                assert endpoint.status.error_count == 10
 
     def _check_monitoring_building_state(self, base_runtime):
         # Check if model monitoring stream function is ready

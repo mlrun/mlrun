@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.builder
+import mlrun.api.utils.builder
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -750,13 +750,13 @@ def my_func(context):
         expected_to_upgrade,
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
+        mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
 
         runtime = self._generate_runtime()
         runtime.spec.build.base_image = "some/image"
         runtime.spec.build.commands = copy.deepcopy(commands)
         runtime.deploy(with_mlrun=with_mlrun, watch=False)
-        dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         if expected_to_upgrade:
             expected_str = ""
             if commands:

@@ -29,9 +29,6 @@ from mlrun.utils import logger
 
 
 class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
-    def _save_or_push_notifications(self, runobj):
-        pass
-
     @staticmethod
     def verify_base_image(runtime):
         pass
@@ -181,3 +178,6 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             resp = runtime._get_db_run(run)
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
+
+    def _save_or_push_notifications(self, runobj):
+        pass

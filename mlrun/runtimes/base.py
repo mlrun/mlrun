@@ -25,7 +25,6 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
-import IPython
 import requests.exceptions
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
@@ -47,7 +46,7 @@ from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
-from ..kfpops import mlrun_op, write_kfpmeta
+from ..kfpops import mlrun_op
 from ..lists import RunList
 from ..model import (
     BaseMetadata,
@@ -64,8 +63,6 @@ from ..utils import (
     enrich_image_url,
     get_in,
     get_parsed_docker_registry,
-    get_ui_url,
-    is_ipython,
     logger,
     normalize_name,
     now_date,
@@ -383,60 +380,6 @@ class BaseRuntime(ModelObj):
             returns=returns,
         )
 
-    def _wrap_run_result(
-        self, result: dict, runspec: RunObject, schedule=None, err=None
-    ):
-        # if the purpose was to schedule (and not to run) nothing to wrap
-        if schedule:
-            return
-
-        if result and self.kfp and err is None:
-            write_kfpmeta(result)
-
-        # show ipython/jupyter result table widget
-        results_tbl = RunList()
-        if result:
-            results_tbl.append(result)
-        else:
-            logger.info("no returned result (job may still be in progress)")
-            results_tbl.append(runspec.to_dict())
-
-        uid = runspec.metadata.uid
-        project = runspec.metadata.project
-        if is_ipython and config.ipython_widget:
-            results_tbl.show()
-            print()
-            ui_url = get_ui_url(project, uid)
-            if ui_url:
-                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
-            IPython.display.display(
-                IPython.display.HTML(
-                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
-                )
-            )
-        elif not (self.is_child and is_running_as_api()):
-            project_flag = f"-p {project}" if project else ""
-            info_cmd = f"mlrun get run {uid} {project_flag}"
-            logs_cmd = f"mlrun logs {uid} {project_flag}"
-            logger.info(
-                "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
-            )
-            ui_url = get_ui_url(project, uid)
-            if ui_url:
-                logger.info("Or click for UI", ui_url=ui_url)
-        if result:
-            run = RunObject.from_dict(result)
-            logger.info(
-                f"run executed, status={run.status.state}", name=run.metadata.name
-            )
-            if run.status.state == "error":
-                if self._is_remote and not self.is_child:
-                    logger.error(f"runtime error: {run.status.error}")
-                raise RunError(run.status.error)
-            return run
-
-        return None
-
     def _get_db_run(self, task: RunObject = None):
         if self._get_db() and task:
             project = task.metadata.project
@@ -604,64 +547,6 @@ class BaseRuntime(ModelObj):
 
         runspec.spec.notifications = notifications or runspec.spec.notifications or []
         return runspec
-
-    def _submit_job(self, run: RunObject, schedule, db, watch):
-        if self._secrets:
-            run.spec.secret_sources = self._secrets.to_serial()
-        try:
-            resp = db.submit_job(run, schedule=schedule)
-            if schedule:
-                action = resp.pop("action", "created")
-                logger.info(f"task schedule {action}", **resp)
-                return
-
-        except (requests.HTTPError, Exception) as err:
-            logger.error(f"got remote run err, {err_to_str(err)}")
-
-            if isinstance(err, requests.HTTPError):
-                self._handle_submit_job_http_error(err)
-
-            result = None
-            # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
-            # but there's no run in case of schedule)
-            if not schedule:
-                result = self._update_run_state(task=run, err=err_to_str(err))
-            return self._wrap_run_result(result, run, schedule=schedule, err=err)
-
-        if resp:
-            txt = get_in(resp, "status.status_text")
-            if txt:
-                logger.info(txt)
-        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
-        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
-        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
-        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
-        # in real time
-        if (
-            watch is None
-            and self.kfp
-            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
-        ):
-            state_interval = int(
-                config.httpdb.logs.pipelines.pull_state.pull_state_interval
-            )
-            logs_interval = int(
-                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
-            )
-
-            run.wait_for_completion(
-                show_logs=True,
-                sleep=state_interval,
-                logs_interval=logs_interval,
-                raise_on_failure=False,
-            )
-            resp = self._get_db_run(run)
-
-        elif watch or self.kfp:
-            run.logs(True, self._get_db())
-            resp = self._get_db_run(run)
-
-        return self._wrap_run_result(resp, run, schedule=schedule)
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):

@@ -144,7 +144,9 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 result = runtime._update_run_state(
                     task=run, err=mlrun.errors.err_to_str(err)
                 )
-            return runtime._wrap_run_result(result, run, schedule=schedule, err=err)
+            return self._wrap_run_result(
+                runtime, result, run, schedule=schedule, err=err
+            )
 
         if resp:
             txt = mlrun.runtimes.utils.helpers.get_in(resp, "status.status_text")
@@ -179,4 +181,4 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             run.logs(True, self.db)
             resp = runtime._get_db_run(run)
 
-        return runtime._wrap_run_result(resp, run, schedule=schedule)
+        return self._wrap_run_result(runtime, resp, run, schedule=schedule)

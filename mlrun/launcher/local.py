@@ -192,7 +192,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
-        return runtime._wrap_run_result(result, run, err=last_err)
+        return self._wrap_run_result(runtime, result, run, err=last_err)
 
     def _create_local_function_for_execution(
         self,

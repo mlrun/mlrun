@@ -18,7 +18,10 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
+import mlrun.config
 import mlrun.errors
+import mlrun.kfpops
+import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 from mlrun.utils import logger
@@ -327,6 +330,37 @@ class BaseLauncher(abc.ABC):
 
         return True
 
+    def _wrap_run_result(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        result: dict,
+        run: "mlrun.run.RunObject",
+        # TODO: import schema from common
+        schedule: Optional["mlrun.api.schemas.ScheduleCronTrigger"] = None,
+        err: Optional[Exception] = None,
+    ):
+        # if the purpose was to schedule (and not to run) nothing to wrap
+        if schedule:
+            return
+
+        if result and runtime.kfp and err is None:
+            mlrun.kfpops.write_kfpmeta(result)
+
+        self._log_track_results(runtime, result, run)
+
+        if result:
+            run = mlrun.run.RunObject.from_dict(result)
+            logger.info(
+                f"run executed, status={run.status.state}", name=run.metadata.name
+            )
+            if run.status.state == "error":
+                if runtime._is_remote and not runtime.is_child:
+                    logger.error(f"runtime error: {run.status.error}")
+                raise mlrun.runtimes.utils.RunError(run.status.error)
+            return run
+
+        return None
+
     def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
         pass
 
@@ -348,5 +382,11 @@ class BaseLauncher(abc.ABC):
     @abc.abstractmethod
     def _store_function(
         self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        pass
+
+    @staticmethod
+    def _log_track_results(
+        runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"
     ):
         pass

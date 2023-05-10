@@ -142,7 +142,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
-        return runtime._wrap_run_result(result, run, err=last_err)
+        return self._wrap_run_result(runtime, result, run, err=last_err)
 
     @staticmethod
     def verify_base_image(runtime):

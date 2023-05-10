@@ -189,7 +189,7 @@ class SystemTestPreparer:
                 workdir=workdir,
             )
         if self._debug:
-            return ""
+            return b"", b""
         try:
             if local:
                 stdout, stderr, exit_status = run_command(

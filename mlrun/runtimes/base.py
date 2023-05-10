@@ -72,8 +72,6 @@ from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
 from .utils import RunError, calc_hash, get_k8s
 
-# TODO client-server-separation: remove run_modes once used only in launcher
-run_modes = ["pass"]
 spec_fields = [
     "command",
     "args",

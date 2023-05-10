@@ -18,6 +18,7 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.kfpops
@@ -93,9 +94,8 @@ class BaseLauncher(abc.ABC):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        # TODO: don't use schedule from API schemas but rather from mlrun client
         schedule: Optional[
-            Union[str, mlrun.api.schemas.schedule.ScheduleCronTrigger]
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
         hyperparams: Dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
@@ -335,8 +335,7 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime",
         result: dict,
         run: "mlrun.run.RunObject",
-        # TODO: import schema from common
-        schedule: Optional["mlrun.api.schemas.ScheduleCronTrigger"] = None,
+        schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
         err: Optional[Exception] = None,
     ):
         # if the purpose was to schedule (and not to run) nothing to wrap

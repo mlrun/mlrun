@@ -27,7 +27,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.utils import is_legacy_artifact
 
 router = APIRouter()
 

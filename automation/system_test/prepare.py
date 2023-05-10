@@ -334,20 +334,13 @@ class SystemTestPreparer:
 
 
     def _install_devutilities(self):
-
         urlscript= ("https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git")
         ipaddr = ("--ipaddr " + os.environ.get('IP_ADDR_PREFIX'))
-
-        # make provctl executable
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
         self._run_command("git", args=["clone", urlscript, "dev_utilities"])
         self._run_command("python3", args=["dev_utilities.py", "uninstall", "--redis", "--mysql", "--redisinsight", "--kafka"], workdir="/home/iguazio/dev_utilities")
         self._run_command("python3", args=["dev_utilities.py", "install", "--redis", "--mysql", "--redisinsight", "--kafka", ipaddr], workdir="/home/iguazio/dev_utilities")
-
-
-
-
-
+    
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>

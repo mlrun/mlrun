@@ -27,7 +27,6 @@ import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError

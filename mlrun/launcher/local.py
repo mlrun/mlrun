@@ -32,6 +32,11 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
     """
 
     def __init__(self, local: bool):
+        """
+        Initialize a ClientLocalLauncher.
+        :param local:   True if the job runs on the user's local machine,
+                        False if it runs on a remote machine (e.g. a dedicated k8s pod).
+        """
         super().__init__()
         self._is_run_local = local
 

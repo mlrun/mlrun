@@ -1042,20 +1042,6 @@ class BaseRuntime(ModelObj):
             self.spec.build.base_image = image
             self.spec.image = ""
 
-    def _validate_run_params(self, parameters: typing.Dict[str, typing.Any]):
-        for param_name, param_value in parameters.items():
-
-            if isinstance(param_value, dict):
-                # if the parameter is a dict, we might have some nested parameters,
-                # in this case we need to verify them as well recursively
-                self._validate_run_params(param_value)
-
-            # verify that integer parameters don't exceed a int64
-            if isinstance(param_value, int) and abs(param_value) >= 2**63:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param_name} value {param_value} exceeds int64"
-                )
-
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
 

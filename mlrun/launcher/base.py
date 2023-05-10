@@ -123,7 +123,7 @@ class BaseLauncher(abc.ABC):
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
-        self._verify_run_params(run.spec.parameters)
+        self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
 
     @staticmethod
@@ -155,13 +155,13 @@ class BaseLauncher(abc.ABC):
             if message:
                 logger.warning(message, output_path=run.spec.output_path)
 
-    def _verify_run_params(self, parameters: Dict[str, Any]):
+    def _validate_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():
 
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
-                self._verify_run_params(param_value)
+                self._validate_run_params(param_value)
 
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:

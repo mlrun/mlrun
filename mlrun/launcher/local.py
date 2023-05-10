@@ -156,7 +156,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             # verify valid task parameters
             tasks = task_generator.generate(run)
             for task in tasks:
-                runtime._validate_run_params(task.spec.parameters)
+                self._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
         execution.store_run()

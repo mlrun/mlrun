@@ -268,33 +268,10 @@ class Client(
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
-        params = {}
-        if updated_after is not None:
-            time_string = updated_after.isoformat().split("+")[0]
-            params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
-        if page_size is None:
-            page_size = (
-                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
-            )
-        if page_size is not None:
-            params["page[size]"] = int(page_size)
-
-        params["include"] = "owner"
-        response = self._send_request_to_api(
-            "GET",
-            "projects",
-            "Failed listing projects from Iguazio",
-            session,
-            params=params,
+        project_names, latest_updated_at = self._list_project_names(
+            session, updated_after, page_size
         )
-        response_body = response.json()
-        projects = []
-        for iguazio_project in response_body["data"]:
-            projects.append(
-                self._transform_iguazio_project_to_mlrun_project(iguazio_project)
-            )
-        latest_updated_at = self._find_latest_updated_at(response_body)
-        return projects, latest_updated_at
+        return self._list_projects_data(session, project_names), latest_updated_at
 
     def get_project(
         self,
@@ -341,6 +318,46 @@ class Client(
         False because client is synchronous
         """
         return True
+
+    def _list_project_names(
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> typing.Tuple[typing.List[str], typing.Optional[datetime.datetime]]:
+        params = {}
+        if updated_after is not None:
+            time_string = updated_after.isoformat().split("+")[0]
+            params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+        if page_size is None:
+            page_size = (
+                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+            )
+        if page_size is not None:
+            params["page[size]"] = int(page_size)
+
+        response = self._send_request_to_api(
+            "GET",
+            "projects",
+            "Failed listing projects from Iguazio",
+            session,
+            params=params,
+        )
+        response_body = response.json()
+        project_names = [
+            iguazio_project["attributes"]["name"]
+            for iguazio_project in response_body["data"]
+        ]
+        latest_updated_at = self._find_latest_updated_at(response_body)
+        return project_names, latest_updated_at
+
+    def _list_projects_data(
+        self, session: str, project_names: typing.List[str]
+    ) -> typing.List[mlrun.api.schemas.Project]:
+        return [
+            self._get_project_from_iguazio(session, project_name)
+            for project_name in project_names
+        ]
 
     def _find_latest_updated_at(
         self, response_body: dict

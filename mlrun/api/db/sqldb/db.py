@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.api.db.session
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
@@ -1417,6 +1418,14 @@ class SQLDB(DBInterface):
             if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
                 projects = [project_record.name for project_record in project_records]
             # leader format is only for follower mode which will format the projects returned from here
+            elif format_ == mlrun.api.schemas.ProjectsFormat.minimal:
+                projects.append(
+                    self._minimize_project_schema(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
+                    )
+                )
             elif format_ in [
                 mlrun.api.schemas.ProjectsFormat.full,
                 mlrun.api.schemas.ProjectsFormat.leader,
@@ -1429,6 +1438,15 @@ class SQLDB(DBInterface):
                     f"Provided format is not supported. format={format_}"
                 )
         return schemas.ProjectsOutput(projects=projects)
+
+    def _minimize_project_schema(
+        self,
+        project: mlrun.api.schemas.Project,
+    ) -> mlrun.api.schemas.Project:
+        project.spec.functions = None
+        project.spec.workflows = None
+        project.spec.artifacts = None
+        return project
 
     async def get_project_resources_counters(
         self,

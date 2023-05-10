@@ -1420,7 +1420,7 @@ class SQLDB(DBInterface):
             # leader format is only for follower mode which will format the projects returned from here
             elif format_ == mlrun.api.schemas.ProjectsFormat.minimal:
                 projects.append(
-                    mlrun.api.utils.helpers.minimize_project_schema(
+                    self._minimize_project_schema(
                         self._transform_project_record_to_schema(
                             session, project_record
                         )
@@ -1438,6 +1438,15 @@ class SQLDB(DBInterface):
                     f"Provided format is not supported. format={format_}"
                 )
         return schemas.ProjectsOutput(projects=projects)
+
+    def _minimize_project_schema(
+        self,
+        project: mlrun.api.schemas.Project,
+    ) -> mlrun.api.schemas.Project:
+        project.spec.functions = None
+        project.spec.workflows = None
+        project.spec.artifacts = None
+        return project
 
     async def get_project_resources_counters(
         self,

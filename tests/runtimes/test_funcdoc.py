@@ -101,13 +101,15 @@ find_handlers_expected = [
         "return": funcdoc.param_dict(),
         "params": [funcdoc.param_dict("n")],
         "lineno": 6,
+        "has_varargs": False,
+        "has_kwargs": False,
     },
 ]
 
 
 def test_find_handlers():
     funcs = funcdoc.find_handlers(find_handlers_code)
-    assert find_handlers_expected == funcs
+    assert funcs == find_handlers_expected
 
 
 ast_code_cases = [
@@ -139,8 +141,54 @@ def test_ast_none():
     def fn() -> None:
         pass
     """
-    fn = ast.parse(dedent(code)).body[0]
+    fn: ast.FunctionDef = ast.parse(dedent(code)).body[0]
     funcdoc.ast_func_info(fn)
+
+
+@pytest.mark.parametrize(
+    "func_code,expected_has_varargs,expected_has_kwargs",
+    [
+        (
+            """
+    def fn(p1,p2,*args,**kwargs) -> None:
+        pass
+    """,
+            True,
+            True,
+        ),
+        (
+            """
+    def fn(p1,p2,*args) -> None:
+        pass
+    """,
+            True,
+            False,
+        ),
+        (
+            """
+    def fn(p1,p2,**kwargs) -> None:
+        pass
+    """,
+            False,
+            True,
+        ),
+        (
+            """
+    def fn(p1,p2) -> None:
+        pass
+    """,
+            False,
+            False,
+        ),
+    ],
+)
+def test_ast_func_info_with_kwargs_and_args(
+    func_code, expected_has_varargs, expected_has_kwargs
+):
+    fn: ast.FunctionDef = ast.parse(dedent(func_code)).body[0]
+    func_info = funcdoc.ast_func_info(fn)
+    assert func_info["has_varargs"] == expected_has_varargs
+    assert func_info["has_kwargs"] == expected_has_kwargs
 
 
 def test_ast_compound():

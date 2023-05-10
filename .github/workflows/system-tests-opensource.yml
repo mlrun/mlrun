@@ -190,7 +190,7 @@ jobs:
     - name: Prepare system tests env
       run: |
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
-        echo "MLRUN_SYSTEM_TESTS_GIT_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" > tests/system/env.yml
+        echo "MLRUN_SYSTEM_TESTS_GIT_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" >> tests/system/env.yml
         # TODO: use `prepare.py` for open source system tests as well
 
     - name: Run system tests

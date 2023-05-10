@@ -1355,7 +1355,7 @@ class SQLDB(DBInterface):
 
     @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug("Storing project in DB", name=name)
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )

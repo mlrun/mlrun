@@ -242,6 +242,12 @@ class ModelEndpoint(BaseModel):
                     mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
+
+        # Validate tht the error count value is an integer - important for the grafana dashboards
+        flatten_dict[mlrun.common.model_monitoring.EventFieldType.ERROR_COUNT] = int(
+            flatten_dict[mlrun.common.model_monitoring.EventFieldType.ERROR_COUNT]
+        )
+
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
         flatten_dict.pop(mlrun.common.model_monitoring.EventFieldType.FEATURES, None)
         return flatten_dict

@@ -829,7 +829,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     )
     if clone_target_dir is not None:
         function.spec.clone_target_dir = clone_target_dir
-    function.spec.build.source = "some-source.tgz"
+    function.spec.build.source = "/path/some-source.tgz"
     mlrun.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,

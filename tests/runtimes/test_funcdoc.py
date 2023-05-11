@@ -180,6 +180,14 @@ def test_ast_none():
             False,
             False,
         ),
+        (
+            """
+    def fn(p1,p2,**something) -> None:
+        pass
+    """,
+            False,
+            True,
+        ),
     ],
 )
 def test_ast_func_info_with_kwargs_and_args(

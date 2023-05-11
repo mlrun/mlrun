@@ -22,7 +22,6 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.db.base
 import mlrun.api.db.session
-import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.lists
@@ -192,6 +191,7 @@ class NotificationPusher(object):
         status: str = None,
         sent_time: datetime.datetime = None,
     ):
+        # TODO: move to api side
         db_session = mlrun.api.db.session.create_session()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time

@@ -22,7 +22,6 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun.runtimes.base import BaseRuntimeHandler
 
-from ..builder import build_runtime
 from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
@@ -44,12 +43,13 @@ class KubejobRuntime(KubeResource):
         if self.spec.image:
             return True
 
-        if self._is_remote_api():
-            db = self._get_db()
-            try:
-                db.get_builder_status(self, logs=False)
-            except Exception:
-                pass
+        db = self._get_db()
+        try:
+            # getting builder status enriches the runtime when it needs to be fetched from the API,
+            # otherwise it's a no-op
+            db.get_builder_status(self, logs=False)
+        except Exception:
+            pass
 
         if self.spec.image:
             return True
@@ -212,6 +212,7 @@ class KubejobRuntime(KubeResource):
         if is_kfp:
             watch = True
 
+        ready = False
         if self._is_remote_api():
             db = self._get_db()
             data = db.remote_builder(
@@ -237,17 +238,6 @@ class KubejobRuntime(KubeResource):
                 state = self._build_watch(watch, show_on_failure=show_on_failure)
                 ready = state == "ready"
                 self.status.state = state
-        else:
-            self.save(versioned=False)
-            ready = build_runtime(
-                mlrun.common.schemas.AuthInfo(),
-                self,
-                with_mlrun,
-                mlrun_version_specifier,
-                skip_deployed,
-                watch,
-            )
-            self.save(versioned=False)
 
         if watch and not ready:
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")

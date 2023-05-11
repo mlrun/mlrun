@@ -1399,9 +1399,7 @@ class SQLDB(DBInterface):
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
-        logger.debug(
-            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
-        )
+        logger.debug("Patching project in DB", name=name, patch_mode=patch_mode)
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
             session, name, project_record, project, patch_mode
@@ -3428,6 +3426,9 @@ class SQLDB(DBInterface):
             else:
                 results.append(ordered_source)
         return results
+
+    def _list_hub_sources_without_transform(self, session) -> List[HubSource]:
+        return self._query(session, HubSource).all()
 
     def delete_hub_source(self, session, name):
         logger.debug("Deleting hub source from DB", name=name)

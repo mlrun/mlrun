@@ -61,7 +61,6 @@ extensions = [
     "sphinx_togglebutton",
     "sphinx_design",
     "sphinx_reredirects",
-    "sphinx_ext_substitution",
 ]
 
 # redirect paths due to filename changes

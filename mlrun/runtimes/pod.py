@@ -992,12 +992,14 @@ class KubeResource(BaseRuntime):
                 "must specify env_vars OR file_path"
             )
         if file_path:
-            env_vars = dotenv.dotenv_values(file_path)
-            if None in env_vars.values():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "env file lines must be in the form key=value"
-                )
-
+            if os.path.exists(file_path):
+                env_vars = dotenv.dotenv_values(file_path)
+                if None in env_vars.values():
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "env file lines must be in the form key=value"
+                    )
+            else:
+                raise IOError(f"{file_path} does not exist.")
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self

@@ -193,8 +193,8 @@ class BaseLauncher(abc.ABC):
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
-    @staticmethod
     def _enrich_run(
+        self,
         runtime,
         run,
         handler=None,
@@ -285,11 +285,11 @@ class BaseLauncher(abc.ABC):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not run.spec.output_path and runtime._get_db():
+                if not run.spec.output_path:
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
                         # spec first as get_db() depends on it
-                        project = runtime._get_db().get_project(run.metadata.project)
+                        project = self.db.get_project(run.metadata.project)
                         # this is mainly for tests, so we won't need to mock get_project for so many tests
                         # in normal use cases if no project is found we will get an error
                         if project:

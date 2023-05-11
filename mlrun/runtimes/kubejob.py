@@ -70,25 +70,7 @@ class KubejobRuntime(KubeResource):
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
-        if not pull_at_runtime and "://" not in source:
-            if not os.path.isabs(source):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Source must be a valid url or absolute path when 'pull_at_runtime' is False"
-                )
-            else:
-                logger.warn(
-                    "Loading local source at build time requires the source to be on the base image, "
-                    "in which case it is recommended to use 'workdir' instead",
-                    source=source,
-                    pull_at_runtime=pull_at_runtime,
-                    workdir=workdir,
-                )
-
-        if not pull_at_runtime and source.endswith(".zip"):
-            logger.warn(
-                "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
-                source=source,
-            )
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
 
         self.spec.build.source = source
         if handler:

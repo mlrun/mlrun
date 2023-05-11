@@ -15,7 +15,6 @@
 import deepdiff
 
 import mlrun
-import mlrun.common.schemas
 import tests.integration.sdk_api.base
 
 

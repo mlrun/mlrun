@@ -35,7 +35,7 @@ def test_data_migration_rename_marketplace_kind_to_hub(
                 ),
             )
         )
-        db.store_hub_source(db_session, source.source.metadata.name, source)
+        db.store_hub_source(db_session, source_name, source)
 
     # change hub kind to 'Marketplace'
     hubs = db._list_hub_sources_without_transform(db_session)

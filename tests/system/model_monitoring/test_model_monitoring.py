@@ -585,14 +585,12 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         iris_data = iris["data"].tolist()
 
         # Simulating invalid request
-        try:
-            invalid_input = ["n", "s", "o", "-"]
+        invalid_input = ["n", "s", "o", "-"]
+        with pytest.raises(RuntimeError):
             serving_fn.invoke(
                 "v2/models/VotingEnsemble/infer",
                 json.dumps({"inputs": [invalid_input]}),
             )
-        except RuntimeError:
-            pass
 
         # Simulating valid requests
         t_end = monotonic() + simulation_time

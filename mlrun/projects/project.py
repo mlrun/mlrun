@@ -46,7 +46,6 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.pod import AutoMountType
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import (
@@ -71,6 +70,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
     pipeline_context,
@@ -1651,54 +1651,11 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            function = self.enrich_function_object(
-                function, copy_function=copy_function
+            function = enrich_function_object(
+                self, function, copy_function=copy_function
             )
             self.spec._function_objects[key] = function
         return function
-
-    def enrich_function_object(
-        self, function, decorator=None, copy_function=True
-    ) -> mlrun.runtimes.BaseRuntime:
-        if hasattr(function, "_enriched"):
-            return function
-        f = function.copy() if copy_function else function
-        f.metadata.project = self.metadata.name
-        setattr(f, "_enriched", True)
-
-        # set project default image if defined and function does not have an image specified
-        if self.spec.default_image and not f.spec.image:
-            f._enriched_image = True
-            f.spec.image = self.spec.default_image
-
-        src = f.spec.build.source
-        if src and src in [".", "./"]:
-            if not self.spec.source and not self.spec.mountdir:
-                logger.warning(
-                    "project.spec.source should be specified when function is using code from project context"
-                )
-
-            if self.spec.mountdir:
-                f.spec.workdir = self.spec.mountdir
-                f.spec.build.source = ""
-            else:
-                f.spec.build.source = self.spec.source
-                f.spec.build.load_source_on_run = self.spec.load_source_on_run
-                f.spec.workdir = self.spec.workdir or self.spec.subpath
-                f.verify_base_image()
-
-        if self.spec.default_requirements:
-            f.with_requirements(self.spec.default_requirements)
-        if decorator:
-            decorator(f)
-
-        if (
-            decorator and AutoMountType.is_auto_modifier(decorator)
-        ) or self.spec.disable_auto_mount:
-            f.spec.disable_auto_mount = True
-        f.try_auto_mount_based_on_config()
-
-        return f
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""

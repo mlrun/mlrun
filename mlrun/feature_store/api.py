@@ -341,7 +341,7 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
             spec.loader.exec_module(module)
             return vars(__import__(module_name))
     else:
-        return get_caller_globals()
+        return get_caller_globals(level=3)
 
 
 def ingest(

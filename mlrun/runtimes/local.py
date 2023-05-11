@@ -486,4 +486,17 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
                 kwargs[key] = obj.local()
             else:
                 kwargs[key] = context.get_input(key, inputs[key])
+
+    # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
+    # This corresponds to a **kwargs parameter in a Python function definition.
+    if any(param.kind == param.VAR_KEYWORD for param in args.values()):
+        # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
+        # as part of the previous loop which handled all parameters which were explicitly defined in the handler
+        for key in params:
+            if key not in kwargs:
+                kwargs[key] = copy(params[key])
+        for key in inputs:
+            if key not in kwargs:
+                kwargs[key] = context.get_input(key, inputs[key])
+
     return kwargs

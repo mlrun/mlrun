@@ -61,6 +61,7 @@ extensions = [
     "sphinx_togglebutton",
     "sphinx_design",
     "sphinx_reredirects",
+    "sphinx_ext_substitution",
 ]
 
 # redirect paths due to filename changes
@@ -141,7 +142,16 @@ myst_enable_extensions = [
 myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 myst_all_links_external = True
-myst_substitutions = {"version": version}
+
+myst_substitutions = {
+  "version": "version",
+  "ceversion": "v1.2.1",
+  "releasedocumentation": "docs.mlrun.org/en/v1.2.1/index.html" 
+}
+
+
+
+
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

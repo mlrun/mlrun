@@ -23,6 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.endpoints.functions
 import mlrun.api.utils.builder
 import mlrun.common.schemas
 import mlrun.errors
@@ -755,7 +756,7 @@ def my_func(context):
         runtime = self._generate_runtime()
         runtime.spec.build.base_image = "some/image"
         runtime.spec.build.commands = copy.deepcopy(commands)
-        runtime.deploy(with_mlrun=with_mlrun, watch=False)
+        self.deploy(db, runtime, with_mlrun=with_mlrun)
         dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         if expected_to_upgrade:
             expected_str = ""

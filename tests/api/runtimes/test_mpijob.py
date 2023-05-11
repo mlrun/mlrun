@@ -15,8 +15,11 @@
 import typing
 import unittest.mock
 
+from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
+from sqlalchemy.orm import Session
 
+import mlrun.api.utils.builder
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
@@ -31,12 +34,14 @@ class TestMpiV1Runtime(TestRuntimeBase):
         self.name = "test-mpi-v1"
         mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
 
-    def test_run_v1_sanity(self):
+    def test_run_v1_sanity(self, db: Session, client: TestClient):
+        mlconf.httpdb.builder.docker_registry = "localhost:5000"
+        mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
         self._mock_list_pods()
         self._mock_create_namespaced_custom_object()
         self._mock_get_namespaced_custom_object()
         mpijob_function = self._generate_runtime(self.runtime_kind)
-        mpijob_function.deploy()
+        self.deploy(db, mpijob_function)
         run = mpijob_function.run(
             artifact_path="v3io:///mypath",
             watch=False,

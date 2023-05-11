@@ -44,14 +44,6 @@ def test_data_migration_rename_marketplace_kind_to_hub(
         db_session.add(source)
         db_session.commit()
 
-    # change hub kind to 'Marketplace'
-    hubs = db._list_hub_sources_without_transform(db_session)
-    for hub in hubs:
-        hub_dict = hub.full_object
-        hub_dict["kind"] = "MarketplaceSource"
-        hub.full_object = hub_dict
-        db._upsert(db_session, [hub], ignore=True)
-
     # run migration
     mlrun.api.initial_data._rename_marketplace_kind_to_hub(db, db_session)
 

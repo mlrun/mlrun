@@ -14,7 +14,6 @@
 import enum
 import getpass
 import http
-import os.path
 import traceback
 import typing
 import uuid
@@ -26,7 +25,6 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
-import IPython
 import requests.exceptions
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
@@ -36,6 +34,7 @@ import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -47,8 +46,7 @@ from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
-from ..execution import MLClientCtx
-from ..kfpops import mlrun_op, write_kfpmeta
+from ..kfpops import mlrun_op
 from ..lists import RunList
 from ..model import (
     BaseMetadata,
@@ -65,8 +63,6 @@ from ..utils import (
     enrich_image_url,
     get_in,
     get_parsed_docker_registry,
-    get_ui_url,
-    is_ipython,
     logger,
     normalize_name,
     now_date,
@@ -74,10 +70,8 @@ from ..utils import (
 )
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
-from .generators import get_generator
-from .utils import RunError, calc_hash, get_k8s, results_to_iter
+from .utils import RunError, calc_hash, get_k8s
 
-run_modes = ["pass"]
 spec_fields = [
     "command",
     "args",
@@ -189,14 +183,12 @@ class BaseRuntime(ModelObj):
         self.is_child = False
         self._status = None
         self.status = None
-        self._is_api_server = False
         self.verbose = False
         self._enriched_image = False
 
     def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
-        self._is_api_server = mlrun.config.is_running_as_api()
 
     @property
     def metadata(self) -> BaseMetadata:
@@ -239,39 +231,6 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
-    def _use_remote_api(self):
-        if (
-            self._is_remote
-            and not self._is_api_server
-            and self._get_db()
-            and self._get_db().kind == "http"
-        ):
-            return True
-        return False
-
-    def _enrich_on_client_side(self):
-        self.try_auto_mount_based_on_config()
-        self._fill_credentials()
-
-    def _enrich_on_server_side(self):
-        pass
-
-    def _enrich_on_server_and_client_sides(self):
-        """
-        enrich function also in client side and also on server side
-        """
-        pass
-
-    def _enrich_function(self):
-        """
-        enriches the function based on the flow state we run in (sdk or server)
-        """
-        if self._use_remote_api():
-            self._enrich_on_client_side()
-        else:
-            self._enrich_on_server_side()
-        self._enrich_on_server_and_client_sides()
-
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -288,7 +247,6 @@ class BaseRuntime(ModelObj):
         if not self._db_conn:
             if self.spec.rundb:
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
-                self._is_api_server = mlrun.config.is_running_as_api()
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
@@ -392,210 +350,33 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
-        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
-
-        if self.spec.mode and self.spec.mode not in run_modes:
-            raise ValueError(f'run mode can only be {",".join(run_modes)}')
-
-        self._enrich_function()
-
-        run = self._create_run_object(runspec)
-
-        if local:
-
-            # do not allow local function to be scheduled
-            if schedule is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "local and schedule cannot be used together"
-                )
-            result = self._run_local(
-                run,
-                local_code_path,
-                project,
-                name,
-                workdir,
-                handler,
-                params,
-                inputs,
-                returns,
-                artifact_path,
-                notifications=notifications,
-            )
-            self._save_or_push_notifications(result, local)
-            return result
-
-        run = self._enrich_run(
-            run,
-            handler,
-            project,
-            name,
-            params,
-            inputs,
-            returns,
-            hyperparams,
-            hyper_param_options,
-            verbose,
-            scrape_metrics,
-            out_path,
-            artifact_path,
-            workdir,
-            notifications,
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            self._is_remote, local
         )
-        self._validate_output_path(run)
-        db = self._get_db()
-
-        if not self.is_deployed():
-            if self.spec.build.auto_build or auto_build:
-                logger.info(
-                    "Function is not deployed and auto_build flag is set, starting deploy..."
-                )
-                self.deploy(skip_deployed=True, show_on_failure=True)
-            else:
-                raise RunError(
-                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
-                )
-
-        if self.verbose:
-            logger.info(f"runspec:\n{run.to_yaml()}")
-
-        if "V3IO_USERNAME" in environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
-
-        if not self.is_child:
-            db_str = "self" if self._is_api_server else self.spec.rundb
-            logger.info(
-                "Storing function",
-                name=run.metadata.name,
-                uid=run.metadata.uid,
-                db=db_str,
-            )
-            self._store_function(run, run.metadata, db)
-
-        # execute the job remotely (to a k8s cluster via the API service)
-        if self._use_remote_api():
-            return self._submit_job(run, schedule, db, watch)
-
-        elif self._is_remote and not self._is_api_server and not self.kfp:
-            logger.warning(
-                "warning!, Api url not set, " "trying to exec remote runtime locally"
-            )
-
-        execution = MLClientCtx.from_dict(
-            run.to_dict(),
-            db,
-            autocommit=False,
-            is_api=self._is_api_server,
-            store_run=False,
+        return launcher.launch(
+            runtime=self,
+            task=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
         )
-
-        self._verify_run_params(run.spec.parameters)
-
-        # create task generator (for child runs) from spec
-        task_generator = get_generator(
-            run.spec, execution, param_file_secrets=param_file_secrets
-        )
-        if task_generator:
-            # verify valid task parameters
-            tasks = task_generator.generate(run)
-            for task in tasks:
-                self._verify_run_params(task.spec.parameters)
-
-        # post verifications, store execution in db and run pre run hooks
-        execution.store_run()
-        self._pre_run(run, execution)  # hook for runtime specific prep
-
-        last_err = None
-        # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
-        # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
-        # runtime is now a local runtime and therefore `self._is_nested == False`, we run each task as a separate run by
-        # using the task generator
-        if task_generator and not self._is_nested:
-            # multiple runs (based on hyper params or params file)
-            runner = self._run_many
-            if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
-                runner = self._parallel_run_many
-            results = runner(task_generator, execution, run)
-            results_to_iter(results, run, execution)
-            result = execution.to_dict()
-            result = self._update_run_state(result, task=run)
-
-        else:
-            # single run
-            try:
-                resp = self._run(run, execution)
-                if (
-                    watch
-                    and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind)
-                    # API shouldn't watch logs, its the client job to query the run logs
-                    and not mlrun.config.is_running_as_api()
-                ):
-                    state, _ = run.logs(True, self._get_db())
-                    if state not in ["succeeded", "completed"]:
-                        logger.warning(f"run ended with state {state}")
-                result = self._update_run_state(resp, task=run)
-            except RunError as err:
-                last_err = err
-                result = self._update_run_state(task=run, err=err)
-
-        self._save_or_push_notifications(run)
-
-        self._post_run(result, execution)  # hook for runtime specific cleanup
-
-        return self._wrap_run_result(result, run, schedule=schedule, err=last_err)
-
-    def _wrap_run_result(
-        self, result: dict, runspec: RunObject, schedule=None, err=None
-    ):
-        # if the purpose was to schedule (and not to run) nothing to wrap
-        if schedule:
-            return
-
-        if result and self.kfp and err is None:
-            write_kfpmeta(result)
-
-        # show ipython/jupyter result table widget
-        results_tbl = RunList()
-        if result:
-            results_tbl.append(result)
-        else:
-            logger.info("no returned result (job may still be in progress)")
-            results_tbl.append(runspec.to_dict())
-
-        uid = runspec.metadata.uid
-        project = runspec.metadata.project
-        if is_ipython and config.ipython_widget:
-            results_tbl.show()
-            print()
-            ui_url = get_ui_url(project, uid)
-            if ui_url:
-                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
-            IPython.display.display(
-                IPython.display.HTML(
-                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
-                )
-            )
-        elif not (self.is_child and is_running_as_api()):
-            project_flag = f"-p {project}" if project else ""
-            info_cmd = f"mlrun get run {uid} {project_flag}"
-            logs_cmd = f"mlrun logs {uid} {project_flag}"
-            logger.info(
-                "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
-            )
-            ui_url = get_ui_url(project, uid)
-            if ui_url:
-                logger.info("Or click for UI", ui_url=ui_url)
-        if result:
-            run = RunObject.from_dict(result)
-            logger.info(
-                f"run executed, status={run.status.state}", name=run.metadata.name
-            )
-            if run.status.state == "error":
-                if self._is_remote and not self.is_child:
-                    logger.error(f"runtime error: {run.status.error}")
-                raise RunError(run.status.error)
-            return run
-
-        return None
 
     def _get_db_run(self, task: RunObject = None):
         if self._get_db() and task:
@@ -623,43 +404,6 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
-
-    def _run_local(
-        self,
-        runspec,
-        local_code_path,
-        project,
-        name,
-        workdir,
-        handler,
-        params,
-        inputs,
-        returns,
-        artifact_path,
-        notifications: List[mlrun.model.Notification] = None,
-    ):
-        # allow local run simulation with a flip of a flag
-        command = self
-        if local_code_path:
-            project = project or self.metadata.project
-            name = name or self.metadata.name
-            command = local_code_path
-        return mlrun.run_local(
-            runspec,
-            command,
-            name,
-            self.spec.args,
-            workdir=workdir,
-            project=project,
-            handler=handler,
-            params=params,
-            inputs=inputs,
-            artifact_path=artifact_path,
-            mode=self.spec.mode,
-            allow_empty_resources=self.spec.allow_empty_resources,
-            notifications=notifications,
-            returns=returns,
-        )
 
     def _create_run_object(self, runspec):
         # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
@@ -801,64 +545,6 @@ class BaseRuntime(ModelObj):
 
         runspec.spec.notifications = notifications or runspec.spec.notifications or []
         return runspec
-
-    def _submit_job(self, run: RunObject, schedule, db, watch):
-        if self._secrets:
-            run.spec.secret_sources = self._secrets.to_serial()
-        try:
-            resp = db.submit_job(run, schedule=schedule)
-            if schedule:
-                action = resp.pop("action", "created")
-                logger.info(f"task schedule {action}", **resp)
-                return
-
-        except (requests.HTTPError, Exception) as err:
-            logger.error(f"got remote run err, {err_to_str(err)}")
-
-            if isinstance(err, requests.HTTPError):
-                self._handle_submit_job_http_error(err)
-
-            result = None
-            # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
-            # but there's no run in case of schedule)
-            if not schedule:
-                result = self._update_run_state(task=run, err=err_to_str(err))
-            return self._wrap_run_result(result, run, schedule=schedule, err=err)
-
-        if resp:
-            txt = get_in(resp, "status.status_text")
-            if txt:
-                logger.info(txt)
-        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
-        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
-        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
-        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
-        # in real time
-        if (
-            watch is None
-            and self.kfp
-            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
-        ):
-            state_interval = int(
-                config.httpdb.logs.pipelines.pull_state.pull_state_interval
-            )
-            logs_interval = int(
-                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
-            )
-
-            run.wait_for_completion(
-                show_logs=True,
-                sleep=state_interval,
-                logs_interval=logs_interval,
-                raise_on_failure=False,
-            )
-            resp = self._get_db_run(run)
-
-        elif watch or self.kfp:
-            run.logs(True, self._get_db())
-            resp = self._get_db_run(run)
-
-        return self._wrap_run_result(resp, run, schedule=schedule)
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):
@@ -1354,20 +1040,6 @@ class BaseRuntime(ModelObj):
             self.spec.build.base_image = image
             self.spec.image = ""
 
-    def _verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
-        for param_name, param_value in parameters.items():
-
-            if isinstance(param_value, dict):
-                # if the parameter is a dict, we might have some nested parameters,
-                # in this case we need to verify them as well recursively
-                self._verify_run_params(param_value)
-
-            # verify that integer parameters don't exceed a int64
-            if isinstance(param_value, int) and abs(param_value) >= 2**63:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param_name} value {param_value} exceeds int64"
-                )
-
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
 
@@ -1397,35 +1069,12 @@ class BaseRuntime(ModelObj):
         return self
 
     def save(self, tag="", versioned=False, refresh=False) -> str:
-        db = self._get_db()
-        if not db:
-            logger.error("database connection is not configured")
-            return ""
-
-        if refresh and self._is_remote_api():
-            try:
-                meta = self.metadata
-                db_func = db.get_function(meta.name, meta.project, meta.tag)
-                if db_func and "status" in db_func:
-                    self.status = db_func["status"]
-                    if (
-                        self.status.state
-                        and self.status.state == "ready"
-                        and not hasattr(self.status, "nuclio_name")
-                    ):
-                        self.spec.image = get_in(db_func, "spec.image", self.spec.image)
-            except mlrun.errors.MLRunNotFoundError:
-                pass
-
-        tag = tag or self.metadata.tag
-
-        obj = self.to_dict()
-        logger.debug(f"saving function: {self.metadata.name}, tag: {tag}")
-        hash_key = db.store_function(
-            obj, self.metadata.name, self.metadata.project, tag, versioned
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            is_remote=self._is_remote
         )
-        hash_key = hash_key if versioned else None
-        return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
+        return launcher.save_function(
+            self, tag=tag, versioned=versioned, refresh=refresh
+        )
 
     def to_dict(self, fields=None, exclude=None, strip=False):
         struct = super().to_dict(fields, exclude=exclude)
@@ -1480,34 +1129,6 @@ class BaseRuntime(ModelObj):
 
         return requirements
 
-    def _validate_output_path(self, run):
-        if is_local(run.spec.output_path):
-            message = ""
-            if not os.path.isabs(run.spec.output_path):
-                message = (
-                    "artifact/output path is not defined or is local and relative,"
-                    " artifacts will not be visible in the UI"
-                )
-                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
-                    self.kind
-                ):
-                    raise mlrun.errors.MLRunPreconditionFailedError(
-                        "artifact path (`artifact_path`) must be absolute for remote tasks"
-                    )
-            elif hasattr(self.spec, "volume_mounts") and not self.spec.volume_mounts:
-                message = (
-                    "artifact output path is local while no volume mount is specified. "
-                    "artifacts would not be visible via UI."
-                )
-            if message:
-                logger.warning(message, output_path=run.spec.output_path)
-
-
-def is_local(url):
-    if not url:
-        return True
-    return "://" not in url
-
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
@@ -1526,7 +1147,7 @@ class BaseRuntimeHandler(ABC):
     def _should_collect_logs(self) -> bool:
         """
         There are some runtimes which we don't collect logs for using the log collector
-        :return: whether should collect log for it
+        :return: whether it should collect log for it
         """
         return True
 

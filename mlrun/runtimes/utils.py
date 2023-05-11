@@ -25,6 +25,7 @@ from kubernetes import client
 
 import mlrun
 import mlrun.api.utils.builder
+import mlrun.common.constants
 import mlrun.utils.regex
 from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
@@ -346,7 +347,7 @@ def generate_function_image_name(project: str, name: str, tag: str) -> str:
     _, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return fill_function_image_name_template(
-        mlrun.api.utils.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
         repository,
         project,
         name,
@@ -375,7 +376,7 @@ def resolve_function_target_image_registries_to_enforce_prefix():
     registry, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return [
-        f"{mlrun.api.utils.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
+        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
         f"{registry}/{repository}/",
     ]
 

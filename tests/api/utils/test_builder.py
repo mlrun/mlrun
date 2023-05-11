@@ -24,6 +24,7 @@ import mlrun
 import mlrun.api.api.utils
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.version
@@ -148,7 +149,7 @@ def test_build_runtime_target_image(monkeypatch):
     # assert the same with the registry enrich prefix
     # assert we can override the target image as long as we stick to the prefix
     function.spec.build.image = (
-        f"{mlrun.api.utils.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username"
+        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username"
         f"/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
     mlrun.api.utils.builder.build_runtime(
@@ -163,7 +164,7 @@ def test_build_runtime_target_image(monkeypatch):
 
     # assert it raises if we don't stick to the prefix
     for invalid_image in [
-        f"{mlrun.api.utils.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}",
+        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}",
         f"{registry}/without-prefix:{function.metadata.tag}",
     ]:
         function.spec.build.image = invalid_image

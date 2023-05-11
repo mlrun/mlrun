@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
@@ -32,8 +33,6 @@ from mlrun.utils import (
     logger,
     normalize_name,
 )
-
-IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
@@ -668,10 +667,14 @@ def _resolve_image_target_and_registry_secret(
         return "/".join([registry, image_target]), secret_name
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
-    if image_target.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+    if image_target.startswith(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+    ):
 
         # remove prefix from image name
-        image_target = image_target[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+        image_target = image_target[
+            len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
+        ]
 
         registry, repository = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret

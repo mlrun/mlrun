@@ -428,12 +428,6 @@ def _perform_version_2_data_migrations(
     _align_runs_table(db, db_session)
 
 
-def _perform_version_3_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _rename_marketplace_kind_to_hub(db, db_session)
-
-
 def _align_runs_table(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -473,6 +467,12 @@ def _align_runs_table(
         db._update_run_updated_time(run, run_dict, updated)
         run.struct = run_dict
         db._upsert(db_session, [run], ignore=True)
+
+
+def _perform_version_3_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _rename_marketplace_kind_to_hub(db, db_session)
 
 
 def _rename_marketplace_kind_to_hub(

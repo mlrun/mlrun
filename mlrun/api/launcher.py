@@ -18,12 +18,12 @@ import mlrun.api.db.sqldb.session
 import mlrun.common.schemas.schedule
 import mlrun.execution
 import mlrun.launcher.base
+import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
-import mlrun.projects.pipelines
 
 
 class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):

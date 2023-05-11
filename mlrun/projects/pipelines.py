@@ -36,10 +36,10 @@ from mlrun.utils import (
     new_pipe_metadata,
     parse_versioned_object_uri,
 )
-from ..runtimes.pod import AutoMountType
 
 from ..config import config
 from ..run import _run_pipeline, wait_for_pipeline_completion
+from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind, local=False):
@@ -425,6 +425,7 @@ def enrich_function_object(
     f.try_auto_mount_based_on_config()
 
     return f
+
 
 class _PipelineRunStatus:
     """pipeline run result (status)"""

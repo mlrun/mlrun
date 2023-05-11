@@ -14,8 +14,8 @@
 #
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.sqldb.models
 import mlrun.api.initial_data
-import mlrun.common.schemas
 from mlrun.api.db.base import DBInterface
 
 
@@ -25,17 +25,24 @@ def test_data_migration_rename_marketplace_kind_to_hub(
     # create hub sources
     for i in range(3):
         source_name = f"source-{i}"
-        source = mlrun.common.schemas.IndexedHubSource(
-            source=mlrun.common.schemas.HubSource(
-                metadata=mlrun.common.schemas.HubObjectMetadata(
-                    name=source_name, description="some source"
-                ),
-                spec=mlrun.common.schemas.HubSourceSpec(
-                    path="/local/path/to/source", channel="development"
-                ),
-            )
+        source_dict = {
+            "metadata": {
+                "name": source_name,
+            },
+            "spec": {
+                "path": "/local/path/to/source",
+            },
+            "kind": "MarketplaceSource",
+        }
+        # id and index are multiplied by 2 to avoid sqlalchemy unique constraint error
+        source = mlrun.api.db.sqldb.models.HubSource(
+            id=i * 2,
+            name=source_name,
+            index=i * 2,
         )
-        db.store_hub_source(db_session, source_name, source)
+        source.full_object = source_dict
+        db_session.add(source)
+        db_session.commit()
 
     # change hub kind to 'Marketplace'
     hubs = db._list_hub_sources_without_transform(db_session)

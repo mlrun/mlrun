@@ -3429,6 +3429,9 @@ class SQLDB(DBInterface):
                 results.append(ordered_source)
         return results
 
+    def _list_hub_sources_without_transform(self, session) -> List[HubSource]:
+        return self._query(session, HubSource).all()
+
     def delete_hub_source(self, session, name):
         logger.debug("Deleting hub source from DB", name=name)
 

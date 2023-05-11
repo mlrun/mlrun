@@ -14,8 +14,10 @@
 #
 import base64
 import json
+import os
 import re
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import pytest
@@ -827,7 +829,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     )
     if clone_target_dir is not None:
         function.spec.clone_target_dir = clone_target_dir
-    function.spec.build.source = "some-source.tgz"
+    function.spec.build.source = "/path/some-source.tgz"
     mlrun.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
@@ -836,6 +838,60 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     dockerfile_lines = dockerfile.splitlines()
     expected_workdir_re = re.compile(expected_workdir)
     assert expected_workdir_re.match(dockerfile_lines[1])
+
+
+@pytest.mark.parametrize(
+    "source,expectation",
+    [
+        ("v3io://path/some-source.tar.gz", does_not_raise()),
+        ("/path/some-source.tar.gz", does_not_raise()),
+        ("/path/some-source.zip", does_not_raise()),
+        (
+            "./relative/some-source",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("./", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+    ],
+)
+def test_builder_source(monkeypatch, source, expectation):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+    )
+
+    with expectation:
+        function.spec.build.source = source
+        mlrun.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
+
+        dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile_lines = dockerfile.splitlines()
+
+        expected_source = source
+        if "://" in source:
+            _, expected_source = os.path.split(source)
+
+        if source.endswith(".zip"):
+            expected_output_re = re.compile(
+                rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+            )
+            expected_line_index = 4
+
+        else:
+            expected_output_re = re.compile(rf"ADD {expected_source} .*/tmp.*/mlrun")
+            expected_line_index = 2
+
+        assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
 
 
 def _get_target_image_from_create_pod_mock():

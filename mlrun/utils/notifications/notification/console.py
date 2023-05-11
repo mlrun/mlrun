@@ -16,7 +16,7 @@ import typing
 
 import tabulate
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
 
@@ -32,8 +32,8 @@ class ConsoleNotification(NotificationBase):
         self,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):

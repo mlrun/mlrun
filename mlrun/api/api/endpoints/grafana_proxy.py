@@ -23,66 +23,16 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.crud.model_monitoring.grafana
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.model_monitoring
+import mlrun.common.schemas
 from mlrun.api.api import deps
-from mlrun.api.schemas import GrafanaTable, GrafanaTimeSeriesTarget
 
 router = APIRouter()
-
-
-@router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
-def grafana_proxy_model_endpoints_check_connection(
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-):
-    """
-    Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
-    connectivity.
-    """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
-    return Response(status_code=HTTPStatus.OK.value)
-
 
 NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
     "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
 }
-SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
-
-
-@router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
-async def grafana_proxy_model_endpoints_search(
-    request: Request,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-) -> List[str]:
-    """
-    Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
-    model-endpoints logic.
-
-    This implementation requires passing target_endpoint query parameter in order to dispatch different
-    model-endpoint monitoring functions.
-    """
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
-    body = await request.json()
-    query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(
-        body
-    )
-
-    mlrun.api.crud.model_monitoring.grafana.validate_query_parameters(
-        query_parameters, SUPPORTED_SEARCH_FUNCTIONS
-    )
-
-    # At this point everything is validated and we can access everything that is needed without performing all previous
-    # checks again.
-    target_endpoint = query_parameters["target_endpoint"]
-    function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
-    if asyncio.iscoroutinefunction(function):
-        return await function(db_session, auth_info)
-    result = await run_in_threadpool(function, db_session, auth_info)
-    return result
-
-
-#
 NAME_TO_QUERY_FUNCTION_DICTIONARY = {
     "list_endpoints": mlrun.api.crud.model_monitoring.grafana.grafana_list_endpoints,
     "individual_feature_analysis": mlrun.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
@@ -91,16 +41,82 @@ NAME_TO_QUERY_FUNCTION_DICTIONARY = {
 }
 
 SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
+SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
+
+
+@router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
+def grafana_proxy_model_endpoints_check_connection(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+):
+    """
+    Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
+    connectivity.
+    """
+    if not mlrun.mlconf.is_ce_mode():
+        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    return Response(status_code=HTTPStatus.OK.value)
+
+
+@router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
+async def grafana_proxy_model_endpoints_search(
+    request: Request,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+) -> List[str]:
+    """
+    Search route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
+    model-endpoints logic.
+
+    This implementation requires passing target_endpoint query parameter in order to dispatch different
+    model-endpoint monitoring functions.
+
+    :param request:    An api request with the required target and parameters.
+    :param auth_info:  The auth info of the request.
+    :param db_session: A session that manages the current dialog with the database.
+
+    :return: List of results. e.g. list of available project names.
+    """
+    if not mlrun.mlconf.is_ce_mode():
+        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    body = await request.json()
+    query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(
+        body
+    )
+    mlrun.api.crud.model_monitoring.grafana.validate_query_parameters(
+        query_parameters, SUPPORTED_SEARCH_FUNCTIONS
+    )
+
+    # At this point everything is validated and we can access everything that is needed without performing all previous
+    # checks again.
+    target_endpoint = query_parameters["target_endpoint"]
+    function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
+
+    if asyncio.iscoroutinefunction(function):
+        result = await function(db_session, auth_info, query_parameters)
+    else:
+        result = await run_in_threadpool(
+            function, db_session, auth_info, query_parameters
+        )
+    return result
 
 
 @router.post(
     "/grafana-proxy/model-endpoints/query",
-    response_model=List[Union[GrafanaTable, GrafanaTimeSeriesTarget]],
+    response_model=List[
+        Union[
+            mlrun.common.schemas.GrafanaTable,
+            mlrun.common.schemas.GrafanaTimeSeriesTarget,
+        ]
+    ],
 )
 async def grafana_proxy_model_endpoints_query(
     request: Request,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-) -> List[Union[GrafanaTable, GrafanaTimeSeriesTarget]]:
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+) -> List[
+    Union[
+        mlrun.common.schemas.GrafanaTable, mlrun.common.schemas.GrafanaTimeSeriesTarget
+    ]
+]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -108,12 +124,14 @@ async def grafana_proxy_model_endpoints_query(
     This implementation requires passing target_endpoint query parameter in order to dispatch different
     model-endpoint monitoring functions.
     """
+
     warnings.warn(
-        "This api is deprecated in 1.3.0 and will be removed in 1.5.0. "
+        "This api is deprecated in 1.3.1 and will be removed in 1.5.0. "
         "Please update grafana model monitoring dashboards that use a different data source",
         # TODO: remove in 1.5.0
         FutureWarning,
     )
+
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_query_parameters(
         body

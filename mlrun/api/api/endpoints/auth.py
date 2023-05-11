@@ -15,16 +15,16 @@
 import fastapi
 
 import mlrun.api.api.deps
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 
 router = fastapi.APIRouter()
 
 
 @router.post("/authorization/verifications")
 async def verify_authorization(
-    authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):

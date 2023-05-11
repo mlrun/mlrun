@@ -89,7 +89,7 @@ def init_featureset_graph(
     key_fields = entity_columns if entity_columns else None
 
     sizes = [0] * len(targets)
-    data_result = None
+    result_dfs = []
     total_rows = 0
     targets = [get_target_driver(target, featureset) for target in targets]
     if featureset.spec.passthrough:
@@ -100,11 +100,11 @@ def init_featureset_graph(
             # set the entities to be the indexes of the df
             event.body = entities_to_index(featureset, event.body)
 
-        data = server.run(event, get_body=True)
-        if data is not None:
+        df = server.run(event, get_body=True)
+        if df is not None:
             for i, target in enumerate(targets):
                 size = target.write_dataframe(
-                    data,
+                    df,
                     key_column=key_fields,
                     timestamp_key=featureset.spec.timestamp_key,
                     chunk_id=chunk_id,
@@ -112,21 +112,18 @@ def init_featureset_graph(
                 if size:
                     sizes[i] += size
         chunk_id += 1
-        if data_result is None:
-            # in case of multiple chunks only return the first chunk (last may be too small)
-            data_result = data
-        total_rows += data.shape[0]
+        result_dfs.append(df)
+        total_rows += df.shape[0]
         if rows_limit and total_rows >= rows_limit:
             break
-
-    # todo: fire termination event if iterator
 
     for i, target in enumerate(targets):
         target_status = target.update_resource_status("ready", size=sizes[i])
         if verbose:
             logger.info(f"wrote target: {target_status}")
 
-    return data_result
+    result_df = pd.concat(result_dfs)
+    return result_df.head(rows_limit)
 
 
 def featureset_initializer(server):

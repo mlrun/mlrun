@@ -16,8 +16,14 @@ import inspect
 
 from mlrun.utils import get_in, update_in
 
-event_id_key = "MLRUN_EVENT_ID"
-event_path_key = "MLRUN_EVENT_PATH"
+# headers keys with underscore are getting ignored by werkzeug https://github.com/pallets/werkzeug/pull/2622
+# to avoid conflicts with WGSI which converts all header keys to uppercase with underscores.
+# more info https://github.com/benoitc/gunicorn/issues/2799, this comment can be removed once old keys are removed
+event_id_key = "MLRUN-EVENT-ID"
+event_path_key = "MLRUN-EVENT-PATH"
+# TODO: remove these keys in 1.6.0
+legacy_event_id_key = "MLRUN_EVENT_ID"
+legacy_event_path_key = "MLRUN_EVENT_PATH"
 
 
 def _extract_input_data(input_path, body):

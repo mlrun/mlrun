@@ -23,8 +23,8 @@ import kubernetes
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base
@@ -89,7 +89,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
-            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
 
         assert self._get_create_custom_object_namespace_arg() == self.namespace
 
@@ -630,7 +630,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             target=ParquetTarget(),
         )
         runspec = resp.run.spec.to_dict()
-        assert runspec == {
+        expected_runspec = {
             "parameters": {
                 "vector_uri": "store://feature-vectors/default/my-vector",
                 "target": {
@@ -650,11 +650,21 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
-            "function": "None/my-vector-merger@e67bf7add40a6bafa25e19a1b80f3d4cc3789eff",
             "secret_sources": [],
+            "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2",
             "data_stores": [],
             "handler": "merge_handler",
         }
+        assert (
+            deepdiff.DeepDiff(
+                runspec,
+                expected_runspec,
+                # excluding function attribute as it contains hash of the object, excluding this path because any change
+                # in the structure of the run will require to update the function hash
+                exclude_paths="function",
+            )
+            == {}
+        )
 
         self.name = "my-vector-merger"
         self.project = "default"

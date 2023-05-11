@@ -21,7 +21,7 @@ import pytest
 import yaml
 from deepdiff import DeepDiff
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun import get_run_db, mlconf, set_environment
 from mlrun.utils import create_logger
 
@@ -91,7 +91,7 @@ class TestMLRunSystem:
         if self._should_clean_resources():
             self._run_db.delete_project(
                 name or self.project_name,
-                deletion_strategy=mlrun.api.schemas.DeletionStrategy.cascading,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
             )
 
     def teardown_method(self, method):

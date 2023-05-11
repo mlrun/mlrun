@@ -108,6 +108,10 @@ install-requirements: ## Install all requirements needed for development
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
 
+.PHONY: install-conda-requirements
+install-conda-requirements: install-requirements ## Install all requirements needed for development with specific conda packages for arm64
+	conda install --yes --file conda-arm64-requirements.txt
+
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
@@ -527,7 +531,6 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
-		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
 		tests
@@ -551,7 +554,6 @@ test-integration: clean ## Run mlrun integration tests
 		--durations=100 \
 		-rf \
 		tests/integration \
-		tests/test_notebooks.py \
 		tests/rundb/test_httpdb.py
 
 .PHONY: test-migrations-dockerized
@@ -640,6 +642,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--publish 8080 \
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
+		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
@@ -678,6 +681,11 @@ fmt: ## Format the code (using black and isort)
 	@echo "Running black fmt..."
 	python -m black .
 	python -m isort .
+
+.PHONY: lint-imports
+lint-imports: ## making sure imports dependencies are aligned
+	@echo "Running import linter"
+	lint-imports
 
 .PHONY: lint
 lint: flake8 fmt-check ## Run lint on the code

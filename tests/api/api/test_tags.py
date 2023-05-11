@@ -21,7 +21,7 @@ import uuid
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 API_PROJECTS_PATH = "projects"
 API_ARTIFACTS_PATH = "projects/{project}/artifacts"
@@ -52,7 +52,7 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -86,7 +86,7 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -120,8 +120,8 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
-                mlrun.api.schemas.ArtifactIdentifier(uid=artifact2_uid),
+                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(uid=artifact2_uid),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -153,8 +153,8 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact2_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -186,7 +186,7 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -223,7 +223,7 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(
+                mlrun.common.schemas.ArtifactIdentifier(
                     key=artifact1_key, uid=artifact1_uid
                 ),
             ],
@@ -269,7 +269,7 @@ class TestArtifactTags:
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(
+                mlrun.common.schemas.ArtifactIdentifier(
                     key=artifact1_key, uid=artifact1_uid
                 ),
             ],
@@ -299,7 +299,7 @@ class TestArtifactTags:
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(
+                mlrun.common.schemas.ArtifactIdentifier(
                     key=artifact_key, uid=artifact_uid
                 ),
             ],
@@ -339,7 +339,7 @@ class TestArtifactTags:
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(
+                mlrun.common.schemas.ArtifactIdentifier(
                     key=artifact_key, uid=artifact_uid
                 ),
             ],
@@ -369,7 +369,7 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -404,8 +404,8 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact2_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -440,7 +440,7 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -470,7 +470,7 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
@@ -497,7 +497,7 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.common.schemas.ArtifactIdentifier(uid=artifact1_uid),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
@@ -525,8 +525,8 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact2_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
@@ -553,8 +553,8 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
-                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.common.schemas.ArtifactIdentifier(key=artifact2_key),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
@@ -566,7 +566,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
         ],
         project: str = None,
     ):
@@ -583,7 +583,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
         ],
         project: str = None,
     ):
@@ -597,7 +597,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
         ],
         project: str = None,
     ):
@@ -609,7 +609,7 @@ class TestArtifactTags:
     @staticmethod
     def _generate_tag_identifiers_json(
         identifiers: typing.List[
-            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+            typing.Union[typing.Dict, mlrun.common.schemas.ArtifactIdentifier]
         ],
     ):
         return {
@@ -617,7 +617,7 @@ class TestArtifactTags:
             "identifiers": [
                 (
                     identifier.dict()
-                    if isinstance(identifier, mlrun.api.schemas.ArtifactIdentifier)
+                    if isinstance(identifier, mlrun.common.schemas.ArtifactIdentifier)
                     else identifier
                 )
                 for identifier in identifiers
@@ -649,11 +649,11 @@ class TestArtifactTags:
     def _create_project(
         self, client: fastapi.testclient.TestClient, project_name: str = None
     ):
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name or self.project
             ),
-            spec=mlrun.api.schemas.ProjectSpec(
+            spec=mlrun.common.schemas.ProjectSpec(
                 description="banana", source="source", goals="some goals"
             ),
         )

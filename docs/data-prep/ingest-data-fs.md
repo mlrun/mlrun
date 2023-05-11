@@ -16,6 +16,8 @@ When targets are not specified, data is stored in the configured default targets
 ```{admonition} Limitations
 - Do not name columns starting with either `_` or `aggr_`. They are reserved for internal use. See 
 also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
+- Do not name columns to match the regex pattern `.*_[a-z]+_[0-9]+[smhd]$`, where [a-z]+ is an aggregation name,
+one of: count, sum, sqr, max, min, first, last, avg, stdvar, stddev. E.g. x_count_1h.
 - When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
 
@@ -174,7 +176,7 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
-source = SqlDBSource(table_name='my_table', 
+source = SQLSource(table_name='my_table', 
                      db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
                      key_field='key',
                      time_fields=['timestamp'], )

@@ -45,7 +45,7 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_sync_functions():
+def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
     project.set_function("hub://describe", "describe")
@@ -61,7 +61,7 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -358,12 +358,11 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
-                func
-            ), "func did not return"
+            normalized_name = mlrun.utils.helpers.normalize_name(func)
+            assert fn.metadata.name == normalized_name, "func did not return"
 
-    if save:
-        assert rundb_mock._function is not None
+            if save:
+                assert normalized_name in rundb_mock._functions
 
 
 def _assert_project_function_objects(project, expected_function_objects):
@@ -382,7 +381,7 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_func_requirements():
+def test_set_function_requirements():
     project = mlrun.projects.project.MlrunProject.from_dict(
         {
             "metadata": {
@@ -394,20 +393,20 @@ def test_set_func_requirements():
         }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.commands == [
-        "python -m pip install x",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.commands == [
-        "python -m pip install y",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
     ]
 
 
-def test_set_function_underscore_name():
+def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
         "project", default_requirements=["pandas>1, <3"]
     )

@@ -954,7 +954,7 @@ def retry_until_successful(
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
-    )
+    ) from last_exception
 
 
 def get_ui_url(project, uid=None):
@@ -1000,7 +1000,7 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: list):
+def create_function(pkg_func: str):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
@@ -1014,9 +1014,16 @@ def create_function(pkg_func: list):
     return function_
 
 
-def get_caller_globals(level=2):
+def get_caller_globals():
+    """Returns a dictionary containing the first non-mlrun caller function's namespace."""
     try:
-        return inspect.stack()[level][0].f_globals
+        stack = inspect.stack()
+        # If an API function called this function directly, the first non-mlrun caller will be 2 levels up the stack.
+        # Otherwise, we keep going up the stack until we find it.
+        for level in range(2, len(stack)):
+            namespace = stack[level][0].f_globals
+            if not namespace["__name__"].startswith("mlrun."):
+                return namespace
     except Exception:
         return None
 
@@ -1295,3 +1302,26 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
     if not branch and not reference:
         url = f"{url}#refs/heads/{repo.active_branch}"
     return url
+
+
+class DeprecationHelper(object):
+    """A helper class to deprecate old schemas"""
+
+    def __init__(self, new_target, version="1.4.0"):
+        self._new_target = new_target
+        self._version = version
+
+    def _warn(self):
+        warnings.warn(
+            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
+            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
+            FutureWarning,
+        )
+
+    def __call__(self, *args, **kwargs):
+        self._warn()
+        return self._new_target(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        self._warn()
+        return getattr(self._new_target, attr)

@@ -208,7 +208,7 @@ One-time setup:
    secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
    mlrun.get_run_db().create_project_secrets(
        project = "uhuh-proj",
-       provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+       provider=mlrun.common.schemas.SecretProviderName.kubernetes,
        secrets=secrets
    )
    ```

@@ -24,7 +24,7 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.api.utils
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.kfpops
 import mlrun.utils.helpers
@@ -44,14 +44,14 @@ class Pipelines(
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
         if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
             )
-        if format_ == mlrun.api.schemas.PipelinesFormat.summary:
+        if format_ == mlrun.common.schemas.PipelinesFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
             # manifest status that includes the nodes section we use to generate the DAG.
             # (There is a workflow manifest under the run's pipeline_spec field, but it doesn't include the status)
@@ -72,7 +72,7 @@ class Pipelines(
                 # the filter that was used to create it)
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
-                    page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
+                    page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
                     sort_by=sort_by,
                     filter=filter_ if page_token == "" else "",
                 )
@@ -90,7 +90,7 @@ class Pipelines(
             response = kfp_client._run_api.list_runs(
                 page_token=page_token,
                 page_size=page_size
-                or mlrun.api.schemas.PipelinesPagination.default_page_size,
+                or mlrun.common.schemas.PipelinesPagination.default_page_size,
                 sort_by=sort_by,
                 filter=filter_,
             )
@@ -107,7 +107,7 @@ class Pipelines(
         run_id: str,
         project: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
-        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
+        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.summary,
     ):
         kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
         if not kfp_url:
@@ -201,7 +201,7 @@ class Pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
         runs: typing.List[dict],
-        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
         formatted_runs = []
         for run in runs:
@@ -212,13 +212,13 @@ class Pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
         run: dict,
-        format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         api_run_detail: typing.Optional[dict] = None,
     ) -> dict:
         run["project"] = self.resolve_project_from_pipeline(run)
-        if format_ == mlrun.api.schemas.PipelinesFormat.full:
+        if format_ == mlrun.common.schemas.PipelinesFormat.full:
             return run
-        elif format_ == mlrun.api.schemas.PipelinesFormat.metadata_only:
+        elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
             return {
                 k: str(v)
                 for k, v in run.items()
@@ -235,9 +235,9 @@ class Pipelines(
                     "description",
                 ]
             }
-        elif format_ == mlrun.api.schemas.PipelinesFormat.name_only:
+        elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
             return run.get("name")
-        elif format_ == mlrun.api.schemas.PipelinesFormat.summary:
+        elif format_ == mlrun.common.schemas.PipelinesFormat.summary:
             if not api_run_detail:
                 raise mlrun.errors.MLRunRuntimeError(
                     "The full kfp api_run_detail object is needed to generate the summary format"

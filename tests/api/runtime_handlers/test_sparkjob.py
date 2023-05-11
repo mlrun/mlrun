@@ -18,9 +18,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
@@ -115,8 +115,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_list_resources_grouped_by_job(self, db: Session, client: TestClient):
         for group_by in [
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         ]:
             mocked_responses = self._mock_list_namespaced_crds(
                 [[self.completed_crd_dict]]
@@ -360,7 +360,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         crd_dict = {
             "metadata": {
                 "name": "my-spark-jdbc-2ea432f1",
-                "namespace": get_k8s().resolve_namespace(),
+                "namespace": get_k8s_helper().resolve_namespace(),
                 "labels": {
                     "mlrun/class": "spark",
                     "mlrun/function": "my-spark-jdbc",

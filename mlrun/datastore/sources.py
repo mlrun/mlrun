@@ -62,6 +62,11 @@ class BaseSourceDriver(DataSource):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
+        if not self.support_storey:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
+
         return storey.SyncEmitSource(context=context)
 
     def get_table_object(self):
@@ -323,7 +328,12 @@ class BigQuerySource(BaseSourceDriver):
     """
     Reads Google BigQuery query results as input source for a flow.
 
+    For authentication, set the GCP_CREDENTIALS project secret to the credentials json string.
+
     example::
+
+         # set the credentials
+         project.set_secrets({"GCP_CREDENTIALS": gcp_credentials_json})
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
@@ -376,6 +386,15 @@ class BigQuerySource(BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify both table and query args"
             )
+        # Otherwise, the client library does not fully respect the limit
+        if (
+            max_results_for_table
+            and chunksize
+            and max_results_for_table % chunksize != 0
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "max_results_for_table must be a multiple of chunksize"
+            )
         attrs = {
             "query": query,
             "table": table,
@@ -395,7 +414,6 @@ class BigQuerySource(BaseSourceDriver):
             start_time=start_time,
             end_time=end_time,
         )
-        self._rows_iterator = None
 
     def _get_credentials_string(self):
         gcp_project = self.attributes.get("gcp_project", None)
@@ -438,34 +456,27 @@ class BigQuerySource(BaseSourceDriver):
         if query:
             query_job = bqclient.query(query)
 
-            self._rows_iterator = query_job.result(page_size=chunksize)
-            dtypes = schema_to_dtypes(self._rows_iterator.schema)
-            if chunksize:
-                # passing bqstorage_client greatly improves performance
-                return self._rows_iterator.to_dataframe_iterable(
-                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
-                )
-            else:
-                return self._rows_iterator.to_dataframe(dtypes=dtypes)
+            rows_iterator = query_job.result(page_size=chunksize)
         elif table:
             table = self.attributes.get("table")
             max_results = self.attributes.get("max_results")
 
-            rows = bqclient.list_rows(
+            rows_iterator = bqclient.list_rows(
                 table, page_size=chunksize, max_results=max_results
             )
-            dtypes = schema_to_dtypes(rows.schema)
-            if chunksize:
-                # passing bqstorage_client greatly improves performance
-                return rows.to_dataframe_iterable(
-                    bqstorage_client=BigQueryReadClient(), dtypes=dtypes
-                )
-            else:
-                return rows.to_dataframe(dtypes=dtypes)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "table or query args must be specified"
             )
+
+        dtypes = schema_to_dtypes(rows_iterator.schema)
+        if chunksize:
+            # passing bqstorage_client greatly improves performance
+            return rows_iterator.to_dataframe_iterable(
+                bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+            )
+        else:
+            return rows_iterator.to_dataframe(dtypes=dtypes)
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
@@ -727,6 +738,9 @@ class OnlineSource(BaseSourceDriver):
 class HttpSource(OnlineSource):
     kind = "http"
 
+    def __init__(self, path: str = None):
+        super().__init__(path=path)
+
     def add_nuclio_trigger(self, function):
         trigger_args = self.attributes.get("trigger_args")
         if trigger_args:
@@ -885,7 +899,7 @@ class SQLSource(BaseSourceDriver):
         Reads SqlDB as input source for a flow.
         example::
             db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
-            source = SqlDBSource(
+            source = SQLSource(
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
         :param name:            source name

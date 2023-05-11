@@ -26,6 +26,7 @@ from time import sleep
 import fsspec
 import numpy as np
 import pandas as pd
+import pyarrow
 import pyarrow.parquet as pq
 import pytest
 import requests
@@ -853,13 +854,17 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert resp1 == resp2
 
+        major_pyarrow_version = int(pyarrow.__version__.split(".")[0])
         file_system = fsspec.filesystem("v3io")
         path = measurements.get_target_path("parquet")
         dataset = pq.ParquetDataset(
-            path,
+            path if major_pyarrow_version < 11 else path[len("v3io://") :],
             filesystem=file_system,
         )
-        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        if major_pyarrow_version < 11:
+            partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        else:
+            partitions = dataset.partitioning.schema.names
 
         if key_bucketing_number is None:
             expected_partitions = []
@@ -1848,7 +1853,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
 
         reference_df = pd.read_csv(csv_file)
-        reference_df = reference_df[0:chunksize].set_index("patient_id")
+        reference_df = reference_df.set_index("patient_id")
 
         # patient_id (index) and timestamp (timestamp_key) are not in features list
         assert features + ["timestamp"] == list(reference_df.columns)
@@ -2379,8 +2384,9 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.ingest(
-            fset, df, targets=[], infer_options=fstore.InferOptions.default()
+        df = fstore.preview(
+            fset,
+            df,
         )
         assert df.to_dict() == {
             "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
@@ -2423,7 +2429,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.ingest(fset, df, targets=[])
+        df = fstore.preview(fset, df)
         assert df.to_dict() == {
             "foreignkey1": {
                 "mykey1_1": "AB",
@@ -2743,9 +2749,7 @@ class TestFeatureStore(TestMLRunSystem):
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
-        df = fstore.ingest(
-            fset, df, targets=[], infer_options=fstore.InferOptions.default()
-        )
+        df = fstore.preview(fset, df)
         assert df.to_dict() == {
             "name": {"a": "a", "b": "b"},
             "sum": {"a": 16, "b": 26},

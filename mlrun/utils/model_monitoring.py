@@ -13,97 +13,16 @@
 # limitations under the License.
 #
 
-import enum
-import hashlib
-from dataclasses import dataclass
-from typing import Optional, Union
+import json
+import warnings
+from typing import Union
 
 import mlrun
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.model
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
-import mlrun.utils
-from mlrun.api.schemas.schedule import ScheduleCronTrigger
-
-
-@dataclass
-class FunctionURI:
-    project: str
-    function: str
-    tag: Optional[str] = None
-    hash_key: Optional[str] = None
-
-    @classmethod
-    def from_string(cls, function_uri):
-        project, uri, tag, hash_key = mlrun.utils.parse_versioned_object_uri(
-            function_uri
-        )
-        return cls(
-            project=project,
-            function=uri,
-            tag=tag or None,
-            hash_key=hash_key or None,
-        )
-
-
-@dataclass
-class VersionedModel:
-    model: str
-    version: Optional[str]
-
-    @classmethod
-    def from_string(cls, model):
-        try:
-            model, version = model.split(":")
-        except ValueError:
-            model, version = model, None
-
-        return cls(model, version)
-
-
-@dataclass
-class EndpointUID:
-    project: str
-    function: str
-    function_tag: str
-    function_hash_key: str
-    model: str
-    model_version: str
-    uid: Optional[str] = None
-
-    def __post_init__(self):
-        function_ref = (
-            f"{self.function}_{self.function_tag or self.function_hash_key or 'N/A'}"
-        )
-        versioned_model = f"{self.model}_{self.model_version or 'N/A'}"
-        unique_string = f"{self.project}_{function_ref}_{versioned_model}"
-        self.uid = hashlib.sha1(unique_string.encode("utf-8")).hexdigest()
-
-    def __str__(self):
-        return self.uid
-
-
-def create_model_endpoint_id(function_uri: str, versioned_model: str):
-    function_uri = FunctionURI.from_string(function_uri)
-    versioned_model = VersionedModel.from_string(versioned_model)
-
-    if (
-        not function_uri.project
-        or not function_uri.function
-        or not versioned_model.model
-    ):
-        raise ValueError("Both function_uri and versioned_model have to be initialized")
-
-    uid = EndpointUID(
-        function_uri.project,
-        function_uri.function,
-        function_uri.tag,
-        function_uri.hash_key,
-        versioned_model.model,
-        versioned_model.version,
-    )
-
-    return uid
+from mlrun.common.schemas.schedule import ScheduleCronTrigger
+from mlrun.config import is_running_as_api
 
 
 def parse_model_endpoint_project_prefix(path: str, project_name: str):
@@ -116,27 +35,18 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return endpoint, container, path
 
 
-def set_project_model_monitoring_credentials(
-    access_key: str, project: Optional[str] = None
-):
+def set_project_model_monitoring_credentials(access_key: str, project: str = None):
     """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.
     The supplied credentials must have data access
-
     :param access_key: Model Monitoring access key for managing user permissions.
     :param project: The name of the model monitoring project.
     """
     mlrun.get_run_db().create_project_secrets(
         project=project or mlrun.mlconf.default_project,
-        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-        secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
+        provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+        secrets={model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key},
     )
-
-
-class EndpointType(enum.IntEnum):
-    NODE_EP = 1  # end point that is not a child of a router
-    ROUTER = 2  # endpoint that is router
-    LEAF_EP = 3  # end point that is a child of a router
 
 
 class TrackingPolicy(mlrun.model.ModelObj):
@@ -215,3 +125,119 @@ class TrackingPolicy(mlrun.model.ModelObj):
                 model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
             ] = self.default_batch_intervals.dict()
         return struct
+
+
+def get_connection_string(project: str = None):
+    """Get endpoint store connection string from the project secret.
+    If wasn't set, take it from the system configurations"""
+    if is_running_as_api():
+        # Running on API server side
+        import mlrun.api.crud.secrets
+        import mlrun.common.schemas
+
+        return (
+            mlrun.api.crud.secrets.Secrets().get_project_secret(
+                project=project,
+                provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+                allow_secrets_from_k8s=True,
+                secret_key=model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+            )
+            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+        )
+    else:
+        # Running on stream server side
+        import mlrun
+
+        return (
+            mlrun.get_secret_or_env(
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            )
+            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+        )
+
+
+def get_stream_path(project: str = None):
+    # TODO: This function (as well as other methods in this file) includes both client and server side code. We will
+    #  need to refactor and adjust this file in the future.
+    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
+
+    if is_running_as_api():
+
+        # Running on API server side
+        import mlrun.api.crud.secrets
+        import mlrun.common.schemas
+
+        stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
+            project=project,
+            provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+            allow_secrets_from_k8s=True,
+            secret_key=model_monitoring_constants.ProjectSecretKeys.STREAM_PATH,
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    else:
+
+        import mlrun
+
+        stream_uri = mlrun.get_secret_or_env(
+            model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    if stream_uri.startswith("kafka://"):
+        if "?topic" in stream_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom kafka topic is not allowed"
+            )
+        # Add topic to stream kafka uri
+        stream_uri += f"?topic=monitoring_stream_{project}"
+
+    elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
+        # V3IO is not supported in CE mode, generating a default http stream path
+        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+
+    return stream_uri
+
+
+def validate_errors_and_metrics(endpoint: dict):
+    """
+    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
+
+    Leaving here for backwards compatibility which related to the model endpoint schema
+
+    :param endpoint: An endpoint flattened dictionary.
+    """
+    warnings.warn(
+        "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+        # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
+        FutureWarning,
+    )
+
+    # Validate default value for `error_count`
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
+    if (
+        model_monitoring_constants.EventFieldType.ERROR_COUNT in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null"
+    ):
+        endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
+
+    # Validate default value for `metrics`
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
+    if (
+        model_monitoring_constants.EventFieldType.METRICS in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null"
+    ):
+        endpoint[model_monitoring_constants.EventFieldType.METRICS] = json.dumps(
+            {
+                model_monitoring_constants.EventKeyMetrics.GENERIC: {
+                    model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: 0,
+                    model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                }
+            }
+        )

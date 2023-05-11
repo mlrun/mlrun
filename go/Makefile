@@ -77,7 +77,7 @@ compile-schemas-local: cleanup compile-schemas-go compile-schemas-python
 compile-schemas-dockerized: schemas-compiler
 	@echo Compiling schemas in docker container
 	docker run \
-		-v $(shell dirname $(PWD)):/app \
+		-v $(shell dirname $(CURDIR)):/app \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make compile-schemas-local
 

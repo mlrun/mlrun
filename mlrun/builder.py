@@ -22,27 +22,27 @@ from urllib.parse import urlparse
 
 from kubernetes import client
 
-import mlrun.api.schemas
+import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
 
 from .config import config
 from .datastore import store_manager
-from .k8s_utils import BasePod, get_k8s_helper
 from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
 
 def make_dockerfile(
-    base_image,
-    commands=None,
-    source=None,
-    requirements=None,
-    workdir="/mlrun",
-    extra="",
-    user_unix_id=None,
-    enriched_group_id=None,
+    base_image: str,
+    commands: list = None,
+    source: str = None,
+    requirements_path: str = None,
+    workdir: str = "/mlrun",
+    extra: str = "",
+    user_unix_id: int = None,
+    enriched_group_id: int = None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -55,7 +55,6 @@ def make_dockerfile(
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if source:
-        dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
@@ -77,10 +76,13 @@ def make_dockerfile(
             dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
 
         dock += f"ENV PYTHONPATH {workdir}\n"
-    if requirements:
-        dock += f"RUN python -m pip install -r {requirements}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
+    if requirements_path:
+        dock += (
+            f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        )
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -96,6 +98,7 @@ def make_kaniko_pod(
     inline_code=None,
     inline_path=None,
     requirements=None,
+    requirements_path=None,
     secret_name=None,
     name="",
     verbose=False,
@@ -159,7 +162,7 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
-    kpod = BasePod(
+    kpod = mlrun.api.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -194,19 +197,23 @@ def make_kaniko_pod(
         commands = []
         env = {}
         if dockertext:
-            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
+            # set and encode docker content to the DOCKERFILE environment variable in the kaniko pod
             env["DOCKERFILE"] = b64encode(dockertext.encode("utf-8")).decode("utf-8")
+            # dump dockerfile content and decode to Dockerfile destination
+            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
         if inline_code:
             name = inline_path or "main.py"
-            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
             env["CODE"] = b64encode(inline_code.encode("utf-8")).decode("utf-8")
+            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
-            commands.append(
-                "echo ${REQUIREMENTS} | base64 -d > /empty/requirements.txt"
-            )
+            # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
             env["REQUIREMENTS"] = b64encode(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
+            # dump requirement content and decode to the requirement.txt destination
+            commands.append(
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
+            )
 
         kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
@@ -222,7 +229,21 @@ def make_kaniko_pod(
         if end == -1:
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
-        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+        assume_instance_role = not config.httpdb.builder.docker_registry_secret
+        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
+
+        # project secret might conflict with the attached instance role
+        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+        # due to credentials conflict / lack of permission on given credentials
+        if assume_instance_role:
+            kpod.pod.spec.containers[0].env.extend(
+                [
+                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
+                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
+                ]
+            )
 
     # mount regular docker config secret
     elif secret_name:
@@ -232,7 +253,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(kpod, registry, repo):
+def configure_kaniko_ecr_init_container(
+    kpod, registry, repo, assume_instance_role=True
+):
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -243,12 +266,13 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
     )
     init_container_env = {}
 
-    if not config.httpdb.builder.docker_registry_secret:
+    if assume_instance_role:
 
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
         kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
         aws_credentials_file_env_value = "/tmp/credentials"
@@ -291,12 +315,11 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def build_image(
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     project: str,
     image_target,
     commands=None,
     source="",
-    mounter="v3io",
     base_image=None,
     requirements=None,
     inline_code=None,
@@ -319,15 +342,12 @@ def build_image(
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-
-    if isinstance(requirements, list):
+    if requirements and isinstance(requirements, list):
         requirements_list = requirements
-        requirements_path = "requirements.txt"
-        if source:
-            raise ValueError("requirements list only works with inline code")
+        requirements_path = "/empty/requirements.txt"
     else:
         requirements_list = None
-        requirements_path = requirements
+        requirements_path = requirements or ""
 
     commands = commands or []
     if with_mlrun:
@@ -342,7 +362,7 @@ def build_image(
         if mlrun_command:
             commands.append(mlrun_command)
 
-    if not inline_code and not source and not commands:
+    if not inline_code and not source and not commands and not requirements:
         logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -382,14 +402,28 @@ def build_image(
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
-        else:
+
+        # source is a path without a scheme, we allow to copy absolute paths assuming they are valid paths
+        # in the image, however, it is recommended to use `workdir` instead in such cases
+        # which is set during runtime (mlrun.runtimes.local.LocalRuntime._pre_run).
+        # relative paths are not supported at build time
+        # "." and "./" are considered as 'project context'
+        # TODO: enrich with project context if pulling on build time
+        elif path.isabs(source):
             source_to_copy = source
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Load of relative source ({source}) is not supported at build time"
+                "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
+                "'mlrun.projects.project.MlrunProject.set_source' for more details"
+            )
 
     user_unix_id = None
     enriched_group_id = None
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+        != mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
         from mlrun.api.api.utils import ensure_function_security_context
 
@@ -398,24 +432,28 @@ def build_image(
         enriched_group_id = runtime.spec.security_context.run_as_group
 
     if source_to_copy and (
-        not runtime.spec.workdir or not path.isabs(runtime.spec.workdir)
+        not runtime.spec.clone_target_dir
+        or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # the user may give a relative workdir to the source where the code is located
-        # add the relative workdir to the target source copy path
+        # use a temp dir for permissions and set it as the workdir
         tmpdir = tempfile.mkdtemp()
-        relative_workdir = runtime.spec.workdir or ""
-        _, _, relative_workdir = relative_workdir.partition("./")
-        runtime.spec.workdir = path.join(tmpdir, "mlrun", relative_workdir)
+        relative_workdir = runtime.spec.clone_target_dir or ""
+        if relative_workdir.startswith("./"):
+            # TODO: use 'removeprefix' when we drop python 3.7 support
+            # relative_workdir.removeprefix("./")
+            relative_workdir = relative_workdir[2:]
+
+        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
 
     dock = make_dockerfile(
         base_image,
         commands,
         source=source_to_copy,
-        requirements=requirements_path,
+        requirements_path=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=runtime.spec.workdir,
+        workdir=runtime.spec.clone_target_dir,
     )
 
     kpod = make_kaniko_pod(
@@ -426,6 +464,7 @@ def build_image(
         inline_code=inline_code,
         inline_path=inline_path,
         requirements=requirements_list,
+        requirements_path=requirements_path,
         secret_name=secret_name,
         name=name,
         verbose=verbose,
@@ -442,7 +481,7 @@ def build_image(
             user=username,
         )
 
-    k8s = get_k8s_helper()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     kpod.namespace = k8s.resolve_namespace(namespace)
 
     if interactive:
@@ -509,7 +548,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 
 def build_runtime(
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     runtime,
     with_mlrun=True,
     mlrun_version_specifier=None,
@@ -523,7 +562,7 @@ def build_runtime(
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
-        runtime.status.state = mlrun.api.schemas.FunctionState.ready
+        runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
     if build.base_image:
         mlrun_images = [
@@ -535,7 +574,13 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if not build.source and not build.commands and not build.extra and not with_mlrun:
+    if (
+        not build.source
+        and not build.commands
+        and not build.requirements
+        and not build.extra
+        and not with_mlrun
+    ):
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image
@@ -548,7 +593,7 @@ def build_runtime(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
                 " (commands/source)"
             )
-        runtime.status.state = mlrun.api.schemas.FunctionState.ready
+        runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
     build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
@@ -579,8 +624,8 @@ def build_runtime(
         image_target=build.image,
         base_image=enriched_base_image,
         commands=build.commands,
+        requirements=build.requirements,
         namespace=namespace,
-        # inline_code=inline,
         source=build.source,
         secret_name=build.secret,
         interactive=interactive,
@@ -598,11 +643,11 @@ def build_runtime(
         # using enriched base image for the runtime spec image, because this will be the image that the function will
         # run with
         runtime.spec.image = enriched_base_image
-        runtime.status.state = mlrun.api.schemas.FunctionState.ready
+        runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
     if status.startswith("build:"):
-        runtime.status.state = mlrun.api.schemas.FunctionState.deploying
+        runtime.status.state = mlrun.common.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
         # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
         # exports and other cases where we don't want to have the client version in the image, but rather enriched on
@@ -612,17 +657,17 @@ def build_runtime(
 
     logger.info(f"build completed with {status}")
     if status in ["failed", "error"]:
-        runtime.status.state = mlrun.api.schemas.FunctionState.error
+        runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False
 
     local = "" if build.secret or build.image.startswith(".") else "."
     runtime.spec.image = local + build.image
-    runtime.status.state = mlrun.api.schemas.FunctionState.ready
+    runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
 
 
 def _generate_builder_env(project, builder_env):
-    k8s = get_k8s_helper()
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 

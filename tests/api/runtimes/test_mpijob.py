@@ -36,18 +36,20 @@ class TestMpiV1Runtime(TestRuntimeBase):
 
     def test_run_v1_sanity(self, db: Session, client: TestClient):
         mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-        self._mock_list_pods()
-        self._mock_create_namespaced_custom_object()
-        self._mock_get_namespaced_custom_object()
-        mpijob_function = self._generate_runtime(self.runtime_kind)
-        self.deploy(db, mpijob_function)
-        run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
-            watch=False,
-        )
+        with unittest.mock.patch(
+            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
+            self._mock_list_pods()
+            self._mock_create_namespaced_custom_object()
+            self._mock_get_namespaced_custom_object()
+            mpijob_function = self._generate_runtime(self.runtime_kind)
+            self.deploy(db, mpijob_function)
+            run = mpijob_function.run(
+                artifact_path="v3io:///mypath",
+                watch=False,
+            )
 
-        assert run.status.state == "running"
+            assert run.status.state == "running"
 
     def _mock_get_namespaced_custom_object(self, workers=1):
         get_k8s_helper().crdapi.get_namespaced_custom_object = unittest.mock.Mock(

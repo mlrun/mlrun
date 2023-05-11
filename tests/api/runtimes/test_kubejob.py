@@ -751,27 +751,30 @@ def my_func(context):
         expected_to_upgrade,
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-
-        runtime = self._generate_runtime()
-        runtime.spec.build.base_image = "some/image"
-        runtime.spec.build.commands = copy.deepcopy(commands)
-        self.deploy(db, runtime, with_mlrun=with_mlrun)
-        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
-        if expected_to_upgrade:
-            expected_str = ""
-            if commands:
-                expected_str += "\nRUN "
-                expected_str += "\nRUN ".join(commands)
-            expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-            if with_mlrun:
-                expected_str += '\nRUN python -m pip install "mlrun[complete]'
-            assert expected_str in dockerfile
-        else:
-            assert (
-                f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                not in dockerfile
-            )
+        with unittest.mock.patch(
+            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
+            runtime = self._generate_runtime()
+            runtime.spec.build.base_image = "some/image"
+            runtime.spec.build.commands = copy.deepcopy(commands)
+            self.deploy(db, runtime, with_mlrun=with_mlrun)
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            if expected_to_upgrade:
+                expected_str = ""
+                if commands:
+                    expected_str += "\nRUN "
+                    expected_str += "\nRUN ".join(commands)
+                expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                if with_mlrun:
+                    expected_str += '\nRUN python -m pip install "mlrun[complete]'
+                assert expected_str in dockerfile
+            else:
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
 
     @pytest.mark.parametrize(
         "workdir, source, pull_at_runtime, target_dir, expected_workdir",

@@ -208,15 +208,19 @@ class SystemTestPreparer:
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
+            err_log_kwargs = {
+                "error": str(exc),
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
             if verbose:
-                self._logger.error(
-                    f"Failed running command {log_command_location}",
-                    command=command,
-                    error=exc,
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_status=exit_status,
-                )
+                err_log_kwargs["command"] = command
+
+            self._logger.error(
+                f"Failed running command {log_command_location}",
+                **err_log_kwargs,
+            )
             raise
         else:
             if verbose:
@@ -551,7 +555,7 @@ class SystemTestPreparer:
         )
         if b"No resources found" in stderr or not pod_name:
             return None
-        return pod_name
+        return pod_name.strip()
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures

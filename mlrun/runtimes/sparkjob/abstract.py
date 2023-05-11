@@ -31,7 +31,6 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ...execution import MLClientCtx
-from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
 from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
@@ -45,7 +44,7 @@ from ...utils import (
 from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import get_item_name
+from ..utils import get_item_name, get_k8s
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -143,6 +142,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -172,6 +172,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -568,8 +569,10 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
+                workdir = self._resolve_workdir()
                 self.spec.command = "local://" + os.path.join(
-                    self.spec.workdir or "", self.spec.command
+                    workdir or "",
+                    self.spec.command,
                 )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
@@ -588,7 +591,7 @@ with ctx:
         code=None,
     ):
         namespace = meta.namespace
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = client.V1ConfigMap()
@@ -632,7 +635,7 @@ with ctx:
             raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
@@ -801,43 +804,26 @@ with ctx:
         )
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: not supported for spark runtime, must be False
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
         """
         if pull_at_runtime:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
             )
 
-        super().with_source_archive(source, workdir, handler, pull_at_runtime)
-
-    def get_pods(self, name=None, namespace=None, driver=False):
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        selector = "mlrun/class=spark"
-        if name:
-            selector += f",sparkoperator.k8s.io/app-name={name}"
-        if driver:
-            selector += ",spark-role=driver"
-        pods = k8s.list_pods(selector=selector, namespace=namespace)
-        if pods:
-            return {p.metadata.name: p.status.phase for p in pods}
-
-    def _get_driver(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, driver=True)
-        if not pods:
-            logger.error("no pod matches that job name")
-            return
-        _ = self._get_k8s()
-        return list(pods.items())[0]
+        super().with_source_archive(
+            source, workdir, handler, pull_at_runtime, target_dir
+        )
 
     def is_deployed(self):
         if (
@@ -961,15 +947,14 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        k8s_helper = get_k8s_helper()
-        config_maps = k8s_helper.v1api.list_namespaced_config_map(
+        config_maps = get_k8s().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    k8s_helper.v1api.delete_namespaced_config_map(
+                    get_k8s().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

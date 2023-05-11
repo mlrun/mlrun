@@ -14,11 +14,13 @@
 
 import importlib.util as imputil
 import inspect
+import io
 import json
 import os
 import socket
 import sys
 import tempfile
+import threading
 import traceback
 from contextlib import redirect_stdout
 from copy import copy
@@ -39,7 +41,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
-from .base import BaseRuntime, FunctionSpec, spec_fields
+from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std
@@ -170,47 +172,9 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         return context.to_dict()
 
 
-class LocalFunctionSpec(FunctionSpec):
-    _dict_fields = spec_fields + ["clone_target_dir"]
-
-    def __init__(
-        self,
-        command=None,
-        args=None,
-        mode=None,
-        default_handler=None,
-        pythonpath=None,
-        entry_points=None,
-        description=None,
-        workdir=None,
-        build=None,
-        clone_target_dir=None,
-    ):
-        super().__init__(
-            command=command,
-            args=args,
-            mode=mode,
-            build=build,
-            entry_points=entry_points,
-            description=description,
-            workdir=workdir,
-            default_handler=default_handler,
-            pythonpath=pythonpath,
-        )
-        self.clone_target_dir = clone_target_dir
-
-
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
-
-    @property
-    def spec(self) -> LocalFunctionSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", LocalFunctionSpec)
 
     def to_job(self, image=""):
         struct = self.to_dict()
@@ -222,12 +186,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def with_source_archive(self, source, workdir=None, handler=None, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
-        :param target_dir: local target dir for repo clone (by default its <current-dir>/code)
+        :param source:      valid path to git, zip, or tar file, e.g.
+                            git://github.com/mlrun/something.git
+                            http://some/url/file.zip
+        :param handler:     default function handler
+        :param workdir:     working dir relative to the archive root (e.g. './subdir') or absolute
+        :param target_dir:  local target dir for repo clone (by default its <current-dir>/code)
         """
         self.spec.build.source = source
         self.spec.build.load_source_on_run = True
@@ -396,21 +360,43 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("running:", cmd)
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
-    while True:
-        nextline = process.stdout.readline()
-        if not nextline and process.poll() is not None:
-            break
-        print(nextline.decode("utf-8"), end="")
-        sys.stdout.flush()
-        out += nextline.decode("utf-8")
-    code = process.poll()
+    process = Popen(
+        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+    )
 
-    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    def read_stderr(stderr):
+        while True:
+            nextline = process.stderr.readline()
+            if not nextline:
+                break
+            stderr.write(nextline)
+
+    # ML-3710. We must read stderr in a separate thread to drain the stderr pipe so that the spawned process won't
+    # hang if it tries to write more to stderr than the buffer size (default of approx 8kb).
+    with io.StringIO() as stderr:
+        stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
+        stderr_consumer_thread.start()
+
+        with io.StringIO() as stdout:
+            while True:
+                nextline = process.stdout.readline()
+                if not nextline:
+                    break
+                print(nextline, end="")
+                sys.stdout.flush()
+                stdout.write(nextline)
+            out = stdout.getvalue()
+
+        stderr_consumer_thread.join()
+        err = stderr.getvalue()
+
+    # if we return anything for err, the caller will assume that the process failed
+    code = process.poll()
+    err = "" if code == 0 else err
+
     return out, err
 
 

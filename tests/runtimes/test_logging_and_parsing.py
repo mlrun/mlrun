@@ -69,7 +69,7 @@ def parse_inputs(my_array, my_df, my_dict: dict, my_list, my_object, my_int, my_
     return [my_str] * my_int
 
 
-def test_parse_inputs_from_mlrun_function():
+def test_parse_inputs_from_mlrun_function(rundb_mock):
     """
     Run the `parse_inputs_from_mlrun_function` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written configuration provided to the wrapper.

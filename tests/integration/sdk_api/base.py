@@ -21,7 +21,7 @@ import sys
 import pymysql
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.conftest
 from mlrun.db.httpdb import HTTPRunDB
 from mlrun.utils import create_logger, retry_until_successful
@@ -142,8 +142,7 @@ class TestMLRunIntegration:
                 {
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
-                    # integration tests run in docker, and do no support sidecars for log collection
-                    "MLRUN__LOG_COLLECTOR__MODE": "legacy",
+                    "MLRUN_LOG_LEVEL": "DEBUG",
                 }
             ),
             cwd=TestMLRunIntegration.root_path,
@@ -215,7 +214,7 @@ class TestMLRunIntegration:
     @staticmethod
     def _check_api_is_healthy(url):
         health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
-        timeout = 30
+        timeout = 90
         if not tests.conftest.wait_for_server(health_url, timeout):
             raise RuntimeError(f"API did not start after {timeout} sec")
 

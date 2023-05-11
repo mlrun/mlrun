@@ -19,7 +19,7 @@ import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -131,6 +131,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
+        self.with_default_targets = True
 
     @property
     def entities(self) -> List[Entity]:
@@ -316,7 +317,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
-    kind = mlrun.api.schemas.ObjectKind.feature_set.value
+    kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -473,7 +474,10 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
+            self.spec.with_default_targets = True
             targets.extend(get_default_targets())
+        else:
+            self.spec.with_default_targets = False
 
         validate_target_list(targets=targets)
 
@@ -525,7 +529,7 @@ class FeatureSet(ModelObj):
         :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
-            self, mlrun.api.schemas.AuthorizationAction.delete
+            self, mlrun.common.schemas.AuthorizationAction.delete
         )
 
         purge_targets = self._reload_and_get_status_targets(
@@ -926,7 +930,11 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            return self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe()
+            # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
+            if not isinstance(df, pd.DataFrame):
+                df = pd.concat(df)
+            return df
 
         target = get_offline_target(self, name=target_name)
         if not target:

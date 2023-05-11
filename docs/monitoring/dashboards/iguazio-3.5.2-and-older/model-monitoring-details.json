@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 8,
-  "iteration": 1627466479152,
+  "id": 45,
+  "iteration": 1679739783082,
   "links": [
     {
       "icon": "external link",
@@ -42,7 +42,7 @@
   ],
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -88,6 +88,10 @@
               {
                 "id": "custom.align",
                 "value": "center"
+              },
+              {
+                "id": "custom.width",
+                "value": null
               }
             ]
           },
@@ -194,12 +198,7 @@
       "id": 12,
       "options": {
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "name"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "7.2.0",
       "targets": [
@@ -207,7 +206,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODEL\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
@@ -218,10 +217,31 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {},
-            "indexByName": {},
+            "excludeByName": {
+              "accuracy": true,
+              "drift_status": true,
+              "endpoint_function": false,
+              "endpoint_model": false,
+              "error_count": true
+            },
+            "indexByName": {
+              "accuracy": 4,
+              "drift_status": 6,
+              "endpoint_function": 2,
+              "endpoint_id": 0,
+              "endpoint_model": 1,
+              "endpoint_model_class": 10,
+              "error_count": 5,
+              "first_request": 9,
+              "last_request": 3,
+              "latency_avg_1h": 8,
+              "predictions_per_second": 7
+            },
             "renameByName": {
+              "endpoint_function": "Function URI",
               "endpoint_id": "Endpoint ID",
+              "endpoint_model": "Model",
+              "endpoint_model_class": "Model Class",
               "first_request": "First Request",
               "function": "Function",
               "function_uri": "Function URI",
@@ -709,15 +729,13 @@
       }
     }
   ],
-  "refresh": "1m",
+  "refresh": "30s",
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
-        "allValue": null,
-        "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -727,7 +745,7 @@
         "name": "PROJECT",
         "options": [],
         "query": "target_endpoint=list_projects",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -741,14 +759,14 @@
         "allValue": null,
         "current": {},
         "datasource": "iguazio",
-        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
         "hide": 0,
         "includeAll": false,
         "label": "Model",
         "multi": false,
         "name": "MODEL",
         "options": [],
-        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=uid;",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

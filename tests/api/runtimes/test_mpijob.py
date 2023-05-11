@@ -19,7 +19,7 @@ from kubernetes import client as k8s_client
 
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -45,7 +45,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         assert run.status.state == "running"
 
     def _mock_get_namespaced_custom_object(self, workers=1):
-        get_k8s().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
+        get_k8s_helper().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
             return_value={
                 "status": {
                     "replicaStatuses": {
@@ -64,7 +64,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         if pods is None:
             pods = [self._get_worker_pod(phase=phase)] * workers
             pods += [self._get_launcher_pod(phase=phase)]
-        get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
+        get_k8s_helper().list_pods = unittest.mock.Mock(return_value=pods)
 
     def _get_worker_pod(self, phase="Running"):
         return k8s_client.V1Pod(

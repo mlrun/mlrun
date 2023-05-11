@@ -30,10 +30,10 @@ import pytest
 import requests_mock
 
 import mlrun.artifacts.base
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.api import schemas
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -633,7 +633,7 @@ def test_feature_vectors(create_server):
         feature_vector_update,
         project,
         tag="latest",
-        patch_mode=schemas.PatchMode.additive,
+        patch_mode=mlrun.common.schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
@@ -662,7 +662,10 @@ def test_feature_vectors(create_server):
 
     # Perform a replace (vs. additive as done earlier) - now should only have 2 features
     db.patch_feature_vector(
-        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+        name,
+        feature_vector_update,
+        project,
+        patch_mode=mlrun.common.schemas.PatchMode.replace,
     )
     feature_vector = db.get_feature_vector(name, project)
     assert (
@@ -677,7 +680,7 @@ def test_project_file_db_roundtrip(create_server):
     project_name = "project-name"
     description = "project description"
     goals = "project goals"
-    desired_state = mlrun.api.schemas.ProjectState.archived
+    desired_state = mlrun.common.schemas.ProjectState.archived
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"

@@ -18,7 +18,7 @@ import time
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.runtimes.base import BaseRuntimeHandler
 
@@ -30,7 +30,7 @@ from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import AsyncLogWriter
+from .utils import get_k8s
 
 
 class KubejobRuntime(KubeResource):
@@ -58,16 +58,17 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
         if source.endswith(".zip") and not pull_at_runtime:
             logger.warn(
@@ -79,6 +80,9 @@ class KubejobRuntime(KubeResource):
             self.spec.default_handler = handler
         if workdir:
             self.spec.workdir = workdir
+        if target_dir:
+            self.spec.clone_target_dir = target_dir
+
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
             self.spec.build.base_image
@@ -86,7 +90,7 @@ class KubejobRuntime(KubeResource):
             and pull_at_runtime
             and not self.spec.image
         ):
-            # if we load source from repo and dont need a full build use the base_image as the image
+            # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
         elif not pull_at_runtime:
             # clear the image so build will not be skipped
@@ -133,16 +137,12 @@ class KubejobRuntime(KubeResource):
             self.spec.build.image = image
         if base_image:
             self.spec.build.base_image = base_image
-        # if overwrite and requirements or commands passed, clear the existing commands
-        # (requirements are added to the commands parameter)
-        if (requirements or commands) and overwrite:
-            self.spec.build.commands = None
+        if commands:
+            self.with_commands(commands, overwrite=overwrite, verify_base_image=False)
         if requirements:
             self.with_requirements(
-                requirements, overwrite=False, verify_base_image=False
+                requirements, overwrite=overwrite, verify_base_image=False
             )
-        if commands:
-            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret is not None:
@@ -194,7 +194,13 @@ class KubejobRuntime(KubeResource):
                     or "/mlrun/" in build.base_image
                 )
 
-        if not build.source and not build.commands and not build.extra and with_mlrun:
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
             logger.info(
                 "running build to add mlrun package, set "
                 "with_mlrun=False to skip if its already in the image"
@@ -223,7 +229,8 @@ class KubejobRuntime(KubeResource):
             self.spec.build.base_image = self.spec.build.base_image or get_in(
                 data, "data.spec.build.base_image"
             )
-            self.spec.workdir = get_in(data, "data.spec.workdir")
+            # get the clone target dir in case it was enriched due to loading source
+            self.spec.clone_target_dir = get_in(data, "data.spec.clone_target_dir")
             ready = data.get("ready", False)
             if not ready:
                 logger.info(
@@ -236,7 +243,7 @@ class KubejobRuntime(KubeResource):
         else:
             self.save(versioned=False)
             ready = build_runtime(
-                mlrun.api.schemas.AuthInfo(),
+                mlrun.common.schemas.AuthInfo(),
                 self,
                 with_mlrun,
                 mlrun_version_specifier,
@@ -280,36 +287,6 @@ class KubejobRuntime(KubeResource):
         print()
         return self.status.state
 
-    def builder_status(self, watch=True, logs=True):
-        if self._is_remote_api():
-            return self._build_watch(watch, logs)
-
-        else:
-            pod = self.status.build_pod
-            if not self.status.state == "ready" and pod:
-                k8s = self._get_k8s()
-                status = k8s.get_pod_status(pod)
-                if logs:
-                    if watch:
-                        status = k8s.watch(pod)
-                    else:
-                        resp = k8s.logs(pod)
-                        if resp:
-                            print(resp.encode())
-
-                if status == "succeeded":
-                    self.status.build_pod = None
-                    self.status.state = "ready"
-                    logger.info("build completed successfully")
-                    return "ready"
-                if status in ["failed", "error"]:
-                    self.status.state = status
-                    logger.error(f" build {status}, watch the build pod logs: {pod}")
-                    return status
-
-                logger.info(f"builder status is: {status}, wait for it to complete")
-            return None
-
     def deploy_step(
         self,
         image=None,
@@ -341,18 +318,10 @@ class KubejobRuntime(KubeResource):
 
         if runobj.metadata.iteration:
             self.store_run(runobj)
-        k8s = self._get_k8s()
         new_meta = self._get_meta(runobj)
 
         self._add_secrets_to_spec_before_running(runobj)
-        workdir = self.spec.workdir
-        if workdir:
-            if self.spec.build.source and self.spec.build.load_source_on_run:
-                # workdir will be set AFTER the clone
-                workdir = None
-            elif not workdir.startswith("/"):
-                # relative path mapped to real path in the job pod
-                workdir = os.path.join("/mlrun", workdir)
+        workdir = self._resolve_workdir()
 
         pod_spec = func_to_pod(
             self.full_image_path(
@@ -369,22 +338,40 @@ class KubejobRuntime(KubeResource):
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
-            pod_name, namespace = k8s.create_pod(pod)
+            pod_name, namespace = get_k8s().create_pod(pod)
         except ApiException as exc:
             raise RunError(err_to_str(exc))
 
-        if pod_name and self.kfp:
-            writer = AsyncLogWriter(self._db_conn, runobj)
-            status = k8s.watch(pod_name, namespace, writer=writer)
-
-            if status in ["failed", "error"]:
-                raise RunError(f"pod exited with {status}, check logs")
-        else:
-            txt = f"Job is running in the background, pod: {pod_name}"
-            logger.info(txt)
-            runobj.status.status_text = txt
+        txt = f"Job is running in the background, pod: {pod_name}"
+        logger.info(txt)
+        runobj.status.status_text = txt
 
         return None
+
+    def _resolve_workdir(self):
+        """
+        The workdir is relative to the source root, if the source is not loaded on run then the workdir
+        is relative to the clone target dir (where the source was copied to).
+        Otherwise, if the source is loaded on run, the workdir is resolved on the run as well.
+        If the workdir is absolute, keep it as is.
+        """
+        workdir = self.spec.workdir
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            # workdir will be set AFTER the clone which is done in the pre-run of local runtime
+            return None
+
+        if workdir and os.path.isabs(workdir):
+            return workdir
+
+        if self.spec.clone_target_dir:
+            workdir = workdir or ""
+            if workdir.startswith("./"):
+                # TODO: use 'removeprefix' when we drop python 3.7 support
+                # workdir.removeprefix("./")
+                workdir = workdir[2:]
+            return os.path.join(self.spec.clone_target_dir, workdir)
+
+        return workdir
 
 
 def func_to_pod(image, runtime, extra_env, command, args, workdir):

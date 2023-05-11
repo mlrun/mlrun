@@ -16,7 +16,7 @@ from ast import literal_eval
 from os import environ, getenv
 from typing import Callable, Dict, Optional, Union
 
-from .utils import AzureVaultStore, VaultStore, list2dict
+from .utils import AzureVaultStore, list2dict
 
 
 class SecretsStore:
@@ -26,7 +26,6 @@ class SecretsStore:
         # for example from Vault, and when adding their source they will be retrieved from the external source.
         self._hidden_sources = []
         self._hidden_secrets = {}
-        self.vault = VaultStore()
 
     @classmethod
     def from_list(cls, src_list: list):
@@ -60,21 +59,20 @@ class SecretsStore:
             for key in source.split(","):
                 k = key.strip()
                 self._secrets[prefix + k] = environ.get(k)
-
-        elif kind == "vault":
-            if isinstance(source, str):
-                source = literal_eval(source)
-            if not isinstance(source, dict):
-                raise ValueError("vault secrets must be of type dict")
-
-            for key, value in self.vault.get_secrets(
-                source["secrets"],
-                user=source.get("user"),
-                project=source.get("project"),
-            ).items():
-                self._hidden_secrets[prefix + key] = value
-            self._hidden_sources.append({"kind": kind, "source": source})
-
+        # TODO: Vault: uncomment when vault returns to be relevant
+        # elif kind == "vault":
+        #     if isinstance(source, str):
+        #         source = literal_eval(source)
+        #     if not isinstance(source, dict):
+        #         raise ValueError("vault secrets must be of type dict")
+        #
+        #     for key, value in self.vault.get_secrets(
+        #         source["secrets"],
+        #         user=source.get("user"),
+        #         project=source.get("project"),
+        #     ).items():
+        #         self._hidden_secrets[prefix + key] = value
+        #     self._hidden_sources.append({"kind": kind, "source": source})
         elif kind == "azure_vault":
             if isinstance(source, str):
                 source = literal_eval(source)

@@ -20,20 +20,20 @@ import sqlalchemy.orm
 
 import mlrun.api.api.deps
 import mlrun.api.crud.tags
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 from mlrun.utils.helpers import tag_name_regex_as_string
 
 router = fastapi.APIRouter()
 
 
-@router.post("/projects/{project}/tags/{tag}", response_model=mlrun.api.schemas.Tag)
+@router.post("/projects/{project}/tags/{tag}", response_model=mlrun.common.schemas.Tag)
 async def overwrite_object_tags_with_tag(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
-    tag_objects: mlrun.api.schemas.TagObjects = fastapi.Body(...),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -49,11 +49,11 @@ async def overwrite_object_tags_with_tag(
 
     # check permission per object type
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
+        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
         resource_name="",
         # not actually overwriting objects, just overwriting the objects tags
-        action=mlrun.api.schemas.AuthorizationAction.update,
+        action=mlrun.common.schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
 
@@ -64,15 +64,15 @@ async def overwrite_object_tags_with_tag(
         tag,
         tag_objects,
     )
-    return mlrun.api.schemas.Tag(name=tag, project=project)
+    return mlrun.common.schemas.Tag(name=tag, project=project)
 
 
-@router.put("/projects/{project}/tags/{tag}", response_model=mlrun.api.schemas.Tag)
+@router.put("/projects/{project}/tags/{tag}", response_model=mlrun.common.schemas.Tag)
 async def append_tag_to_objects(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
-    tag_objects: mlrun.api.schemas.TagObjects = fastapi.Body(...),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -87,10 +87,10 @@ async def append_tag_to_objects(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
+        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
         resource_name="",
-        action=mlrun.api.schemas.AuthorizationAction.update,
+        action=mlrun.common.schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
 
@@ -101,7 +101,7 @@ async def append_tag_to_objects(
         tag,
         tag_objects,
     )
-    return mlrun.api.schemas.Tag(name=tag, project=project)
+    return mlrun.common.schemas.Tag(name=tag, project=project)
 
 
 @router.delete(
@@ -110,8 +110,8 @@ async def append_tag_to_objects(
 async def delete_tag_from_objects(
     project: str,
     tag: str,
-    tag_objects: mlrun.api.schemas.TagObjects,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    tag_objects: mlrun.common.schemas.TagObjects,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -126,11 +126,11 @@ async def delete_tag_from_objects(
     )
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
+        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
         resource_name="",
         # not actually deleting objects, just deleting the objects tags
-        action=mlrun.api.schemas.AuthorizationAction.update,
+        action=mlrun.common.schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
 

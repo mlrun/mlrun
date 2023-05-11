@@ -31,9 +31,9 @@ import mlrun.api.main
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.singletons.k8s
 import tests.api.api.utils
-from mlrun.api.schemas import AuthInfo
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
@@ -65,12 +65,18 @@ access_key = "12345"
 
 @pytest.fixture()
 def pod_create_mock():
-    create_pod_orig_function = get_k8s().create_pod
-    _get_project_secrets_raw_data_orig_function = (
-        get_k8s()._get_project_secrets_raw_data
+    create_pod_orig_function = (
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
     )
-    get_k8s().create_pod = unittest.mock.Mock(return_value=("pod-name", "namespace"))
-    get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+    _get_project_secrets_raw_data_orig_function = (
+        mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
+        return_value=("pod-name", "namespace")
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+        unittest.mock.Mock(return_value={})
+    )
 
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
@@ -97,11 +103,13 @@ def pod_create_mock():
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield get_k8s().create_pod
+    yield mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    get_k8s().create_pod = create_pod_orig_function
-    get_k8s()._get_project_secrets_raw_data = (
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
+        create_pod_orig_function
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
@@ -144,7 +152,7 @@ def test_submit_job_auto_mount(
         "V3IO_USERNAME": username,
         "V3IO_ACCESS_KEY": (
             secret_name,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
@@ -174,7 +182,7 @@ def test_submit_job_ensure_function_has_auth_set(
     expected_env_vars = {
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
             secret_name,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
@@ -337,7 +345,7 @@ def test_submit_job_with_hyper_params_file(
     )
 
     async def auth_info_mock(*args, **kwargs):
-        return mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
+        return mlrun.common.schemas.AuthInfo(username="user", data_session=access_key)
 
     # Create test-specific mocks
     monkeypatch.setattr(
@@ -526,7 +534,7 @@ def _create_submit_job_body(function, project, with_output_path=True):
 
 def _create_submit_job_body_with_schedule(function, project):
     job_body = _create_submit_job_body(function, project)
-    job_body["schedule"] = mlrun.api.schemas.ScheduleCronTrigger(year=1999).dict()
+    job_body["schedule"] = mlrun.common.schemas.ScheduleCronTrigger(year=1999).dict()
     return job_body
 
 

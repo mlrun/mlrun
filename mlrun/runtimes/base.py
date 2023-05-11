@@ -15,7 +15,6 @@ import enum
 import getpass
 import http
 import os.path
-import shlex
 import traceback
 import typing
 import uuid
@@ -35,11 +34,11 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
-from mlrun.api import schemas
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
@@ -49,7 +48,6 @@ from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
 from ..execution import MLClientCtx
-from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
 from ..lists import RunList
 from ..model import (
@@ -77,7 +75,7 @@ from ..utils import (
 from .constants import PodPhases, RunStates
 from .funcdoc import update_function_entry_points
 from .generators import get_generator
-from .utils import RunError, calc_hash, results_to_iter
+from .utils import RunError, calc_hash, get_k8s, results_to_iter
 
 run_modes = ["pass"]
 spec_fields = [
@@ -93,6 +91,7 @@ spec_fields = [
     "pythonpath",
     "disable_auto_mount",
     "allow_empty_resources",
+    "clone_target_dir",
 ]
 
 
@@ -133,6 +132,7 @@ class FunctionSpec(ModelObj):
         default_handler=None,
         pythonpath=None,
         disable_auto_mount=False,
+        clone_target_dir=None,
     ):
 
         self.command = command or ""
@@ -151,6 +151,9 @@ class FunctionSpec(ModelObj):
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
+        # the build.source is cloned/extracted to the specified clone_target_dir
+        # if a relative path is specified, it will be enriched with a temp dir path
+        self.clone_target_dir = clone_target_dir or ""
 
     @property
     def build(self) -> ImageBuilder:
@@ -218,9 +221,6 @@ class BaseRuntime(ModelObj):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", FunctionStatus)
-
-    def _get_k8s(self):
-        return get_k8s_helper()
 
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
@@ -334,7 +334,7 @@ class BaseRuntime(ModelObj):
         workdir: str = "",
         artifact_path: str = "",
         watch: bool = True,
-        schedule: Union[str, schemas.ScheduleCronTrigger] = None,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         hyperparams: Dict[str, list] = None,
         hyper_param_options: HyperParamOptions = None,
         verbose=None,
@@ -1272,15 +1272,19 @@ class BaseRuntime(ModelObj):
         :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
-        encoded_requirements = self._encode_requirements(requirements)
-        commands = self.spec.build.commands or [] if not overwrite else []
-        new_command = f"python -m pip install {encoded_requirements}"
-        # make sure we dont append the same line twice
-        if new_command not in commands:
-            commands.append(new_command)
-        self.spec.build.commands = commands
+        resolved_requirements = self._resolve_requirements(requirements)
+        requirements = self.spec.build.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in resolved_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.spec.build.requirements = requirements
+
         if verify_base_image:
             self.verify_base_image()
+
         return self
 
     def with_commands(
@@ -1322,8 +1326,10 @@ class BaseRuntime(ModelObj):
 
     def verify_base_image(self):
         build = self.spec.build
-        require_build = build.commands or (
-            build.source and not build.load_source_on_run
+        require_build = (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
         )
         image = self.spec.image
         # we allow users to not set an image, in that case we'll use the default
@@ -1448,15 +1454,16 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
-    def _encode_requirements(self, requirements_to_encode):
-
+    @staticmethod
+    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
         # if a string, read the file then encode
-        if isinstance(requirements_to_encode, str):
-            with open(requirements_to_encode, "r") as fp:
-                requirements_to_encode = fp.read().splitlines()
+        if isinstance(requirements_to_resolve, str):
+            with open(requirements_to_resolve, "r") as fp:
+                requirements_to_resolve = fp.read().splitlines()
 
         requirements = []
-        for requirement in requirements_to_encode:
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
             requirement = requirement.strip()
 
             # ignore empty lines
@@ -1469,21 +1476,9 @@ class BaseRuntime(ModelObj):
             if len(inline_comment) > 1:
                 requirement = inline_comment[0].strip()
 
-            # -r / --requirement are flags and should not be escaped
-            # we allow such flags (could be passed within the requirements.txt file) and do not
-            # try to open the file and include its content since it might be a remote file
-            # given on the base image.
-            for req_flag in ["-r", "--requirement"]:
-                if requirement.startswith(req_flag):
-                    requirement = requirement[len(req_flag) :].strip()
-                    requirements.append(req_flag)
-                    break
+            requirements.append(requirement)
 
-            # wrap in single quote to ensure that the requirement is treated as a single string
-            # quote the requirement to avoid issues with special characters, double quotes, etc.
-            requirements.append(shlex.quote(requirement))
-
-        return " ".join(requirements)
+        return requirements
 
     def _validate_output_path(self, run):
         if is_local(run.spec.output_path):
@@ -1552,19 +1547,18 @@ class BaseRuntimeHandler(ABC):
         project: str,
         object_id: typing.Optional[str] = None,
         label_selector: str = None,
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> Union[
-        mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
-        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        mlrun.common.schemas.RuntimeResources,
+        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support removing runtime resources in non k8s env
-        if not mlrun.k8s_utils.get_k8s_helper(
-            silent=True
-        ).is_running_inside_kubernetes_cluster():
+        if not get_k8s().is_running_inside_kubernetes_cluster():
             return {}
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
+        namespace = get_k8s().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
@@ -1580,8 +1574,10 @@ class BaseRuntimeHandler(ABC):
 
     def build_output_from_runtime_resources(
         self,
-        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         pod_resources = []
         crd_resources = []
@@ -1607,12 +1603,9 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if not mlrun.k8s_utils.get_k8s_helper(
-            silent=True
-        ).is_running_inside_kubernetes_cluster():
+        if not get_k8s().is_running_inside_kubernetes_cluster():
             return
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
+        namespace = get_k8s().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -1660,8 +1653,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session):
-        k8s_helper = get_k8s_helper()
-        namespace = k8s_helper.resolve_namespace()
+        namespace = get_k8s().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = False
@@ -1833,17 +1825,19 @@ class BaseRuntimeHandler(ABC):
     def _enrich_list_resources_response(
         self,
         response: Union[
-            mlrun.api.schemas.RuntimeResources,
-            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
-            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+            mlrun.common.schemas.RuntimeResources,
+            mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
         label_selector: str = None,
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> Union[
-        mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
-        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        mlrun.common.schemas.RuntimeResources,
+        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
@@ -1853,12 +1847,14 @@ class BaseRuntimeHandler(ABC):
     def _build_output_from_runtime_resources(
         self,
         response: Union[
-            mlrun.api.schemas.RuntimeResources,
-            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
-            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+            mlrun.common.schemas.RuntimeResources,
+            mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
-        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        runtime_resources_list: List[mlrun.common.schemas.RuntimeResources],
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         """
         Override this to add runtime resources other than pods or CRDs (which are handled by the base class) to the
@@ -1989,20 +1985,18 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
-        k8s_helper = get_k8s_helper()
-        pods = k8s_helper.list_pods(namespace, selector=label_selector)
+        pods = get_k8s().list_pods(namespace, selector=label_selector)
         # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
         # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
         pods = [pod.to_dict() for pod in pods]
         return pods
 
     def _list_crd_objects(self, namespace: str, label_selector: str = None) -> List:
-        k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
+                crd_objects = get_k8s().crdapi.list_namespaced_custom_object(
                     crd_group,
                     crd_version,
                     namespace,
@@ -2068,11 +2062,10 @@ class BaseRuntimeHandler(ABC):
         deleted_pods: List[Dict],
         label_selector: str = None,
     ):
-        k8s_helper = get_k8s_helper()
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = k8s_helper.v1api.list_namespaced_pod(
+            pods = get_k8s().v1api.list_namespaced_pod(
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
@@ -2125,10 +2118,10 @@ class BaseRuntimeHandler(ABC):
                     "name"
                 ]
             still_in_deletion_crds_to_pod_names = {}
-            jobs_runtime_resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput = self.list_resources(
+            jobs_runtime_resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput = self.list_resources(
                 "*",
                 label_selector=label_selector,
-                group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+                group_by=mlrun.common.schemas.ListRuntimeResourcesGroupByField.job,
             )
             for project, project_jobs in jobs_runtime_resources.items():
                 if project not in project_uid_crd_map:
@@ -2176,8 +2169,7 @@ class BaseRuntimeHandler(ABC):
     ) -> List[Dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        k8s_helper = get_k8s_helper()
-        pods = k8s_helper.v1api.list_namespaced_pod(
+        pods = get_k8s().v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
         )
         deleted_pods = []
@@ -2218,7 +2210,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                get_k8s_helper().delete_pod(pod.metadata.name, namespace)
+                get_k8s().delete_pod(pod.metadata.name, namespace)
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
@@ -2239,11 +2231,10 @@ class BaseRuntimeHandler(ABC):
     ) -> List[Dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = k8s_helper.crdapi.list_namespaced_custom_object(
+            crd_objects = get_k8s().crdapi.list_namespaced_custom_object(
                 crd_group,
                 crd_version,
                 namespace,
@@ -2295,7 +2286,7 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    get_k8s_helper().delete_crd(
+                    get_k8s().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,
@@ -2471,13 +2462,15 @@ class BaseRuntimeHandler(ABC):
 
     def _build_list_resources_response(
         self,
-        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> Union[
-        mlrun.api.schemas.RuntimeResources,
-        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
-        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        mlrun.common.schemas.RuntimeResources,
+        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         if crd_resources is None:
             crd_resources = []
@@ -2485,15 +2478,18 @@ class BaseRuntimeHandler(ABC):
             pod_resources = []
 
         if group_by is None:
-            return mlrun.api.schemas.RuntimeResources(
+            return mlrun.common.schemas.RuntimeResources(
                 crd_resources=crd_resources, pod_resources=pod_resources
             )
         else:
-            if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
+            if group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.job:
                 return self._build_grouped_by_job_list_resources_response(
                     pod_resources, crd_resources
                 )
-            elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            elif (
+                group_by
+                == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project
+            ):
                 return self._build_grouped_by_project_list_resources_response(
                     pod_resources, crd_resources
                 )
@@ -2504,9 +2500,9 @@ class BaseRuntimeHandler(ABC):
 
     def _build_grouped_by_project_list_resources_response(
         self,
-        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-    ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
+        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+    ) -> mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
             self._add_resource_to_grouped_by_project_resources_response(
@@ -2520,9 +2516,9 @@ class BaseRuntimeHandler(ABC):
 
     def _build_grouped_by_job_list_resources_response(
         self,
-        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
-    ) -> mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput:
+        pod_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.common.schemas.RuntimeResource] = None,
+    ) -> mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
             self._add_resource_to_grouped_by_job_resources_response(
@@ -2536,9 +2532,9 @@ class BaseRuntimeHandler(ABC):
 
     def _add_resource_to_grouped_by_project_resources_response(
         self,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         resource_field_name: str,
-        resource: mlrun.api.schemas.RuntimeResource,
+        resource: mlrun.common.schemas.RuntimeResource,
     ):
         if "mlrun/class" in resource.labels:
             project = resource.labels.get("mlrun/project", "")
@@ -2550,9 +2546,9 @@ class BaseRuntimeHandler(ABC):
 
     def _add_resource_to_grouped_by_job_resources_response(
         self,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         resource_field_name: str,
-        resource: mlrun.api.schemas.RuntimeResource,
+        resource: mlrun.common.schemas.RuntimeResource,
     ):
         if "mlrun/uid" in resource.labels:
             project = resource.labels.get("mlrun/project", config.default_project)
@@ -2565,16 +2561,18 @@ class BaseRuntimeHandler(ABC):
     def _add_resource_to_grouped_by_field_resources_response(
         first_field_value: str,
         second_field_value: str,
-        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources: mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         resource_field_name: str,
-        resource: mlrun.api.schemas.RuntimeResource,
+        resource: mlrun.common.schemas.RuntimeResource,
     ):
         if first_field_value not in resources:
             resources[first_field_value] = {}
         if second_field_value not in resources[first_field_value]:
             resources[first_field_value][
                 second_field_value
-            ] = mlrun.api.schemas.RuntimeResources(pod_resources=[], crd_resources=[])
+            ] = mlrun.common.schemas.RuntimeResources(
+                pod_resources=[], crd_resources=[]
+            )
         if not getattr(
             resources[first_field_value][second_field_value], resource_field_name
         ):
@@ -2708,11 +2706,11 @@ class BaseRuntimeHandler(ABC):
         return project, uid, name
 
     @staticmethod
-    def _build_pod_resources(pods) -> List[mlrun.api.schemas.RuntimeResource]:
+    def _build_pod_resources(pods) -> List[mlrun.common.schemas.RuntimeResource]:
         pod_resources = []
         for pod in pods:
             pod_resources.append(
-                mlrun.api.schemas.RuntimeResource(
+                mlrun.common.schemas.RuntimeResource(
                     name=pod["metadata"]["name"],
                     labels=pod["metadata"]["labels"],
                     status=pod["status"],
@@ -2721,11 +2719,13 @@ class BaseRuntimeHandler(ABC):
         return pod_resources
 
     @staticmethod
-    def _build_crd_resources(custom_objects) -> List[mlrun.api.schemas.RuntimeResource]:
+    def _build_crd_resources(
+        custom_objects,
+    ) -> List[mlrun.common.schemas.RuntimeResource]:
         crd_resources = []
         for custom_object in custom_objects:
             crd_resources.append(
-                mlrun.api.schemas.RuntimeResource(
+                mlrun.common.schemas.RuntimeResource(
                     name=custom_object["metadata"]["name"],
                     labels=custom_object["metadata"]["labels"],
                     status=custom_object.get("status", {}),

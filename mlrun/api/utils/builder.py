@@ -14,7 +14,6 @@
 import os.path
 import pathlib
 import re
-import tarfile
 import tempfile
 from base64 import b64decode, b64encode
 from os import path
@@ -23,15 +22,17 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
-
-from .config import config
-from .datastore import store_manager
-from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
-
-IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
+from mlrun.config import config
+from mlrun.utils import (
+    enrich_image_url,
+    get_parsed_docker_registry,
+    logger,
+    normalize_name,
+)
 
 
 def make_dockerfile(
@@ -301,17 +302,6 @@ def configure_kaniko_ecr_init_container(
         env=init_container_env,
         name="create-repos",
     )
-
-
-def upload_tarball(source_dir, target, secrets=None):
-
-    # will delete the temp file
-    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
-        with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
-            tar.add(source_dir, arcname="")
-        stores = store_manager.set(secrets)
-        datastore, subpath = stores.get_or_create_store(target)
-        datastore.upload(subpath, temp_fh.name)
 
 
 def build_image(
@@ -691,10 +681,14 @@ def _resolve_image_target_and_registry_secret(
         return "/".join([registry, image_target]), secret_name
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
-    if image_target.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+    if image_target.startswith(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+    ):
 
         # remove prefix from image name
-        image_target = image_target[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+        image_target = image_target[
+            len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
+        ]
 
         registry, repository = get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret

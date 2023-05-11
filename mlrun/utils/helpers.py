@@ -954,7 +954,7 @@ def retry_until_successful(
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
-    )
+    ) from last_exception
 
 
 def get_ui_url(project, uid=None):

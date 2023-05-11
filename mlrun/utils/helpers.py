@@ -1014,9 +1014,16 @@ def create_function(pkg_func: str):
     return function_
 
 
-def get_caller_globals(level=2):
+def get_caller_globals():
+    """Returns a dictionary containing the first non-mlrun caller function's namespace."""
     try:
-        return inspect.stack()[level][0].f_globals
+        stack = inspect.stack()
+        # If an API function called this function directly, the first non-mlrun caller will be 2 levels up the stack.
+        # Otherwise, we keep going up the stack until we find it.
+        for level in range(2, len(stack)):
+            namespace = stack[level][0].f_globals
+            if not namespace["__name__"].startswith("mlrun."):
+                return namespace
     except Exception:
         return None
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import enum
 import json
 import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -226,7 +227,9 @@ class ModelEndpoint(BaseModel):
                 # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
                 # for matching the database required format
                 if not isinstance(
-                    model_endpoint_dictionary[k_object][key], (str, bool)
+                    model_endpoint_dictionary[k_object][key], (str, bool, int)
+                ) or isinstance(
+                    model_endpoint_dictionary[k_object][key], (enum.IntEnum)
                 ):
                     flatten_dict[key] = json.dumps(
                         model_endpoint_dictionary[k_object][key]
@@ -242,11 +245,6 @@ class ModelEndpoint(BaseModel):
                     mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
-
-        # Validate tht the error count value is an integer - important for the grafana dashboards
-        flatten_dict[mlrun.common.model_monitoring.EventFieldType.ERROR_COUNT] = int(
-            flatten_dict[mlrun.common.model_monitoring.EventFieldType.ERROR_COUNT]
-        )
 
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
         flatten_dict.pop(mlrun.common.model_monitoring.EventFieldType.FEATURES, None)

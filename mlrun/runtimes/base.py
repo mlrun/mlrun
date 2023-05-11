@@ -16,7 +16,6 @@ import getpass
 import http
 import traceback
 import typing
-import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from base64 import b64encode
@@ -56,7 +55,6 @@ from ..model import (
     RunObject,
     RunTemplate,
 )
-from ..secrets import SecretsStore
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -64,7 +62,6 @@ from ..utils import (
     get_in,
     get_parsed_docker_registry,
     logger,
-    normalize_name,
     now_date,
     update_in,
 )

@@ -286,6 +286,10 @@ class RunDBMock:
     def get_project(self, name):
         if self._project_name and name == self._project_name:
             return self._project
+        elif name == config.default_project and not self._project_name:
+            project = mlrun.projects.MlrunProject(name)
+            self.store_project(name, project)
+            return project
         else:
             raise mlrun.errors.MLRunNotFoundError("Project not found")
 

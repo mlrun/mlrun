@@ -272,7 +272,6 @@ class Member(
                 logger.warning(
                     "Failed creating missing project in leader",
                     project_follower_name=project_follower_name,
-                    project=project,
                     project_name=project_name,
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
@@ -315,7 +314,6 @@ class Member(
                 "Updating project in follower",
                 follower_name=follower_name,
                 project_name=project_name,
-                project=project,
             )
             try:
                 self._enrich_and_validate_before_creation(project)
@@ -329,7 +327,6 @@ class Member(
                     "Failed updating project in follower",
                     follower_name=follower_name,
                     project_name=project_name,
-                    project=project,
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
@@ -349,7 +346,6 @@ class Member(
                 missing_follower_name=missing_follower,
                 project_follower_name=project_follower_name,
                 project_name=project_name,
-                project=project,
             )
             try:
                 self._enrich_and_validate_before_creation(project)
@@ -363,7 +359,6 @@ class Member(
                     missing_follower_name=missing_follower,
                     project_follower_name=project_follower_name,
                     project_name=project_name,
-                    project=project,
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )

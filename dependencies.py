@@ -31,9 +31,10 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it
     #       there as well
     extras_require = {
-        # aiobotocore 2.4.2 is the latest supported by python-3.7
-        # aiobotocore 1.27.59 is the latest version supported by aiobotocore 2.4.2
-        # boto3 1.24.59 is the latest version to support aiobotocore 1.27.59
+        # last version that supports python 3.7: fsspec: 2023.1.0, aiobotocore: 2.4.2
+        # selecting fsspec 2023.1.0 and same version for the s3fs and gcsfs implementations
+        # s3fs 2023.1.0 requires aiobotocore 2.4.2 which requires botocore 1.27.59
+        # requesting boto3 1.24.59, the only version that requires botocore 1.27.59
         "s3": [
             "boto3~=1.24.59",
             "aiobotocore~=2.4.2",

@@ -43,7 +43,7 @@ from mlrun.common.schemas import (
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
 
@@ -613,18 +613,6 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # Check that the KV schema has been generated as expected
         self._check_kv_schema_file()
-
-        # Validate that the KV schema has been generated as expected
-        client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
-        cursor = client.kv.new_cursor(
-            container="users",
-            table_path=f"pipelines/{self.project_name}/model-endpoints/endpoints/",
-            access_key=os.environ.get("V3IO_ACCESS_KEY"),
-        )
-
-        # List all the files from the KV table path and validate that the schema file is exist
-        records = cursor.all()
-        assert {"__name": ".#schema"} in records
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(

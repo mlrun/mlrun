@@ -174,7 +174,7 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-    ) -> str:
+    ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
@@ -189,7 +189,7 @@ class SystemTestPreparer:
                 workdir=workdir,
             )
         if self._debug:
-            return ""
+            return b"", b""
         try:
             if local:
                 stdout, stderr, exit_status = run_command(
@@ -208,15 +208,19 @@ class SystemTestPreparer:
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
+            err_log_kwargs = {
+                "error": str(exc),
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
             if verbose:
-                self._logger.error(
-                    f"Failed running command {log_command_location}",
-                    command=command,
-                    error=exc,
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_status=exit_status,
-                )
+                err_log_kwargs["command"] = command
+
+            self._logger.error(
+                f"Failed running command {log_command_location}",
+                **err_log_kwargs,
+            )
             raise
         else:
             if verbose:
@@ -227,7 +231,7 @@ class SystemTestPreparer:
                     stderr=stderr,
                     exit_status=exit_status,
                 )
-            return stdout
+            return stdout, stderr
 
     def _run_command_remotely(
         self,
@@ -478,13 +482,12 @@ class SystemTestPreparer:
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")
-            self._iguazio_version = self._run_command(
+            self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
-            ).strip()
-        if isinstance(self._iguazio_version, bytes):
-            self._iguazio_version = self._iguazio_version.decode("utf-8")
+            )
+            self._iguazio_version = self._iguazio_version.strip().decode()
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
@@ -509,6 +512,10 @@ class SystemTestPreparer:
             self._logger.info("No mlrun db pod found")
             return
 
+        self._logger.info(
+            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
+        )
+
         password = ""
         if self._mysql_password:
             password = f"-p {self._mysql_password} "
@@ -520,19 +527,35 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({mlrun_db_pod_name_cmd})",
+                mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,
             ],
             verbose=False,
         )
 
-    def _get_pod_name_command(self, labels, namespace=None):
-        namespace = namespace or self.Constants.namespace
+    def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
-        return "kubectl get pods -n {namespace} -l {labels_selector} | tail -n 1 | awk '{{print $1}}'".format(
-            namespace=namespace, labels_selector=labels_selector
+        pod_name, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "pods",
+                "--namespace",
+                self.Constants.namespace,
+                "--selector",
+                labels_selector,
+                "|",
+                "tail",
+                "-n",
+                "1",
+                "|",
+                "awk",
+                "'{print $1}'",
+            ],
         )
+        if b"No resources found" in stderr or not pod_name:
+            return None
+        return pod_name.strip()
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures
@@ -551,7 +574,7 @@ class SystemTestPreparer:
         )
 
     def _run_kubectl_command(self, args, verbose=True):
-        self._run_command(
+        return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,

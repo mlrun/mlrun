@@ -49,13 +49,23 @@ def param_dict(name="", type="", doc="", default=""):
     }
 
 
-def func_dict(name, doc, params, returns, lineno):
+def func_dict(
+    name,
+    doc,
+    params,
+    returns,
+    lineno,
+    has_varargs: bool = False,
+    has_kwargs: bool = False,
+):
     return {
         "name": name,
         "doc": doc,
         "params": params,
         "return": returns,
         "lineno": lineno,
+        "has_varargs": has_varargs,
+        "has_kwargs": has_kwargs,
     }
 
 
@@ -165,6 +175,9 @@ def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ""
     rtype = getattr(func.returns, "id", "")
     params = [ast_param_dict(p) for p in func.args.args]
+    # adds info about *args and **kwargs to the function doc
+    has_varargs = func.args.vararg is not None
+    has_kwargs = func.args.kwarg is not None
     defaults = func.args.defaults
     if defaults:
         for param, default in zip(params[-len(defaults) :], defaults):
@@ -176,6 +189,8 @@ def ast_func_info(func: ast.FunctionDef):
         params=params,
         returns=param_dict(type=rtype),
         lineno=func.lineno,
+        has_varargs=has_varargs,
+        has_kwargs=has_kwargs,
     )
 
     if not doc.strip():

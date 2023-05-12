@@ -30,6 +30,7 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
+import mlrun.api.api.endpoints.functions
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
@@ -389,6 +390,13 @@ class TestRuntimeBase:
         # set watch to False, to mimic the API behavior (API doesn't watch on the job)
         kwargs.update({"watch": False})
         self._execute_run(runtime, **kwargs)
+
+    @staticmethod
+    def deploy(db_session, runtime, with_mlrun=True):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.api.api.endpoints.functions._build_function(
+            db_session, auth_info, runtime, with_mlrun=with_mlrun
+        )
 
     def _reset_mocks(self):
         get_k8s_helper().v1api.create_namespaced_pod.reset_mock()

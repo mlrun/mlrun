@@ -74,7 +74,7 @@ def test_noparams(db):
 def test_failed_schedule_not_creating_run():
     function = new_function()
     # mock we're with remote api (only there schedule is relevant)
-    function._use_remote_api = Mock(return_value=True)
+    function._is_remote = True
     # mock failure in submit job (failed schedule)
     db = MagicMock()
     function.set_db_connection(db)

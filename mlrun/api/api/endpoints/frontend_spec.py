@@ -18,8 +18,8 @@ import fastapi
 import semver
 
 import mlrun.api.api.deps
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
-import mlrun.builder
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
@@ -76,7 +76,7 @@ def get_frontend_spec(
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
         function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
-        function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
+        function_deployment_mlrun_command=mlrun.api.utils.builder.resolve_mlrun_install_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,

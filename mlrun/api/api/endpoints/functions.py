@@ -46,7 +46,7 @@ import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.builder import build_runtime
+from mlrun.api.utils.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function

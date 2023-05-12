@@ -1,6 +1,6 @@
 pytest~=7.0
 twine~=3.1
-black~=22.0
+black[jupyter]~=22.0
 flake8~=5.0
 pytest-asyncio~=0.15.0
 pytest-alembic~=0.9.1

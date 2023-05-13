@@ -191,6 +191,8 @@ class ArtifactManager:
         if db_key is None:
             # set the default artifact db key
             if producer.kind == "run":
+                # In case of a run kind producer, we enable a key that is distinct from the db_key,
+                # in order to allow the user to obtain all the runs associated with a result.
                 db_key = producer.name + "_" + key
             else:
                 db_key = key

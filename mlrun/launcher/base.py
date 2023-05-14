@@ -184,8 +184,8 @@ class BaseLauncher(abc.ABC):
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
-    @staticmethod
     def _enrich_run(
+        self,
         runtime,
         run,
         handler=None,
@@ -276,6 +276,7 @@ class BaseLauncher(abc.ABC):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
+                # get_db might be None when no rundb is set on runtime
                 if not run.spec.output_path and runtime._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the

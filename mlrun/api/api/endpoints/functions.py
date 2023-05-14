@@ -87,7 +87,7 @@ async def store_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
+    logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
         mlrun.api.crud.Functions().store_function,
         db_session,

@@ -332,9 +332,8 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
-
     def _install_devutilities(self):
-        urlscript= ("https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git")
+        urlscript = ("https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git")
         ipaddr = ("--ipaddr " + os.environ.get('IP_ADDR_PREFIX'))
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
         self._run_command("git", args=["clone", urlscript, "dev_utilities"])

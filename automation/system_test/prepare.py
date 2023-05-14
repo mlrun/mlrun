@@ -346,7 +346,6 @@ class SystemTestPreparer:
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
         # s3://<bucket-name>/<object-name>
-
         parsed_url = urllib.parse.urlparse(self._provctl_download_url)
         if self._provctl_download_url.startswith("s3://"):
             object_name = parsed_url.path.lstrip("/")

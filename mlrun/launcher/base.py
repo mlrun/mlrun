@@ -369,8 +369,9 @@ class BaseLauncher(abc.ABC):
         """resolves and sets the build base image if build is needed"""
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(self, runtime):
+    def _enrich_runtime(runtime):
         pass
 
     @abc.abstractmethod

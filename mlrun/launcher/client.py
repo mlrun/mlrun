@@ -30,7 +30,8 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
     Abstract class for common code between client launchers
     """
 
-    def _enrich_runtime(self, runtime):
+    @staticmethod
+    def _enrich_runtime(runtime):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
 

@@ -154,7 +154,8 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             # this is mainly for tests with nop db
             # in normal use cases if no project is found we will get an error
             if project:
-                mlrun.projects.pipelines.enrich_function_object(project, runtime)
+                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+                project.enrich_function_object(runtime, copy_function=False)
 
     def _save_or_push_notifications(self, runobj):
         if not runobj.spec.notifications:

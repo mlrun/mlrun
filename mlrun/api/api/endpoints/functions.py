@@ -439,7 +439,6 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
-
         if state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
@@ -621,7 +620,6 @@ def _build_function(
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                 fn,
                 auth_info,
@@ -821,7 +819,6 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(project: str, function):
-
     _init_serving_function_stream_args(fn=function)
 
     stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -908,8 +905,6 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             allow_internal_secrets=True,
         )
         if not secret_value:
-            import mlrun.api.utils.singletons.project_member
-
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )

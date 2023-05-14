@@ -15,6 +15,7 @@
 
 import datetime
 import logging
+import os
 import pathlib
 import subprocess
 import sys
@@ -22,7 +23,7 @@ import tempfile
 import time
 import typing
 import urllib.parse
-import os
+
 import boto3
 import click
 import paramiko

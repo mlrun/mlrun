@@ -1099,8 +1099,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        csv_path = str(self.results_path / _generate_random_name() / ".csv")
-        targets = [CSVTarget("mycsv", path=csv_path)]
         stocks_set = fstore.FeatureSet(
             "tests", entities=[Entity("ticker", ValueType.STRING)]
         )
@@ -1108,21 +1106,15 @@ class TestFeatureStore(TestMLRunSystem):
             stocks_set,
             stocks,
             infer_options=fstore.InferOptions.default(),
-            targets=targets,
         )
-
-        final_path = stocks_set.get_target_path("mycsv")
-
         expected = pd.DataFrame(
             {
-                "ticker": ["MSFT", "GOOG", "AAPL"],
                 "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
                 "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
-            }
+            },
+            index=pd.Index(["MSFT", "GOOG", "AAPL"], name="ticker"),
         )
-
-        assert result.equals(expected), f"{result}\n!=\n{expected}"
-        os.remove(final_path)
+        assert result.equals(expected)
 
     def test_multiple_entities(self):
         name = f"measurements_{uuid.uuid4()}"

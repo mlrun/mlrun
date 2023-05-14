@@ -322,9 +322,7 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: Union[
-            mlrun.common.schemas.TagObjects, mlrun.common.schemas.TagObjects
-        ],
+        tag_objects: mlrun.common.schemas.TagObjects,
         replace: bool = False,
     ):
         import mlrun.api.crud
@@ -350,9 +348,7 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: Union[
-            mlrun.common.schemas.TagObjects, mlrun.common.schemas.TagObjects
-        ],
+        tag_objects: mlrun.common.schemas.TagObjects,
     ):
         import mlrun.api.crud
 
@@ -401,7 +397,7 @@ class SQLDB(RunDBInterface):
     def store_project(
         self,
         name: str,
-        project: Union[mlrun.common.schemas.Project, mlrun.common.schemas.Project],
+        project: mlrun.common.schemas.Project,
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
@@ -419,9 +415,7 @@ class SQLDB(RunDBInterface):
         self,
         name: str,
         project: dict,
-        patch_mode: Union[
-            mlrun.common.schemas.PatchMode, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
@@ -435,7 +429,7 @@ class SQLDB(RunDBInterface):
 
     def create_project(
         self,
-        project: Union[mlrun.common.schemas.Project, mlrun.common.schemas.Project],
+        project: mlrun.common.schemas.Project,
     ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
@@ -448,10 +442,7 @@ class SQLDB(RunDBInterface):
     def delete_project(
         self,
         name: str,
-        deletion_strategy: Union[
-            mlrun.common.schemas.DeletionStrategy,
-            mlrun.common.schemas.DeletionStrategy,
-        ] = mlrun.common.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         import mlrun.api.crud
 

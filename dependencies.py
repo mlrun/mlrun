@@ -32,7 +32,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #       there as well
     extras_require = {
         # last version that supports python 3.7: fsspec: 2023.1.0, aiobotocore: 2.4.2
-        # selecting fsspec 2023.1.0 and same version for the s3fs and gcsfs implementations
+        # selecting ~=2023.1.0 for fsspec and it's implementations s3fs, gcsfs and adlfs
         # s3fs 2023.1.0 requires aiobotocore 2.4.2 which requires botocore 1.27.59
         # requesting boto3 1.24.59, the only version that requires botocore 1.27.59
         "s3": [
@@ -44,7 +44,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "msrest~=0.6.21",
             "azure-core~=1.24",
             "azure-storage-blob~=12.13",
-            "adlfs~=2022.2.0",
+            "adlfs~=2023.1.0",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [

@@ -490,9 +490,11 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in inputs:
             kwargs[key] = _get_input_value(key)
 
+    # get the last parameter, as **kwargs can only be last in the function's parameters list
+    last_param = list(args.values())[-1]
     # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
     # This corresponds to a **kwargs parameter in a Python function definition.
-    if any(param.kind == param.VAR_KEYWORD for param in args.values()):
+    if last_param.kind == last_param.VAR_KEYWORD:
         # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
         # as part of the previous loop which handled all parameters which were explicitly defined in the handler
         for key in params:

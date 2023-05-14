@@ -199,13 +199,13 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
 
     def _create_local_function_for_execution(
         self,
-        runtime,
-        run,
-        local_code_path,
-        project,
-        name,
-        workdir,
-        handler,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
+        local_code_path: Optional[str] = None,
+        project: Optional[str] = "",
+        name: Optional[str] = "",
+        workdir: Optional[str] = "",
+        handler: Optional[str] = None,
     ):
 
         project = project or runtime.metadata.project
@@ -216,14 +216,15 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
 
         meta = mlrun.model.BaseMetadata(function_name, project=project)
 
-        command, runtime = mlrun.run.load_func_code(
+        command, _runtime = mlrun.run.load_func_code(
             command or runtime, workdir, name=name
         )
-        if runtime:
+        # _runtime is loaded from runtime or yaml file, if passed a command it should be None
+        if _runtime:
             if run:
                 handler = handler or run.spec.handler
-            handler = handler or runtime.spec.default_handler or ""
-            meta = runtime.metadata.copy()
+            handler = handler or _runtime.spec.default_handler or ""
+            meta = _runtime.metadata.copy()
             meta.project = project or meta.project
 
         # if the handler has module prefix force "local" (vs "handler") runtime
@@ -233,11 +234,12 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         setattr(fn, "_is_run_local", True)
         if workdir:
             fn.spec.workdir = str(workdir)
+
         fn.spec.allow_empty_resources = runtime.spec.allow_empty_resources
-        if runtime:
+        if _runtime:
             # copy the code/base-spec to the local function (for the UI and code logging)
-            fn.spec.description = runtime.spec.description
-            fn.spec.build = runtime.spec.build
+            fn.spec.description = _runtime.spec.description
+            fn.spec.build = _runtime.spec.build
 
         run.spec.handler = handler
         return fn

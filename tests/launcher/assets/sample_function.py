@@ -12,5 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-def test_func(context):
+def hello_word(context):
     return "hello world"
+
+
+def handler_v2(context):
+    return "hello world v2"

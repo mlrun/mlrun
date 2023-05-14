@@ -341,7 +341,7 @@ class SystemTestPreparer:
             "--redis",
             "--mysql",
             "--redisinsight",
-            "--kafka"
+            "--kafka",
         ]
         list_install = [
             "dev_utilities.py",
@@ -350,7 +350,7 @@ class SystemTestPreparer:
             "--mysql",
             "--redisinsight",
             "--kafka",
-            ipaddr
+            ipaddr,
         ]
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
         self._run_command("git", args=["clone", urlscript, "dev_utilities"])

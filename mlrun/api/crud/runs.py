@@ -41,7 +41,6 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,

@@ -61,7 +61,6 @@ async def store_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info("Storing run", data=data)
     await run_in_threadpool(
         mlrun.api.crud.Runs().store_run,
         db_session,

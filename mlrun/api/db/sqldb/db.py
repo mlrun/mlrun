@@ -177,7 +177,11 @@ class SQLDB(DBInterface):
         iter=0,
     ):
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+            "Storing run to db",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
         )
         run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)

@@ -148,7 +148,7 @@ def test_local_runtime_with_kwargs(db):
     verify_state(result)
 
 
-def test_run_runtime_with_kwargs_code_to_function(db):
+def test_local_runtime_with_kwargs_with_code_to_function(db):
     function = mlrun.code_to_function(
         "kwarg",
         filename=f"{assets_path}/kwargs.py",

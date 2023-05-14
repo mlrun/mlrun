@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import typing
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -506,9 +505,7 @@ async def list_entities(
     name: str = None,
     tag: str = None,
     labels: List[str] = Query(None, alias="label"),
-    auth_info: typing.Union[
-        mlrun.common.schemas.AuthInfo, mlrun.common.schemas.AuthInfo
-    ] = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -544,9 +541,7 @@ async def create_feature_vector(
     project: str,
     feature_vector: mlrun.common.schemas.FeatureVector,
     versioned: bool = True,
-    auth_info: typing.Union[
-        mlrun.common.schemas.AuthInfo, mlrun.common.schemas.AuthInfo
-    ] = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(

@@ -1427,9 +1427,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: typing.Union[
-            mlrun.common.schemas.ProjectsFormat, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,

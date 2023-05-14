@@ -149,7 +149,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
-            self.db,
+            runtime._get_db(),
             autocommit=False,
             is_api=False,
             store_run=False,

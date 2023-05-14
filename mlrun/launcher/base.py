@@ -371,9 +371,10 @@ class BaseLauncher(abc.ABC):
     def _save_or_push_notifications(self, runobj):
         pass
 
+    @staticmethod
     @abc.abstractmethod
     def _store_function(
-        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         pass
 

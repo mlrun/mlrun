@@ -121,7 +121,8 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         if runtime._secrets:
             run.spec.secret_sources = runtime._secrets.to_serial()
         try:
-            resp = self.db.submit_job(run, schedule=schedule)
+            db = runtime._get_db()
+            resp = db.submit_job(run, schedule=schedule)
             if schedule:
                 action = resp.pop("action", "created")
                 logger.info(f"task schedule {action}", **resp)
@@ -174,7 +175,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             resp = runtime._get_db_run(run)
 
         elif watch or runtime.kfp:
-            run.logs(True, self.db)
+            run.logs(True, runtime._get_db())
             resp = runtime._get_db_run(run)
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)

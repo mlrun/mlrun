@@ -35,8 +35,9 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
 
+    @staticmethod
     def _store_function(
-        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         run.metadata.labels["kind"] = runtime.kind
         if "owner" not in run.metadata.labels:

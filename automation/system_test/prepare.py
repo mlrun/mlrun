@@ -341,7 +341,7 @@ class SystemTestPreparer:
         self._run_command("git", args=["clone", urlscript, "dev_utilities"])
         self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities")
         self._run_command("python3", args=list_install, workdir="/home/iguazio/dev_utilities")
-    
+
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
@@ -353,7 +353,6 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
             self._logger.debug(
@@ -368,7 +367,6 @@ class SystemTestPreparer:
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-
             # upload provctl to data node
             self._logger.debug(
                 "Uploading provctl to datanode",
@@ -378,7 +376,6 @@ class SystemTestPreparer:
             sftp_client = self._ssh_client.open_sftp()
             sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
-
         # make provctl executable
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 

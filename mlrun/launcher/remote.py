@@ -53,7 +53,6 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
-        local: Optional[bool] = False,
         local_code_path: Optional[str] = None,
         auto_build: Optional[bool] = None,
         param_file_secrets: Optional[Dict[str, str]] = None,

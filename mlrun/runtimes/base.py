@@ -370,7 +370,6 @@ class BaseRuntime(ModelObj):
             hyper_param_options=hyper_param_options,
             verbose=verbose,
             scrape_metrics=scrape_metrics,
-            local=local,
             local_code_path=local_code_path,
             auto_build=auto_build,
             param_file_secrets=param_file_secrets,

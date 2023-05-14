@@ -1099,36 +1099,29 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        from storey import CSVSource, ReduceToDataFrame, build_flow
-
         csv_path = str(self.results_path / _generate_random_name() / ".csv")
         targets = [CSVTarget("mycsv", path=csv_path)]
         stocks_set = fstore.FeatureSet(
             "tests", entities=[Entity("ticker", ValueType.STRING)]
         )
-        fstore.ingest(
+        result = fstore.ingest(
             stocks_set,
             stocks,
             infer_options=fstore.InferOptions.default(),
             targets=targets,
         )
 
-        # reading csv file
         final_path = stocks_set.get_target_path("mycsv")
-        controller = build_flow([CSVSource(final_path), ReduceToDataFrame()]).run()
-        termination_result = controller.await_termination()
 
         expected = pd.DataFrame(
             {
-                0: ["ticker", "MSFT", "GOOG", "AAPL"],
-                1: ["name", "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"],
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
             }
         )
 
-        assert termination_result.equals(
-            expected
-        ), f"{termination_result}\n!=\n{expected}"
+        assert result.equals(expected), f"{result}\n!=\n{expected}"
         os.remove(final_path)
 
     def test_multiple_entities(self):

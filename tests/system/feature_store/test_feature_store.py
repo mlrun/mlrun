@@ -1099,20 +1099,31 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata_short.csv")),
+            parse_dates=["date_of_birth"],
+        )
         stocks_set = fstore.FeatureSet(
-            "tests", entities=[Entity("ticker", ValueType.STRING)]
+            "tests", entities=[Entity("id", ValueType.STRING)]
         )
         result = fstore.ingest(
             stocks_set,
-            stocks,
+            source=source,
             infer_options=fstore.InferOptions.default(),
         )
         expected = pd.DataFrame(
             {
-                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+                "name": ["John", "Jane", "Bob"],
+                "number": [10, 20, 30],
+                "float_number": [1.5, 2.5, 3.5],
+                "date_of_birth": [
+                    datetime(1990, 1, 1),
+                    datetime(1995, 5, 10),
+                    datetime(1985, 12, 15),
+                ],
             },
-            index=pd.Index(["MSFT", "GOOG", "AAPL"], name="ticker"),
+            index=pd.Index([1, 2, 3], name="id"),
         )
         assert result.equals(expected)
 

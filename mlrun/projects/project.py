@@ -1854,7 +1854,7 @@ class MlrunProject(ModelObj):
                         "env file lines must be in the form key=value"
                     )
             else:
-                raise IOError(f"{file_path} does not exist.")
+                raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist.")
         # drop V3IO paths/credentials and MLrun service API address
         env_vars = {
             key: val

@@ -999,7 +999,7 @@ class KubeResource(BaseRuntime):
                         "env file lines must be in the form key=value"
                     )
             else:
-                raise IOError(f"{file_path} does not exist.")
+                raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist.")
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self

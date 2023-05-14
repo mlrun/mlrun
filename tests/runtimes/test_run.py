@@ -330,6 +330,6 @@ def test_set_envs_file_not_find():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
     file_name = ".env-test"
-    with pytest.raises(OSError) as excinfo:
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         function.set_envs(file_path=file_name)
     assert f"{file_name} does not exist." in str(excinfo.value)

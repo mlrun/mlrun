@@ -38,15 +38,6 @@ class BaseLauncher(abc.ABC):
     Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
 
-    def __init__(self):
-        self._db = None
-
-    @property
-    def db(self) -> mlrun.db.base.RunDBInterface:
-        if not self._db:
-            self._db = mlrun.db.get_run_db()
-        return self._db
-
     def save_function(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",

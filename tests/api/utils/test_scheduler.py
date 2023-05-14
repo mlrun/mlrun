@@ -1321,7 +1321,7 @@ async def test_schedule_job_next_run_time(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name, handler="sleep_two_seconds"

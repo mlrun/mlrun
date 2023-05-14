@@ -224,18 +224,17 @@ class ModelEndpoint(BaseModel):
         flatten_dict = {}
         for k_object in model_endpoint_dictionary:
             for key in model_endpoint_dictionary[k_object]:
+                # Extract the value of the current field
+                current_value = model_endpoint_dictionary[k_object][key]
+
                 # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
                 # for matching the database required format
-                if not isinstance(
-                    model_endpoint_dictionary[k_object][key], (str, bool, int)
-                ) or isinstance(
-                    model_endpoint_dictionary[k_object][key], (enum.IntEnum)
+                if not isinstance(current_value, (str, bool, int)) or isinstance(
+                    current_value, enum.IntEnum
                 ):
-                    flatten_dict[key] = json.dumps(
-                        model_endpoint_dictionary[k_object][key]
-                    )
+                    flatten_dict[key] = json.dumps(current_value)
                 else:
-                    flatten_dict[key] = model_endpoint_dictionary[k_object][key]
+                    flatten_dict[key] = current_value
 
         if mlrun.common.model_monitoring.EventFieldType.METRICS not in flatten_dict:
             # Initialize metrics dictionary

@@ -718,7 +718,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
 
         # Get the schema raw object
-        schema_raw = client.get_object(
+        schema_raw = client.object.get(
             container="users",
             path=f"pipelines/{self.project_name}/model-endpoints/endpoints/.#schema",
             access_key=os.environ.get("V3IO_ACCESS_KEY"),

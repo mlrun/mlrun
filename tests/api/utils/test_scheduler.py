@@ -75,10 +75,14 @@ async def do_nothing():
     pass
 
 
-def create_project(db: Session, project_name: str) -> mlrun.common.schemas.Project:
+def create_project(
+    db: Session, project_name: str = None
+) -> mlrun.common.schemas.Project:
     """API tests use sql db, so we need to create the project with its schema"""
     project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name)
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name=project_name or config.default_project
+        )
     )
     mlrun.api.crud.Projects().create_project(db, project)
     return project

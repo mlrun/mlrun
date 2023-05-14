@@ -31,6 +31,7 @@ from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
 import mlrun.api.api.endpoints.functions
+import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
@@ -143,8 +144,16 @@ class TestRuntimeBase:
     def custom_teardown(self):
         pass
 
-    def _create_project(self):
-        mlrun.get_or_create_project(self.project)
+    def _create_project(
+        self, db_session: sqlalchemy.orm.Session, project_name: str = None
+    ):
+        """API tests use sql db, so we need to create the project with its schema"""
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_name or self.project
+            )
+        )
+        mlrun.api.crud.Projects().create_project(db_session, project)
 
     def _generate_task(self):
         return new_task(

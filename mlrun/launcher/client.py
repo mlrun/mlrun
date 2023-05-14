@@ -47,18 +47,20 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
             run.spec.output_path = run.spec.output_path.replace(
                 "{{run.user}}", run.metadata.labels["owner"]
             )
-
-        if self.db and runtime.kind != "handler":
+        db = runtime._get_db()
+        if db and runtime.kind != "handler":
             struct = runtime.to_dict()
-            hash_key = self.db.store_function(
+            hash_key = db.store_function(
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
-    def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
+    @staticmethod
+    def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
         try:
             meta = runtime.metadata
-            db_func = self.db.get_function(meta.name, meta.project, meta.tag)
+            db = runtime._get_db()
+            db_func = db.get_function(meta.name, meta.project, meta.tag)
             if db_func and "status" in db_func:
                 runtime.status = db_func["status"]
                 if (

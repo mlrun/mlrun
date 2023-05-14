@@ -63,7 +63,8 @@ class BaseLauncher(abc.ABC):
 
         :return:            function uri
         """
-        if not self.db:
+        db = runtime._get_db()
+        if not db:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "Database connection is not configured"
             )
@@ -75,7 +76,7 @@ class BaseLauncher(abc.ABC):
 
         obj = runtime.to_dict()
         logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
-        hash_key = self.db.store_function(
+        hash_key = db.store_function(
             obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
         )
         hash_key = hash_key if versioned else None
@@ -360,7 +361,8 @@ class BaseLauncher(abc.ABC):
 
         return None
 
-    def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
+    @staticmethod
+    def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
         pass
 
     @staticmethod

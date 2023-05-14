@@ -142,6 +142,24 @@ def test_local_runtime_failure_before_executing_the_function_code(db):
     assert "failed on pre-loading" in str(exc.value)
 
 
+def test_local_runtime_with_kwargs(db):
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    result = function.run(local=True, params={"x": 2, "y": 3, "z": 4}, handler="func")
+    verify_state(result)
+
+
+def test_run_runtime_with_kwargs_code_to_function(db):
+    function = mlrun.code_to_function(
+        "kwarg",
+        filename=f"{assets_path}/kwargs.py",
+        image="mlrun/mlrun",
+        kind="job",
+        handler="func",
+    )
+    result = function.run(local=True, params={"x": 2, "y": 3, "z": 4})
+    verify_state(result)
+
+
 def test_local_runtime_hyper():
     spec = tag_test(base_spec, "test_local_runtime_hyper")
     spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")

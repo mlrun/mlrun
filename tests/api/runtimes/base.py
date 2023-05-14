@@ -143,6 +143,9 @@ class TestRuntimeBase:
     def custom_teardown(self):
         pass
 
+    def _create_project(self):
+        mlrun.get_or_create_project(self.project)
+
     def _generate_task(self):
         return new_task(
             name=self.name, project=self.project, artifact_path=self.artifact_path

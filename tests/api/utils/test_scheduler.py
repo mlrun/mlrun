@@ -75,6 +75,15 @@ async def do_nothing():
     pass
 
 
+def create_project(db: Session, project_name: str) -> mlrun.common.schemas.Project:
+    """API tests use sql db, so we need to create the project with its schema"""
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name)
+    )
+    mlrun.api.crud.Projects().create_project(db, project)
+    return project
+
+
 @pytest.mark.asyncio
 async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler):
     global call_counter
@@ -151,7 +160,7 @@ async def test_invoke_schedule(
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
@@ -218,7 +227,7 @@ async def test_create_schedule_mlrun_function(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -287,7 +296,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
 ):
     name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -1016,7 +1025,7 @@ async def test_update_schedule(
     inactive_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -1236,7 +1245,7 @@ async def test_schedule_job_concurrency_limit(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = (
         _create_mlrun_function_and_matching_scheduled_object(

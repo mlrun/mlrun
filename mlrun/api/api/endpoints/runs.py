@@ -26,7 +26,6 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
-from mlrun.utils import logger
 from mlrun.utils.helpers import datetime_from_iso
 
 router = APIRouter()
@@ -60,7 +59,6 @@ async def store_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info("Storing run", data=data)
     await run_in_threadpool(
         mlrun.api.crud.Runs().store_run,
         db_session,

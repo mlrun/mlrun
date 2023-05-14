@@ -129,8 +129,8 @@ documentation.
 ## Built-in transformations
 
 MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
-applied as steps in the feature-set's internal execution graph. In order to add steps to the graph, it should be 
-referenced from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
+applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
+reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
@@ -140,11 +140,9 @@ See the [built-in steps](../serving/available-steps.html).
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 
 feature-set and configuring it with sources and targets, what MLRun does behind the scenes is to add steps to the 
-execution graph that wraps methods and classes that perform the actions. When defining an async execution graph,
-
+execution graph that wraps methods and classes that perform the actions. When defining an async execution graph, 
 `storey` classes are used. For example, when defining a Parquet data-target in MLRun, a graph step is created that 
-wraps storey's {py:func}`~storey.targets.ParquetTarget` function.
-```
+wraps storey's [ParquetTarget function](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget) .
 
 To use a function:
 

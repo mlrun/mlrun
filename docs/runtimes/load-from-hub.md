@@ -59,7 +59,7 @@ print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
 
 ## Loading functions from the Hub
 
-Run `project.set_function` to load a functions.<br>
+Run `project.set_function` to load a function.<br>
 `set_function` updates or adds a function object to the project.
 
 `set_function(func, name='', kind='', image=None, with_repo=None)`
@@ -74,17 +74,17 @@ Parameters:
 
 Returns: project object
 
-For more information see the {py:meth}`~mlrun.projects.MlrunProject.set_function`API documentation.
+For more information see the {py:meth}`~mlrun.projects.MlrunProject.set_function` API documentation.
 
 ### Load function example  <!-- omit in toc -->
 
-This example loads the describe function. This function analyzes a csv or parquet file for data analysis.
+This example loads the 'describe' function. This function analyzes a csv or parquet file for data analysis.
 
 ```python
 project.set_function('hub://describe', 'describe')
 ```
 
-Create a function object called my_describe:
+Create a function object called 'my_describe':
 
 ```python
 my_describe = project.func('describe')
@@ -143,7 +143,7 @@ my_describe.run(name='describe',
 
 ### Viewing the jobs & the artifacts  <!-- omit in toc -->
 
-There are few options to view the outputs of the jobs we ran:
+There are few options to view the outputs of the jobs you ran:
 
 - In Jupyter the result of the job is displayed in the Jupyter notebook. When you click on the artifacts it displays its content in Jupyter.
 - In the MLRun UI, under the project name, you can view the job that was running as well as the artifacts it generated.

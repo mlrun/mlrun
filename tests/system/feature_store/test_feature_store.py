@@ -1105,7 +1105,7 @@ class TestFeatureStore(TestMLRunSystem):
             parse_dates=["date_of_birth"],
         )
         stocks_set = fstore.FeatureSet(
-            "tests", entities=[Entity("id", ValueType.STRING)]
+            "tests", entities=[Entity("id", ValueType.INT64)]
         )
         result = fstore.ingest(
             stocks_set,

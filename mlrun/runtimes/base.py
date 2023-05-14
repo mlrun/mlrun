@@ -243,6 +243,7 @@ class BaseRuntime(ModelObj):
         self.spec.rundb = self.spec.rundb or get_or_set_dburl()
 
     def _get_db(self):
+        # TODO: remove this function and use the launcher db instead
         self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:

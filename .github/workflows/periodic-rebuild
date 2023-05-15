@@ -1,0 +1,31 @@
+name: Scheduled Task
+
+on:
+  pull_request:
+    branches:
+    - development
+  # workflow_dispatch:
+  # schedule:
+  # every night at 2am
+  #  - cron: "0 2 * * *"
+
+jobs:
+  re-build-images:
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ split(vars.BRANCHES_FOR_REBUILD, ',') }}
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo Branch
+        run: echo "Branch: ${{ matrix.branches }}"
+ #     - name: Re-Build Image
+ #      with:
+ #        owner: mlrun
+ #        repo: mlrun
+ #        github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+ #        workflow_file_name: build.yaml
+ #        ref: ${{ matrix.branch }}
+ #        wait_interval: 60
+ #        client_payload: '{"skip_images": "models-gpu,tests", "build_from_cache": "false"}'

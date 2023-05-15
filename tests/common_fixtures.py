@@ -152,6 +152,14 @@ def db_session() -> Generator:
             db_session.close()
 
 
+@pytest.fixture()
+def running_as_api():
+    old_is_running_as_api = mlrun.config.is_running_as_api
+    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+    yield
+    mlrun.config.is_running_as_api = old_is_running_as_api
+
+
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:
@@ -264,6 +272,11 @@ class RunDBMock:
 
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        # mock API updated the run status to completed
+        self._runs[uid]["status"] = {"state": "completed"}
+        return "completed", 0
 
     def submit_pipeline(
         self,

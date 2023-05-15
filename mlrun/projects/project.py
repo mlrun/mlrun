@@ -37,8 +37,10 @@ import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.runtimes
+import mlrun.runtimes.pod
+import mlrun.runtimes.utils
 import mlrun.utils.regex
-from mlrun.runtimes import RuntimeKinds
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -46,8 +48,6 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.pod import AutoMountType
-from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -897,12 +897,19 @@ class MlrunProject(ModelObj):
     def source(self, source):
         self.spec.source = source
 
-    def set_source(self, source, pull_at_runtime=False, workdir=None):
+    def set_source(
+        self,
+        source: str = "",
+        pull_at_runtime: bool = False,
+        workdir: Optional[str] = None,
+    ):
         """set the project source code path(can be git/tar/zip archive)
 
         :param source:          valid absolute path or URL to git, zip, or tar file, (or None for current) e.g.
                                 git://github.com/mlrun/something.git
                                 http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param workdir:         workdir path relative to the context dir or absolute
         """
@@ -1693,7 +1700,7 @@ class MlrunProject(ModelObj):
             decorator(f)
 
         if (
-            decorator and AutoMountType.is_auto_modifier(decorator)
+            decorator and mlrun.runtimes.pod.AutoMountType.is_auto_modifier(decorator)
         ) or self.spec.disable_auto_mount:
             f.spec.disable_auto_mount = True
         f.try_auto_mount_based_on_config()
@@ -1799,7 +1806,7 @@ class MlrunProject(ModelObj):
         if not names:
             names = self.spec._function_definitions.keys()
             funcs = {}
-        origin = add_code_metadata(self.spec.context)
+        origin = mlrun.runtimes.utils.add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)
             if not f:
@@ -2704,7 +2711,9 @@ def _init_function_from_obj(func, project, name=None):
 def _has_module(handler, kind):
     if not handler:
         return False
-    return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
+    return (
+        kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes() and ":" in handler
+    ) or "." in handler
 
 
 def _is_imported_artifact(artifact):

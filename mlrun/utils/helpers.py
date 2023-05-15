@@ -166,13 +166,15 @@ def verify_field_regex(
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: str = None
 ):
-    if pull_at_runtime:
+    if pull_at_runtime or not source:
         return
 
     if "://" not in source:
         if not path.isabs(source):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Source must be a valid url or absolute path when 'pull_at_runtime' is False"
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+                "set 'source' to a remote URL to clone/copy the source to the base image, "
+                "or set 'pull_at_runtime' to True to pull the source at runtime."
             )
     else:
         logger.warn(

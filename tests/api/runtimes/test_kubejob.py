@@ -805,10 +805,13 @@ def my_func(context):
 
     def test_with_source_archive_validation(self):
         runtime = self._generate_runtime()
+        source = "./some/relative/path"
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as e:
-            runtime.with_source_archive("./some/relative/path", pull_at_runtime=False)
+            runtime.with_source_archive(source, pull_at_runtime=False)
         assert (
-            "Source must be a valid url or absolute path when 'pull_at_runtime' is False"
+            f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+            "set 'source' to a remote URL to clone/copy the source to the base image, "
+            "or set 'pull_at_runtime' to True to pull the source at runtime."
             in str(e.value)
         )
 

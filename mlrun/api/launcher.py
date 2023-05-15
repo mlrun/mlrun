@@ -18,7 +18,6 @@ import mlrun.api.db.sqldb.session
 import mlrun.common.schemas.schedule
 import mlrun.execution
 import mlrun.launcher.base
-import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -149,13 +148,17 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
     @staticmethod
     def _enrich_runtime(runtime: "mlrun.runtimes.base.BaseRuntime"):
-        if runtime.metadata.project:
-            project = runtime._get_db().get_project(runtime.metadata.project)
-            # this is mainly for tests with nop db
-            # in normal use cases if no project is found we will get an error
-            if project:
-                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
-                project.enrich_function_object(runtime, copy_function=False)
+        """
+        Enrich the runtime object with the project spec and metadata.
+        This is done only on the server side, since it's the source of truth for the project, and we want to keep the
+        client side enrichment as minimal as possible.
+        """
+        project = runtime._get_db().get_project(runtime.metadata.project)
+        # this is mainly for tests with nop db
+        # in normal use cases if no project is found we will get an error
+        if project:
+            project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            project.enrich_function_object(runtime, copy_function=False)
 
     def _save_or_push_notifications(self, runobj):
         if not runobj.spec.notifications:

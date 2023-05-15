@@ -28,10 +28,30 @@ import mlrun.launcher.remote
 @pytest.mark.parametrize(
     "is_remote, local, expected_instance",
     [
-        (True, False, mlrun.launcher.remote.ClientRemoteLauncher),
-        (True, True, mlrun.launcher.local.ClientLocalLauncher),
-        (False, True, mlrun.launcher.local.ClientLocalLauncher),
-        (False, False, mlrun.launcher.local.ClientLocalLauncher),
+        # runtime is remote and user didn't specify local - submit job flow
+        (
+            True,
+            False,
+            mlrun.launcher.remote.ClientRemoteLauncher,
+        ),
+        # runtime is remote but specify local - run local flow
+        (
+            True,
+            True,
+            mlrun.launcher.local.ClientLocalLauncher,
+        ),
+        # runtime is local and user specify local - run local flow
+        (
+            False,
+            True,
+            mlrun.launcher.local.ClientLocalLauncher,
+        ),
+        # runtime is local and user didn't specify local - run local flow
+        (
+            False,
+            False,
+            mlrun.launcher.local.ClientLocalLauncher,
+        ),
     ],
 )
 def test_create_client_launcher(
@@ -57,11 +77,13 @@ def test_create_client_launcher(
     [
         (True, False, does_not_raise()),
         (False, False, does_not_raise()),
+        # local run is not allowed when running as API
         (True, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
         (False, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
     ],
 )
 def test_create_server_side_launcher(running_as_api, is_remote, local, expectation):
+    """Test that the server side launcher is created when we are running as API"""
     with expectation:
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             is_remote, local

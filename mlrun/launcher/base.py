@@ -38,15 +38,6 @@ class BaseLauncher(abc.ABC):
     Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
 
-    def __init__(self):
-        self._db = None
-
-    @property
-    def db(self) -> mlrun.db.base.RunDBInterface:
-        if not self._db:
-            self._db = mlrun.db.get_run_db()
-        return self._db
-
     def save_function(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -63,7 +54,8 @@ class BaseLauncher(abc.ABC):
 
         :return:            function uri
         """
-        if not self.db:
+        db = runtime._get_db()
+        if not db:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "Database connection is not configured"
             )
@@ -75,7 +67,7 @@ class BaseLauncher(abc.ABC):
 
         obj = runtime.to_dict()
         logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
-        hash_key = self.db.store_function(
+        hash_key = db.store_function(
             obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
         )
         hash_key = hash_key if versioned else None
@@ -192,8 +184,8 @@ class BaseLauncher(abc.ABC):
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
-    @staticmethod
     def _enrich_run(
+        self,
         runtime,
         run,
         handler=None,
@@ -284,6 +276,7 @@ class BaseLauncher(abc.ABC):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
+                # get_db might be None when no rundb is set on runtime
                 if not run.spec.output_path and runtime._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
@@ -359,7 +352,8 @@ class BaseLauncher(abc.ABC):
 
         return None
 
-    def _refresh_function_metadata(self, runtime: "mlrun.runtimes.BaseRuntime"):
+    @staticmethod
+    def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
         pass
 
     @staticmethod
@@ -377,9 +371,10 @@ class BaseLauncher(abc.ABC):
     def _save_or_push_notifications(self, runobj):
         pass
 
+    @staticmethod
     @abc.abstractmethod
     def _store_function(
-        self, runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
         pass
 

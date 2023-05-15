@@ -22,6 +22,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
+import mlrun.launcher.factory
 from mlrun import MLClientCtx, new_function, new_task
 from tests.conftest import (
     examples_path,
@@ -295,7 +296,11 @@ def test_context_from_run_dict():
     run = runtime._create_run_object(run_dict)
     handler = "my_func"
     out_path = "test_artifact_path"
-    run = runtime._enrich_run(
+    launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+        runtime._is_remote
+    )
+    run = launcher._enrich_run(
+        runtime,
         run,
         handler,
         run_dict["metadata"]["project"],

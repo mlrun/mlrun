@@ -90,7 +90,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         execution = mlrun.execution.MLClientCtx.from_dict(
             run.to_dict(),
-            self.db,
+            runtime._get_db(),
             autocommit=False,
             is_api=True,
             store_run=False,
@@ -186,9 +186,10 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels["kind"] = runtime.kind
-        if self.db and runtime.kind != "handler":
+        db = runtime._get_db()
+        if db and runtime.kind != "handler":
             struct = runtime.to_dict()
-            hash_key = self.db.store_function(
+            hash_key = db.store_function(
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)

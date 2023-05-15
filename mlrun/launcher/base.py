@@ -364,7 +364,10 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(runtime: "mlrun.runtimes.base.BaseRuntime"):
+    def _enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project: Optional[str] = "",
+    ):
         pass
 
     @abc.abstractmethod

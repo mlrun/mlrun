@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Union
 import mlrun.api.crud
 import mlrun.api.db.sqldb.session
 import mlrun.common.schemas.schedule
+import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base
 import mlrun.runtimes
@@ -52,7 +53,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        self._enrich_runtime(runtime)
+        self._enrich_runtime(runtime, project)
 
         run = self._create_run_object(task)
 
@@ -147,12 +148,18 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         pass
 
     @staticmethod
-    def _enrich_runtime(runtime: "mlrun.runtimes.base.BaseRuntime"):
+    def _enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+    ):
         """
         Enrich the runtime object with the project spec and metadata.
         This is done only on the server side, since it's the source of truth for the project, and we want to keep the
         client side enrichment as minimal as possible.
         """
+        # ensure the runtime has a project before we enrich it with the project's spec
+        runtime.metadata.project = (
+            project or runtime.metadata.project or mlrun.config.config.default_project
+        )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error

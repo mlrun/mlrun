@@ -62,8 +62,7 @@ def test_create_client_launcher(
         (False, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
     ],
 )
-def test_create_server_side_launcher(is_remote, local, expectation):
-    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+def test_create_server_side_launcher(running_as_api, is_remote, local, expectation):
     with expectation:
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             is_remote, local

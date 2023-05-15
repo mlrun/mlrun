@@ -152,6 +152,14 @@ def db_session() -> Generator:
             db_session.close()
 
 
+@pytest.fixture()
+def running_as_api():
+    old_is_running_as_api = mlrun.config.is_running_as_api
+    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+    yield
+    mlrun.config.is_running_as_api = old_is_running_as_api
+
+
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:

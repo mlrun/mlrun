@@ -222,11 +222,12 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         # loaded_runtime is loaded from runtime or yaml file, if passed a command it should be None,
         # so we keep the current runtime for enrichment
         runtime = loaded_runtime or runtime
-        if runtime:
+        if loaded_runtime:
             if run:
                 handler = handler or run.spec.handler
             handler = handler or runtime.spec.default_handler or ""
             meta = runtime.metadata.copy()
+            meta.name = function_name or meta.name
             meta.project = project or meta.project
 
         # if the handler has module prefix force "local" (vs "handler") runtime

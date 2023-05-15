@@ -41,7 +41,6 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -59,7 +58,7 @@ class Runs(
         data: dict,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.debug("Updating run", project=project, uid=uid, iter=iter, data=data)
+        logger.debug("Updating run", project=project, uid=uid, iter=iter)
         # TODO: do some desired state for run, it doesn't make sense that API user changes the status in order to
         #  trigger abortion
         if (

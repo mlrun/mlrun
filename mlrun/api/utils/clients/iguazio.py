@@ -196,7 +196,7 @@ class Client(
         name: str,
         project: mlrun.api.schemas.Project,
     ):
-        logger.debug("Updating project in Iguazio", name=name, project=project)
+        logger.debug("Updating project in Iguazio", name=name)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         self._put_project_to_iguazio(session, name, body)
 

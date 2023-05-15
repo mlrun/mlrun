@@ -177,7 +177,11 @@ class SQLDB(DBInterface):
         iter=0,
     ):
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+            "Storing run to db",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
         )
         run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
@@ -1261,7 +1265,7 @@ class SQLDB(DBInterface):
 
     @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug("Storing project in DB", name=name)
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1277,9 +1281,7 @@ class SQLDB(DBInterface):
         project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
-        logger.debug(
-            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
-        )
+        logger.debug("Patching project in DB", name=name, patch_mode=patch_mode)
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
             session, name, project_record, project, patch_mode

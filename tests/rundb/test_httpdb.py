@@ -219,7 +219,9 @@ def test_api_boot_speed(create_server):
         end_time = time.perf_counter()
         runs.append(end_time - start_time)
     avg_run_time = sum(runs) / run_times
-    assert avg_run_time <= expected_time, "Seems like a performance hit on creating api server"
+    assert (
+        avg_run_time <= expected_time
+    ), "Seems like a performance hit on creating api server"
 
 
 def test_run(create_server):

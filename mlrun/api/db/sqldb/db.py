@@ -1437,6 +1437,12 @@ class SQLDB(DBInterface):
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
+
+        # if format is name_only, we don't need to query the full project object, we can just query the name
+        # and return it as a list of strings
+        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            query = self._query(session, Project.name, owner=owner, state=state)
+
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
@@ -1446,6 +1452,8 @@ class SQLDB(DBInterface):
         for project_record in project_records:
             if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
                 projects = [project_record.name for project_record in project_records]
+                break
+
             # leader format is only for follower mode which will format the projects returned from here
             elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
                 projects.append(

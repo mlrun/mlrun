@@ -921,7 +921,7 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.resolve_image_and_build()
+    r.verify_base_image()
 
     if with_doc:
         update_function_entry_points(r, code)

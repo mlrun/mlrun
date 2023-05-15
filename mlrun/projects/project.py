@@ -1847,7 +1847,7 @@ class MlrunProject(ModelObj):
                 "must specify secrets OR file_path"
             )
         if file_path:
-            if path.exists(file_path):
+            if path.isfile(file_path):
                 secrets = dotenv.dotenv_values(file_path)
                 if None in secrets.values():
                     raise mlrun.errors.MLRunInvalidArgumentError(

@@ -992,7 +992,7 @@ class KubeResource(BaseRuntime):
                 "must specify env_vars OR file_path"
             )
         if file_path:
-            if os.path.exists(file_path):
+            if os.path.isfile(file_path):
                 env_vars = dotenv.dotenv_values(file_path)
                 if None in env_vars.values():
                     raise mlrun.errors.MLRunInvalidArgumentError(

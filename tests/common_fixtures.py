@@ -212,6 +212,7 @@ class RunDBMock:
         self._functions = {}
         self._artifacts = {}
         self._project_name = None
+        self._project = None
         self._runs = {}
 
     def reset(self):

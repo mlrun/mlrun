@@ -620,6 +620,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
+        self.project = "default"
+        self._create_project(client)
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
@@ -651,7 +654,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "outputs": [],
             "output_path": "v3io:///mypath",
             "secret_sources": [],
-            "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2",
+            "function": "default/my-vector-merger@a9def8d766eefbbe497dbd6d78b3b17b954b5e59",
             "data_stores": [],
             "handler": "merge_handler",
         }
@@ -667,7 +670,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
         self.name = "my-vector-merger"
-        self.project = "default"
 
         expected_code = _default_merger_handler.replace(
             "{{{engine}}}", "SparkFeatureMerger"
@@ -707,6 +709,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         # generate runtime and set source code to load on run
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.metadata.name = "test-spark-runtime"
+        runtime.metadata.project = self.project
         runtime.spec.build.source = "git://github.com/mock/repo"
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported

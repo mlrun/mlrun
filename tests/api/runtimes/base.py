@@ -35,6 +35,7 @@ import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import tests.api.api.utils
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -99,7 +100,7 @@ class TestRuntimeBase:
         get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
             return_value=True
         )
-        self._create_project(db)
+        self._create_project(client)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
 
@@ -146,15 +147,9 @@ class TestRuntimeBase:
         pass
 
     def _create_project(
-        self, db_session: sqlalchemy.orm.Session, project_name: str = None
+        self, client: fastapi.testclient.TestClient, project_name: str = None
     ):
-        """API tests use sql db, so we need to create the project with its schema"""
-        project = mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(
-                name=project_name or self.project
-            )
-        )
-        mlrun.api.crud.Projects().create_project(db_session, project)
+        tests.api.api.utils.create_project(client, project_name or self.project)
 
     def _generate_task(self):
         return new_task(

@@ -99,6 +99,7 @@ class TestRuntimeBase:
         get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
             return_value=True
         )
+        self._create_project(db)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
 

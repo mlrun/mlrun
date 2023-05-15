@@ -36,7 +36,6 @@ class TestMpiV1Runtime(TestRuntimeBase):
 
     def test_run_v1_sanity(self, db: Session, client: TestClient):
         mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        self._create_project(db)
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):

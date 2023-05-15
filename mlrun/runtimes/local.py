@@ -478,7 +478,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         if type(args[input_key].default) is str or args[input_key].annotation == str:
             return input_obj.local()
         else:
-            return context.get_input(input_key, inputs[input_key])
+            return input_obj
 
     for key in args.keys():
         if key == "context":
@@ -490,8 +490,12 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in inputs:
             kwargs[key] = _get_input_value(key)
 
+    list_of_params = list(args.values())
+    if len(list_of_params) == 0:
+        return kwargs
+
     # get the last parameter, as **kwargs can only be last in the function's parameters list
-    last_param = list(args.values())[-1]
+    last_param = list_of_params[-1]
     # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
     # This corresponds to a **kwargs parameter in a Python function definition.
     if last_param.kind == last_param.VAR_KEYWORD:

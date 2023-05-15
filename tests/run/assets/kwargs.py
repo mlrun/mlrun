@@ -15,6 +15,12 @@
 def func(context, x, **kwargs):
     context.logger.info(x)
     context.logger.info(kwargs)
+    return kwargs
+
+
+def func_with_default(context, x=4, **kwargs):
+    context.logger.info(x)
+    context.logger.info(kwargs)
     if not kwargs:
         raise Exception("kwargs is empty")
     return kwargs

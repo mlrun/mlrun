@@ -216,15 +216,17 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
 
         meta = mlrun.model.BaseMetadata(function_name, project=project)
 
-        command, _runtime = mlrun.run.load_func_code(
+        command, loaded_runtime = mlrun.run.load_func_code(
             command or runtime, workdir, name=name
         )
-        # _runtime is loaded from runtime or yaml file, if passed a command it should be None
-        if _runtime:
+        # loaded_runtime is loaded from runtime or yaml file, if passed a command it should be None,
+        # so we keep the current runtime for enrichment
+        runtime = loaded_runtime or runtime
+        if runtime:
             if run:
                 handler = handler or run.spec.handler
-            handler = handler or _runtime.spec.default_handler or ""
-            meta = _runtime.metadata.copy()
+            handler = handler or runtime.spec.default_handler or ""
+            meta = runtime.metadata.copy()
             meta.project = project or meta.project
 
         # if the handler has module prefix force "local" (vs "handler") runtime
@@ -236,10 +238,10 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             fn.spec.workdir = str(workdir)
 
         fn.spec.allow_empty_resources = runtime.spec.allow_empty_resources
-        if _runtime:
+        if runtime:
             # copy the code/base-spec to the local function (for the UI and code logging)
-            fn.spec.description = _runtime.spec.description
-            fn.spec.build = _runtime.spec.build
+            fn.spec.description = runtime.spec.description
+            fn.spec.build = runtime.spec.build
 
         run.spec.handler = handler
         return fn

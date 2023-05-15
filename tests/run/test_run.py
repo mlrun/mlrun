@@ -143,6 +143,37 @@ def test_local_runtime_failure_before_executing_the_function_code(db):
     assert "failed on pre-loading" in str(exc.value)
 
 
+@pytest.mark.parametrize(
+    "handler_name,params,kwargs,expected_kwargs",
+    [
+        ("func", {"x": 2}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+        ("func", {"x": 2}, {}, {}),
+        ("func_with_default", {}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+    ],
+)
+def test_local_runtime_with_kwargs(db, handler_name, params, kwargs, expected_kwargs):
+    params.update(kwargs)
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    result = function.run(local=True, params=params, handler=handler_name)
+    verify_state(result)
+    assert result.outputs.get("return", {}) == expected_kwargs
+
+
+def test_local_runtime_with_kwargs_with_code_to_function(db):
+    function = mlrun.code_to_function(
+        "kwarg",
+        filename=f"{assets_path}/kwargs.py",
+        image="mlrun/mlrun",
+        kind="job",
+        handler="func",
+    )
+    kwargs = {"y": 3, "z": 4}
+    params = {"x": 2}
+    params.update(kwargs)
+    result = function.run(local=True, params=params)
+    assert result.outputs["return"] == kwargs
+
+
 def test_local_runtime_hyper():
     spec = tag_test(base_spec, "test_local_runtime_hyper")
     spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")

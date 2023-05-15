@@ -251,7 +251,6 @@ class ParquetSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
-
         super().__init__(
             name,
             path,
@@ -737,9 +736,6 @@ class OnlineSource(BaseSourceDriver):
 
 class HttpSource(OnlineSource):
     kind = "http"
-
-    def __init__(self, path: str = None):
-        super().__init__(path=path)
 
     def add_nuclio_trigger(self, function):
         trigger_args = self.attributes.get("trigger_args")

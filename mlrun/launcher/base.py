@@ -358,8 +358,13 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def verify_base_image(runtime):
-        """resolves and sets the build base image if build is needed"""
+    def resolve_image_and_build(runtime: "mlrun.runtimes.BaseRuntime"):
+        """
+        Check if the runtime requires to build the image.
+        If build is needed, set the image as the base_image for the build.
+        If image is not given set the default one.
+        This is only needed in the client launcher since the image is built before the run is submitted.
+        """
         pass
 
     @staticmethod

@@ -40,10 +40,6 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         super().__init__()
         self._is_run_local = local
 
-    @staticmethod
-    def verify_base_image(runtime):
-        pass
-
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",

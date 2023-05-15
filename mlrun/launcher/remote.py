@@ -29,10 +29,6 @@ from mlrun.utils import logger
 
 
 class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
-    @staticmethod
-    def verify_base_image(runtime):
-        pass
-
     def launch(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",

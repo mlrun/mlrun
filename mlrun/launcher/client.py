@@ -36,6 +36,38 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
         runtime._fill_credentials()
 
     @staticmethod
+    def resolve_image_and_build(runtime: "mlrun.runtimes.base.BaseRuntime"):
+        """
+        Check if the runtime requires to build the image.
+        If build is needed, set the image as the base_image for the build.
+        If image is not given set the default one.
+        """
+        build = runtime.spec.build
+        require_build = (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
+        )
+        image = runtime.spec.image
+        # we allow users to not set an image, in that case we'll use the default
+        if (
+            not image
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+
+        if (
+            runtime.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            # TODO: need a better way to decide whether a function requires a build
+            and require_build
+            and image
+            and not runtime.spec.build.base_image
+        ):
+            # when the function require build use the image as the base_image for the build
+            runtime.spec.build.base_image = image
+            runtime.spec.image = ""
+
+    @staticmethod
     def _store_function(
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):

@@ -886,34 +886,10 @@ class BaseRuntime(ModelObj):
         return self
 
     def verify_base_image(self):
-        build = self.spec.build
-        require_build = (
-            build.commands
-            or build.requirements
-            or (build.source and not build.load_source_on_run)
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            is_remote=self._is_remote
         )
-        image = self.spec.image
-        # we allow users to not set an image, in that case we'll use the default
-        if (
-            not image
-            and self.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-        ):
-            image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[self.kind]
-
-        if (
-            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-            # TODO: need a better way to decide whether a function requires a build
-            and require_build
-            and image
-            and not self.spec.build.base_image
-            # when submitting a run we are loading the function from the db, and using new_function for it,
-            # this results reaching here, but we are already after deploy of the image, meaning we don't need to prepare
-            # the base image for deployment
-            and self._is_remote_api()
-        ):
-            # when the function require build use the image as the base_image for the build
-            self.spec.build.base_image = image
-            self.spec.image = ""
+        launcher.resolve_image_and_build(self)
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

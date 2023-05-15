@@ -317,7 +317,7 @@ def test_new_function_invalid_characters():
 
 
 def test_set_envs():
-    assets_path = pathlib.Path(pathlib.Path(__file__).parent).parent / "assets"
+    assets_path = pathlib.Path(__file__).parent.parent / "assets"
     env_path = str(assets_path / "envfile")
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)
@@ -332,4 +332,4 @@ def test_set_envs_file_not_find():
     file_name = ".env-test"
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         function.set_envs(file_path=file_name)
-    assert f"{file_name} does not exist." in str(excinfo.value)
+    assert f"{file_name} does not exist" in str(excinfo.value)

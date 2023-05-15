@@ -370,7 +370,7 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(runtime):
+    def _enrich_runtime(runtime: "mlrun.runtimes.base.BaseRuntime"):
         pass
 
     @abc.abstractmethod

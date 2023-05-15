@@ -737,9 +737,6 @@ class OnlineSource(BaseSourceDriver):
 class HttpSource(OnlineSource):
     kind = "http"
 
-    def __init__(self, path: str = None, **kwargs):
-        super().__init__(path=path, **kwargs)
-
     def add_nuclio_trigger(self, function):
         trigger_args = self.attributes.get("trigger_args")
         if trigger_args:

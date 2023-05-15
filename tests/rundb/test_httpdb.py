@@ -14,6 +14,8 @@
 
 import codecs
 import io
+import sys
+import time
 import unittest.mock
 from collections import namedtuple
 from os import environ
@@ -199,6 +201,24 @@ def test_log(create_server):
 
     state, data = db.get_log(uid, prj)
     assert data == body, "bad log data"
+
+
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="We are developing on Apple Silicon Macs,"
+    " which will most likely fail this test due to the qume emulator,"
+    " but should pass on native x86 architecture",
+)
+def test_api_boot_speed(create_server):
+    run_times = 50
+    expected_time = 30
+    runs = []
+    for i in range(run_times):
+        start_time = time.perf_counter()
+        create_server()
+        end_time = time.perf_counter()
+        runs.append(end_time - start_time)
+    assert sum(runs) / run_times <= expected_time
 
 
 def test_run(create_server):

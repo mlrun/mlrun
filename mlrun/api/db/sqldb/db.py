@@ -1410,16 +1410,26 @@ class SQLDB(DBInterface):
         names: typing.Optional[typing.List[str]] = None,
     ) -> schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
+
+        # if format is name_only, we don't need to query the full project object, we can just query the name
+        # and return it as a list of strings
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+            query = self._query(session, Project.name, owner=owner, state=state)
+
+        # attach filters to the query
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+
         project_records = query.all()
+
+        # format the projects according to the requested format
         projects = []
         for project_record in project_records:
             if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-                projects = [project_record.name for project_record in project_records]
-            # leader format is only for follower mode which will format the projects returned from here
+                projects.append(project_record.name)
+
             elif format_ == mlrun.api.schemas.ProjectsFormat.minimal:
                 projects.append(
                     self._minimize_project_schema(
@@ -1428,6 +1438,8 @@ class SQLDB(DBInterface):
                         )
                     )
                 )
+
+            # leader format is only for follower mode which will format the projects returned from here
             elif format_ in [
                 mlrun.api.schemas.ProjectsFormat.full,
                 mlrun.api.schemas.ProjectsFormat.leader,

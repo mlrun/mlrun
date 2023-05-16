@@ -1,4 +1,4 @@
-(architecture)=
+(mlrun-architecture)=
 <a id="architecture"></a>
 # MLRun architecture
 

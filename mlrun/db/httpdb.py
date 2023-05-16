@@ -2141,19 +2141,16 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+
+            # projects is just a list of strings
             return response.json()["projects"]
-        elif format_ in [
-            mlrun.common.schemas.ProjectsFormat.full,
-            mlrun.common.schemas.ProjectsFormat.minimal,
-        ]:
-            return [
-                mlrun.projects.MlrunProject.from_dict(project_dict)
-                for project_dict in response.json()["projects"]
-            ]
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+
+        # forwards compatibility - we want to be able to handle new formats that might be added in the future
+        # if format is not known to the api, it is up to the server to return either an error or a default format
+        return [
+            mlrun.projects.MlrunProject.from_dict(project_dict)
+            for project_dict in response.json()["projects"]
+        ]
 
     def get_project(self, name: str) -> mlrun.projects.MlrunProject:
         """Get details for a specific project."""
@@ -2309,7 +2306,7 @@ class HTTPRunDB(RunDBInterface):
                 format_=mlrun.common.schemas.ProjectsFormat.name_only
             )
             if project_name in projects:
-                raise Exception("Project still exists")
+                raise Exception(f"Project {project_name} still exists")
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_deletion_interval,

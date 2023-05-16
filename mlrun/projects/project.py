@@ -1900,11 +1900,14 @@ class MlrunProject(ModelObj):
                 "must specify secrets OR file_path"
             )
         if file_path:
-            secrets = dotenv.dotenv_values(file_path)
-            if None in secrets.values():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "env file lines must be in the form key=value"
-                )
+            if path.isfile(file_path):
+                secrets = dotenv.dotenv_values(file_path)
+                if None in secrets.values():
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "env file lines must be in the form key=value"
+                    )
+            else:
+                raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         # drop V3IO paths/credentials and MLrun service API address
         env_vars = {
             key: val

@@ -984,8 +984,7 @@ class SQLDB(DBInterface):
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
-    def get_function(self, session, name, project="", tag="", hash_key=""):
-        project = project or config.default_project
+    def _get_function(self, session, name, project="", tag="", hash_key=""):
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
         tag_function_uid = None
@@ -1022,6 +1021,17 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def get_function(self, session, name, project="", tag="", hash_key=""):
+        try:
+            return self._get_function(
+                session, mlrun.utils.normalize_name(name), project, tag, hash_key
+            )
+        except mlrun.errors.MLRunNotFoundError as exc:
+            if "_" in name:
+                return self._get_function(session, name, project, tag, hash_key)
+            else:
+                raise exc
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)

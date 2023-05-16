@@ -46,6 +46,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
+from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import (
     Artifact,
     Entity,
@@ -128,6 +129,54 @@ def test_redirection_from_worker_to_chief_delete_project(
             except json.decoder.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
+
+
+def test_get_project_function_when_using_not_normalize_name(
+    db_session: Session,
+    db: DBInterface,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+
+    project_name = "project-name"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+
+    # add a function with a non-normalized name to the database
+    function_name = "function_name"
+    _generate_and_insert_function_record(
+        db=db, function_name=function_name, project_name=project_name
+    )
+
+    # getting the function using the non-normalized name, and ensure that it works
+    response = client.get(f"func/{project_name}/{function_name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_json = response.json()
+    assert response_json["func"]["metadata"]["name"] == function_name
+
+
+def _generate_and_insert_function_record(
+    db: DBInterface, function_name: str, project_name: str
+):
+    function = {
+        "metadata": {"name": function_name, "project": project_name},
+        "spec": {"asd": "asdasd"},
+    }
+    fn = Function(
+        name=function_name, project=project_name, struct=function, uid="1", id="1"
+    )
+    tag = Function.Tag(project=project_name, name="latest", obj_name=fn.name)
+    tag.obj_id, tag.uid = fn.id, fn.uid
+    db.add(fn)
+    db.add(tag)
+    db.commit()
 
 
 def test_create_project_failure_already_exists(

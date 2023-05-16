@@ -78,6 +78,17 @@ class MySQLUtil(object):
         finally:
             connection.close()
 
+    def set_modes(self, modes):
+        if not modes:
+            return
+        connection = self._create_connection()
+        try:
+            self._logger.debug("Setting sql modes", modes=modes)
+            with connection.cursor() as cursor:
+                cursor.execute("SET GLOBAL sql_mode=%s;", (modes,))
+        finally:
+            connection.close()
+
     def check_db_has_data(self):
         connection = self._create_connection()
         try:

@@ -139,9 +139,7 @@ class SystemTestPreparer:
         try:
             self._install_devutilities()
         except Exception as exp:
-            self._logger.error(
-                "error on install devutilities", exception=str(exp)
-            )
+            self._logger.error("error on install devutilities", exception=str(exp))            
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 

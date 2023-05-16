@@ -1,43 +1,37 @@
 name: Scheduled Re-Build Images
 
 on:
-  pull_request:
-    branches:
-    - development
-  # workflow_dispatch:
-  # schedule:
-  # every night at 2am
-  #  - cron: "0 2 * * *"
+  schedule:
+#   every night at 2am
+  - cron: "0 2 * * *"
 
 jobs:
   re-build-images:
     strategy:
       fail-fast: false
       matrix:
-        branch: ["development","1.3.x"]
         repo: ["mlrun","ui"]
+        branch: ["development","1.3.x"]
     runs-on: ubuntu-latest
     steps:
-      - name: echo
-        run: echo ${{ matrix.repo }} ${{ matrix.branch }}
-#      - name: Re-Build MLRun Image
-#        if: matrix.repo == 'mlrun'
-#        uses: mlrun/actions/workflows/build@master
-#        with:
-#            owner: mlrun
-#            repo: mlrun
-#            github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-#            workflow_file_name: build.yaml
-#            ref: ${{ matrix.branch }}
-#            wait_interval: 60
-#            client_payload: '{"skip_images": "models-gpu,tests", "build_from_cache": "false"}'
-#      - name: Re-Build UI Image
-#        if: matrix.repo == 'ui'
-#        uses: mlrun/actions/workflows/build@master
-#        with:
-#          owner: mlrun
-#          repo: ui
-#          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-#          workflow_file_name: build.yaml
-#          ref: ${{ matrix.branch }}
-#          wait_interval: 60
+      - name: Re-Build MLRun Image
+        if: matrix.repo == 'mlrun'
+        uses: mlrun/actions/workflows/build@master
+        with:
+            owner: mlrun
+            repo: mlrun
+            github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+            workflow_file_name: build.yaml
+            ref: ${{ matrix.branch }}
+            wait_interval: 60
+            client_payload: '{"skip_images": "models-gpu,tests", "build_from_cache": "false"}'
+      - name: Re-Build UI Image
+        if: matrix.repo == 'ui'
+        uses: mlrun/actions/workflows/build@master
+        with:
+          owner: mlrun
+          repo: ui
+          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          workflow_file_name: build.yaml
+          ref: ${{ matrix.branch }}
+          wait_interval: 60

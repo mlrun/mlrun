@@ -157,7 +157,7 @@ class KubejobRuntime(KubeResource):
             self.spec.build.auto_build = auto_build
 
         if verify_base_image:
-            self.verify_base_image()
+            self.prepare_image_for_deploy()
 
     def deploy(
         self,

@@ -16,6 +16,7 @@ import getpass
 import http
 import traceback
 import typing
+import warnings
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from base64 import b64encode
@@ -25,6 +26,7 @@ from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import requests.exceptions
+from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -824,13 +826,16 @@ class BaseRuntime(ModelObj):
         self,
         requirements: Union[str, List[str]],
         overwrite: bool = False,
-        verify_base_image: bool = True,
+        verify_base_image: bool = False,
+        prepare_image_for_deploy: bool = True,
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:  python requirements file path or list of packages
-        :param overwrite:     overwrite existing requirements
-        :param verify_base_image:  verify that the base image is configured
+        :param requirements:                python requirements file path or list of packages
+        :param overwrite:                   overwrite existing requirements
+        :param verify_base_image:           verify that the base image is configured
+                                            (deprecated, use prepare_image_for_deploy)
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
         resolved_requirements = self._resolve_requirements(requirements)
@@ -843,8 +848,14 @@ class BaseRuntime(ModelObj):
 
         self.spec.build.requirements = requirements
 
-        if verify_base_image:
-            self.verify_base_image()
+        if verify_base_image or prepare_image_for_deploy:
+            if verify_base_image:
+                warnings.warn(
+                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
+                    "use prepare_image_for_deploy",
+                    category=FutureWarning,
+                )
+            self.prepare_image_for_deploy()
 
         return self
 
@@ -852,11 +863,16 @@ class BaseRuntime(ModelObj):
         self,
         commands: List[str],
         overwrite: bool = False,
-        verify_base_image: bool = True,
+        verify_base_image: bool = False,
+        prepare_image_for_deploy: bool = True,
     ):
         """add commands to build spec.
 
-        :param commands:  list of commands to run during build
+        :param commands:                    list of commands to run during build
+        :param overwrite:                   overwrite existing commands
+        :param verify_base_image:           verify that the base image is configured
+                                            (deprecated, use prepare_image_for_deploy)
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
 
         :return: function object
         """
@@ -872,24 +888,40 @@ class BaseRuntime(ModelObj):
             # using list(set(x)) won't retain order,
             # solution inspired from https://stackoverflow.com/a/17016257/8116661
             self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
-        if verify_base_image:
-            self.verify_base_image()
+
+        if verify_base_image or prepare_image_for_deploy:
+            if verify_base_image:
+                warnings.warn(
+                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
+                    "use prepare_image_for_deploy",
+                    category=FutureWarning,
+                )
+
+            self.prepare_image_for_deploy()
         return self
 
     def clean_build_params(self):
-        # when using `with_requirements` we also execute `verify_base_image` which adds the base image and cleans the
-        # spec.image, so we need to restore the image back
+        # when using `with_requirements` we also execute `prepare_image_for_deploy` which adds the base image
+        # and cleans the spec.image, so we need to restore the image back
         if self.spec.build.base_image and not self.spec.image:
             self.spec.image = self.spec.build.base_image
 
         self.spec.build = {}
         return self
 
+    @deprecated(
+        version="1.4.0",
+        reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
+        category=FutureWarning,
+    )
     def verify_base_image(self):
+        self.prepare_image_for_deploy()
+
+    def prepare_image_for_deploy(self):
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             is_remote=self._is_remote
         )
-        launcher.resolve_image_and_build(self)
+        launcher.prepare_image_for_deploy(self)
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

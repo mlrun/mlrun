@@ -652,8 +652,8 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements)
-    runner.verify_base_image()
+        runner.with_requirements(requirements, verify_base_image=False)
+    runner.prepare_image_for_deploy()
     return runner
 
 
@@ -921,7 +921,7 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.verify_base_image()
+    r.prepare_image_for_deploy()
 
     if with_doc:
         update_function_entry_points(r, code)

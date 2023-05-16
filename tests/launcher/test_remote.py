@@ -84,7 +84,7 @@ def test_validate_runtime_success():
         ("serving", ["pandas"], None, "mlrun/mlrun"),
     ],
 )
-def test_resolve_image_and_build(
+def test_prepare_image_for_deploy(
     kind, requirements, expected_base_image, expected_image
 ):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
@@ -96,6 +96,6 @@ def test_resolve_image_and_build(
         image="mlrun/mlrun",
         requirements=requirements,
     )
-    launcher.resolve_image_and_build(runtime)
+    launcher.prepare_image_for_deploy(runtime)
     assert runtime.spec.build.base_image == expected_base_image
     assert runtime.spec.image == expected_image

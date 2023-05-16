@@ -357,7 +357,7 @@ class BaseLauncher(abc.ABC):
         pass
 
     @staticmethod
-    def resolve_image_and_build(runtime: "mlrun.runtimes.BaseRuntime"):
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
         """
         Check if the runtime requires to build the image.
         If build is needed, set the image as the base_image for the build.

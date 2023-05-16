@@ -358,12 +358,7 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
-        """
-        Check if the runtime requires to build the image.
-        If build is needed, set the image as the base_image for the build.
-        If image is not given set the default one.
-        This is only needed in the client launcher since the image is built before the run is submitted.
-        """
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
     @staticmethod

@@ -1,6 +1,6 @@
 # Documenting mlrun
 
-This document describe how to write the external documentation for `mlrun`, the
+This document describes how to write the external documentation for `mlrun`, the
 one you can view at https://mlrun.readthedocs.io
 
 ## Technology

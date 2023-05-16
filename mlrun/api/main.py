@@ -120,8 +120,8 @@ async def http_status_error_handler(
 @app.on_event("startup")
 async def startup_event():
     logger.info(
-        "configuration dump",
-        dumped_config=config.dump_yaml(),
+        "On startup event handler called",
+        config=config.dump_yaml(),
         version=mlrun.utils.version.Version().get(),
     )
     loop = asyncio.get_running_loop()

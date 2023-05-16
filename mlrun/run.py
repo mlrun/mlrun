@@ -653,7 +653,6 @@ def new_function(
 
     if requirements:
         runner.with_requirements(requirements)
-    runner.verify_base_image()
     return runner
 
 
@@ -921,7 +920,6 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.verify_base_image()
 
     if with_doc:
         update_function_entry_points(r, code)

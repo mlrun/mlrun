@@ -32,8 +32,13 @@ from mlrun.utils import is_legacy_artifact, logger
 router = APIRouter()
 
 
-# TODO /artifact/{project}/{uid}/{key:path} should be deprecated in 1.4
-@router.post("/artifact/{project}/{uid}/{key:path}")
+# TODO: remove /artifact/{project}/{uid}/{key:path} in 1.6.0
+@router.post(
+    "/artifact/{project}/{uid}/{key:path}",
+    deprecated=True,
+    description="/artifact/{project}/{uid}/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts/{uid}/{key:path} instead",
+)
 @router.post("/projects/{project}/artifacts/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -116,8 +121,13 @@ async def list_artifact_tags(
     }
 
 
-# TODO /projects/{project}/artifact/{key:path} should be deprecated in 1.4
-@router.get("/projects/{project}/artifact/{key:path}")
+# TODO: remove /projects/{project}/artifact/{key:path} in 1.6.0
+@router.get(
+    "/projects/{project}/artifact/{key:path}",
+    deprecated=True,
+    description="/projects/{project}/artifact/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts/{key:path} instead",
+)
 @router.get("/projects/{project}/artifacts/{key:path}")
 async def get_artifact(
     project: str,
@@ -149,8 +159,13 @@ async def get_artifact(
     }
 
 
-# TODO /artifact/{project}/{uid} should be deprecated in 1.4
-@router.delete("/artifact/{project}/{uid}")
+# TODO: remove /artifact/{project}/{uid} in 1.6.0
+@router.delete(
+    "/artifact/{project}/{uid}",
+    deprecated=True,
+    description="/artifact/{project}/{uid} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts/{uid} instead",
+)
 @router.delete("/projects/{project}/artifacts/{uid}")
 async def delete_artifact(
     project: str,
@@ -173,8 +188,13 @@ async def delete_artifact(
     return {}
 
 
-# TODO /artifacts should be deprecated in 1.4
-@router.get("/artifacts")
+# TODO: remove /artifacts in 1.6.0
+@router.get(
+    "/artifacts",
+    deprecated=True,
+    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts instead",
+)
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
     project: str = None,
@@ -222,8 +242,13 @@ async def list_artifacts(
     }
 
 
-# TODO /artifacts should be deprecated in 1.4
-@router.delete("/artifacts")
+# TODO: remove /artifacts in 1.6.0
+@router.delete(
+    "/artifacts",
+    deprecated=True,
+    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/artifacts instead",
+)
 async def delete_artifacts_legacy(
     project: str = mlrun.mlconf.default_project,
     name: str = "",

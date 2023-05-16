@@ -2,7 +2,7 @@ name: Scheduled Re-Build Images
 
 on:
   schedule:
-#   every night at 2am
+  # every night at 2am
   - cron: "0 2 * * *"
 
 jobs:

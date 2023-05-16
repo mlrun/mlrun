@@ -1413,7 +1413,7 @@ class SQLDB(DBInterface):
 
         # if format is name_only, we don't need to query the full project object, we can just query the name
         # and return it as a list of strings
-        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             query = self._query(session, Project.name, owner=owner, state=state)
 
         # attach filters to the query

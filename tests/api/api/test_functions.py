@@ -29,6 +29,7 @@ import sqlalchemy.orm
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud
+import mlrun.api.main
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -113,8 +114,7 @@ async def test_list_functions_with_hash_key_versioned(
     }
 
     post_function1_response = await async_client.post(
-        f"func/{function_project}/"
-        f"{function_name}?tag={function_tag}&versioned={True}",
+        f"projects/{function_project}/functions/{function_name}?tag={function_tag}&versioned={True}",
         json=function,
     )
 
@@ -123,14 +123,14 @@ async def test_list_functions_with_hash_key_versioned(
 
     # Store another function with the same project and name but different tag and hash key
     post_function2_response = await async_client.post(
-        f"func/{function_project}/"
+        f"projects/{function_project}/functions/"
         f"{function_name}?tag={another_tag}&versioned={True}",
         json=function2,
     )
     assert post_function2_response.status_code == HTTPStatus.OK.value
 
     list_functions_by_hash_key_response = await async_client.get(
-        f"funcs?project={function_project}&name={function_name}&hash_key={hash_key}"
+        f"projects/{function_project}/functions?name={function_name}&hash_key={hash_key}"
     )
 
     list_functions_results = list_functions_by_hash_key_response.json()["funcs"]

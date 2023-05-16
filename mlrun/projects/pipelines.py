@@ -411,7 +411,7 @@ def enrich_function_object(
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
             f.spec.workdir = project.spec.workdir or project.spec.subpath
-            f.verify_base_image()
+            f.prepare_image_for_deploy()
 
     if project.spec.default_requirements:
         f.with_requirements(project.spec.default_requirements)

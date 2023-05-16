@@ -652,7 +652,7 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements, verify_base_image=False)
+        runner.with_requirements(requirements, prepare_image_for_deploy=False)
 
     # if a function has an image it is considered to be deployed, we prepare the image for deploy
     # to verify that if build is required - the image will be empty

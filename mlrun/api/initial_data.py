@@ -44,7 +44,9 @@ def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
     logger.info("Initializing DB data")
-    mlrun.api.utils.db.mysql.MySQLUtil.wait_for_db_liveness(logger)
+    mysql_util = mlrun.api.utils.db.mysql.MySQLUtil(logger)
+    mysql_util.wait_for_db_liveness()
+    mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
@@ -82,9 +84,9 @@ def init_data(
 
             _perform_database_migration(sqlite_migration_util)
 
+            init_db()
             db_session = create_session()
             try:
-                init_db(db_session)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             finally:

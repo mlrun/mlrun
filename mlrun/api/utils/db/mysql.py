@@ -32,21 +32,18 @@ class MySQLUtil(object):
         "functions",
     ]
 
-    def __init__(self):
-        mysql_dsn_data = self.get_mysql_dsn_data()
-        if not mysql_dsn_data:
-            raise RuntimeError(f"Invalid mysql dsn: {self.get_dsn()}")
+    def __init__(self, logger: mlrun.utils.Logger):
+        self._logger = logger
 
-    @staticmethod
-    def wait_for_db_liveness(logger, retry_interval=3, timeout=2 * 60):
-        logger.debug("Waiting for database liveness")
+    def wait_for_db_liveness(self, retry_interval=3, timeout=2 * 60):
+        self._logger.debug("Waiting for database liveness")
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if not mysql_dsn_data:
             dsn = MySQLUtil.get_dsn()
             if "sqlite" in dsn:
-                logger.debug("SQLite DB is used, liveness check not needed")
+                self._logger.debug("SQLite DB is used, liveness check not needed")
             else:
-                logger.warn(
+                self._logger.warn(
                     f"Invalid mysql dsn: {MySQLUtil.get_dsn()}, assuming live and skipping liveness verification"
                 )
             return
@@ -54,7 +51,7 @@ class MySQLUtil(object):
         tmp_connection = mlrun.utils.retry_until_successful(
             retry_interval,
             timeout,
-            logger,
+            self._logger,
             True,
             pymysql.connect,
             host=mysql_dsn_data["host"],
@@ -62,7 +59,7 @@ class MySQLUtil(object):
             port=int(mysql_dsn_data["port"]),
             database=mysql_dsn_data["database"],
         )
-        logger.debug("Database ready for connection")
+        self._logger.debug("Database ready for connection")
         tmp_connection.close()
 
     def check_db_has_tables(self):
@@ -113,13 +110,13 @@ class MySQLUtil(object):
         )
 
     @staticmethod
-    def get_dsn() -> str:
-        return os.environ.get(MySQLUtil.dsn_env_var, "")
-
-    @staticmethod
     def get_mysql_dsn_data() -> typing.Optional[dict]:
         match = re.match(MySQLUtil.dsn_regex, MySQLUtil.get_dsn())
         if not match:
             return None
 
         return match.groupdict()
+
+    @staticmethod
+    def get_dsn() -> str:
+        return os.environ.get(MySQLUtil.dsn_env_var, "")

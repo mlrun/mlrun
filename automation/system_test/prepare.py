@@ -136,8 +136,12 @@ class SystemTestPreparer:
 
     def run(self):
         self.connect_to_remote()
-
-        self._install_devutilities()
+        try:
+            self._install_devutilities()
+        except Exception as exp:
+            self._logger.error(
+                "error on install devutilities", exception=str(exp)
+            )
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 

@@ -42,6 +42,9 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
         If build is needed, set the image as the base_image for the build.
         If image is not given set the default one.
         """
+        if runtime.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+            return
+
         build = runtime.spec.build
         require_build = (
             build.commands
@@ -56,13 +59,8 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
 
-        if (
-            runtime.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-            # TODO: need a better way to decide whether a function requires a build
-            and require_build
-            and image
-            and not runtime.spec.build.base_image
-        ):
+        # TODO: need a better way to decide whether a function requires a build
+        if require_build and image and not runtime.spec.build.base_image:
             # when the function require build use the image as the base_image for the build
             runtime.spec.build.base_image = image
             runtime.spec.image = ""

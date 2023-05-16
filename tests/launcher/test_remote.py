@@ -75,22 +75,27 @@ def test_validate_runtime_success():
     launcher._validate_runtime(runtime, run)
 
 
-@pytest.mark.parametrize("requirements", [[], ["pandas"]])
-def test_resolve_image_and_build(requirements):
+@pytest.mark.parametrize(
+    "kind, requirements, expected_base_image, expected_image",
+    [
+        ("job", [], None, "mlrun/mlrun"),
+        ("job", ["pandas"], "mlrun/mlrun", ""),
+        ("nuclio", ["pandas"], None, "mlrun/mlrun"),
+        ("serving", ["pandas"], None, "mlrun/mlrun"),
+    ],
+)
+def test_resolve_image_and_build(
+    kind, requirements, expected_base_image, expected_image
+):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
     runtime = mlrun.code_to_function(
         name="test",
-        kind="job",
+        kind=kind,
         filename=str(func_path),
         handler=handler,
         image="mlrun/mlrun",
         requirements=requirements,
     )
     launcher.resolve_image_and_build(runtime)
-    if requirements:
-        assert runtime.spec.build.base_image == "mlrun/mlrun"
-        assert runtime.spec.image == ""
-
-    else:
-        assert runtime.spec.build.base_image is None
-        assert runtime.spec.image == "mlrun/mlrun"
+    assert runtime.spec.build.base_image == expected_base_image
+    assert runtime.spec.image == expected_image

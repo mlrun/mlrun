@@ -10,13 +10,19 @@ on:
   #  - cron: "0 2 * * *"
 
 jobs:
+#  prepare-matrix:
+#    runs-on: ubuntu-latest
+#    outputs:
+#      matrix: ${{ steps.set-matrix.outputs.matrix }}
+#    steps:
+#      # split the branches and repos into a matrix
+#      -
   re-build-images:
     strategy:
       fail-fast: false
       matrix:
-        branch: ${{ split(vars.BRANCHES_FOR_REBUILD, ',') }}
-        repo: ${{ split("mlrun,ui", ',') }}
-
+        branch: ${{ fromJSON(vars.BRANCHES_FOR_REBUILD) }}
+        repo: ${{ fromJSON("mlrun,ui") }}
     runs-on: ubuntu-latest
     steps:
       - name: Echo Branch

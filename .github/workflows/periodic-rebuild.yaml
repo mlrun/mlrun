@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Re-Build MLRun Image
         if: matrix.repo == 'mlrun'
-        uses: mlrun/actions/workflows/build@master
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
             owner: mlrun
             repo: mlrun
@@ -27,7 +27,7 @@ jobs:
             client_payload: '{"skip_images": "models-gpu,tests", "build_from_cache": "false"}'
       - name: Re-Build UI Image
         if: matrix.repo == 'ui'
-        uses: mlrun/actions/workflows/build@master
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: mlrun
           repo: ui

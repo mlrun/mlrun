@@ -26,7 +26,7 @@
 | ML-3823 | Projects that have very large yaml (configuration) files does not case system crash when previewing in UI. [View in Git](https://github.com/mlrun/mlrun/pull/3560).  |
 
 ###  Documentation
-New topic describing [Git best practices](../projects/git-best-practices.html).
+New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
 
 
 ## v1.3.0
@@ -47,8 +47,8 @@ To install on a **Python 3.9** environment, run:<br>
 
 To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
   
-1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
-2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
+1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
+2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
 
 ```
 $CONDA_HOME/bin/conda install -y conda=23.1.0

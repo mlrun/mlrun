@@ -22,8 +22,8 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previoulsy pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
-| ML-3823 | Projects that have very large yaml (configuration) files can now be previewed in the UI. |
+| ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
+| ML-3823 | Projects that have very large yaml (configuration) files does not case system crash when previewing in UI. [View in Git](https://github.com/mlrun/mlrun/pull/3560).  |
 
 
 ## v1.3.0

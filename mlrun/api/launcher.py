@@ -143,10 +143,6 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
     @staticmethod
-    def verify_base_image(runtime):
-        pass
-
-    @staticmethod
     def _enrich_runtime(runtime):
         pass
 

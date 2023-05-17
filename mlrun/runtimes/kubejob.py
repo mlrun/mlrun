@@ -14,6 +14,7 @@
 
 import os
 import time
+import warnings
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -110,7 +111,8 @@ class KubejobRuntime(KubeResource):
         auto_build=None,
         requirements=None,
         overwrite=False,
-        verify_base_image=True,
+        verify_base_image=False,
+        prepare_image_for_deploy=True,
     ):
         """specify builder configuration for the deploy operation
 
@@ -131,17 +133,20 @@ class KubejobRuntime(KubeResource):
            * False: the new params are merged with the existing (currently merge is applied to requirements and
              commands)
            * True: the existing params are replaced by the new ones
-        :param verify_base_image: verify the base image is set
-        """
+        :param verify_base_image:           verify that the base image is configured
+                                            (deprecated, use prepare_image_for_deploy)
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment"""
         if image:
             self.spec.build.image = image
         if base_image:
             self.spec.build.base_image = base_image
         if commands:
-            self.with_commands(commands, overwrite=overwrite, verify_base_image=False)
+            self.with_commands(
+                commands, overwrite=overwrite, prepare_image_for_deploy=False
+            )
         if requirements:
             self.with_requirements(
-                requirements, overwrite=overwrite, verify_base_image=False
+                requirements, overwrite=overwrite, prepare_image_for_deploy=False
             )
         if extra:
             self.spec.build.extra = extra
@@ -156,8 +161,15 @@ class KubejobRuntime(KubeResource):
         if auto_build:
             self.spec.build.auto_build = auto_build
 
-        if verify_base_image:
-            self.verify_base_image()
+        if verify_base_image or prepare_image_for_deploy:
+            if verify_base_image:
+                # TODO: remove verify_base_image in 1.6.0
+                warnings.warn(
+                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
+                    "use prepare_image_for_deploy",
+                    category=FutureWarning,
+                )
+            self.prepare_image_for_deploy()
 
     def deploy(
         self,

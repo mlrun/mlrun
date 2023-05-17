@@ -1692,7 +1692,7 @@ class MlrunProject(ModelObj):
                 f.spec.build.source = self.spec.source
                 f.spec.build.load_source_on_run = self.spec.load_source_on_run
                 f.spec.workdir = self.spec.workdir or self.spec.subpath
-                f.verify_base_image()
+                f.prepare_image_for_deploy()
 
         if self.spec.default_requirements:
             f.with_requirements(self.spec.default_requirements)

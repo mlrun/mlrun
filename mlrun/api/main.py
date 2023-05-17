@@ -80,8 +80,9 @@ app = fastapi.FastAPI(
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
-# so new users won't use the old un-versioned api
-# TODO: remove in 1.4.0
+# so new users won't use the old un-versioned api.
+# /api points to /api/v1 since it is used externally, and we don't want to break it.
+# TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
 init_middlewares(app)

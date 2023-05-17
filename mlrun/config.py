@@ -48,7 +48,10 @@ default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
-    "kubeconfig_path": "",  # path to kubeconfig file
+    "kubernetes": {
+        "kubeconfig_path": "",  # local path to kubeconfig file (for development purposes),
+        # empty by default as the API already running inside k8s cluster
+    },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
@@ -538,7 +541,6 @@ def is_running_as_api():
     global _is_running_as_api
 
     if _is_running_as_api is None:
-        # os.getenv will load the env var as string, and json.loads will convert it to a bool
         _is_running_as_api = os.getenv("MLRUN_IS_API_SERVER", "false").lower() == "true"
 
     return _is_running_as_api

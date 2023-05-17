@@ -357,9 +357,8 @@ class BaseLauncher(abc.ABC):
         pass
 
     @staticmethod
-    @abc.abstractmethod
-    def verify_base_image(runtime):
-        """resolves and sets the build base image if build is needed"""
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
     @staticmethod

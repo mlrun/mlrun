@@ -17,7 +17,7 @@ import logging
 from enum import Enum
 from sys import stdout
 from traceback import format_exception
-from typing import IO, Union
+from typing import IO, Optional, Union
 
 from mlrun.config import config
 
@@ -42,20 +42,34 @@ class JSONFormatter(logging.Formatter):
 
 
 class HumanReadableFormatter(logging.Formatter):
-    def __init__(self):
-        super(HumanReadableFormatter, self).__init__()
-
     def format(self, record):
-        record_with = getattr(record, "with", {})
-        if record.exc_info:
-            record_with.update(exc_info=format_exception(*record.exc_info))
+        record_with = self._record_with(record)
         more = f": {record_with}" if record_with else ""
         return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}"
 
+    def _record_with(self, record):
+        record_with = getattr(record, "with", {})
+        if record.exc_info:
+            record_with.update(exc_info=format_exception(*record.exc_info))
+        return record_with
+
+
+class HumanReadableExtendedFormatter(HumanReadableFormatter):
+    def format(self, record):
+        record_with = self._record_with(record)
+        more = f": {record_with}" if record_with else ""
+        return f"> {self.formatTime(record, self.datefmt)} [{record.name}:{record.levelname.lower()}] {record.getMessage()}{more}"
+
 
 class Logger(object):
-    def __init__(self, level, name="mlrun", propagate=True):
-        self._logger = logging.getLogger(name)
+    def __init__(
+        self,
+        level,
+        name="mlrun",
+        propagate=True,
+        logger: Optional[logging.Logger] = None,
+    ):
+        self._logger = logger or logging.getLogger(name)
         self._logger.propagate = propagate
         self._logger.setLevel(level)
         self._bound_variables = {}
@@ -89,6 +103,24 @@ class Logger(object):
 
         # add the handler to the logger
         self._logger.addHandler(stream_handler)
+
+    def get_child(self, suffix):
+        """
+        Get a child logger with the given suffix.
+        This is useful for when you want to have a logger for a specific component.
+        Once the formatter will support logger name, it will be easier to understand which component logged the message.
+
+        :param suffix: The suffix to add to the logger name.
+        """
+        return Logger(
+            self.level,
+            # name is not set as it is provided by the "getChild"
+            name="",
+            # allowing child to delegate events logged to ancestor logger
+            # not doing so, will leave log lines not being handled
+            propagate=True,
+            logger=self._logger.getChild(suffix),
+        )
 
     @property
     def level(self):
@@ -143,12 +175,14 @@ class Logger(object):
 
 class FormatterKinds(Enum):
     HUMAN = "human"
+    HUMAN_EXTENDED = "human_extended"
     JSON = "json"
 
 
 def _create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
     return {
         FormatterKinds.HUMAN: HumanReadableFormatter(),
+        FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter(),
         FormatterKinds.JSON: JSONFormatter(),
     }[formatter_kind]
 

@@ -654,8 +654,6 @@ def new_function(
     if requirements:
         runner.with_requirements(requirements, prepare_image_for_deploy=False)
 
-    # if a function has an image it is considered to be deployed, we prepare the image for deploy
-    # to verify that if build is required - the image will be empty
     runner.prepare_image_for_deploy()
     return runner
 
@@ -924,8 +922,6 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    # if a function has an image it is considered to be deployed, we prepare the image for deploy
-    # to verify that if build is required - the image will be empty
     r.prepare_image_for_deploy()
 
     if with_doc:

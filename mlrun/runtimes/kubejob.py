@@ -163,6 +163,7 @@ class KubejobRuntime(KubeResource):
 
         if verify_base_image or prepare_image_for_deploy:
             if verify_base_image:
+                # TODO: remove verify_base_image in 1.6.0
                 warnings.warn(
                     "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
                     "use prepare_image_for_deploy",

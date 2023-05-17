@@ -849,6 +849,7 @@ class BaseRuntime(ModelObj):
         self.spec.build.requirements = requirements
 
         if verify_base_image or prepare_image_for_deploy:
+            # TODO: remove verify_base_image in 1.6.0
             if verify_base_image:
                 warnings.warn(
                     "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
@@ -890,6 +891,7 @@ class BaseRuntime(ModelObj):
             self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
 
         if verify_base_image or prepare_image_for_deploy:
+            # TODO: remove verify_base_image in 1.6.0
             if verify_base_image:
                 warnings.warn(
                     "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
@@ -909,6 +911,7 @@ class BaseRuntime(ModelObj):
         self.spec.build = {}
         return self
 
+    # TODO: remove in 1.6.0
     @deprecated(
         version="1.4.0",
         reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
@@ -918,6 +921,11 @@ class BaseRuntime(ModelObj):
         self.prepare_image_for_deploy()
 
     def prepare_image_for_deploy(self):
+        """
+        if a function has a 'spec.image' it is considered to be deployed,
+        but because we allow the user to set 'spec.image' for usability purposes,
+        we need to check whether this is a built image or it requires to be built on top.
+        """
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             is_remote=self._is_remote
         )

@@ -1291,7 +1291,7 @@ def _add_graphviz_flow(
                 else {}
             )
             graph.edge(previous_object.fullname, child.fullname, **kw)
-        before = (child.before if hasattr(child, "before") else []) or []
+        before = getattr(child, "before", [])
         for item in before:
             next_object = step[item]
             kw = (

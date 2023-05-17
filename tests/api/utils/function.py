@@ -20,4 +20,4 @@ def do_nothing():
 
 
 def sleep_two_seconds():
-    time.sleep(2)
+    time.sleep(1.99)

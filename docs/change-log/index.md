@@ -22,8 +22,9 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3304, ML-3287 | UI resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/mlrun/pull/3477), and [UI change in Git](https://github.com/mlrun/ui/pull/1612). |
-| ML-3797, ML-3798 | Listing projects now displays correctly (returns projects only and not the project structure). [View in Git](https://github.com/mlrun/mlrun/pull/3477).  |
+| ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previoulsy pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
+| ML-3823 | Projects that have very large yaml (configuration) files can now be previewed in the UI. |
+| ML-3824 | MLRun supports up to Tensorflow 2.9. |
 
 ## v1.3.0
 
@@ -219,7 +220,7 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3287 | UI resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/mlrun/pull/3477), and [UI change in Git](https://github.com/mlrun/ui/pull/1612). |
+| ML-3287 | UI now resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/mlrun/pull/3477), and [UI change in Git](https://github.com/mlrun/ui/pull/1612). |
 
 ## v1.2.1
 

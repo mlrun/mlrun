@@ -63,8 +63,7 @@ extensions = [
     "sphinx_reredirects",
 ]
 
-# redirect paths due to filename changes
-redirects = {"runtimes/load-from-hub": "load-from-hub.html"}
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [

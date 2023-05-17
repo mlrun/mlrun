@@ -133,28 +133,19 @@ class KubejobRuntime(KubeResource):
            * True: the existing params are replaced by the new ones
         :param verify_base_image: verify the base image is set
         """
-        if image:
-            self.spec.build.image = image
-        if base_image:
-            self.spec.build.base_image = base_image
-        if commands:
-            self.with_commands(commands, overwrite=overwrite, verify_base_image=False)
-        if requirements:
-            self.with_requirements(
-                requirements, overwrite=overwrite, verify_base_image=False
-            )
-        if extra:
-            self.spec.build.extra = extra
-        if secret is not None:
-            self.spec.build.secret = secret
-        if source:
-            self.spec.build.source = source
-        if load_source_on_run:
-            self.spec.build.load_source_on_run = load_source_on_run
-        if with_mlrun is not None:
-            self.spec.build.with_mlrun = with_mlrun
-        if auto_build:
-            self.spec.build.auto_build = auto_build
+        self.spec.build.build_config(
+            image,
+            base_image,
+            commands,
+            secret,
+            source,
+            extra,
+            load_source_on_run,
+            with_mlrun,
+            auto_build,
+            requirements,
+            overwrite,
+        )
 
         if verify_base_image:
             self.verify_base_image()
@@ -303,7 +294,6 @@ class KubejobRuntime(KubeResource):
         )
 
     def _run(self, runobj: RunObject, execution):
-
         command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:

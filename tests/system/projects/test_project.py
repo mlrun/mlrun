@@ -857,3 +857,49 @@ class TestProject(TestMLRunSystem):
             name=project_name,
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    def test_build_image(self):
+        name = "test-build-image"
+        # self.custom_project_names_to_delete.append(name)
+        project = mlrun.new_project(name, context=str(self.assets_path), overwrite=True)
+
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+
+        assert project.default_image == image_name
+
+        # test with user provided function object
+        base_fn = mlrun.code_to_function(
+            "scores",
+            filename=str(self.assets_path / "sentiment.py"),
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = project.run_function(
+            base_fn.copy(), params={"text": "good morning"}
+        )
+        assert run_result.output("score")
+
+        project_dir = f"{projects_dir}/{name}"
+        proj_file_path = project_dir + "/project.yaml"
+        project.export(proj_file_path)
+
+        self._delete_test_project(name)
+
+        new_project = mlrun.load_project(project_dir)
+        new_project.build_image()
+
+        run_result = project.run_function(
+            base_fn.copy(), params={"text": "good evening"}
+        )
+        assert run_result.output("score")
+
+        shutil.rmtree(project_dir, ignore_errors=True)

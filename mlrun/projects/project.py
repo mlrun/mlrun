@@ -44,7 +44,7 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..model import EntrypointParam, ModelObj
+from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
@@ -543,6 +543,7 @@ class ProjectSpec(ModelObj):
         disable_auto_mount=None,
         workdir=None,
         default_image=None,
+        build=None,
     ):
         self.repo = None
 
@@ -575,6 +576,9 @@ class ProjectSpec(ModelObj):
         self.functions = functions or []
         self.disable_auto_mount = disable_auto_mount
         self.default_image = default_image
+
+        self._build = None
+        self.build = build
 
     @property
     def source(self) -> str:
@@ -752,6 +756,14 @@ class ProjectSpec(ModelObj):
                 return True
         return False
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
@@ -910,7 +922,6 @@ class MlrunProject(ModelObj):
         self.spec.source = source or self.spec.source
 
         if self.spec.source.startswith("git://"):
-
             source, reference, branch = resolve_git_reference_from_source(source)
             if not branch and not reference:
                 logger.warn(
@@ -2335,6 +2346,53 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
         )
+
+    def build_image(
+        self,
+        image: str = None,
+        set_as_default: bool = True,
+        with_mlrun: bool = None,
+        skip_deployed: bool = False,
+        base_image=None,
+        commands: list = None,
+        secret_name=None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        mlrun_version_specifier=None,
+        builder_env: dict = None,
+        overwrite_build_params: bool = False,
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        self.spec.build.build_config(
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            # source, extra, load_source_on_run,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
+        )
+
+        image = image or self.default_image or f".mlrun-project-image-{self.name}"
+        function = mlrun.new_function("dummy-function-for-image", kind="job")
+
+        result = self.build_function(
+            function=function,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            requirements=requirements,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            overwrite_build_params=overwrite_build_params,
+        )
+
+        if set_as_default and image != self.default_image:
+            self.set_default_image(image)
+
+        return result
 
     def deploy_function(
         self,

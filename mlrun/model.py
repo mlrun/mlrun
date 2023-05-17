@@ -16,6 +16,7 @@ import inspect
 import pathlib
 import re
 import time
+import typing
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -376,6 +377,113 @@ class ImageBuilder(ModelObj):
             )
 
         self._source = source
+
+    def build_config(
+        self,
+        image="",
+        base_image=None,
+        commands: list = None,
+        secret=None,
+        source=None,
+        extra=None,
+        load_source_on_run=None,
+        with_mlrun=None,
+        auto_build=None,
+        requirements=None,
+        overwrite=False,
+    ):
+        if image:
+            self.image = image
+        if base_image:
+            self.base_image = base_image
+        if commands:
+            self.with_commands(commands, overwrite=overwrite)
+        if requirements:
+            self.with_requirements(requirements, overwrite=overwrite)
+        if extra:
+            self.extra = extra
+        if secret is not None:
+            self.secret = secret
+        if source:
+            self.source = source
+        if load_source_on_run:
+            self.load_source_on_run = load_source_on_run
+        if with_mlrun is not None:
+            self.with_mlrun = with_mlrun
+        if auto_build:
+            self.auto_build = auto_build
+
+    def with_commands(
+        self,
+        commands: List[str],
+        overwrite: bool = False,
+    ):
+        """add commands to build spec.
+
+        :param commands:  list of commands to run during build
+        :param overwrite: whether to overwrite the existing commands or add to them (the default)
+
+        :return: function object
+        """
+        if not isinstance(commands, list):
+            raise ValueError("commands must be a string list")
+        if not self.commands or overwrite:
+            self.commands = commands
+        else:
+            # add commands to existing build commands
+            for command in commands:
+                if command not in self.commands:
+                    self.commands.append(command)
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.commands = list(dict.fromkeys(self.commands))
+
+    def with_requirements(
+        self,
+        requirements: Union[str, List[str]],
+        overwrite: bool = False,
+    ):
+        """add package requirements from file or list to build spec.
+
+        :param requirements:  python requirements file path or list of packages
+        :param overwrite:     overwrite existing requirements
+        :return: function object
+        """
+        resolved_requirements = self._resolve_requirements(requirements)
+        requirements = self.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in resolved_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.requirements = requirements
+
+    @staticmethod
+    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
+        # if a string, read the file then encode
+        if isinstance(requirements_to_resolve, str):
+            with open(requirements_to_resolve, "r") as fp:
+                requirements_to_resolve = fp.read().splitlines()
+
+        requirements = []
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
+            requirement = requirement.strip()
+
+            # ignore empty lines
+            # ignore comments
+            if not requirement or requirement.startswith("#"):
+                continue
+
+            # ignore inline comments as well
+            inline_comment = requirement.split(" #")
+            if len(inline_comment) > 1:
+                requirement = inline_comment[0].strip()
+
+            requirements.append(requirement)
+
+        return requirements
 
 
 class Notification(ModelObj):

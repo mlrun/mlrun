@@ -8,7 +8,7 @@ MLRun supports real-time and batch runtimes.
 
 Real-time runtimes:
 * **{ref}`nuclio <nuclio-real-time-functions>`** - real-time serverless functions over Nuclio
-* **{ref}`serving <serving-graph>`** - higher level real-time Graph (DAG) over one or more Nuclio functions
+* **{ref}`serving <serving-function>`** - deploy models and higher-level real-time Graph (DAG) over one or more Nuclio functions
 
 Batch runtimes:
 * **handler** - execute python handler (used automatically in notebooks or for debug)
@@ -53,6 +53,7 @@ The limits methods are different for Spark and Dask:
 :maxdepth: 1
 
 ../runtimes/job-function
+../runtimes/serving-function
 ../runtimes/dask-overview
 ../runtimes/horovod
 ../runtimes/spark-operator

@@ -24,8 +24,12 @@ project.set_function(name="train", handler="training.train",  image="mlrun/mlrun
 ```
 
 To run the job:
+```
+project.run_function()
+```
 
-`project.run_function()`
-
-See details and examples on how to [**create and register functions**](../runtimes/create-and-use-functions.html), 
-how to [**annotate notebooks**](../runtimes/mlrun_code_annotations.html) (to be used as functions), how to [**run, build, or deploy**](./run-build-deploy.html) functions, and how to [**use them in workflows**](./build-run-workflows-pipelines.html). 
+**See also**
+- [Create and register functions](../runtimes/create-and-use-functions.html)
+- [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.html)
+- [How to run, build, or deploy functions](./run-build-deploy.html)
+- [Using functions in workflows](./build-run-workflows-pipelines.html)

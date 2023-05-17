@@ -66,7 +66,8 @@ class MySQLUtil(object):
             connection.close()
 
     def set_modes(self, modes):
-        if not modes:
+        if not modes or modes in ["nil", "none"]:
+            self._logger.debug("No sql modes were given, bailing", modes=modes)
             return
         connection = self._create_connection()
         try:

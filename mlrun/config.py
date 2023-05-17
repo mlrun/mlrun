@@ -250,7 +250,7 @@ default_config = {
                 # comma separated mysql modes (globally) to set on runtime
                 # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
                 #
-                # if not set, nothing would be set
+                # if set to "nil" or "none", nothing would be set
                 "modes": "STRICT_TRANS_TABLES",
             },
         },

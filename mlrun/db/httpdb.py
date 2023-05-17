@@ -826,7 +826,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
@@ -841,7 +841,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "hash_key": hash_key}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
         error = f"get function {project}/{name}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
@@ -863,15 +863,15 @@ class HTTPRunDB(RunDBInterface):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects (as dictionary).
         """
-
+        project = project or config.default_project
         params = {
-            "project": project or config.default_project,
             "name": name,
             "tag": tag,
             "label": labels or [],
         }
         error = "list functions"
-        resp = self.api_call("GET", "funcs", error, params=params)
+        path = f"projects/{project}/functions"
+        resp = self.api_call("GET", path, error, params=params)
         return resp.json()["funcs"]
 
     def list_runtime_resources(

@@ -15,6 +15,7 @@
 
 import datetime
 import logging
+import os
 import pathlib
 import subprocess
 import sys
@@ -135,7 +136,10 @@ class SystemTestPreparer:
 
     def run(self):
         self.connect_to_remote()
-
+        try:
+            self._install_devutilities()
+        except Exception as exp:
+            self._logger.error("error on install devutilities", exception=str(exp))
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -335,11 +339,39 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
+    def _install_devutilities(self):
+        urlscript = "https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git"
+        ipaddr = "--ipaddr " + os.environ.get("IP_ADDR_PREFIX")
+        list_uninstall = [
+            "dev_utilities.py",
+            "uninstall",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+        ]
+        list_install = [
+            "dev_utilities.py",
+            "install",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+            ipaddr,
+        ]
+        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
+        self._run_command("git", args=["clone", urlscript, "dev_utilities"])
+        self._run_command(
+            "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
+        )
+        self._run_command(
+            "python3", args=list_install, workdir="/home/iguazio/dev_utilities"
+        )
+
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
         # s3://<bucket-name>/<object-name>
-
         parsed_url = urllib.parse.urlparse(self._provctl_download_url)
         if self._provctl_download_url.startswith("s3://"):
             object_name = parsed_url.path.lstrip("/")
@@ -347,7 +379,6 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
             self._logger.debug(
@@ -362,7 +393,6 @@ class SystemTestPreparer:
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-
             # upload provctl to data node
             self._logger.debug(
                 "Uploading provctl to datanode",
@@ -372,7 +402,6 @@ class SystemTestPreparer:
             sftp_client = self._ssh_client.open_sftp()
             sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
-
         # make provctl executable
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 

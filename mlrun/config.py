@@ -48,6 +48,7 @@ default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
+    "kubeconfig_path": "",  # path to kubeconfig file
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
@@ -538,7 +539,7 @@ def is_running_as_api():
 
     if _is_running_as_api is None:
         # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+        _is_running_as_api = os.getenv("MLRUN_IS_API_SERVER", "false").lower() == "true"
 
     return _is_running_as_api
 
@@ -1028,7 +1029,7 @@ def _populate(skip_errors=False):
 def _do_populate(env=None, skip_errors=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
+    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)

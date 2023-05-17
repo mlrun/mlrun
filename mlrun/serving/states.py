@@ -1291,6 +1291,15 @@ def _add_graphviz_flow(
                 else {}
             )
             graph.edge(previous_object.fullname, child.fullname, **kw)
+        before = (child.before if hasattr(child, "before") else []) or []
+        for item in before:
+            next_object = step[item]
+            kw = (
+                {"ltail": "cluster_" + next_object.fullname}
+                if next_object.kind == StepKinds.router
+                else {}
+            )
+            graph.edge(child.fullname, next_object.fullname, **kw)
         if child.on_error:
             graph.edge(child.fullname, child.on_error, style="dashed")
 

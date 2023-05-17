@@ -69,7 +69,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         # the notifications are sent asynchronously, so we need to wait for them
         mlrun.utils.retry_until_successful(
             1,
-            20,
+            50,
             self._logger,
             True,
             _assert_notifications,

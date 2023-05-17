@@ -13,7 +13,7 @@ Real-time runtimes:
 Batch runtimes:
 * **handler** - execute python handler (used automatically in notebooks or for debug)
 * **local** - execute a Python or shell program 
-* **job** - run the code in a Kubernetes Pod
+* **{ref}`job <job-function>`** - run the code in a Kubernetes Pod
 * **{ref}`dask <dask-overview>`** - run the code as a Dask Distributed job (over Kubernetes)
 * **{ref}`mpijob <horovod>`** - run distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs 
 * **{ref}`spark <spark-operator>`** - run the job as a Spark job (using Spark Kubernetes Operator)
@@ -52,6 +52,7 @@ The limits methods are different for Spark and Dask:
 ```{toctree}
 :maxdepth: 1
 
+../runtimes/job-function
 ../runtimes/dask-overview
 ../runtimes/horovod
 ../runtimes/spark-operator

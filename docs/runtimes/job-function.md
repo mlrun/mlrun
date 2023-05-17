@@ -1,0 +1,31 @@
+(job-function)=
+# Function of type `job`
+
+The `job` type function runs the code in a Kubernetes Pod.
+
+You can create (register) a function with basic attributes such as code, requirements, image, etc. using the 
+{py:meth}`~mlrun.projects.MlrunProject.set_function` method.
+Functions can be created from a single code, notebook file, or have access to the entire project context directory. (By adding the `with_repo=True` flag, the project context is cloned into the function runtime environment.) 
+
+Examples:
+
+
+```python
+# register a (single) python file as a function
+project.set_function('src/data_prep.py', 'data-prep', image='mlrun/mlrun', handler='prep', kind="job")
+
+# register a notebook file as a function, specify custom image and extra requirements 
+project.set_function('src/mynb.ipynb', name='test-function', image="my-org/my-image",
+                      handler="run_test", requirements="requirements.txt", kind="job")
+
+# register a module.handler as a function (requires defining the default sources/work dir, if it's not root)
+project.spec.workdir = "src"
+project.set_function(name="train", handler="training.train",  image="mlrun/mlrun", kind="job", with_repo=True)
+```
+
+To run the job:
+
+`project.run_function()`
+
+See details and examples on how to [**create and register functions**](../runtimes/create-and-use-functions.html), 
+how to [**annotate notebooks**](../runtimes/mlrun_code_annotations.html) (to be used as functions), how to [**run, build, or deploy**](./run-build-deploy.html) functions, and how to [**use them in workflows**](./build-run-workflows-pipelines.html). 

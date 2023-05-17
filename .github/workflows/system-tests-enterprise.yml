@@ -241,7 +241,7 @@ jobs:
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - name: Prepare System Test env.yaml and MLRun installation from current branch
+    - name: Prepare System Test Environment and Install MLRun
       env:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
       timeout-minutes: 50

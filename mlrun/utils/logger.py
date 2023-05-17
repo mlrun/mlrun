@@ -58,7 +58,12 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
     def format(self, record):
         record_with = self._record_with(record)
         more = f": {record_with}" if record_with else ""
-        return f"> {self.formatTime(record, self.datefmt)} [{record.name}:{record.levelname.lower()}] {record.getMessage()}{more}"
+        return (
+            "> "
+            f"{self.formatTime(record, self.datefmt)} "
+            f"[{record.name}:{record.levelname.lower()}] "
+            f"{record.getMessage()}{more}"
+        )
 
 
 class Logger(object):
@@ -108,7 +113,8 @@ class Logger(object):
         """
         Get a child logger with the given suffix.
         This is useful for when you want to have a logger for a specific component.
-        Once the formatter will support logger name, it will be easier to understand which component logged the message.
+        Once the formatter will support logger name, it will be easier to understand
+        which component logged the message.
 
         :param suffix: The suffix to add to the logger name.
         """

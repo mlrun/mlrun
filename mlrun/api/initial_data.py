@@ -44,9 +44,20 @@ def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
     logger.info("Initializing DB data")
+
+    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
     mysql_util = mlrun.api.utils.db.mysql.MySQLUtil(logger)
-    mysql_util.wait_for_db_liveness()
-    mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+    if mysql_util.get_mysql_dsn_data():
+        mysql_util.wait_for_db_liveness()
+        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+    else:
+        dsn = mysql_util.get_dsn()
+        if "sqlite" in dsn:
+            logger.debug("SQLite DB is used, liveness check not needed")
+        else:
+            logger.warn(
+                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+            )
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":

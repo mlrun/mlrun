@@ -27,7 +27,7 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -79,8 +79,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         # TODO: deprecated, remove in 1.5.0
         ttl=None,
         args_schema: dict = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        override: bool = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
     ):
         if ttl:
@@ -103,7 +102,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.override = override
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -118,7 +116,13 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
-            if context and not workflow_path.startswith("/"):
+            if (
+                context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(context)
+            ):
                 workflow_path = os.path.join(context, workflow_path)
         return workflow_path
 
@@ -281,7 +285,7 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
         return
 
@@ -707,7 +711,7 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -757,6 +761,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str,
         workflow_handler: str,
         namespace: str,
+        subpath: str,
     ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
         """
         Helper function for creating the runspec of the load and run function.
@@ -769,6 +774,7 @@ class _RemoteRunner(_PipelineRunner):
         :param artifact_path:       path to store artifacts
         :param workflow_handler:    workflow function handler (for running workflow function directly)
         :param namespace:           kubernetes namespace if other than default
+        :param subpath:             project subpath (within the archive)
         :return:
         """
         # Creating the load project and workflow running function:
@@ -794,6 +800,7 @@ class _RemoteRunner(_PipelineRunner):
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
                     "schedule": workflow_spec.schedule,
+                    "subpath": subpath,
                 },
                 handler="mlrun.projects.load_and_run",
             ),
@@ -842,31 +849,8 @@ class _RemoteRunner(_PipelineRunner):
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
             namespace=namespace,
+            subpath=project.spec.subpath,
         )
-
-        if workflow_spec.schedule:
-            is_scheduled = True
-            schedule_name = runspec.spec.parameters.get("workflow_name")
-            run_db = mlrun.get_run_db()
-
-            try:
-                run_db.get_schedule(project.name, schedule_name)
-            except mlrun.errors.MLRunNotFoundError:
-                is_scheduled = False
-
-            if workflow_spec.override:
-                if is_scheduled:
-                    logger.info(f"Deleting schedule {schedule_name}")
-                    run_db.delete_schedule(project.name, schedule_name)
-                else:
-                    logger.info(
-                        f"No schedule by name '{schedule_name}' was found, nothing to override."
-                    )
-            elif is_scheduled:
-                raise mlrun.errors.MLRunConflictError(
-                    f"There is already a schedule for workflow {schedule_name}."
-                    " If you want to override this schedule use 'override=True' (SDK) or '--override-workflow' (CLI)"
-                )
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
@@ -900,7 +884,8 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                "error",
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
@@ -993,7 +978,7 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
-    schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
 ):
     """
@@ -1059,7 +1044,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+                    severity=mlrun.common.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:

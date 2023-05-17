@@ -30,9 +30,12 @@ from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.api.db.session
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api import schemas
+import mlrun.model
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
     generate_query_predicate_for_name,
@@ -51,8 +54,9 @@ from mlrun.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
+    HubSource,
     Log,
-    MarketplaceSource,
+    Notification,
     Project,
     Run,
     Schedule,
@@ -73,6 +77,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_artifact_key_name,
     validate_tag_name,
 )
 
@@ -180,7 +185,11 @@ class SQLDB(DBInterface):
         iter=0,
     ):
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+            "Storing run to db",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
         )
         run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
@@ -317,13 +326,14 @@ class SQLDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
-        partition_by: schemas.RunPartitionByField = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
+        with_notifications: bool = False,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -353,7 +363,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.requested_logs == requested_logs)
         if partition_by:
             self._assert_partition_by_parameters(
-                schemas.RunPartitionByField, partition_by, partition_sort_by
+                mlrun.common.schemas.RunPartitionByField,
+                partition_by,
+                partition_sort_by,
             )
             query = self._create_partitioned_query(
                 session,
@@ -368,9 +380,28 @@ class SQLDB(DBInterface):
         if not return_as_run_structs:
             return query.all()
 
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
+            query = query.join(Notification, Run.id == Notification.run)
+
         runs = RunList()
         for run in query:
-            runs.append(run.struct)
+            run_struct = run.struct
+            if with_notifications:
+                run_struct.setdefault("spec", {}).setdefault("notifications", [])
+                run_struct.setdefault("status", {}).setdefault("notifications", {})
+                for notification in run.notifications:
+                    (
+                        notification_spec,
+                        notification_status,
+                    ) = self._transform_notification_record_to_spec_and_status(
+                        notification
+                    )
+                    run_struct["spec"]["notifications"].append(notification_spec)
+                    run_struct["status"]["notifications"][
+                        notification.name
+                    ] = notification_status
+            runs.append(run_struct)
 
         return runs
 
@@ -432,7 +463,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -455,7 +486,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -472,7 +503,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -488,7 +519,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project_name: str,
-        identifier: mlrun.api.schemas.ArtifactIdentifier,
+        identifier: mlrun.common.schemas.ArtifactIdentifier,
     ):
         return self.list_artifacts(
             session,
@@ -596,6 +627,8 @@ class SQLDB(DBInterface):
         existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
+            # for backwards compatibility only validating key name on new artifacts
+            validate_artifact_key_name(key, "artifact.key")
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
             existed = False
 
@@ -690,7 +723,7 @@ class SQLDB(DBInterface):
         since=None,
         until=None,
         kind=None,
-        category: schemas.ArtifactCategories = None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
@@ -1092,7 +1125,7 @@ class SQLDB(DBInterface):
         return [row[0] for row in query]
 
     def list_artifact_tags(
-        self, session, project, category: schemas.ArtifactCategories = None
+        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, artifact.key, tag)
@@ -1123,9 +1156,9 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         name: str,
-        kind: schemas.ScheduleKinds,
+        kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Any,
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
         next_run_time: datetime = None,
@@ -1168,7 +1201,7 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         scheduled_object: Any = None,
-        cron_trigger: schemas.ScheduleCronTrigger = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
@@ -1214,8 +1247,8 @@ class SQLDB(DBInterface):
         project: str = None,
         name: str = None,
         labels: str = None,
-        kind: schemas.ScheduleKinds = None,
-    ) -> List[schemas.ScheduleRecord]:
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+    ) -> List[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, project=project, kind=kind)
         if name is not None:
@@ -1231,7 +1264,7 @@ class SQLDB(DBInterface):
 
     def get_schedule(
         self, session: Session, project: str, name: str
-    ) -> schemas.ScheduleRecord:
+    ) -> mlrun.common.schemas.ScheduleRecord:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(session, project, name)
         schedule = self._transform_schedule_record_to_scheme(schedule_record)
@@ -1239,7 +1272,7 @@ class SQLDB(DBInterface):
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str
-    ) -> schemas.ScheduleRecord:
+    ) -> mlrun.common.schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
         if not schedule_record:
@@ -1332,7 +1365,7 @@ class SQLDB(DBInterface):
             tags.append(tag)
         self._upsert(session, tags)
 
-    def create_project(self, session: Session, project: schemas.Project):
+    def create_project(self, session: Session, project: mlrun.common.schemas.Project):
         logger.debug("Creating project in DB", project=project)
         created = datetime.utcnow()
         project.metadata.created = created
@@ -1351,7 +1384,9 @@ class SQLDB(DBInterface):
         self._upsert(session, [project_record])
 
     @retry_on_conflict
-    def store_project(self, session: Session, name: str, project: schemas.Project):
+    def store_project(
+        self, session: Session, name: str, project: mlrun.common.schemas.Project
+    ):
         logger.debug("Storing project in DB", name=name, project=project)
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
@@ -1366,11 +1401,9 @@ class SQLDB(DBInterface):
         session: Session,
         name: str,
         project: dict,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
-        logger.debug(
-            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
-        )
+        logger.debug("Patching project in DB", name=name, patch_mode=patch_mode)
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
             session, name, project_record, project, patch_mode
@@ -1378,7 +1411,7 @@ class SQLDB(DBInterface):
 
     def get_project(
         self, session: Session, name: str = None, project_id: int = None
-    ) -> schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -1387,7 +1420,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: str,
-        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
@@ -1398,25 +1431,45 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
+
+        # if format is name_only, we don't need to query the full project object, we can just query the name
+        # and return it as a list of strings
+        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            query = self._query(session, Project.name, owner=owner, state=state)
+
+        # attach filters to the query
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+
         project_records = query.all()
+
+        # format the projects according to the requested format
         projects = []
         for project_record in project_records:
-            if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-                projects = [project_record.name for project_record in project_records]
+            if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+                projects.append(project_record.name)
+
+            elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+                projects.append(
+                    mlrun.api.utils.helpers.minimize_project_schema(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
+                    )
+                )
+
             # leader format is only for follower mode which will format the projects returned from here
             elif format_ in [
-                mlrun.api.schemas.ProjectsFormat.full,
-                mlrun.api.schemas.ProjectsFormat.leader,
+                mlrun.common.schemas.ProjectsFormat.full,
+                mlrun.common.schemas.ProjectsFormat.leader,
             ]:
                 projects.append(
                     self._transform_project_record_to_schema(session, project_record)
@@ -1425,7 +1478,7 @@ class SQLDB(DBInterface):
                 raise NotImplementedError(
                     f"Provided format is not supported. format={format_}"
                 )
-        return schemas.ProjectsOutput(projects=projects)
+        return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     async def get_project_resources_counters(
         self,
@@ -1534,7 +1587,10 @@ class SQLDB(DBInterface):
         # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         file_artifacts = self._find_artifacts(
-            session, None, "latest", category=mlrun.api.schemas.ArtifactCategories.other
+            session,
+            None,
+            "latest",
+            category=mlrun.common.schemas.ArtifactCategories.other,
         )
         project_to_files_count = collections.defaultdict(int)
         for file_artifact in file_artifacts:
@@ -1578,7 +1634,7 @@ class SQLDB(DBInterface):
 
     async def generate_projects_summaries(
         self, session: Session, projects: List[str]
-    ) -> List[mlrun.api.schemas.ProjectSummary]:
+    ) -> List[mlrun.common.schemas.ProjectSummary]:
         (
             project_to_function_count,
             project_to_schedule_count,
@@ -1590,7 +1646,7 @@ class SQLDB(DBInterface):
         project_summaries = []
         for project in projects:
             project_summaries.append(
-                mlrun.api.schemas.ProjectSummary(
+                mlrun.common.schemas.ProjectSummary(
                     name=project,
                     functions_count=project_to_function_count.get(project, 0),
                     schedules_count=project_to_schedule_count.get(project, 0),
@@ -1608,7 +1664,10 @@ class SQLDB(DBInterface):
         return project_summaries
 
     def _update_project_record_from_project(
-        self, session: Session, project_record: Project, project: schemas.Project
+        self,
+        session: Session,
+        project_record: Project,
+        project: mlrun.common.schemas.Project,
     ):
         project.metadata.created = project_record.created
         project_dict = project.dict()
@@ -1628,7 +1687,7 @@ class SQLDB(DBInterface):
         name: str,
         project_record: Project,
         project: dict,
-        patch_mode: schemas.PatchMode,
+        patch_mode: mlrun.common.schemas.PatchMode,
     ):
         project.setdefault("metadata", {})["created"] = project_record.created
         strategy = patch_mode.to_mergedeep_strategy()
@@ -1636,7 +1695,7 @@ class SQLDB(DBInterface):
         mergedeep.merge(project_record_full_object, project, strategy=strategy)
 
         # If a bad kind value was passed, it will fail here (return 422 to caller)
-        project = schemas.Project(**project_record_full_object)
+        project = mlrun.common.schemas.Project(**project_record_full_object)
         self.store_project(
             session,
             name,
@@ -1686,6 +1745,10 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
+        notifications = self._get_db_notifications(session, project=name)
+        self._verify_empty_list_of_project_related_resources(
+            name, notifications, "notifications"
+        )
         schedules = self.list_schedules(session, project=name)
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
@@ -1706,6 +1769,7 @@ class SQLDB(DBInterface):
     def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
+        self.delete_run_notifications(session, project=name)
         self.del_runs(session, project=name)
         self.delete_schedules(session, name)
         self._delete_functions(session, name)
@@ -1782,7 +1846,7 @@ class SQLDB(DBInterface):
         name: str,
         tag: str = None,
         uid: str = None,
-    ) -> schemas.FeatureSet:
+    ) -> mlrun.common.schemas.FeatureSet:
         feature_set = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set:
             feature_set_uri = generate_object_uri(project, name, tag)
@@ -1830,10 +1894,10 @@ class SQLDB(DBInterface):
         return results
 
     @staticmethod
-    def _generate_feature_set_digest(feature_set: schemas.FeatureSet):
-        return schemas.FeatureSetDigestOutput(
+    def _generate_feature_set_digest(feature_set: mlrun.common.schemas.FeatureSet):
+        return mlrun.common.schemas.FeatureSetDigestOutput(
             metadata=feature_set.metadata,
-            spec=schemas.FeatureSetDigestSpec(
+            spec=mlrun.common.schemas.FeatureSetDigestSpec(
                 entities=feature_set.spec.entities,
                 features=feature_set.spec.features,
             ),
@@ -1875,7 +1939,7 @@ class SQLDB(DBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutput:
         # We don't filter by feature-set name here, as the name parameter refers to features
         feature_set_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name=None
@@ -1890,7 +1954,7 @@ class SQLDB(DBInterface):
 
         features_results = []
         for row in query:
-            feature_record = schemas.FeatureRecord.from_orm(row.Feature)
+            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
@@ -1917,14 +1981,14 @@ class SQLDB(DBInterface):
                     )
 
                 features_results.append(
-                    schemas.FeatureListOutput(
+                    mlrun.common.schemas.FeatureListOutput(
                         feature=feature,
                         feature_set_digest=self._generate_feature_set_digest(
                             feature_set
                         ),
                     )
                 )
-        return schemas.FeaturesOutput(features=features_results)
+        return mlrun.common.schemas.FeaturesOutput(features=features_results)
 
     def list_entities(
         self,
@@ -1933,7 +1997,7 @@ class SQLDB(DBInterface):
         name: str = None,
         tag: str = None,
         labels: List[str] = None,
-    ) -> schemas.EntitiesOutput:
+    ) -> mlrun.common.schemas.EntitiesOutput:
         feature_set_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name=None
         )
@@ -1944,7 +2008,7 @@ class SQLDB(DBInterface):
 
         entities_results = []
         for row in query:
-            entity_record = schemas.FeatureRecord.from_orm(row.Entity)
+            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
             entity_name = entity_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
@@ -1971,14 +2035,14 @@ class SQLDB(DBInterface):
                     )
 
                 entities_results.append(
-                    schemas.EntityListOutput(
+                    mlrun.common.schemas.EntityListOutput(
                         entity=entity,
                         feature_set_digest=self._generate_feature_set_digest(
                             feature_set
                         ),
                     )
                 )
-        return schemas.EntitiesOutput(entities=entities_results)
+        return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
     def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):
@@ -2001,11 +2065,12 @@ class SQLDB(DBInterface):
         query,
         cls,
         partition_by: typing.Union[
-            schemas.FeatureStorePartitionByField, schemas.RunPartitionByField
+            mlrun.common.schemas.FeatureStorePartitionByField,
+            mlrun.common.schemas.RunPartitionByField,
         ],
         rows_per_partition: int,
-        partition_sort_by: schemas.SortField,
-        partition_order: schemas.OrderType,
+        partition_sort_by: mlrun.common.schemas.SortField,
+        partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
     ):
 
@@ -2071,11 +2136,11 @@ class SQLDB(DBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
-    ) -> schemas.FeatureSetsOutput:
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+    ) -> mlrun.common.schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
         )
@@ -2098,7 +2163,9 @@ class SQLDB(DBInterface):
 
         if partition_by:
             self._assert_partition_by_parameters(
-                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+                mlrun.common.schemas.FeatureStorePartitionByField,
+                partition_by,
+                partition_sort_by,
             )
             query = self._create_partitioned_query(
                 session,
@@ -2120,7 +2187,7 @@ class SQLDB(DBInterface):
                     tag,
                 )
             )
-        return schemas.FeatureSetsOutput(feature_sets=feature_sets)
+        return mlrun.common.schemas.FeatureSetsOutput(feature_sets=feature_sets)
 
     def list_feature_sets_tags(
         self,
@@ -2251,7 +2318,7 @@ class SQLDB(DBInterface):
         session,
         project,
         name,
-        feature_set: schemas.FeatureSet,
+        feature_set: mlrun.common.schemas.FeatureSet,
         tag=None,
         uid=None,
         versioned=True,
@@ -2350,7 +2417,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project,
-        feature_set: schemas.FeatureSet,
+        feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
@@ -2375,7 +2442,7 @@ class SQLDB(DBInterface):
         feature_set_patch: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> str:
         feature_set_record = self._get_feature_set(session, project, name, tag, uid)
         if not feature_set_record:
@@ -2392,7 +2459,7 @@ class SQLDB(DBInterface):
         versioned = feature_set_record.metadata.uid is not None
 
         # If a bad kind value was passed, it will fail here (return 422 to caller)
-        feature_set = schemas.FeatureSet(**feature_set_struct)
+        feature_set = mlrun.common.schemas.FeatureSet(**feature_set_struct)
         return self.store_feature_set(
             session,
             project,
@@ -2443,7 +2510,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project,
-        feature_vector: schemas.FeatureVector,
+        feature_vector: mlrun.common.schemas.FeatureVector,
         versioned=True,
     ) -> str:
         (
@@ -2494,7 +2561,7 @@ class SQLDB(DBInterface):
 
     def get_feature_vector(
         self, session, project: str, name: str, tag: str = None, uid: str = None
-    ) -> schemas.FeatureVector:
+    ) -> mlrun.common.schemas.FeatureVector:
         feature_vector = self._get_feature_vector(session, project, name, tag, uid)
         if not feature_vector:
             feature_vector_uri = generate_object_uri(project, name, tag)
@@ -2512,11 +2579,11 @@ class SQLDB(DBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
-    ) -> schemas.FeatureVectorsOutput:
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+    ) -> mlrun.common.schemas.FeatureVectorsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureVector, project, tag, name
         )
@@ -2535,7 +2602,9 @@ class SQLDB(DBInterface):
 
         if partition_by:
             self._assert_partition_by_parameters(
-                schemas.FeatureStorePartitionByField, partition_by, partition_sort_by
+                mlrun.common.schemas.FeatureStorePartitionByField,
+                partition_by,
+                partition_sort_by,
             )
             query = self._create_partitioned_query(
                 session,
@@ -2557,7 +2626,9 @@ class SQLDB(DBInterface):
                     tag,
                 )
             )
-        return schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
+        return mlrun.common.schemas.FeatureVectorsOutput(
+            feature_vectors=feature_vectors
+        )
 
     def list_feature_vectors_tags(
         self,
@@ -2578,7 +2649,7 @@ class SQLDB(DBInterface):
         session,
         project,
         name,
-        feature_vector: schemas.FeatureVector,
+        feature_vector: mlrun.common.schemas.FeatureVector,
         tag=None,
         uid=None,
         versioned=True,
@@ -2641,7 +2712,7 @@ class SQLDB(DBInterface):
         feature_vector_update: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> str:
         feature_vector_record = self._get_feature_vector(
             session, project, name, tag, uid
@@ -2659,7 +2730,7 @@ class SQLDB(DBInterface):
 
         versioned = feature_vector_record.metadata.uid is not None
 
-        feature_vector = schemas.FeatureVector(**feature_vector_struct)
+        feature_vector = mlrun.common.schemas.FeatureVector(**feature_vector_struct)
         return self.store_feature_vector(
             session,
             project,
@@ -2709,17 +2780,6 @@ class SQLDB(DBInterface):
     def _query(self, session, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
-
-    def _function_latest_uid(self, session, project, name):
-        # FIXME
-        query = (
-            self._query(session, Function.uid)
-            .filter(Function.project == project, Function.name == name)
-            .order_by(Function.updated.desc())
-        ).limit(1)
-        out = query.one_or_none()
-        if out:
-            return out[0]
 
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
@@ -2829,6 +2889,13 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
+    def _get_db_notifications(
+        self, session, name: str = None, run_id: int = None, project: str = None
+    ):
+        return self._query(
+            session, Notification, name=name, run=run_id, project=project
+        ).all()
+
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
@@ -2904,7 +2971,7 @@ class SQLDB(DBInterface):
         until=None,
         name=None,
         kind=None,
-        category: schemas.ArtifactCategories = None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
         iter=None,
         use_tag_as_uid: bool = None,
     ):
@@ -2955,7 +3022,7 @@ class SQLDB(DBInterface):
             return query.all()
 
     def _filter_artifacts_by_category(
-        self, artifacts, category: schemas.ArtifactCategories
+        self, artifacts, category: mlrun.common.schemas.ArtifactCategories
     ):
         kinds, exclude = category.to_kinds_filter()
         return self._filter_artifacts_by_kinds(artifacts, kinds, exclude)
@@ -3102,8 +3169,8 @@ class SQLDB(DBInterface):
     def _transform_schedule_record_to_scheme(
         self,
         schedule_record: Schedule,
-    ) -> schemas.ScheduleRecord:
-        schedule = schemas.ScheduleRecord.from_orm(schedule_record)
+    ) -> mlrun.common.schemas.ScheduleRecord:
+        schedule = mlrun.common.schemas.ScheduleRecord.from_orm(schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         schedule.next_run_time = self._add_utc_timezone(schedule.next_run_time)
         return schedule
@@ -3123,9 +3190,9 @@ class SQLDB(DBInterface):
     def _transform_feature_set_model_to_schema(
         feature_set_record: FeatureSet,
         tag=None,
-    ) -> schemas.FeatureSet:
+    ) -> mlrun.common.schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
-        feature_set_resp = schemas.FeatureSet(**feature_set_full_dict)
+        feature_set_resp = mlrun.common.schemas.FeatureSet(**feature_set_full_dict)
 
         feature_set_resp.metadata.tag = tag
         return feature_set_resp
@@ -3134,9 +3201,11 @@ class SQLDB(DBInterface):
     def _transform_feature_vector_model_to_schema(
         feature_vector_record: FeatureVector,
         tag=None,
-    ) -> schemas.FeatureVector:
+    ) -> mlrun.common.schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
-        feature_vector_resp = schemas.FeatureVector(**feature_vector_full_dict)
+        feature_vector_resp = mlrun.common.schemas.FeatureVector(
+            **feature_vector_full_dict
+        )
 
         feature_vector_resp.metadata.tag = tag
         feature_vector_resp.metadata.created = feature_vector_record.created
@@ -3144,26 +3213,55 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
-            project = schemas.Project(
-                metadata=schemas.ProjectMetadata(
+            project = mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
                     name=project_record.name,
                     created=project_record.created,
                 ),
-                spec=schemas.ProjectSpec(
+                spec=mlrun.common.schemas.ProjectSpec(
                     description=project_record.description,
                     source=project_record.source,
                 ),
-                status=schemas.ObjectStatus(
+                status=mlrun.common.schemas.ObjectStatus(
                     state=project_record.state,
                 ),
             )
             self.store_project(session, project_record.name, project)
             return project
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.Project(**project_record.full_object)
+
+    def _transform_notification_record_to_spec_and_status(
+        self,
+        notification_record: Notification,
+    ) -> typing.Tuple[dict, dict]:
+        notification_spec = self._transform_notification_record_to_schema(
+            notification_record
+        ).to_dict()
+        notification_status = {
+            "status": notification_spec.pop("status", None),
+            "sent_time": notification_spec.pop("sent_time", None),
+        }
+        return notification_spec, notification_status
+
+    @staticmethod
+    def _transform_notification_record_to_schema(
+        notification_record: Notification,
+    ) -> mlrun.model.Notification:
+        return mlrun.model.Notification(
+            kind=notification_record.kind,
+            name=notification_record.name,
+            message=notification_record.message,
+            severity=notification_record.severity,
+            when=notification_record.when.split(","),
+            condition=notification_record.condition,
+            params=notification_record.params,
+            status=notification_record.status,
+            sent_time=notification_record.sent_time,
+        )
 
     def _move_and_reorder_table_items(
         self, session, moved_object, move_to=None, move_from=None
@@ -3191,11 +3289,9 @@ class SQLDB(DBInterface):
             else:
                 start, end = move_to, move_from - 1
 
-        query = session.query(MarketplaceSource).filter(
-            MarketplaceSource.index >= start
-        )
+        query = session.query(HubSource).filter(HubSource.index >= start)
         if end:
-            query = query.filter(MarketplaceSource.index <= end)
+            query = query.filter(HubSource.index <= end)
 
         for source_record in query:
             source_record.index = source_record.index + modifier
@@ -3210,54 +3306,54 @@ class SQLDB(DBInterface):
         session.commit()
 
     @staticmethod
-    def _transform_marketplace_source_record_to_schema(
-        marketplace_source_record: MarketplaceSource,
-    ) -> schemas.IndexedMarketplaceSource:
-        source_full_dict = marketplace_source_record.full_object
-        marketplace_source = schemas.MarketplaceSource(**source_full_dict)
-        return schemas.IndexedMarketplaceSource(
-            index=marketplace_source_record.index, source=marketplace_source
+    def _transform_hub_source_record_to_schema(
+        hub_source_record: HubSource,
+    ) -> mlrun.common.schemas.IndexedHubSource:
+        source_full_dict = hub_source_record.full_object
+        hub_source = mlrun.common.schemas.HubSource(**source_full_dict)
+        return mlrun.common.schemas.IndexedHubSource(
+            index=hub_source_record.index, source=hub_source
         )
 
     @staticmethod
-    def _transform_marketplace_source_schema_to_record(
-        marketplace_source_schema: schemas.IndexedMarketplaceSource,
-        current_object: MarketplaceSource = None,
+    def _transform_hub_source_schema_to_record(
+        hub_source_schema: mlrun.common.schemas.IndexedHubSource,
+        current_object: HubSource = None,
     ):
         now = datetime.now(timezone.utc)
         if current_object:
-            if current_object.name != marketplace_source_schema.source.metadata.name:
+            if current_object.name != hub_source_schema.source.metadata.name:
                 raise mlrun.errors.MLRunInternalServerError(
                     "Attempt to update object while replacing its name"
                 )
             created_timestamp = current_object.created
         else:
-            created_timestamp = marketplace_source_schema.source.metadata.created or now
-        updated_timestamp = marketplace_source_schema.source.metadata.updated or now
+            created_timestamp = hub_source_schema.source.metadata.created or now
+        updated_timestamp = hub_source_schema.source.metadata.updated or now
 
-        marketplace_source_record = MarketplaceSource(
+        hub_source_record = HubSource(
             id=current_object.id if current_object else None,
-            name=marketplace_source_schema.source.metadata.name,
-            index=marketplace_source_schema.index,
+            name=hub_source_schema.source.metadata.name,
+            index=hub_source_schema.index,
             created=created_timestamp,
             updated=updated_timestamp,
         )
-        full_object = marketplace_source_schema.source.dict()
+        full_object = hub_source_schema.source.dict()
         full_object["metadata"]["created"] = str(created_timestamp)
         full_object["metadata"]["updated"] = str(updated_timestamp)
-        # Make sure we don't keep any credentials in the DB. These are handled in the marketplace crud object.
+        # Make sure we don't keep any credentials in the DB. These are handled in the hub crud object.
         full_object["spec"].pop("credentials", None)
 
-        marketplace_source_record.full_object = full_object
-        return marketplace_source_record
+        hub_source_record.full_object = full_object
+        return hub_source_record
 
     @staticmethod
-    def _validate_and_adjust_marketplace_order(session, order):
-        max_order = session.query(func.max(MarketplaceSource.index)).scalar()
+    def _validate_and_adjust_hub_order(session, order):
+        max_order = session.query(func.max(HubSource.index)).scalar()
         if not max_order or max_order < 0:
             max_order = 0
 
-        if order == schemas.marketplace.last_source_index:
+        if order == mlrun.common.schemas.hub.last_source_index:
             order = max_order + 1
 
         if order > max_order + 1:
@@ -3267,62 +3363,54 @@ class SQLDB(DBInterface):
         if order < 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Order of inserted source must be greater than 0 or "
-                + f"{schemas.marketplace.last_source_index} (for last). order = {order}"
+                + f"{mlrun.common.schemas.hub.last_source_index} (for last). order = {order}"
             )
         return order
 
-    def create_marketplace_source(
-        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    def create_hub_source(
+        self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
     ):
         logger.debug(
-            "Creating marketplace source in DB",
+            "Creating hub source in DB",
             index=ordered_source.index,
             name=ordered_source.source.metadata.name,
         )
 
-        order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
         name = ordered_source.source.metadata.name
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if source_record:
             raise mlrun.errors.MLRunConflictError(
-                f"Marketplace source name already exists. name = {name}"
+                f"Hub source name already exists. name = {name}"
             )
-        source_record = self._transform_marketplace_source_schema_to_record(
-            ordered_source
-        )
+        source_record = self._transform_hub_source_schema_to_record(ordered_source)
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=order, move_from=None
         )
 
     @retry_on_conflict
-    def store_marketplace_source(
+    def store_hub_source(
         self,
         session,
         name,
-        ordered_source: schemas.IndexedMarketplaceSource,
+        ordered_source: mlrun.common.schemas.IndexedHubSource,
     ):
-        logger.debug(
-            "Storing marketplace source in DB", index=ordered_source.index, name=name
-        )
+        logger.debug("Storing hub source in DB", index=ordered_source.index, name=name)
 
         if name != ordered_source.source.metadata.name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Conflict between resource name and metadata.name in the stored object"
             )
-        order = self._validate_and_adjust_marketplace_order(
-            session, ordered_source.index
-        )
+        order = self._validate_and_adjust_hub_order(session, ordered_source.index)
 
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         current_order = source_record.index if source_record else None
-        if current_order == schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.hub.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attempting to modify the global marketplace source."
+                "Attempting to modify the global hub source."
             )
-        source_record = self._transform_marketplace_source_schema_to_record(
+        source_record = self._transform_hub_source_schema_to_record(
             ordered_source, source_record
         )
 
@@ -3330,47 +3418,46 @@ class SQLDB(DBInterface):
             session, source_record, move_to=order, move_from=current_order
         )
 
-    def list_marketplace_sources(
-        self, session
-    ) -> List[schemas.IndexedMarketplaceSource]:
+    def list_hub_sources(self, session) -> List[mlrun.common.schemas.IndexedHubSource]:
         results = []
-        query = self._query(session, MarketplaceSource).order_by(
-            MarketplaceSource.index.desc()
-        )
+        query = self._query(session, HubSource).order_by(HubSource.index.desc())
         for record in query:
-            ordered_source = self._transform_marketplace_source_record_to_schema(record)
+            ordered_source = self._transform_hub_source_record_to_schema(record)
             # Need this to make the list return such that the default source is last in the response.
-            if ordered_source.index != schemas.last_source_index:
+            if ordered_source.index != mlrun.common.schemas.last_source_index:
                 results.insert(0, ordered_source)
             else:
                 results.append(ordered_source)
         return results
 
-    def delete_marketplace_source(self, session, name):
-        logger.debug("Deleting marketplace source from DB", name=name)
+    def _list_hub_sources_without_transform(self, session) -> List[HubSource]:
+        return self._query(session, HubSource).all()
 
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+    def delete_hub_source(self, session, name):
+        logger.debug("Deleting hub source from DB", name=name)
+
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if not source_record:
             return
 
         current_order = source_record.index
-        if current_order == schemas.marketplace.last_source_index:
+        if current_order == mlrun.common.schemas.hub.last_source_index:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attempting to delete the global marketplace source."
+                "Attempting to delete the global hub source."
             )
 
         self._move_and_reorder_table_items(
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
-        source_record = self._query(session, MarketplaceSource, name=name).one_or_none()
+    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
+        source_record = self._query(session, HubSource, name=name).one_or_none()
         if not source_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Marketplace source not found. name = {name}"
+                f"Hub source not found. name = {name}"
             )
 
-        return self._transform_marketplace_source_record_to_schema(source_record)
+        return self._transform_hub_source_record_to_schema(source_record)
 
     def get_current_data_version(
         self, session, raise_on_not_found=True
@@ -3408,7 +3495,7 @@ class SQLDB(DBInterface):
         session,
         name: str,
         project: str,
-        state: str = mlrun.api.schemas.BackgroundTaskState.running,
+        state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
     ):
         background_task_record = self._query(
@@ -3422,7 +3509,7 @@ class SQLDB(DBInterface):
             # we don't want to be able to change state after it reached terminal state
             if (
                 background_task_record.state
-                in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+                in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 and state != background_task_record.state
             ):
                 raise mlrun.errors.MLRunRuntimeError(
@@ -3449,7 +3536,7 @@ class SQLDB(DBInterface):
 
     def get_background_task(
         self, session, name: str, project: str
-    ) -> schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         background_task_record = self._get_background_task_record(
             session, name, project
         )
@@ -3460,7 +3547,7 @@ class SQLDB(DBInterface):
                 session,
                 name,
                 project,
-                mlrun.api.schemas.background_task.BackgroundTaskState.failed,
+                mlrun.common.schemas.background_task.BackgroundTaskState.failed,
             )
             background_task_record = self._get_background_task_record(
                 session, name, project
@@ -3471,17 +3558,17 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_background_task_record_to_schema(
         background_task_record: BackgroundTask,
-    ) -> schemas.BackgroundTask:
-        return schemas.BackgroundTask(
-            metadata=schemas.BackgroundTaskMetadata(
+    ) -> mlrun.common.schemas.BackgroundTask:
+        return mlrun.common.schemas.BackgroundTask(
+            metadata=mlrun.common.schemas.BackgroundTaskMetadata(
                 name=background_task_record.name,
                 project=background_task_record.project,
                 created=background_task_record.created,
                 updated=background_task_record.updated,
                 timeout=background_task_record.timeout,
             ),
-            spec=schemas.BackgroundTaskSpec(),
-            status=schemas.BackgroundTaskStatus(
+            spec=mlrun.common.schemas.BackgroundTaskSpec(),
+            status=mlrun.common.schemas.BackgroundTaskStatus(
                 state=background_task_record.state,
             ),
         )
@@ -3534,9 +3621,106 @@ class SQLDB(DBInterface):
         if (
             timeout
             and background_task_record.state
-            not in mlrun.api.schemas.BackgroundTaskState.terminal_states()
+            not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
             and datetime.utcnow()
             > timedelta(seconds=int(timeout)) + background_task_record.updated
         ):
             return True
         return False
+
+    def store_run_notifications(
+        self,
+        session,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str,
+    ):
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+        run = self._get_run(session, run_uid, project, 0)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: uid={run_uid}, project={project}"
+            )
+
+        run_notifications = {
+            notification.name: notification
+            for notification in self._get_db_notifications(session, run_id=run.id)
+        }
+        notifications = []
+        for notification_model in notification_objects:
+            new_notification = False
+            notification = run_notifications.get(notification_model.name, None)
+            if not notification:
+                new_notification = True
+                notification = Notification(
+                    name=notification_model.name, run=run.id, project=project
+                )
+
+            notification.kind = notification_model.kind
+            notification.message = notification_model.message
+            notification.severity = notification_model.severity
+            notification.when = ",".join(notification_model.when)
+            notification.condition = notification_model.condition
+            notification.params = notification_model.params
+            notification.status = (
+                notification_model.status
+                or mlrun.common.schemas.NotificationStatus.PENDING
+            )
+            notification.sent_time = notification_model.sent_time
+
+            logger.debug(
+                f"Storing {'new' if new_notification else 'existing'} notification",
+                notification_name=notification.name,
+                run_uid=run_uid,
+                project=project,
+            )
+            notifications.append(notification)
+
+        self._upsert(session, notifications)
+
+    def list_run_notifications(
+        self,
+        session,
+        run_uid: str,
+        project: str = "",
+    ) -> typing.List[mlrun.model.Notification]:
+
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+        run = self._get_run(session, run_uid, project, 0)
+        if not run:
+            return []
+
+        return [
+            self._transform_notification_record_to_schema(notification)
+            for notification in self._query(session, Notification, run=run.id).all()
+        ]
+
+    def delete_run_notifications(
+        self,
+        session,
+        name: str = None,
+        run_uid: str = None,
+        project: str = None,
+        commit: bool = True,
+    ):
+        run_id = None
+        if run_uid:
+
+            # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
+            run = self._get_run(session, run_uid, project, 0)
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Run not found: uid={run_uid}, project={project}"
+                )
+            run_id = run.id
+
+        project = project or config.default_project
+        if project == "*":
+            project = None
+
+        query = self._get_db_notifications(session, name, run_id, project)
+        for notification in query:
+            session.delete(notification)
+
+        if commit:
+            session.commit()

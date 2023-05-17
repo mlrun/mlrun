@@ -34,11 +34,9 @@ from tabulate import tabulate
 
 import mlrun
 
-from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
-from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
@@ -545,7 +543,7 @@ def build(
         logger.info(f"uploading data from {src} to {archive}")
         target = archive if archive.endswith("/") else archive + "/"
         target += f"src-{meta.project}-{meta.name}-{meta.tag or 'latest'}.tar.gz"
-        upload_tarball(src, target)
+        mlrun.datastore.utils.upload_tarball(src, target)
         # todo: replace function.yaml inside the tar
         b.source = target
 
@@ -698,20 +696,6 @@ def deploy(
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
         fp.write(function.status.nuclio_name)
-
-
-@main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("pod", type=str, callback=validate_base_argument)
-@click.option("--namespace", "-n", help="kubernetes namespace")
-@click.option(
-    "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
-)
-def watch(pod, namespace, timeout):
-    """Read current or previous task (pod) logs."""
-    print("This command will be deprecated in future version !!!\n")
-    k8s = K8sHelper(namespace)
-    status = k8s.watch(pod, namespace, timeout)
-    print(f"Pod {pod} last status is: {status}")
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
@@ -1020,10 +1004,16 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
+# TODO: Remove --ensure-project in 1.5.0
 @click.option(
     "--ensure-project",
     is_flag=True,
     help="ensure the project exists, if not, create project",
+)
+@click.option(
+    "--save/--no-save",
+    default=True,
+    help="create and save the project if not exist",
 )
 @click.option(
     "--schedule",
@@ -1034,20 +1024,26 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
-# TODO: Remove in 1.6.0 --overwrite-schedule and -os, keep --override-workflow and -ow
+# TODO: Remove in 1.5.0
 @click.option(
-    "--override-workflow",
     "--overwrite-schedule",
-    "-ow",
     "-os",
-    "override_workflow",
     is_flag=True,
-    help="Override a schedule when submitting a new one with the same name.",
+    help="Overwrite a schedule when submitting a new one with the same name.",
 )
 @click.option(
     "--save-secrets",
     is_flag=True,
     help="Store the project secrets as k8s secrets",
+)
+@click.option(
+    "--notifications",
+    "--notification",
+    "-nt",
+    multiple=True,
+    help="To have a notification for the run set notification file "
+    "destination define: file=notification.json or a "
+    'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\'',
 )
 def project(
     context,
@@ -1074,19 +1070,26 @@ def project(
     timeout,
     ensure_project,
     schedule,
-    override_workflow,
+    notifications,
+    overwrite_schedule,
     save_secrets,
+    save,
 ):
     """load and/or run a project"""
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if ensure_project:
+        warnings.warn(
+            "'ensure_project' is deprecated and will be removed in 1.5.0, use 'save' (True by default) instead. ",
+            # TODO: Remove this in 1.5.0
+            FutureWarning,
+        )
+
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
-    )
+    proj = load_project(context, url, name, init_git=init_git, clone=clone, save=save)
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
@@ -1143,6 +1146,8 @@ def project(
                     "token": proj.get_param("GIT_TOKEN"),
                 },
             )
+        if notifications:
+            load_notification(notifications, proj)
         try:
             proj.run(
                 name=run,
@@ -1158,13 +1163,11 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
-                override=override_workflow,
+                overwrite=overwrite_schedule,
             )
-
-        except Exception as exc:
+        except Exception as err:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {err_to_str(exc)}"
-            proj.notifiers.push(message, "error")
+            send_workflow_error_notification(run, proj, err)
             exit(1)
 
     elif sync:
@@ -1439,6 +1442,49 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
         return None
 
     return runtime
+
+
+def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
+    """
+    A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
+    Each notification is stored in a tuple called notifications.
+    The code then goes through each value in the notifications tuple and check
+    if the notification starts with "file=", such as "file=notification.json," in those cases it loads the
+    notification.json file and uses add_notification_to_project to add the notifications from the file to
+    the project. If not, it adds the notification dictionary to the project.
+    :param notifications:  Notifications file or a dictionary to be added to the project
+    :param project: The object to which the notifications will be added
+    :return:
+    """
+    for notification in notifications:
+        if notification.startswith("file="):
+            file_path = notification.split("=")[-1]
+            notification = open(file_path, "r")
+            notification = json.load(notification)
+        else:
+            notification = json.loads(notification)
+        add_notification_to_project(notification, project)
+
+
+def add_notification_to_project(
+    notification: str, project: mlrun.projects.MlrunProject
+):
+    for notification_type, notification_params in notification.items():
+        project.notifiers.add_notification(
+            notification_type=notification_type, params=notification_params
+        )
+
+
+def send_workflow_error_notification(
+    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+):
+    message = (
+        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
+        f"error: ```{err_to_str(error)}```"
+    )
+    project.notifiers.push(
+        message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
+    )
 
 
 if __name__ == "__main__":

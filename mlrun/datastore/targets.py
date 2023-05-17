@@ -15,6 +15,7 @@ import ast
 import datetime
 import os
 import random
+import sys
 import time
 from collections import Counter
 from copy import copy
@@ -525,8 +526,8 @@ class BaseStoreTarget(DataTargetBase):
                     ("minute", "%M"),
                 ]:
                     partition_cols.append(unit)
-                    target_df[unit] = getattr(
-                        pd.DatetimeIndex(target_df[timestamp_key]), unit
+                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
+                        date_format=fmt
                     )
                     if unit == time_partitioning_granularity:
                         break
@@ -1050,39 +1051,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
             **self.attributes,
         )
 
+    def prepare_spark_df(self, df, key_columns):
+        raise NotImplementedError()
+
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        spark_options = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "io.iguaz.v3io.spark.sql.kv",
-        }
-        if isinstance(key_column, list) and len(key_column) >= 1:
-            if len(key_column) > 2:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Spark supports maximun of 2 keys and {key_column} are provided"
-                )
-            spark_options["key"] = key_column[0]
-            if len(key_column) > 1:
-                spark_options["sorting-key"] = key_column[1]
-        else:
-            spark_options["key"] = key_column
-        if not overwrite:
-            spark_options["columnUpdate"] = True
-        return spark_options
+        raise NotImplementedError()
 
     def get_dask_options(self):
         return {"format": "csv"}
 
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
-
-    def prepare_spark_df(self, df, key_columns):
-        import pyspark.sql.functions as funcs
-
-        for col_name, col_type in df.dtypes:
-            if col_type.startswith("decimal("):
-                # V3IO does not support this level of precision
-                df = df.withColumn(col_name, funcs.col(col_name).cast("double"))
-        return df
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1123,9 +1102,51 @@ class NoSqlTarget(NoSqlBaseTarget):
         endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        spark_options = {
+            "path": store_path_to_spark(self.get_target_path()),
+            "format": "io.iguaz.v3io.spark.sql.kv",
+        }
+        if isinstance(key_column, list) and len(key_column) >= 1:
+            spark_options["key"] = key_column[0]
+            if len(key_column) > 2:
+                spark_options["sorting-key"] = "_spark_object_name"
+            if len(key_column) == 2:
+                spark_options["sorting-key"] = key_column[1]
+        else:
+            spark_options["key"] = key_column
+        if not overwrite:
+            spark_options["columnUpdate"] = True
+        return spark_options
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import col
+
+        spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
+        sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
+
+            df.rdd.context.addFile(spark_udf.__file__)
+
+            for col_name, col_type in df.dtypes:
+                if col_type.startswith("decimal("):
+                    # V3IO does not support this level of precision
+                    df = df.withColumn(col_name, col(col_name).cast("double"))
+            if len(key_columns) > 2:
+                return df.withColumn(
+                    "_spark_object_name",
+                    spark_udf.hash_and_concat_v3io_udf(
+                        *[col(c) for c in key_columns[1:]]
+                    ),
+                )
+        finally:
+            sys.path.remove(spark_udf_directory)
+        return df
 
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
@@ -1186,11 +1207,23 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return endpoint
 
     def prepare_spark_df(self, df, key_columns):
-        from pyspark.sql.functions import udf
-        from pyspark.sql.types import StringType
+        from pyspark.sql.functions import col
 
-        udf1 = udf(lambda x: x + "}:static", StringType())
-        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
+        spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
+        sys.path.append(spark_udf_directory)
+        try:
+            import spark_udf
+
+            df.rdd.context.addFile(spark_udf.__file__)
+
+            df = df.withColumn(
+                "_spark_object_name",
+                spark_udf.hash_and_concat_redis_udf(*[col(c) for c in key_columns]),
+            )
+        finally:
+            sys.path.remove(spark_udf_directory)
+
+        return df
 
 
 class StreamTarget(BaseStoreTarget):
@@ -1224,7 +1257,7 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint),
+            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             stream_path=uri,
             **self.attributes,
         )
@@ -1581,6 +1614,11 @@ class SQLTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         self._create_sql_table()
+        for step in graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,
@@ -1725,12 +1763,12 @@ def _get_target_path(driver, resource, run_id_mode=False):
     if not suffix:
         if (
             kind == ParquetTarget.kind
-            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+            and resource.kind == mlrun.common.schemas.ObjectKind.feature_vector
         ):
             suffix = ".parquet"
     kind_prefix = (
         "sets"
-        if resource.kind == mlrun.api.schemas.ObjectKind.feature_set
+        if resource.kind == mlrun.common.schemas.ObjectKind.feature_set
         else "vectors"
     )
     name = resource.metadata.name

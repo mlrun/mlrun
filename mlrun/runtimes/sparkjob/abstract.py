@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -31,7 +31,6 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ...execution import MLClientCtx
-from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
 from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
@@ -45,7 +44,7 @@ from ...utils import (
 from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import get_item_name
+from ..utils import get_item_name, get_k8s
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -143,6 +142,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -172,6 +172,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -279,15 +280,14 @@ class AbstractSparkRuntime(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deployment to complete (and print build logs)
-        :param with_mlrun: add the current mlrun package to the container build
-        :param skip_deployed: skip the build if we already have an image for the function
-        :param is_kfp:  whether running inside KFP step (no need to use,
-                        being enriched automatically if running inside one)
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
-                              e.g. builder_env={"GIT_TOKEN": token}
-        :param show_on_failure:  show logs only in case of build failure
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
 
         :return True if the function is ready (deployed)
         """
@@ -363,6 +363,15 @@ class AbstractSparkRuntime(KubejobRuntime):
 
     def _get_igz_deps(self):
         raise NotImplementedError()
+
+    def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Sparkjob does not support loading source code on run, "
+                "use func.with_source_archive(pull_at_runtime=False)"
+            )
+
+        super()._pre_run(runobj, execution)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
@@ -560,7 +569,11 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
-                self.spec.command = "local://" + self.spec.command
+                workdir = self._resolve_workdir()
+                self.spec.command = "local://" + os.path.join(
+                    workdir or "",
+                    self.spec.command,
+                )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
@@ -578,7 +591,7 @@ with ctx:
         code=None,
     ):
         namespace = meta.namespace
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = client.V1ConfigMap()
@@ -622,7 +635,7 @@ with ctx:
             raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
@@ -790,25 +803,27 @@ with ctx:
             submission_retry_interval,
         )
 
-    def get_pods(self, name=None, namespace=None, driver=False):
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        selector = "mlrun/class=spark"
-        if name:
-            selector += f",sparkoperator.k8s.io/app-name={name}"
-        if driver:
-            selector += ",spark-role=driver"
-        pods = k8s.list_pods(selector=selector, namespace=namespace)
-        if pods:
-            return {p.metadata.name: p.status.phase for p in pods}
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
+        """load the code from git/tar/zip archive at runtime or build
 
-    def _get_driver(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, driver=True)
-        if not pods:
-            logger.error("no pod matches that job name")
-            return
-        _ = self._get_k8s()
-        return list(pods.items())[0]
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: not supported for spark runtime, must be False
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
+        """
+        if pull_at_runtime:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
+            )
+
+        super().with_source_archive(
+            source, workdir, handler, pull_at_runtime, target_dir
+        )
 
     def is_deployed(self):
         if (
@@ -927,22 +942,19 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         """
         Handling config maps deletion
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         uids = []
         for crd_dict in deleted_resources:
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        k8s_helper = get_k8s_helper()
-        config_maps = k8s_helper.v1api.list_namespaced_config_map(
+        config_maps = get_k8s().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    k8s_helper.v1api.delete_namespaced_config_map(
+                    get_k8s().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

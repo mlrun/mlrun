@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import base64
+import copy
 import json
 import os
 import unittest.mock
@@ -22,10 +23,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.api.api.endpoints.functions
+import mlrun.api.utils.builder
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -412,35 +415,36 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    def test_run_with_vault_secrets(self, db: Session, client: TestClient):
-        self._mock_vault_functionality()
-        runtime = self._generate_runtime()
-
-        task = self._generate_task()
-
-        task.metadata.project = self.project
-        secret_source = {
-            "kind": "vault",
-            "source": {"project": self.project, "secrets": self.vault_secrets},
-        }
-        task.with_secrets(secret_source["kind"], self.vault_secrets)
-        vault_url = "/url/for/vault"
-        mlconf.secret_stores.vault.remote_url = vault_url
-        mlconf.secret_stores.vault.token_path = vault_url
-
-        self.execute_function(runtime, runspec=task)
-
-        self._assert_pod_creation_config(
-            expected_secrets=secret_source,
-            expected_env={
-                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-                "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
-            },
-        )
-
-        self._assert_secret_mount(
-            "vault-secret", self.vault_secret_name, 420, vault_url
-        )
+    # TODO: Vault: uncomment when vault returns to be relevant
+    # def test_run_with_vault_secrets(self, db: Session, client: TestClient):
+    #     self._mock_vault_functionality()
+    #     runtime = self._generate_runtime()
+    #
+    #     task = self._generate_task()
+    #
+    #     task.metadata.project = self.project
+    #     secret_source = {
+    #         "kind": "vault",
+    #         "source": {"project": self.project, "secrets": self.vault_secrets},
+    #     }
+    #     task.with_secrets(secret_source["kind"], self.vault_secrets)
+    #     vault_url = "/url/for/vault"
+    #     mlconf.secret_stores.vault.remote_url = vault_url
+    #     mlconf.secret_stores.vault.token_path = vault_url
+    #
+    #     self.execute_function(runtime, runspec=task)
+    #
+    #     self._assert_pod_creation_config(
+    #         expected_secrets=secret_source,
+    #         expected_env={
+    #             "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+    #             "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
+    #         },
+    #     )
+    #
+    #     self._assert_secret_mount(
+    #         "vault-secret", self.vault_secret_name, 420, vault_url
+    #     )
 
     def test_run_with_code(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -552,11 +556,11 @@ def my_func(context):
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
-        expected_commands = ["python -m pip install faker python-dotenv"]
+        expected_requirements = ["faker", "python-dotenv", "chardet>=3.0.2, <4.0"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
+                expected_requirements,
+                runtime.spec.build.requirements,
                 ignore_order=True,
             )
             == {}
@@ -661,11 +665,46 @@ def my_func(context):
         )
 
         runtime.build_config(requirements=["pandas", "numpy"])
-        expected_commands = [
-            "python -m pip install scikit-learn",
-            "python -m pip install pandas numpy",
+        expected_requirements = [
+            "pandas",
+            "numpy",
         ]
-        print(runtime.spec.build.commands)
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=False,
+            )
+            == {}
+        )
+        expected_commands = ["python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        expected_requirements = ["scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+    def test_build_config_commands_and_requirements_order(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+        runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
+        expected_commands = ["apt-get update"]
+        expected_requirements = ["scikit-learn"]
         assert (
             deepdiff.DeepDiff(
                 expected_commands,
@@ -674,14 +713,11 @@ def my_func(context):
             )
             == {}
         )
-
-        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
-        expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
-                expected_commands,
-                runtime.spec.build.commands,
-                ignore_order=True,
+                expected_requirements,
+                runtime.spec.build.requirements,
+                ignore_order=False,
             )
             == {}
         )
@@ -695,6 +731,77 @@ def my_func(context):
         runtime = self._generate_runtime()
         runtime.build_config(image="target/mlrun")
         assert runtime.spec.build.image == "target/mlrun"
+
+    @pytest.mark.parametrize(
+        "with_mlrun, commands, expected_to_upgrade",
+        [
+            (True, [], True),
+            (False, ["some command"], False),
+            (False, ["python -m pip install pip"], False),
+            (True, ["python -m pip install --upgrade pip~=22.0"], False),
+            (True, ["python -m pip install --upgrade pandas"], True),
+        ],
+    )
+    def test_deploy_upgrade_pip(
+        self,
+        db: Session,
+        client: TestClient,
+        with_mlrun,
+        commands,
+        expected_to_upgrade,
+    ):
+        mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
+        with unittest.mock.patch(
+            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
+            runtime = self._generate_runtime()
+            runtime.spec.build.base_image = "some/image"
+            runtime.spec.build.commands = copy.deepcopy(commands)
+            self.deploy(db, runtime, with_mlrun=with_mlrun)
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            if expected_to_upgrade:
+                expected_str = ""
+                if commands:
+                    expected_str += "\nRUN "
+                    expected_str += "\nRUN ".join(commands)
+                expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                if with_mlrun:
+                    expected_str += '\nRUN python -m pip install "mlrun[complete]'
+                assert expected_str in dockerfile
+            else:
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
+
+    @pytest.mark.parametrize(
+        "workdir, source, pull_at_runtime, target_dir, expected_workdir",
+        [
+            ("", "git://bla", True, None, None),
+            ("", "git://bla", False, None, None),
+            ("", "git://bla", False, "/a/b/c", "/a/b/c/"),
+            ("subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", False, "/a/b/c", "/a/b/c/subdir"),
+            ("./subdir", "git://bla", True, "/a/b/c", None),
+            ("/abs/subdir", "git://bla", False, "/a/b/c", "/abs/subdir"),
+            ("/abs/subdir", "git://bla", False, None, "/abs/subdir"),
+        ],
+    )
+    def test_resolve_workdir(
+        self, workdir, source, pull_at_runtime, target_dir, expected_workdir
+    ):
+        runtime = self._generate_runtime()
+        runtime.with_source_archive(
+            source, workdir, pull_at_runtime=pull_at_runtime, target_dir=target_dir
+        )
+
+        # mock the build
+        runtime.spec.image = "some/image"
+        self.execute_function(runtime)
+        pod = self._get_pod_creation_args()
+        assert pod.spec.containers[0].working_dir == expected_workdir
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

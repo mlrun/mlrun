@@ -24,7 +24,7 @@ Applications:
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
-<br>This installs MLRun locally with the requirements in the [requirements.txt].(https://github.com/mlrun/mlrun/blob/development/requirements.txt)
+<br>This installs MLRun locally with the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt).
 
 ```{admonition} Note
 To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
@@ -57,7 +57,7 @@ You have a few options to configure your remote environment:
 
 ### Using `mlrun config set` command in MLRun CLI
 
-**Example1**<br>
+**Example 1**<br>
 Run this command in MLRun CLI:
  ```
  mlrun config set -a http://localhost:8080
@@ -71,7 +71,7 @@ MLRUN_DBPATH=http://localhost:8080
 
 MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
 
-**Example2**<br>
+**Example 2**<br>
 **Note:** Only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```

@@ -3,6 +3,20 @@
 
 For AWS users, the easiest way to install MLRun is to use a native AWS deployment. This option deploys MLRun on an AWS EKS service using a CloudFormation stack.
 
+```{admonition} Note
+These instructions install the community edition, which currently includes MLRun {{ ceversion }}. See the {{ '[release documentation](https://{})'.format(releasedocumentation) }}.
+```
+
+**In this section**
+- [Prerequisites](#prerequisites)
+- [Post deployment expectations](#post-deployment-expectations)
+- [Configuration settings](#configuration-settings)
+- [Getting started](#getting-started)
+- [Storage resources](#storage-resources)
+- [Configuring the online features store](#configuring-the-online-feature-store)
+- [Streaming support](#streaming-support)
+- [Cleanup](#cleanup)
+
 ## Prerequisites
 
 1. An AWS account with permissions that include the ability to: 
@@ -24,10 +38,10 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
      For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) and [policies and permissions in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html).
 
 
-2. You need to have a Route53 domain configured in the same AWS account and specify the full domain name in **Route 53 hosted DNS domain** configuration (See [Step 11](#route53_config) below). External domain registration is currently not supported. For more information see [What is Amazon Route 53?](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
+2. A Route53 domain configured in the same AWS account, and with the full domain name specified in **Route 53 hosted DNS domain** configuration (See [Step 11](#route53_config) below). External domain registration is currently not supported. For more information see [What is Amazon Route 53?](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
 
 ```{admonition} Notes
-The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
+The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor, and set-up alerts.
 ```
 
 ## Post deployment expectations
@@ -65,9 +79,9 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 **VPC network Configuration**
 
-3. **Number of Availability Zones** (m) &mdash; number of availability zones. The default is set to 3. Choose from the dropdown to change the number. The minimum is 2.
+3. **Number of Availability Zones** (m) &mdash; The default is set to 3. Choose from the dropdown to change the number. The minimum is 2.
 4. **Availability zones** (m) &mdash; select a zone from the dropdown. The list is based on the region of the instance. The number of zones must match the number of zones Number of Availability Zones.
-5. **Allowed external access CIDR** (m) &mdash; range of IP address allowed to access the cluster. Addresses that are not in this range are not able to access the cluster. Contact your IT manager/network administrator if you are not sure what to fill here.
+5. **Allowed external access CIDR** (m) &mdash; range of IP addresses allowed to access the cluster. Addresses that are not in this range are not able to access the cluster. Contact your IT manager/network administrator if you are not sure what to fill in here.
 
 **Amazon EKS configuration**
 
@@ -77,9 +91,9 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 **Amazon EC2 configuration**
 
-9. **SSH key name** (o) &mdash; Users who wish to access the EC2 instance via SSH can enter an existing key. If left empty, it is possible to access the EC2 instance using the AWS Systems Manager Session Manager. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
+9. **SSH key name** (o) &mdash; To access the EC2 instance via SSH, enter an existing key. If left empty, it is possible to access the EC2 instance using the AWS Systems Manager Session Manager. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
 
-10. **Provision bastion host** (m) &mdash; create a bastion host for SSH access to the Kubernetes nodes. The default is enabled. This allows ssh access to your EKS EC2 instances through a public IP.
+10. **Provision bastion host** (m) &mdash; create a bastion host for SSH access to the Kubernetes nodes. The default is enabled. This allows SSH access to your EKS EC2 instances through a public IP.
 
 **Iguazio MLRun configuration**
 
@@ -119,7 +133,7 @@ When installing the MLRun Community Edition via Cloud Formation, several storage
 
 <a id="configure-online-feature-store"/>
 
-## How to configure the online feature store
+## Configuring the online feature store
 
 The feature store can store data on a fast key-value database table for quick serving. This online feature store capability requires an external key-value database.
 
@@ -127,13 +141,13 @@ Currently the MLRun feature store supports the following options:
 - Redis 
 - Iguazio key-value database
 
-To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/). for information about Redis installation.
+To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/) for information about Redis installation.
 
 ## Streaming support
 
 For online serving, it is often convenient to use MLRun graph with a streaming engine. This allows managing queues between steps and functions.
 MLRun supports Kafka streams as well as Iguazio V3IO streams.
-See the examples on how to configure the MLRun serving graph with {ref}`kafka<serving-kafka-stream-example>` and {ref}`V3IO<serving-v3io-stream-example>`.
+See the examples on how to configure the MLRun serving graph with {ref}`Kafka<serving-kafka-stream-example>` and {ref}`V3IO<serving-v3io-stream-example>`.
 
 ## Cleanup
 

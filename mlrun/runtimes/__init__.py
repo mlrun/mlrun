@@ -47,7 +47,7 @@ from .mpijob import (  # noqa
 from .nuclio import nuclio_init_hook
 from .remotesparkjob import RemoteSparkRuntime, RemoteSparkRuntimeHandler
 from .serving import ServingRuntime, new_v2_model_server
-from .sparkjob import Spark2Runtime, Spark3Runtime, SparkRuntimeHandler
+from .sparkjob import Spark3Runtime, SparkRuntimeHandler
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
@@ -198,6 +198,23 @@ class RuntimeKinds(object):
             RuntimeKinds.dask,
         ]
 
+    @staticmethod
+    def requires_absolute_artifacts_path(kind):
+        """
+        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        """
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        if kind not in [
+            # logging artifacts is done externally to the dask cluster by a client that can either run locally (in which
+            # case the path can be relative) or remotely (in which case the path must be absolute and will be passed
+            # to another run)
+            RuntimeKinds.dask
+        ]:
+            return True
+        return False
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 
@@ -243,11 +260,7 @@ def get_runtime_class(kind: str):
         return crd_version_to_runtime[mpijob_crd_version]
 
     if kind == RuntimeKinds.spark:
-        spark_operator_version = resolve_spark_operator_version()
-        if spark_operator_version == 2:
-            return Spark2Runtime
-        elif spark_operator_version == 3:
-            return Spark3Runtime
+        return Spark3Runtime
 
     kind_runtime_map = {
         RuntimeKinds.remote: RemoteRuntime,

@@ -59,30 +59,36 @@ class Logger(object):
         self._logger.propagate = propagate
         self._logger.setLevel(level)
         self._bound_variables = {}
-        self._handlers = {}
+
+        for log_level_func in [
+            self.exception,
+            self.error,
+            self.warn,
+            self.warning,
+            self.info,
+            self.debug,
+        ]:
+            setattr(self, f"{log_level_func.__name__}_with", log_level_func)
 
     def set_handler(
         self, handler_name: str, file: IO[str], formatter: logging.Formatter
     ):
 
         # check if there's a handler by this name
-        if handler_name in self._handlers:
-            # log that we're removing it
-            self.info("Replacing logger output", handler_name=handler_name)
-
-            self._logger.removeHandler(self._handlers[handler_name])
+        for handler in self._logger.handlers:
+            if handler.name == handler_name:
+                self._logger.removeHandler(handler)
+                break
 
         # create a stream handler from the file
         stream_handler = logging.StreamHandler(file)
+        stream_handler.name = handler_name
 
         # set the formatter
         stream_handler.setFormatter(formatter)
 
         # add the handler to the logger
         self._logger.addHandler(stream_handler)
-
-        # save as the named output
-        self._handlers[handler_name] = stream_handler
 
     @property
     def level(self):
@@ -92,7 +98,11 @@ class Logger(object):
         self._logger.setLevel(level)
 
     def replace_handler_stream(self, handler_name: str, file: IO[str]):
-        self._handlers[handler_name].stream = file
+        for handler in self._logger.handlers:
+            if handler.name == handler_name:
+                handler.stream = file
+                return
+        raise ValueError(f"Logger does not have a handler named '{handler_name}'")
 
     def debug(self, message, *args, **kw_args):
         self._update_bound_vars_and_log(logging.DEBUG, message, *args, **kw_args)

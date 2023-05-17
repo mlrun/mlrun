@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import time
+import unittest.mock
 
 import pandas as pd
 import pytest
@@ -239,7 +240,6 @@ def test_ensemble_get_models():
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/")
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
     #           "weights": None}
@@ -256,7 +256,6 @@ def test_ensemble_get_metadata_of_models():
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
@@ -499,7 +498,7 @@ def test_v2_explain():
     assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
-def test_v2_get_modelmeta():
+def test_v2_get_modelmeta(rundb_mock):
     project = mlrun.new_project("tstsrv", save=False)
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)
@@ -588,12 +587,11 @@ def test_v2_mock():
 
 def test_function():
     fn = mlrun.new_function("tests", kind="serving")
-    graph = fn.set_topology("router")
+    fn.set_topology("router")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
-    logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
@@ -714,3 +712,30 @@ def test_mock_invoke():
 
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+
+
+def test_deploy_with_dashboard_argument():
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    db_instance = fn._get_db()
+    db_instance.remote_builder = unittest.mock.Mock(
+        return_value={
+            "data": {
+                "metadata": {
+                    "name": "test",
+                },
+                "status": {
+                    "state": "ready",
+                    "external_invocation_urls": ["http://test-url.com"],
+                },
+            },
+        },
+    )
+    db_instance.get_builder_status = unittest.mock.Mock(
+        return_value=(None, None),
+    )
+
+    mlrun.deploy_function(fn, dashboard="bad-address")
+
+    # test that the remote builder was called even with dashboard argument
+    assert db_instance.remote_builder.call_count == 1

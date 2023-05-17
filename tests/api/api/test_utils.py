@@ -25,9 +25,9 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import tests.api.api.utils
@@ -38,14 +38,53 @@ from mlrun.api.api.utils import (
     _mask_v3io_volume_credentials,
     ensure_function_has_auth_set,
     ensure_function_security_context,
+    get_scheduler,
 )
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
 PROJECT = "some-project"
+
+
+def test_submit_run_sync(db: Session, client: TestClient):
+    auth_info = mlrun.common.schemas.AuthInfo()
+    tests.api.api.utils.create_project(client, PROJECT)
+    project, function_name, function_tag, original_function = _mock_original_function(
+        client
+    )
+    submit_job_body = {
+        "schedule": "0 * * * *",
+        "task": {
+            "spec": {
+                "function": f"{project}/{function_name}:{function_tag}",
+            },
+            "metadata": {"name": "sometask", "project": project},
+        },
+        "function": {
+            "metadata": {"credentials": {"access_key": "some-access-key-override"}},
+        },
+    }
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "created"
+
+    # submit again, make sure it was modified
+    submit_job_body["schedule"] = "0 1 * * *"  # change schedule
+    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+        db, auth_info, submit_job_body
+    )
+    assert response_data["data"]["action"] == "modified"
+
+    updated_schedule = get_scheduler().get_schedule(
+        db, project, submit_job_body["task"]["metadata"]["name"]
+    )
+    assert (
+        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
+    ), "schedule was not updated"
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
@@ -203,7 +242,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
         },
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -304,7 +343,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         ),
     )
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     assert (
         parsed_function_object.spec.preemption_mode
@@ -333,7 +372,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         "function": {"spec": {"preemption_mode": "constrain"}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     expected_affinity = kubernetes.client.V1Affinity(
         node_affinity=kubernetes.client.V1NodeAffinity(
@@ -368,7 +407,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == PROJECT
@@ -409,7 +448,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
         "function": {"metadata": {"credentials": None}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -432,7 +471,7 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+    ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -455,7 +494,7 @@ def test_ensure_function_has_auth_set(
         unittest.mock.Mock(return_value=access_key)
     )
     ensure_function_has_auth_set(
-        function, mlrun.api.schemas.AuthInfo(username=username)
+        function, mlrun.common.schemas.AuthInfo(username=username)
     )
     assert (
         DeepDiff(
@@ -480,7 +519,7 @@ def test_ensure_function_has_auth_set(
         function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
-        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
     logger.info("No access key - explode")
@@ -492,7 +531,7 @@ def test_ensure_function_has_auth_set(
         mlrun.errors.MLRunInvalidArgumentError,
         match=r"(.*)Function access key must be set(.*)",
     ):
-        ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+        ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
 
     logger.info("Access key without username - explode")
     _, _, _, original_function_dict = _generate_original_function(
@@ -502,7 +541,7 @@ def test_ensure_function_has_auth_set(
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match=r"(.*)Username is missing(.*)"
     ):
-        ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+        ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
 
     logger.info("Access key ref provided - env should be set")
     secret_name = "some-access-key-secret-name"
@@ -513,7 +552,7 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    ensure_function_has_auth_set(function, mlrun.api.schemas.AuthInfo())
+    ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -528,7 +567,7 @@ def test_ensure_function_has_auth_set(
         function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
-        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
     logger.info(
@@ -543,7 +582,7 @@ def test_ensure_function_has_auth_set(
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_has_auth_set(
-        function, mlrun.api.schemas.AuthInfo(username=username)
+        function, mlrun.common.schemas.AuthInfo(username=username)
     )
     secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
@@ -569,7 +608,7 @@ def test_ensure_function_has_auth_set(
         function,
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session,
         secret_name,
-        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
 
@@ -582,7 +621,7 @@ def test_mask_v3io_access_key_env_var(
     _, _, _, original_function_dict = _generate_original_function()
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -607,7 +646,7 @@ def test_mask_v3io_access_key_env_var(
         mlrun.errors.MLRunInvalidArgumentError,
         match=r"(.*)Username is missing(.*)",
     ):
-        _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+        _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
 
     logger.info(
         "Mask function with access key without username when iguazio auth off - skip"
@@ -620,7 +659,7 @@ def test_mask_v3io_access_key_env_var(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -642,7 +681,7 @@ def test_mask_v3io_access_key_env_var(
     function: mlrun.runtimes.pod.KubeResource = mlrun.new_function(
         runtime=original_function_dict
     )
-    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -659,14 +698,14 @@ def test_mask_v3io_access_key_env_var(
         function,
         "V3IO_ACCESS_KEY",
         secret_name,
-        mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key"),
+        mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
     )
 
     logger.info(
         "mask same function again, access key is already a reference - nothing should change"
     )
     original_function = mlrun.new_function(runtime=function)
-    _mask_v3io_access_key_env_var(function, mlrun.api.schemas.AuthInfo())
+    _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
@@ -685,7 +724,7 @@ def test_mask_v3io_access_key_env_var(
     function.spec.env.append(function.spec.env.pop().to_dict())
     original_function = mlrun.new_function(runtime=function)
     _mask_v3io_access_key_env_var(
-        function, mlrun.api.schemas.AuthInfo(username=username)
+        function, mlrun.common.schemas.AuthInfo(username=username)
     )
     mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
@@ -865,7 +904,7 @@ def test_ensure_function_security_context_no_enrichment(
     db: Session, client: TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
-    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     mlrun.mlconf.igz_version = "3.6"
 
     logger.info("Enrichment mode is disabled, nothing should be changed")
@@ -916,7 +955,7 @@ def test_ensure_function_security_context_no_enrichment(
     )
     original_function = mlrun.new_function(runtime=original_function_dict_job_kind)
     function = mlrun.new_function(runtime=original_function_dict_job_kind)
-    ensure_function_security_context(function, mlrun.api.schemas.AuthInfo())
+    ensure_function_security_context(function, mlrun.common.schemas.AuthInfo())
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -938,7 +977,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
 
     logger.info("Enrichment mode is override, security context should be enriched")
     mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
-    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -985,7 +1024,7 @@ def test_ensure_function_security_context_enrichment_group_id(
     mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         SecurityContextEnrichmentModes.override.value
     )
-    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -1036,7 +1075,7 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
     tests.api.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
     mlrun.mlconf.function.spec.security_context.enrichment_mode = "not a real mode"
-    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -1059,7 +1098,7 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         SecurityContextEnrichmentModes.override
     )
-    auth_info = mlrun.api.schemas.AuthInfo(
+    auth_info = mlrun.common.schemas.AuthInfo(
         planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.data]
     )
     _, _, _, original_function_dict = _generate_original_function(
@@ -1082,7 +1121,7 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
-    auth_info = mlrun.api.schemas.AuthInfo(planes=[])
+    auth_info = mlrun.common.schemas.AuthInfo(planes=[])
     logger.info(
         "Session missing control plane, but actually just because it wasn't enriched, expected to succeed"
     )
@@ -1103,7 +1142,7 @@ def test_ensure_function_security_context_get_user_unix_id(
     )
 
     # set auth info with control plane and without user unix id so that it will be fetched
-    auth_info = mlrun.api.schemas.AuthInfo(
+    auth_info = mlrun.common.schemas.AuthInfo(
         planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.control]
     )
     mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
@@ -1142,13 +1181,13 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
     _mock_import_function(monkeypatch)
     submit_job_body = {
         "task": {
-            "spec": {"function": "hub://gen_class_data"},
+            "spec": {"function": "hub://gen-class-data"},
             "metadata": {"name": task_name, "project": PROJECT},
         },
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.api.schemas.AuthInfo(), submit_job_body
+        db, mlrun.common.schemas.AuthInfo(), submit_job_body
     )
     assert parsed_function_object.metadata.project == PROJECT
 

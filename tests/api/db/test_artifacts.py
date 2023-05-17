@@ -19,20 +19,15 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.initial_data
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from mlrun.api.schemas.artifact import ArtifactCategories
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
-from tests.api.db.conftest import dbs
+from mlrun.common.schemas.artifact import ArtifactCategories
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_name_2 = "artifact_name_2"
@@ -67,10 +62,6 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 2
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_name_2 = "artifact_name_2"
@@ -105,10 +96,6 @@ def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_kind_1 = ChartArtifact.kind
@@ -142,10 +129,6 @@ def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     assert artifacts[0]["metadata"]["name"] == artifact_name_2
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_kind_1 = ChartArtifact.kind
@@ -188,26 +171,26 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == 4
 
-    artifacts = db.list_artifacts(db_session, category=schemas.ArtifactCategories.model)
+    artifacts = db.list_artifacts(
+        db_session, category=mlrun.common.schemas.ArtifactCategories.model
+    )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_3
 
     artifacts = db.list_artifacts(
-        db_session, category=schemas.ArtifactCategories.dataset
+        db_session, category=mlrun.common.schemas.ArtifactCategories.dataset
     )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["name"] == artifact_name_4
 
-    artifacts = db.list_artifacts(db_session, category=schemas.ArtifactCategories.other)
+    artifacts = db.list_artifacts(
+        db_session, category=mlrun.common.schemas.ArtifactCategories.other
+    )
     assert len(artifacts) == 2
     assert artifacts[0]["metadata"]["name"] == artifact_name_1
     assert artifacts[1]["metadata"]["name"] == artifact_name_2
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     artifact_1_key = "artifact_key_1"
     artifact_1_body = _generate_artifact(artifact_1_key)
@@ -238,10 +221,6 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
     artifact_key = "artifact_key_1"
     artifact_1_uid = "artifact_uid_1"
@@ -295,10 +274,6 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     assert artifact["metadata"]["tag"] == artifact_2_tag
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     """
     We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of
@@ -341,10 +316,6 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_1_key = "artifact_key_1"
     artifact_2_key = "artifact_key_2"
@@ -379,10 +350,6 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     project = "artifact_project"
     artifact_1_key = "artifact_key_1"
@@ -460,10 +427,6 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     assert len(tags) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     artifact_1_key = "pre_artifact_key_suffix"
     artifact_2_key = "pre-artifact-key-suffix"
@@ -547,9 +510,6 @@ def _generate_artifact_with_iterations(
         )
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifacts_best_iter_with_tagged_iteration(
     db: DBInterface, db_session: Session
 ):
@@ -584,13 +544,13 @@ def test_list_artifacts_best_iter_with_tagged_iteration(
         project=project,
     )
 
-    identifier_1 = schemas.ArtifactIdentifier(
+    identifier_1 = mlrun.common.schemas.ArtifactIdentifier(
         kind=ArtifactCategories.model,
         key=artifact_key_1,
         uid=artifact_uid_1,
         iter=best_iter,
     )
-    identifier_2 = schemas.ArtifactIdentifier(
+    identifier_2 = mlrun.common.schemas.ArtifactIdentifier(
         kind=ArtifactCategories.model,
         key=artifact_key_2,
         uid=artifact_uid_2,
@@ -611,10 +571,6 @@ def test_list_artifacts_best_iter_with_tagged_iteration(
         )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
     artifact_1_key = "artifact-1"
     artifact_1_uid = "uid-1"
@@ -690,9 +646,6 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
         )
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
     artifact_key = "artifact-1"
     artifact_1_uid = "uid-1"
@@ -748,12 +701,6 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
         assert set(expected_uids) == set(uids)
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "data_migration_db,db_session",
-    [(dbs[0], dbs[0])],
-    indirect=["data_migration_db", "db_session"],
-)
 def test_data_migration_fix_legacy_datasets_large_previews(
     data_migration_db: DBInterface,
     db_session: Session,
@@ -845,12 +792,6 @@ def test_data_migration_fix_legacy_datasets_large_previews(
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "data_migration_db,db_session",
-    [(dbs[0], dbs[0])],
-    indirect=["data_migration_db", "db_session"],
-)
 def test_data_migration_fix_datasets_large_previews(
     data_migration_db: DBInterface,
     db_session: Session,

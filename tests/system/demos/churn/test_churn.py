@@ -59,11 +59,11 @@ class TestChurn(TestDemo):
         self._logger.debug("Setting project functions")
         demo_project.set_function(clean_data_function)
         demo_project.set_function("hub://describe", "describe")
-        demo_project.set_function("hub://xgb_trainer", "classify")
-        demo_project.set_function("hub://xgb_test", "xgbtest")
-        demo_project.set_function("hub://coxph_trainer", "survive")
-        demo_project.set_function("hub://coxph_test", "coxtest")
-        demo_project.set_function("hub://churn_server", "server")
+        demo_project.set_function("hub://xgb-trainer", "classify")
+        demo_project.set_function("hub://xgb-test", "xgbtest")
+        demo_project.set_function("hub://coxph-trainer", "survive")
+        demo_project.set_function("hub://coxph-test", "coxtest")
+        demo_project.set_function("hub://churn-server", "server")
 
         self._logger.debug("Setting project workflow")
         demo_project.set_workflow(

@@ -20,10 +20,10 @@ from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.api.api import deps
 from mlrun.utils import logger
@@ -38,13 +38,13 @@ router = APIRouter()
 async def submit_job(
     request: Request,
     username: Optional[str] = Header(None, alias="x-remote-user"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.client_version
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
     client_python_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.python_version
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
     data = None
@@ -70,18 +70,18 @@ async def submit_job(
             _,
         ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.function,
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
             function_project,
             function_name,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     if data.get("schedule"):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+            mlrun.common.schemas.AuthorizationResourceTypes.schedule,
             data["task"]["metadata"]["project"],
             data["task"]["metadata"]["name"],
-            mlrun.api.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
         # schedules are meant to be run solely by the chief, then if run is configured to run as scheduled
@@ -89,7 +89,7 @@ async def submit_job(
         # to reduce redundant load on the chief, we re-route the request only if the user has permissions
         if (
             mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.api.schemas.ClusterizationRole.chief
+            != mlrun.common.schemas.ClusterizationRole.chief
         ):
             logger.info(
                 "Requesting to submit job with schedules, re-routing to chief",
@@ -102,10 +102,10 @@ async def submit_job(
 
     else:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
             data["task"]["metadata"]["project"],
             "",
-            mlrun.api.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
 
@@ -132,5 +132,4 @@ async def submit_job(
         data["task"]["metadata"].setdefault("labels", {}).update(
             {"mlrun/client_python_version": client_python_version}
         )
-    logger.info("Submitting run", data=data)
     return await mlrun.api.api.utils.submit_run(db_session, auth_info, data)

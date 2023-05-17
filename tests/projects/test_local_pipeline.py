@@ -34,7 +34,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             # kind="job"
         )
 
-    def test_set_artifact(self):
+    def test_set_artifact(self, rundb_mock):
         self.project = mlrun.new_project("test-sa", save=False)
         self.project.set_artifact(
             "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
@@ -51,7 +51,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         artifacts = self.project.list_artifacts(tag="x")
         assert len(artifacts) == 1
 
-    def test_import_artifacts(self):
+    def test_import_artifacts(self, rundb_mock):
         results_path = str(pathlib.Path(tests.conftest.results) / "project")
         project = mlrun.new_project(
             "test-sa2", context=str(self.assets_path), save=False

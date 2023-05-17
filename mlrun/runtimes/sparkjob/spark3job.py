@@ -16,7 +16,7 @@ import typing
 
 import kubernetes.client
 
-import mlrun.api.schemas.function
+import mlrun.common.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
 
@@ -100,6 +100,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         driver_cores=None,
         executor_cores=None,
         security_context=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -129,6 +130,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self.driver_resources = driver_resources or {}
@@ -518,7 +520,7 @@ class Spark3Runtime(AbstractSparkRuntime):
             self.spec.executor_tolerations = tolerations
 
     def with_preemption_mode(
-        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
     ):
         """
         Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
@@ -529,7 +531,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         )
 
     def with_driver_preemption_mode(
-        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
     ):
         """
         Preemption mode controls whether the spark driver can be scheduled on preemptible nodes.
@@ -545,13 +547,13 @@ class Spark3Runtime(AbstractSparkRuntime):
         The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
         by default it's set to **prevent**
 
-        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
-        preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
+        preemption_mode = mlrun.common.schemas.function.PreemptionModes(mode)
         self.spec.driver_preemption_mode = preemption_mode.value
 
     def with_executor_preemption_mode(
-        self, mode: typing.Union[mlrun.api.schemas.function.PreemptionModes, str]
+        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
     ):
         """
         Preemption mode controls whether the spark executor can be scheduled on preemptible nodes.
@@ -567,9 +569,9 @@ class Spark3Runtime(AbstractSparkRuntime):
         The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
         by default it's set to **prevent**
 
-        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.api.schemas.PreemptionModes`
+        :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
-        preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
+        preemption_mode = mlrun.common.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value
 
     def with_security_context(

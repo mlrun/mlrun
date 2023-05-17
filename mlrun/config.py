@@ -48,6 +48,7 @@ default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
+    "kubeconfig_path": "",  # path to kubeconfig file
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
@@ -155,7 +156,7 @@ default_config = {
                 # default security context to be applied to all functions - json string base64 encoded format
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
-                # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
+                # see mlrun.common.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
                 # default 65534 (nogroup), set to -1 to use the user unix id or
                 # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
@@ -178,7 +179,7 @@ default_config = {
             "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
-        # and mlrun.api.schemas.function.PreemptionModes for available options
+        # and mlrun.common.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {
@@ -219,7 +220,7 @@ default_config = {
         "allowed_file_paths": "s3://,gcs://,gs://,az://",
         "db_type": "sqldb",
         "max_workers": 64,
-        # See mlrun.api.schemas.APIStates for options
+        # See mlrun.common.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
         "http_connection_timeout_keep_alive": 11,
@@ -275,6 +276,11 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
         },
         "logs": {
+            "decode": {
+                # Replace with a replacement marker. Uses � (U+FFFD, the official REPLACEMENT CHARACTER).
+                # see https://docs.python.org/3/library/codecs.html#error-handlers for more info and options
+                "errors": "replace",
+            },
             "pipelines": {
                 # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
                 # pipeline step instead of pulling the state by getting the run logs
@@ -363,21 +369,41 @@ default_config = {
             # template for the prefix that the function target image will be enforced to have (as long as it's targeted
             # to be in the configured registry). Supported template values are: {project} {name}
             "function_target_image_name_prefix_template": "func-{project}-{name}",
+            "pip_version": "~=23.0",
         },
         "v3io_api": "",
         "v3io_framesd": "",
+        # If running from sdk and MLRUN_DBPATH is not set, the db will fallback to a nop db which will not preform any
+        # run db operations.
+        "nop_db": {
+            # if set to true, will raise an error for trying to use run db functionality
+            # if set to false, will use a nop db which will not preform any run db operations
+            "raise_error": False,
+            # if set to true, will log a warning for trying to use run db functionality while in nop db mode
+            "verbose": True,
+        },
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
+        # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
+        # stream, and endpoints.
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
+            "stream": "",
         },
+        # Offline storage path can be either relative or a full path. This path is used for general offline data
+        # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
+        "offline_storage_path": "model-endpoints/{kind}",
+        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
+        # when the user is working in CE environment and has not provided any stream path.
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.api.schemas.ModelEndpointStoreType for available options
-        "store_type": "kv",
+        # See mlrun.common.schemas.ModelEndpointStoreType for available options
+        "store_type": "v3io-nosql",
+        "endpoint_store_connection": "",
     },
     "secret_stores": {
         "vault": {
@@ -421,15 +447,16 @@ default_config = {
         "projects_prefix": "projects",  # The UI link prefix for projects
         "url": "",  # remote/external mlrun UI url (for hyperlinks)
     },
-    "marketplace": {
-        "k8s_secrets_project_name": "-marketplace-secrets",
+    "hub": {
+        "k8s_secrets_project_name": "-hub-secrets",
         "catalog_filename": "catalog.json",
         "default_source": {
-            # Set to false to avoid creating a global source (for example in a dark site)
+            # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
             "name": "mlrun_global_hub",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace",
+            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "object_type": "functions",
             "channel": "master",
         },
     },
@@ -512,7 +539,7 @@ def is_running_as_api():
 
     if _is_running_as_api is None:
         # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+        _is_running_as_api = os.getenv("MLRUN_IS_API_SERVER", "false").lower() == "true"
 
     return _is_running_as_api
 
@@ -920,6 +947,68 @@ class Config:
         # Get v3io access key from the environment
         return os.environ.get("V3IO_ACCESS_KEY")
 
+    def get_model_monitoring_file_target_path(
+        self,
+        project: str = "",
+        kind: str = "",
+        target: str = "online",
+        artifact_path: str = None,
+    ) -> str:
+        """Get the full path from the configuration based on the provided project and kind.
+
+        :param project:        Project name.
+        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
+                               path for the provided kind. If it doesn't exist, use the default path.
+                               If the target path is offline and the offline path is already a full path in the
+                               configuration, then the result will be that path as-is. If the offline path is a
+                               relative path, then the result will be based on the project artifact path and the offline
+                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
+                               path instead.
+        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
+                               relative artifact path will be taken from the global MLRun artifact path.
+
+        :return: Full configured path for the provided kind.
+        """
+
+        if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project)
+            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project, kind=kind
+            )
+
+        # Get the current offline path from the configuration
+        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
+            project=project, kind=kind
+        )
+
+        # Absolute path
+        if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
+            file_path
+        ):
+            return file_path
+
+        # Relative path
+        else:
+            artifact_path = artifact_path or config.artifact_path
+            if artifact_path[-1] != "/":
+                artifact_path += "/"
+
+            return mlrun.utils.helpers.fill_artifact_path_template(
+                artifact_path=artifact_path + file_path, project=project
+            )
+
+    def is_ce_mode(self) -> bool:
+        # True if the setup is in CE environment
+        return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
+            ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -940,7 +1029,7 @@ def _populate(skip_errors=False):
 def _do_populate(env=None, skip_errors=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
+    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)
@@ -977,12 +1066,10 @@ def _do_populate(env=None, skip_errors=False):
 
 
 def _validate_config(config):
-    import mlrun.k8s_utils
-
     try:
         limits_gpu = config.default_function_pod_resources.limits.gpu
         requests_gpu = config.default_function_pod_resources.requests.gpu
-        mlrun.k8s_utils.verify_gpu_requests_and_limits(
+        _verify_gpu_requests_and_limits(
             requests_gpu=requests_gpu,
             limits_gpu=limits_gpu,
         )
@@ -990,6 +1077,19 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+
+
+def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+    # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+    if requests_gpu and not limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            "You cannot specify GPU requests without specifying limits"
+        )
+    if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
+        raise mlrun.errors.MLRunConflictError(
+            f"When specifying both GPU requests and limits these two values must be equal, "
+            f"requests_gpu={requests_gpu}, limits_gpu={limits_gpu}"
+        )
 
 
 def _convert_resources_to_str(config: dict = None):
@@ -1042,15 +1142,18 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
+    # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
     is_remote_mlrun = (
         env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
     )
+
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
+        # in remote mlrun we can't use http, so we'll use https
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead

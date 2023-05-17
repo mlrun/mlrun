@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from kubernetes import client
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.runtimes.constants import PodPhases
@@ -104,7 +104,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_list_resources_grouped_by(self, db: Session, client: TestClient):
         for group_by in [
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         ]:
             pods = self._mock_list_resources_pods()
             services = self._mock_list_services([self.cluster_service])
@@ -127,7 +127,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         runtime_handler = get_runtime_handler(RuntimeKinds.dask)
         resources = runtime_handler.list_resources(
             self.project,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+            group_by=mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         )
         runtime_handler.build_output_from_runtime_resources(
             [resources[self.project][RuntimeKinds.dask]]

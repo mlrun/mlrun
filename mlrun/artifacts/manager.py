@@ -18,7 +18,13 @@ from os.path import isdir
 import mlrun.config
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, is_relative_path, logger, validate_tag_name
+from ..utils import (
+    is_legacy_artifact,
+    is_relative_path,
+    logger,
+    validate_artifact_key_name,
+    validate_tag_name,
+)
 from .base import (
     Artifact,
     DirArtifact,
@@ -175,6 +181,7 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
+        validate_artifact_key_name(key, "artifact.key")
         src_path = local_path or item.src_path  # TODO: remove src_path
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
@@ -184,6 +191,12 @@ class ArtifactManager:
         if db_key is None:
             # set the default artifact db key
             if producer.kind == "run":
+                # When the producer's type is "run,"
+                # we generate a different db_key than the one we obtained in the request.
+                # As a result, a new artifact for the requested key will be created,
+                # which will contain the new db_key and will represent the current run.
+                # We implement this so that the user can query an artifact,
+                # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
                 db_key = key

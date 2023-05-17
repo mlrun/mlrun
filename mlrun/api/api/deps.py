@@ -20,9 +20,9 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.schemas
 
 
 def get_db_session() -> typing.Generator[Session, None, None]:
@@ -35,7 +35,7 @@ def get_db_session() -> typing.Generator[Session, None, None]:
             mlrun.api.db.session.close_session(db_session)
 
 
-async def authenticate_request(request: Request) -> mlrun.api.schemas.AuthInfo:
+async def authenticate_request(request: Request) -> mlrun.common.schemas.AuthInfo:
     return await mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request(
         request
     )
@@ -46,7 +46,7 @@ def verify_api_state(request: Request):
         request.scope
     )
     path = path_with_query_string.split("?")[0]
-    if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.offline:
+    if mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.offline:
         enabled_endpoints = [
             # we want to stay healthy
             "healthz",
@@ -56,10 +56,10 @@ def verify_api_state(request: Request):
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
     if mlrun.mlconf.httpdb.state in [
-        mlrun.api.schemas.APIStates.waiting_for_migrations,
-        mlrun.api.schemas.APIStates.migrations_in_progress,
-        mlrun.api.schemas.APIStates.migrations_failed,
-        mlrun.api.schemas.APIStates.waiting_for_chief,
+        mlrun.common.schemas.APIStates.waiting_for_migrations,
+        mlrun.common.schemas.APIStates.migrations_in_progress,
+        mlrun.common.schemas.APIStates.migrations_failed,
+        mlrun.common.schemas.APIStates.waiting_for_chief,
     ]:
         enabled_endpoints = [
             "healthz",
@@ -70,20 +70,9 @@ def verify_api_state(request: Request):
             "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
-            message = (
-                "API is waiting for migrations to be triggered. Send POST request to /api/operations/migrations to"
-                " trigger it"
+            message = mlrun.common.schemas.APIStates.description(
+                mlrun.mlconf.httpdb.state
             )
-            if (
-                mlrun.mlconf.httpdb.state
-                == mlrun.api.schemas.APIStates.migrations_in_progress
-            ):
-                message = "Migrations are in progress"
-            elif (
-                mlrun.mlconf.httpdb.state
-                == mlrun.api.schemas.APIStates.migrations_failed
-            ):
-                message = "Migrations failed, API can't be started"
             raise mlrun.errors.MLRunPreconditionFailedError(message)
 
 

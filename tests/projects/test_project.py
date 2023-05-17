@@ -45,7 +45,7 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_sync_functions():
+def test_sync_functions(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
     project.set_function("hub://describe", "describe")
@@ -61,7 +61,7 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -193,7 +193,7 @@ def test_build_project_from_minimal_dict():
             "",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             True,
@@ -258,7 +258,7 @@ def test_build_project_from_minimal_dict():
             "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
-            "git://github.com/mlrun/project-demo.git",
+            "git://github.com/mlrun/project-demo.git#refs/heads/main",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
             False,
@@ -358,12 +358,11 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
-                func
-            ), "func did not return"
+            normalized_name = mlrun.utils.helpers.normalize_name(func)
+            assert fn.metadata.name == normalized_name, "func did not return"
 
-    if save:
-        assert rundb_mock._function is not None
+            if save:
+                assert normalized_name in rundb_mock._functions
 
 
 def _assert_project_function_objects(project, expected_function_objects):
@@ -382,24 +381,69 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_func_requirements():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+def test_set_function_requirements():
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+            },
+        }
+    )
     project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.commands == [
-        "python -m pip install x",
-        "python -m pip install pandas",
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.commands == [
-        "python -m pip install y",
-        "python -m pip install pandas",
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
     ]
 
 
+def test_set_function_underscore_name(rundb_mock):
+    project = mlrun.projects.MlrunProject(
+        "project", default_requirements=["pandas>1, <3"]
+    )
+    func_name = "name_with_underscores"
+
+    # Create a function with a name that includes underscores
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    project.set_function(name=func_name, func=func)
+
+    # Attempt to get the function using the original name (with underscores) and ensure that it fails
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        project.get_function(key=func_name)
+
+    # Get the function using a normalized name and make sure it works
+    normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=normalized_name)
+    assert enriched_function.metadata.name == normalized_name
+
+
 def test_set_func_with_tag():
-    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas"],
+            },
+        }
+    )
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",
@@ -608,6 +652,13 @@ def test_function_receives_project_artifact_path(rundb_mock):
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
+    proj1.set_function(func_path, "func", kind="job", image="mlrun/mlrun")
+    run = proj1.run_function("func", local=True)
+    assert run.spec.output_path == proj1.spec.artifact_path
+
+    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    assert run.spec.output_path == "/not/tmp"
+
 
 def test_function_receives_project_default_image():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -772,3 +823,39 @@ def test_validating_large_int_params(
         )
 
     assert run_saved == (rundb_mock._runs != {})
+
+
+def test_load_project_with_git_enrichment(
+    context,
+    rundb_mock,
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(context=str(context), url=url, save=True)
+
+    assert (
+        project.spec.source == "git://github.com/mlrun/project-demo.git#refs/heads/main"
+    )
+
+
+def test_remove_owner_name_in_load_project_from_yaml():
+    # Create project and generate owner name
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.owner = "some_owner"
+
+    # Load the project from yaml and validate that the owner name was removed
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert project.spec.owner == "some_owner"
+    assert imported_project.spec.owner is None
+
+
+def test_set_secrets_file_not_found():
+    # Create project and generate owner name
+    project_name = "project-name"
+    file_name = ".env-test"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        project.set_secrets(file_path=file_name)
+    assert f"{file_name} does not exist" in str(excinfo.value)

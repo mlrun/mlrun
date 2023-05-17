@@ -74,6 +74,10 @@ type Server struct {
 	// log file cache to reduce sys calls finding the log file paths.
 	logFilesCache    *cache.Expiring
 	logFilesCacheTTL time.Duration
+
+	// map of project name to its mutex lock
+	// using project mutex to prevent listing project dir concurrently
+	readDirentProjectNameSyncMap *sync.Map
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -164,12 +168,13 @@ func NewLogCollectorServer(logger logger.Logger,
 		logFilesCache:                logFilesCache,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
+		readDirentProjectNameSyncMap: &sync.Map{},
 
 		// we delete log files only when deleting the project
 		// that means, if project is gone, log files are gone too
 		// hasLogFiles is called during get_logs on project runs
 		// so if no project, no runs, no get_logs, and this one is pretty much safe to cache
-		// that being said, limit to 5 minutes (hard coded for now)
+		// that being said, limit to few minutes (hard coded for now)
 		// this cache is done to reduce IOs
 		logFilesCacheTTL: 5 * time.Minute,
 	}, nil
@@ -302,7 +307,12 @@ func (s *Server) StartLog(ctx context.Context,
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, request.ProjectName, startedStreamingGoroutine, cancelCtxFunc)
+	go s.startLogStreaming(logStreamCtx,
+		request.RunUID,
+		pod.Name,
+		request.ProjectName,
+		startedStreamingGoroutine,
+		cancelCtxFunc)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
@@ -441,7 +451,7 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 
 		// if there was an error, return it
 		s.Logger.ErrorWithCtx(ctx,
-			"Failed to get log file path",
+			"Failed to check if has log file",
 			"err", common.GetErrorStack(err, common.DefaultErrorStackDepth),
 			"runUID", request.RunUID,
 			"projectName", request.ProjectName)
@@ -483,11 +493,6 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		}, errors.New(message)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Stopping logs",
-		"project", request.Project,
-		"numRunIDs", len(request.RunUIDs))
-
 	// if no run uids were provided, remove the entire project from the state
 	if len(request.RunUIDs) == 0 {
 
@@ -513,6 +518,11 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 
 		return s.successfulBaseResponse(), nil
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Stopping logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// remove each run uid from the state
 	for _, runUID := range request.RunUIDs {
@@ -562,11 +572,6 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		}, errors.New(message)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Deleting logs",
-		"project", request.Project,
-		"numRunIDs", len(request.RunUIDs))
-
 	// if no run uids were provided, delete the entire project's logs
 	if len(request.RunUIDs) == 0 {
 
@@ -582,6 +587,11 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 
 		return s.successfulBaseResponse(), nil
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Deleting logs",
+		"project", request.Project,
+		"numRunIDs", len(request.RunUIDs))
 
 	// remove each run uid from the state
 	errGroup, _ := errgroup.WithContext(ctx)
@@ -654,6 +664,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 			"logFilePath", logFilePath)
 		return
 	}
+
+	// add log file path to cache
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 
 	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
@@ -781,19 +794,57 @@ func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) stri
 func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string) (string, error) {
 
 	// first try load from cache
-	if filePath, found := s.logFilesCache.Get(s.getLogFilCacheKey(runUID, projectName)); found {
+	if filePath, found := s.logFilesCache.Get(s.getLogFileCacheKey(runUID, projectName)); found {
 		return filePath.(string), nil
 	}
 
-	logFilePath := ""
+	// get project mutex or create one
+	projectMutex, _ := s.readDirentProjectNameSyncMap.LoadOrStore(projectName, &sync.Mutex{})
+
+	// lock project mutex, we want only one project dir to be read at a time
+	projectMutex.(*sync.Mutex).Lock()
+
+	// unlock project mutex when done
+	defer projectMutex.(*sync.Mutex).Unlock()
+
+	var logFilePath string
 	var latestModTime time.Time
 
+	var retryCount int
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
+		defer func() {
+			retryCount++
+		}()
+
+		// verify or wait until project dir exists
+		if _, err := os.Stat(filepath.Join(s.baseDir, projectName)); err != nil {
+			if os.IsNotExist(err) {
+				return true, errors.New("Project directory not found")
+
+				// give v3io-fuse some slack
+			} else if strings.Contains(err.Error(), "resource temporarily unavailable") {
+				s.Logger.WarnWithCtx(ctx,
+					"Project directory is not ready yet (resource temporarily unavailable)",
+					"retryCount", retryCount,
+					"err", err.Error())
+				return true, errors.Wrap(err, "Project directory is not ready yet")
+			}
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to get project directory",
+				"retryCount", retryCount,
+				"err", err.Error())
+			return false, errors.Wrap(err, "Failed to get project directory")
+		}
 
 		// list all files in project directory
 		if err := filepath.WalkDir(filepath.Join(s.baseDir, projectName),
 			func(path string, dirEntry fs.DirEntry, err error) error {
 				if err != nil {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to walk path",
+						"retryCount", retryCount,
+						"path", path,
+						"err", errors.GetErrorStackString(err, 10))
 					return errors.Wrapf(err, "Failed to walk path %s", path)
 				}
 
@@ -819,22 +870,24 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 
 				return nil
 			}); err != nil {
-			return false, errors.Wrap(err, "Failed to list files in base directory")
+
+			// retry
+			return true, errors.Wrap(err, "Failed to list files in base directory")
 		}
 
 		if logFilePath == "" {
-			return false, errors.Errorf("Log file not found for run %s", runUID)
+			return true, errors.Errorf("Log file not found for run %s", runUID)
 		}
 
 		// found log file
 		return false, nil
 
 	}); err != nil {
-		return "", errors.Wrap(err, "Failed to get log file path")
+		return "", errors.Wrap(err, "Exhausted getting log file path")
 	}
 
 	// store in cache
-	s.logFilesCache.Set(s.getLogFilCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
+	s.logFilesCache.Set(s.getLogFileCacheKey(runUID, projectName), logFilePath, s.logFilesCacheTTL)
 	return logFilePath, nil
 }
 
@@ -1095,6 +1148,6 @@ func (s *Server) deleteProjectLogs(project string) error {
 	return nil
 }
 
-func (s *Server) getLogFilCacheKey(runUID, project string) string {
+func (s *Server) getLogFileCacheKey(runUID, project string) string {
 	return fmt.Sprintf("%s/%s", runUID, project)
 }

@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import codecs
+import io
+import sys
+import time
+import unittest.mock
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -25,12 +29,13 @@ from uuid import uuid4
 
 import deepdiff
 import pytest
+import requests_mock
 
 import mlrun.artifacts.base
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.api import schemas
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -48,7 +53,7 @@ def free_port():
 
 def check_server_up(url):
     health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
-    timeout = 30
+    timeout = 90
     if not wait_for_server(health_url, timeout):
         raise RuntimeError(f"server did not start after {timeout} sec")
 
@@ -196,6 +201,27 @@ def test_log(create_server):
 
     state, data = db.get_log(uid, prj)
     assert data == body, "bad log data"
+
+
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="We are developing on Apple Silicon Macs,"
+    " which will most likely fail this test due to the qemu being slow,"
+    " but should pass on native architecture",
+)
+def test_api_boot_speed(create_server):
+    run_times = 5
+    expected_time = 30
+    runs = []
+    for _ in range(run_times):
+        start_time = time.perf_counter()
+        create_server()
+        end_time = time.perf_counter()
+        runs.append(end_time - start_time)
+    avg_run_time = sum(runs) / run_times
+    assert (
+        avg_run_time <= expected_time
+    ), "Seems like a performance hit on creating api server"
 
 
 def test_run(create_server):
@@ -630,7 +656,7 @@ def test_feature_vectors(create_server):
         feature_vector_update,
         project,
         tag="latest",
-        patch_mode=schemas.PatchMode.additive,
+        patch_mode=mlrun.common.schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
@@ -659,7 +685,10 @@ def test_feature_vectors(create_server):
 
     # Perform a replace (vs. additive as done earlier) - now should only have 2 features
     db.patch_feature_vector(
-        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+        name,
+        feature_vector_update,
+        project,
+        patch_mode=mlrun.common.schemas.PatchMode.replace,
     )
     feature_vector = db.get_feature_vector(name, project)
     assert (
@@ -674,7 +703,7 @@ def test_project_file_db_roundtrip(create_server):
     project_name = "project-name"
     description = "project description"
     goals = "project goals"
-    desired_state = mlrun.api.schemas.ProjectState.archived
+    desired_state = mlrun.common.schemas.ProjectState.archived
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"
@@ -747,3 +776,61 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+def test_watch_logs_continue():
+    mlrun.mlconf.httpdb.logs.decode.errors = "replace"
+
+    # create logs with invalid utf-8 byte
+    log_lines = [
+        b"Firstrow",
+        b"Secondrow",
+        b"Thirdrow",
+        b"Smiley\xf0\x9f\x98\x86",
+        b"\xf0",  # invalid utf-8 - should be replaced with U+FFFD (�)
+        b"LastRow",
+    ]
+    log_contents = b"".join(log_lines)
+    db = mlrun.db.httpdb.HTTPRunDB("http+mock://wherever.com")
+    run_uid = "some-uid"
+    project = "some-project"
+    adapter = requests_mock.Adapter()
+    current_log_line = 0
+
+    # assert that the log contents are invalid utf-8
+    with pytest.raises(UnicodeDecodeError):
+        for log_line in log_lines:
+            log_line.decode()
+
+    def callback(request, context):
+        nonlocal current_log_line
+        offset = int(request.qs["offset"][0])
+        current_log_line += 1
+
+        # when offset is 0 -> return first log line
+        # when offset is len(log_lines[i]) -> return second log line, and so on
+        # the idea is to always return the next log line, extracted by the log contents
+        # to test offset calculation is valid from the client set
+        context.status_code = 200
+        if current_log_line < len(log_lines):
+            context.headers["x-mlrun-run-state"] = "running"
+        len_next_word = len(log_lines[current_log_line - 1])
+        contents = log_contents[offset : offset + len_next_word]
+        return contents
+
+    adapter.register_uri(
+        "GET",
+        f"http+mock://wherever.com/api/v1/log/{project}/{run_uid}",
+        content=callback,
+    )
+    db.session = db._init_session()
+    db.session.mount("http+mock", adapter)
+    mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
+    with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
+        db.watch_log(run_uid, project=project)
+        # the first log line is printed with a newline
+        assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
+
+    assert adapter.call_count == len(
+        log_lines
+    ), "should have called the adapter once per log line"

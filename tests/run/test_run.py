@@ -11,14 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
+import datetime
+import io
 import pathlib
+import sys
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun import get_run_db, new_function, new_task
+import mlrun.launcher.factory
+from mlrun import MLClientCtx, new_function, new_task
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -42,7 +47,18 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
 
-def test_noparams():
+@contextlib.contextmanager
+def captured_output():
+    new_out, new_err = io.StringIO(), io.StringIO()
+    old_out, old_err = sys.stdout, sys.stderr
+    try:
+        sys.stdout, sys.stderr = new_out, new_err
+        yield sys.stdout, sys.stderr
+    finally:
+        sys.stdout, sys.stderr = old_out, old_err
+
+
+def test_noparams(db):
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
         params={"input_name": str(input_file_path)}, handler=my_func
@@ -59,7 +75,7 @@ def test_noparams():
 def test_failed_schedule_not_creating_run():
     function = new_function()
     # mock we're with remote api (only there schedule is relevant)
-    function._use_remote_api = Mock(return_value=True)
+    function._is_remote = True
     # mock failure in submit job (failed schedule)
     db = MagicMock()
     function.set_db_connection(db)
@@ -120,11 +136,42 @@ def test_local_runtime():
     verify_state(result)
 
 
-def test_local_runtime_failure_before_executing_the_function_code():
+def test_local_runtime_failure_before_executing_the_function_code(db):
     function = new_function(command=f"{assets_path}/fail.py")
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
     assert "failed on pre-loading" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "handler_name,params,kwargs,expected_kwargs",
+    [
+        ("func", {"x": 2}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+        ("func", {"x": 2}, {}, {}),
+        ("func_with_default", {}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+    ],
+)
+def test_local_runtime_with_kwargs(db, handler_name, params, kwargs, expected_kwargs):
+    params.update(kwargs)
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    result = function.run(local=True, params=params, handler=handler_name)
+    verify_state(result)
+    assert result.outputs.get("return", {}) == expected_kwargs
+
+
+def test_local_runtime_with_kwargs_with_code_to_function(db):
+    function = mlrun.code_to_function(
+        "kwarg",
+        filename=f"{assets_path}/kwargs.py",
+        image="mlrun/mlrun",
+        kind="job",
+        handler="func",
+    )
+    kwargs = {"y": 3, "z": 4}
+    params = {"x": 2}
+    params.update(kwargs)
+    result = function.run(local=True, params=params)
+    assert result.outputs["return"] == kwargs
 
 
 def test_local_runtime_hyper():
@@ -187,20 +234,20 @@ def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
     assert mlrun.RunObject.logs.call_count == expected_watch_count
 
 
-def test_local_args():
+@pytest.mark.asyncio
+async def test_local_args(db, db_session):
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(
-        command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}"
-    ).run(spec)
+
+    function = new_function(command=f"{tests_root_directory}/no_ctx.py --xyz {{xyz}}")
+    with captured_output() as (out, err):
+        result = function.run(spec)
+
+    output = out.getvalue().strip()
+
     verify_state(result)
 
-    db = get_run_db()
-    state, log = db.get_log(result.metadata.uid)
-    log = str(log)
-    print(state)
-    print(log)
-    assert log.find(", --xyz, 789") != -1, "params not detected in argv"
+    assert output.find(", --xyz, 789") != -1, "params not detected in argv"
 
 
 def test_local_context(rundb_mock):
@@ -256,6 +303,94 @@ def test_local_context(rundb_mock):
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
 
+def test_context_from_dict_when_start_time_is_string():
+    context = mlrun.get_or_create_ctx("ctx")
+    context_dict = context.to_dict()
+    context = mlrun.MLClientCtx.from_dict(context_dict)
+    assert isinstance(context._start_time, datetime.datetime)
+
+
+def test_context_from_run_dict():
+    run_dict = {
+        "metadata": {
+            "name": "test-context-from-run-dict",
+            "project": "default",
+            "labels": {"label-key": "label-value"},
+            "annotations": {"annotation-key": "annotation-value"},
+        },
+        "spec": {
+            "parameters": {"p1": 1, "p2": "a string"},
+            "inputs": {"input-key": "input-url"},
+        },
+    }
+    runtime = mlrun.runtimes.base.BaseRuntime.from_dict(run_dict)
+    run = runtime._create_run_object(run_dict)
+    handler = "my_func"
+    out_path = "test_artifact_path"
+    launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+        runtime._is_remote
+    )
+    run = launcher._enrich_run(
+        runtime,
+        run,
+        handler,
+        run_dict["metadata"]["project"],
+        run_dict["metadata"]["name"],
+        run_dict["spec"]["parameters"],
+        run_dict["spec"]["inputs"],
+        returns="",
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=False,
+        scrape_metrics=None,
+        out_path=out_path,
+        artifact_path="",
+        workdir="",
+    )
+    context = MLClientCtx.from_dict(run.to_dict())
+    assert context.name == run_dict["metadata"]["name"]
+    assert context._project == run_dict["metadata"]["project"]
+    assert context._labels == run_dict["metadata"]["labels"]
+    assert context._annotations == run_dict["metadata"]["annotations"]
+    assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
+    assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
+    assert (
+        context.get_input("input-key").artifact_url
+        == run_dict["spec"]["inputs"]["input-key"]
+    )
+    assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
+    assert (
+        context.annotations["annotation-key"]
+        == run_dict["metadata"]["annotations"]["annotation-key"]
+    )
+    assert context.artifact_path == out_path
+
+
+@pytest.mark.parametrize(
+    "state, error, expected_state",
+    [
+        ("running", None, "completed"),
+        ("completed", None, "completed"),
+        (None, "error message", "error"),
+        (None, "", "error"),
+    ],
+)
+def test_context_set_state(rundb_mock, state, error, expected_state):
+    project_name = "test_context_error"
+    mlrun.mlconf.artifact_path = out_path
+    context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+
+    with context:
+        context.set_state(execution_state=state, error=error, commit=False)
+        context.commit(completed=True)
+
+    assert context._state == expected_state, "task state was not set correctly"
+    assert context._error == error, "task error was not set"
+
+
 def test_run_class_code():
     cases = [
         ({"y": 3}, {"rx": 0, "ry": 3, "ra1": 1}),
@@ -287,15 +422,15 @@ def test_run_from_module():
 def test_args_integrity():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
-    result = new_function(
+    function = new_function(
         command=f"{tests_root_directory}/no_ctx.py",
         args=["It's", "a", "nice", "day!"],
-    ).run(spec)
+    )
+
+    with captured_output() as (out, err):
+        result = function.run(spec)
+
+    output = out.getvalue().strip()
     verify_state(result)
 
-    db = get_run_db()
-    state, log = db.get_log(result.metadata.uid)
-    log = str(log)
-    print(state)
-    print(log)
-    assert log.find("It's, a, nice, day!") != -1, "params not detected in argv"
+    assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"

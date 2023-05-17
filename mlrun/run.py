@@ -36,7 +36,7 @@ import yaml
 from deprecated import deprecated
 from kfp import Client
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
@@ -57,7 +57,6 @@ from .runtimes import (
     RemoteSparkRuntime,
     RuntimeKinds,
     ServingRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     get_runtime_class,
 )
@@ -127,6 +126,7 @@ def run_local(
     artifact_path: str = "",
     mode: str = None,
     allow_empty_resources=None,
+    notifications: List[mlrun.model.Notification] = None,
     returns: list = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
@@ -216,6 +216,7 @@ def run_local(
         inputs=inputs,
         returns=returns,
         artifact_path=artifact_path,
+        notifications=notifications,
     )
 
 
@@ -235,7 +236,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
         mod.my_job(context, p1=1, p2='x')
         print(context.to_yaml())
 
-        fn = mlrun.import_function('hub://open_archive')
+        fn = mlrun.import_function('hub://open-archive')
         mod = mlrun.function_to_module(fn)
         data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
         context = mlrun.get_or_create_ctx('myfunc')
@@ -457,7 +458,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     examples::
 
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://auto-trainer")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
@@ -700,7 +701,6 @@ def code_to_function(
     DaskCluster,
     KubejobRuntime,
     LocalRuntime,
-    Spark2Runtime,
     Spark3Runtime,
     RemoteSparkRuntime,
 ]:
@@ -793,6 +793,7 @@ def code_to_function(
 
     def update_common(fn, spec):
         fn.spec.image = image or get_in(spec, "spec.image", "")
+        fn.spec.filename = filename or get_in(spec, "spec.filename", "")
         fn.spec.build.base_image = get_in(spec, "spec.build.baseImage")
         fn.spec.build.commands = get_in(spec, "spec.build.commands")
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
@@ -1194,8 +1195,8 @@ def get_pipeline(
     run_id,
     namespace=None,
     format_: Union[
-        str, mlrun.api.schemas.PipelinesFormat
-    ] = mlrun.api.schemas.PipelinesFormat.summary,
+        str, mlrun.common.schemas.PipelinesFormat
+    ] = mlrun.common.schemas.PipelinesFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1231,7 +1232,7 @@ def get_pipeline(
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
+                or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
             ):
                 resp = format_summary_from_kfp_run(resp)
 
@@ -1247,7 +1248,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+    format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
@@ -1267,7 +1268,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.api.schemas.PipelinesFormat.full
+        format_ = mlrun.common.schemas.PipelinesFormat.full
     run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

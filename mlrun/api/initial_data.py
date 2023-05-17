@@ -19,6 +19,7 @@ import pathlib
 import typing
 
 import dateutil.parser
+import pydantic.error_wrappers
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -26,12 +27,12 @@ import sqlalchemy.orm
 import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.db.sqldb.models
-import mlrun.api.schemas
 import mlrun.api.utils.db.alembic
 import mlrun.api.utils.db.backup
 import mlrun.api.utils.db.mysql
 import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
+import mlrun.common.schemas
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
@@ -62,7 +63,7 @@ def init_data(
         and not perform_migrations_if_needed
         and is_migration_needed
     ):
-        state = mlrun.api.schemas.APIStates.waiting_for_migrations
+        state = mlrun.common.schemas.APIStates.waiting_for_migrations
         logger.info("Migration is needed, changing API state", state=state)
         config.httpdb.state = state
         return
@@ -73,7 +74,7 @@ def init_data(
         db_backup.backup_database()
 
     logger.info("Creating initial data")
-    config.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
+    config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
     if is_migration_from_scratch or is_migration_needed:
         try:
@@ -89,7 +90,7 @@ def init_data(
             finally:
                 close_session(db_session)
         except Exception:
-            state = mlrun.api.schemas.APIStates.migrations_failed
+            state = mlrun.common.schemas.APIStates.migrations_failed
             logger.warning("Migrations failed, changing API state", state=state)
             config.httpdb.state = state
             raise
@@ -97,9 +98,9 @@ def init_data(
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
     if not is_migration_from_scratch and is_migration_needed:
-        config.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
+        config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
-        config.httpdb.state = mlrun.api.schemas.APIStates.online
+        config.httpdb.state = mlrun.common.schemas.APIStates.online
     logger.info("Initial data created")
 
 
@@ -107,7 +108,7 @@ def init_data(
 # This is because data version 1 points to to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
-latest_data_version = 2
+latest_data_version = 3
 
 
 def _resolve_needed_operations(
@@ -212,13 +213,16 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_1_data_migrations(db, db_session)
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)
+            if current_data_version < 3:
+                _perform_version_3_data_migrations(db, db_session)
+
             db.create_data_version(db_session, str(latest_data_version))
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
-    _add_default_marketplace_source_if_needed(db, db_session)
+    _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)
 
 
@@ -465,6 +469,30 @@ def _align_runs_table(
         db._upsert(db_session, [run], ignore=True)
 
 
+def _perform_version_3_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _rename_marketplace_kind_to_hub(db, db_session)
+
+
+def _rename_marketplace_kind_to_hub(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Renaming 'Marketplace' kinds to 'Hub'")
+
+    hubs = db._list_hub_sources_without_transform(db_session)
+    for hub in hubs:
+        hub_dict = hub.full_object
+
+        # rename kind from "MarketplaceSource" to "HubSource"
+        if "Marketplace" in hub_dict.get("kind", ""):
+            hub_dict["kind"] = hub_dict["kind"].replace("Marketplace", "Hub")
+
+        # save the object back to the db
+        hub.full_object = hub_dict
+        db._upsert(db_session, [hub], ignore=True)
+
+
 def _perform_version_1_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -482,7 +510,7 @@ def _enrich_project_state(
         changed = False
         if not project.spec.desired_state:
             changed = True
-            project.spec.desired_state = mlrun.api.schemas.ProjectState.online
+            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
         if not project.status.state:
             changed = True
             project.status.state = project.spec.desired_state
@@ -494,32 +522,47 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
-def _add_default_marketplace_source_if_needed(
+def _add_default_hub_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
-        hub_marketplace_source = db.get_marketplace_source(
-            db_session, config.marketplace.default_source.name
+        hub_marketplace_source = db.get_hub_source(
+            db_session, config.hub.default_source.name
         )
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None
+    except pydantic.error_wrappers.ValidationError as exc:
+
+        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
+        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
+        # that a default hub source exists
+        if all(
+            [
+                "validation error for HubSource" in str(exc),
+                "value is not a valid enumeration member" in str(exc),
+            ]
+        ):
+            logger.info("Found existing default hub source, data migration needed")
+            hub_marketplace_source = True
+        else:
+            raise exc
 
     if not hub_marketplace_source:
-        hub_source = mlrun.api.schemas.MarketplaceSource.generate_default_source()
-        # hub_source will be None if the configuration has marketplace.default_source.create=False
+        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
+        # hub_source will be None if the configuration has hub.default_source.create=False
         if hub_source:
-            logger.info("Adding default marketplace source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default marketplace source.
-            hub_record = db._transform_marketplace_source_schema_to_record(
-                mlrun.api.schemas.IndexedMarketplaceSource(
-                    index=mlrun.api.schemas.marketplace.last_source_index,
+            logger.info("Adding default hub source")
+            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
+            hub_record = db._transform_hub_source_schema_to_record(
+                mlrun.common.schemas.IndexedHubSource(
+                    index=mlrun.common.schemas.hub.last_source_index,
                     source=hub_source,
                 )
             )
             db_session.add(hub_record)
             db_session.commit()
         else:
-            logger.info("Not adding default marketplace source, per configuration")
+            logger.info("Not adding default hub source, per configuration")
     return
 
 

@@ -210,7 +210,6 @@ class TestProject(TestMLRunSystem):
             "main",
             artifact_path=f"v3io:///projects/{name}",
             arguments={"build": 1},
-            workflow_path=str(self.assets_path / "kflow.py"),
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"

@@ -24,7 +24,7 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previoulsy pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
 | ML-3823 | Projects that have very large yaml (configuration) files can now be previewed in the UI. |
-| ML-3824 | MLRun supports up to Tensorflow 2.9. |
+
 
 ## v1.3.0
 
@@ -547,6 +547,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
+| ML-3824 | MLRun supports up to Tensorflow 2.9. | NA | v1.3.1 |
  
 
 ## Deprecations

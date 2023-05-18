@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import enum
 import json
 import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -223,16 +224,17 @@ class ModelEndpoint(BaseModel):
         flatten_dict = {}
         for k_object in model_endpoint_dictionary:
             for key in model_endpoint_dictionary[k_object]:
+                # Extract the value of the current field
+                current_value = model_endpoint_dictionary[k_object][key]
+
                 # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
                 # for matching the database required format
-                if not isinstance(
-                    model_endpoint_dictionary[k_object][key], (str, bool)
+                if not isinstance(current_value, (str, bool, int)) or isinstance(
+                    current_value, enum.IntEnum
                 ):
-                    flatten_dict[key] = json.dumps(
-                        model_endpoint_dictionary[k_object][key]
-                    )
+                    flatten_dict[key] = json.dumps(current_value)
                 else:
-                    flatten_dict[key] = model_endpoint_dictionary[k_object][key]
+                    flatten_dict[key] = current_value
 
         if mlrun.model_monitoring.EventFieldType.METRICS not in flatten_dict:
             # Initialize metrics dictionary
@@ -242,6 +244,7 @@ class ModelEndpoint(BaseModel):
                     mlrun.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
+
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
         flatten_dict.pop(mlrun.model_monitoring.EventFieldType.FEATURES, None)
         return flatten_dict

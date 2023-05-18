@@ -310,7 +310,7 @@ class MLClientCtx(object):
             for k, v in inputs.items():
                 if v:
                     # do not load artifact from the API server - not needed
-                    self._set_input(k, v, load_artifact=not is_api)
+                    self._set_input(k, v)
 
         if host and not is_api:
             self.set_label("host", host)
@@ -490,7 +490,7 @@ class MLClientCtx(object):
         """
         return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
 
-    def _set_input(self, key, url="", load_artifact=True):
+    def _set_input(self, key, url=""):
         if url is None:
             return
         if not url:
@@ -502,7 +502,6 @@ class MLClientCtx(object):
             key,
             project=self._project,
             allow_empty_resources=self._allow_empty_resources,
-            load_artifact=load_artifact,
         )
         self._inputs[key] = obj
         return obj

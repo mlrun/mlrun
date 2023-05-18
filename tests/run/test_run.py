@@ -315,6 +315,7 @@ def test_context_from_dict_when_start_time_is_string():
     [True, False],
 )
 def test_context_from_run_dict(is_api):
+    mlrun.config.is_running_as_api = Mock(return_value=is_api)
     run_dict = {
         "metadata": {
             "name": "test-context-from-run-dict",
@@ -324,7 +325,10 @@ def test_context_from_run_dict(is_api):
         },
         "spec": {
             "parameters": {"p1": 1, "p2": "a string"},
-            "inputs": {"input-key": "input-url"},
+            "inputs": {
+                "input-key": "input-url",
+                # "store-input": "store://store-input",
+            },
         },
     }
     runtime = mlrun.runtimes.base.BaseRuntime.from_dict(run_dict)
@@ -362,6 +366,10 @@ def test_context_from_run_dict(is_api):
         context.get_input("input-key").artifact_url
         == run_dict["spec"]["inputs"]["input-key"]
     )
+    # assert (
+    #     context.get_input("store-input").artifact_url
+    #     == run_dict["spec"]["inputs"]["store-input"]
+    # )
     assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
     assert (
         context.annotations["annotation-key"]

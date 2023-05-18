@@ -171,16 +171,13 @@ class StoreManager:
         project="",
         allow_empty_resources=None,
         secrets: dict = None,
-        load_artifact: bool = True,
     ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
-
-            if load_artifact:
-                meta, url = self.get_store_artifact(
-                    url, project, allow_empty_resources, secrets
-                )
+            meta, url = self.get_store_artifact(
+                url, project, allow_empty_resources, secrets
+            )
 
         store, subpath = self.get_or_create_store(url, secrets=secrets)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)

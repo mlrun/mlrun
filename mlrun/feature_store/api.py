@@ -433,8 +433,7 @@ def ingest(
         and (run_config is not None and not run_config.local)
     ):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
-            "(preview can be used as an alternative to local ingest when targets are not needed)"
+            f"Feature set {featureset.metadata.name} is remote ingested with no targets defined, aborting"
         )
 
     if featureset is not None:

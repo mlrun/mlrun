@@ -331,9 +331,7 @@ class FeatureSet(ModelObj):
         relations: Dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
-        """Feature set object, defines a set of features and their data pipeline,
-        The object created with default targets (nosql & parquet)
-        that can be overwritten by set_targets function.
+        """Feature set object, defines a set of features and their data pipeline
 
         example::
 
@@ -483,12 +481,12 @@ class FeatureSet(ModelObj):
             self.spec.with_default_targets = False
 
         self.spec.targets = []
-        self.add_targets(targets)
+        self.__set_targets_add_targets_helper(targets)
 
         if default_final_step:
             self.spec.graph.final_step = default_final_step
 
-    def add_targets(self, targets):
+    def __set_targets_add_targets_helper(self, targets):
         """
         Add the desired target list
 

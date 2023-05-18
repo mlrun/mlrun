@@ -934,7 +934,7 @@ class FeatureSet(ModelObj):
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)
-            if time_column == self.spec.timestamp_key:
+            if time_column:
                 df[time_column] = pd.to_datetime(df[time_column])
                 if start_time:
                     df = df[df[time_column] > start_time]

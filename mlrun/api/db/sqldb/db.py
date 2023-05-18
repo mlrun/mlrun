@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.api.db.session
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
 from mlrun.api import schemas
@@ -181,7 +182,11 @@ class SQLDB(DBInterface):
         iter=0,
     ):
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+            "Storing run to db",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
         )
         run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
@@ -1355,7 +1360,7 @@ class SQLDB(DBInterface):
 
     @retry_on_conflict
     def store_project(self, session: Session, name: str, project: schemas.Project):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug("Storing project in DB", name=name)
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1371,9 +1376,7 @@ class SQLDB(DBInterface):
         project: dict,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
     ):
-        logger.debug(
-            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
-        )
+        logger.debug("Patching project in DB", name=name, patch_mode=patch_mode)
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
             session, name, project_record, project, patch_mode
@@ -1407,15 +1410,35 @@ class SQLDB(DBInterface):
         names: typing.Optional[typing.List[str]] = None,
     ) -> schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
+
+        # if format is name_only, we don't need to query the full project object, we can just query the name
+        # and return it as a list of strings
+        if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+            query = self._query(session, Project.name, owner=owner, state=state)
+
+        # attach filters to the query
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+
         project_records = query.all()
+
+        # format the projects according to the requested format
         projects = []
         for project_record in project_records:
             if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-                projects = [project_record.name for project_record in project_records]
+                projects.append(project_record.name)
+
+            elif format_ == mlrun.api.schemas.ProjectsFormat.minimal:
+                projects.append(
+                    self._minimize_project_schema(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        )
+                    )
+                )
+
             # leader format is only for follower mode which will format the projects returned from here
             elif format_ in [
                 mlrun.api.schemas.ProjectsFormat.full,
@@ -1429,6 +1452,15 @@ class SQLDB(DBInterface):
                     f"Provided format is not supported. format={format_}"
                 )
         return schemas.ProjectsOutput(projects=projects)
+
+    def _minimize_project_schema(
+        self,
+        project: mlrun.api.schemas.Project,
+    ) -> mlrun.api.schemas.Project:
+        project.spec.functions = None
+        project.spec.workflows = None
+        project.spec.artifacts = None
+        return project
 
     async def get_project_resources_counters(
         self,

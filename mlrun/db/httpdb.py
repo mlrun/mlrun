@@ -2097,6 +2097,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: Format of the results. Possible values are:
 
             - ``full`` (default value) - Return full project objects.
+            - ``minimal`` - Return minimal project objects (minimization happens in the BE).
             - ``name_only`` - Return just the names of the projects.
 
         :param labels: Filter by labels attached to the project.
@@ -2114,7 +2115,10 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return response.json()["projects"]
-        elif format_ == mlrun.api.schemas.ProjectsFormat.full:
+        elif format_ in [
+            mlrun.api.schemas.ProjectsFormat.full,
+            mlrun.api.schemas.ProjectsFormat.minimal,
+        ]:
             return [
                 mlrun.projects.MlrunProject.from_dict(project_dict)
                 for project_dict in response.json()["projects"]

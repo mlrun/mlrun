@@ -14,11 +14,13 @@
 
 import importlib.util as imputil
 import inspect
+import io
 import json
 import os
 import socket
 import sys
 import tempfile
+import threading
 import traceback
 from contextlib import redirect_stdout
 from copy import copy
@@ -396,21 +398,43 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("running:", cmd)
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
-    while True:
-        nextline = process.stdout.readline()
-        if not nextline and process.poll() is not None:
-            break
-        print(nextline.decode("utf-8"), end="")
-        sys.stdout.flush()
-        out += nextline.decode("utf-8")
-    code = process.poll()
+    process = Popen(
+        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+    )
 
-    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    def read_stderr(stderr):
+        while True:
+            nextline = process.stderr.readline()
+            if not nextline:
+                break
+            stderr.write(nextline)
+
+    # ML-3710. We must read stderr in a separate thread to drain the stderr pipe so that the spawned process won't
+    # hang if it tries to write more to stderr than the buffer size (default of approx 8kb).
+    with io.StringIO() as stderr:
+        stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
+        stderr_consumer_thread.start()
+
+        with io.StringIO() as stdout:
+            while True:
+                nextline = process.stdout.readline()
+                if not nextline:
+                    break
+                print(nextline, end="")
+                sys.stdout.flush()
+                stdout.write(nextline)
+            out = stdout.getvalue()
+
+        stderr_consumer_thread.join()
+        err = stderr.getvalue()
+
+    # if we return anything for err, the caller will assume that the process failed
+    code = process.poll()
+    err = "" if code == 0 else err
+
     return out, err
 
 

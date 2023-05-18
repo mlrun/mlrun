@@ -304,13 +304,13 @@ class MLClientCtx(object):
 
         self._init_dbs(rundb)
 
-        if spec and not is_api:
-            # init data related objects (require DB & Secrets to be set first), skip when running in the api service
-            self._data_stores.from_dict(spec)
-            if inputs and isinstance(inputs, dict):
-                for k, v in inputs.items():
-                    if v:
-                        self._set_input(k, v)
+        # init data related objects (require DB & Secrets to be set first)
+        self._data_stores.from_dict(spec)
+        if inputs and isinstance(inputs, dict):
+            for k, v in inputs.items():
+                if v:
+                    # do not load artifact from the API server - not needed
+                    self._set_input(k, v, load_artifact=not is_api)
 
         if host and not is_api:
             self.set_label("host", host)
@@ -490,7 +490,7 @@ class MLClientCtx(object):
         """
         return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
 
-    def _set_input(self, key, url=""):
+    def _set_input(self, key, url="", load_artifact=True):
         if url is None:
             return
         if not url:
@@ -502,6 +502,7 @@ class MLClientCtx(object):
             key,
             project=self._project,
             allow_empty_resources=self._allow_empty_resources,
+            load_artifact=load_artifact,
         )
         self._inputs[key] = obj
         return obj

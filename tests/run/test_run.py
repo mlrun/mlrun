@@ -310,7 +310,11 @@ def test_context_from_dict_when_start_time_is_string():
     assert isinstance(context._start_time, datetime.datetime)
 
 
-def test_context_from_run_dict():
+@pytest.mark.parametrize(
+    "is_api",
+    [True, False],
+)
+def test_context_from_run_dict(is_api):
     run_dict = {
         "metadata": {
             "name": "test-context-from-run-dict",
@@ -347,7 +351,7 @@ def test_context_from_run_dict():
         artifact_path="",
         workdir="",
     )
-    context = MLClientCtx.from_dict(run.to_dict())
+    context = MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
     assert context.name == run_dict["metadata"]["name"]
     assert context._project == run_dict["metadata"]["project"]
     assert context._labels == run_dict["metadata"]["labels"]

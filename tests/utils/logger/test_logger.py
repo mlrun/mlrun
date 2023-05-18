@@ -106,3 +106,21 @@ def test_redundant_logger_creation():
     assert stream.getvalue().count("[info] 2\n") == 1
     logger3.info("3")
     assert stream.getvalue().count("[info] 3\n") == 1
+
+
+def test_child_logger():
+    stream = StringIO()
+    logger = create_logger(
+        "debug",
+        name="test-logger",
+        stream=stream,
+        formatter_kind=FormatterKinds.HUMAN_EXTENDED.name,
+    )
+    child_logger = logger.get_child("child")
+    logger.debug("")
+    child_logger.debug("")
+    log_lines = stream.getvalue().strip().splitlines()
+
+    # validate parent and child log lines
+    assert "test-logger:debug" in log_lines[0]
+    assert "test-logger.child:debug" in log_lines[1]

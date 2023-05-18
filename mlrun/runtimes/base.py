@@ -43,7 +43,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
-from ..config import config, is_running_as_api
+from ..config import config
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
@@ -622,47 +622,6 @@ class BaseRuntime(ModelObj):
             self._get_db().update_run(updates, uid, project, iter=iter)
 
         return resp
-
-    def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
-
-        if not runobj.spec.notifications:
-            logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
-            )
-            return
-
-        # TODO: add support for other notifications per run iteration
-        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
-            logger.debug(
-                "Notifications per iteration are not supported, skipping",
-                run_uid=runobj.metadata.uid,
-            )
-            return
-
-        # If the run is remote, and we are in the SDK, we let the api deal with the notifications
-        # so there's nothing to do here.
-        # Otherwise, we continue on.
-        if is_running_as_api():
-
-            # import here to avoid circular imports and to avoid importing api requirements
-            from mlrun.api.crud import Notifications
-
-            # If in the api server, we can assume that watch=False, so we save notification
-            # configs to the DB, for the run monitor to later pick up and push.
-            session = mlrun.api.db.sqldb.session.create_session()
-            Notifications().store_run_notifications(
-                session,
-                runobj.spec.notifications,
-                runobj.metadata.uid,
-                runobj.metadata.project,
-            )
-
-        elif local:
-            # If the run is local, we can assume that watch=True, therefore this code runs
-            # once the run is completed, and we can just push the notifications.
-            # TODO: add store_notifications API endpoint so we can store notifications pushed from the
-            #       SDK for documentation purposes.
-            mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
     def _force_handler(self, handler):
         if not handler:

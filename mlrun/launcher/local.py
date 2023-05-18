@@ -122,7 +122,6 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             run=run,
         )
 
-        self._save_or_push_notifications(result)
         return result
 
     def execute(
@@ -188,6 +187,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 result = runtime._update_run_state(task=run, err=err)
 
         self._save_or_push_notifications(run)
+
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 

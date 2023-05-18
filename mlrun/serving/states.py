@@ -1282,24 +1282,8 @@ def _add_graphviz_flow(
                 _add_graphviz_router(sg, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
-        after = child.after or []
-        for item in after:
-            previous_object = step[item]
-            kw = (
-                {"ltail": "cluster_" + previous_object.fullname}
-                if previous_object.kind == StepKinds.router
-                else {}
-            )
-            graph.edge(previous_object.fullname, child.fullname, **kw)
-        before = getattr(child, "before", [])
-        for item in before:
-            next_object = step[item]
-            kw = (
-                {"ltail": "cluster_" + next_object.fullname}
-                if next_object.kind == StepKinds.router
-                else {}
-            )
-            graph.edge(child.fullname, next_object.fullname, **kw)
+        _add_edges(child.after or [], step, graph, child)
+        _add_edges(getattr(child, "before", []), step, graph, child, after=False)
         if child.on_error:
             graph.edge(child.fullname, child.on_error, style="dashed")
 
@@ -1317,6 +1301,18 @@ def _add_graphviz_flow(
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)
+
+
+def _add_edges(items, step, graph, child, after=True):
+    for item in items:
+        next_or_prev_object = step[item]
+        kw = {}
+        if next_or_prev_object.kind == StepKinds.router:
+            kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+        if after:
+            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+        else:
+            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
 
 
 def _generate_graphviz(

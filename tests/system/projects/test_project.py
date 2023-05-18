@@ -858,10 +858,10 @@ class TestProject(TestMLRunSystem):
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
-    def test_build_image(self):
+    def test_project_build_image(self):
         name = "test-build-image"
-        # self.custom_project_names_to_delete.append(name)
-        project = mlrun.new_project(name, context=str(self.assets_path), overwrite=True)
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.new_project(name, context=str(self.assets_path))
 
         image_name = ".test-custom-image"
         project.build_image(
@@ -876,29 +876,53 @@ class TestProject(TestMLRunSystem):
         assert project.default_image == image_name
 
         # test with user provided function object
-        base_fn = mlrun.code_to_function(
-            "scores",
-            filename=str(self.assets_path / "sentiment.py"),
+        project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
             kind="job",
             handler="handler",
         )
 
-        run_result = project.run_function(
-            base_fn.copy(), params={"text": "good morning"}
-        )
+        run_result = project.run_function("scores", params={"text": "good morning"})
         assert run_result.output("score")
 
-        project_dir = f"{projects_dir}/{name}"
+    def test_project_build_config_export_import(self):
+        # Verify that the build config is exported properly by the project, and a new project loaded from it
+        # can build default image directly without needing additional details.
+
+        name_export = "test-build-image-export"
+        name_import = "test-build-image-import"
+        self.custom_project_names_to_delete.extend([name_export, name_import])
+
+        project = mlrun.new_project(name_export, context=str(self.assets_path))
+        image_name = ".test-export-custom-image"
+
+        project.build_config(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+        assert project.default_image == image_name
+
+        project_dir = f"{projects_dir}/{name_export}"
         proj_file_path = project_dir + "/project.yaml"
         project.export(proj_file_path)
 
-        self._delete_test_project(name)
-
-        new_project = mlrun.load_project(project_dir)
+        new_project = mlrun.load_project(project_dir, name=name_import)
         new_project.build_image()
 
-        run_result = project.run_function(
-            base_fn.copy(), params={"text": "good evening"}
+        new_project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = new_project.run_function(
+            "scores", params={"text": "terrible evening"}
         )
         assert run_result.output("score")
 

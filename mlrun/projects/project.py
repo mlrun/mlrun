@@ -2347,6 +2347,35 @@ class MlrunProject(ModelObj):
             overwrite_build_params=overwrite_build_params,
         )
 
+    def build_config(
+        self,
+        image: str = None,
+        set_as_default: bool = False,
+        with_mlrun: bool = None,
+        base_image=None,
+        commands: list = None,
+        secret_name=None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        overwrite_build_params: bool = False,
+    ):
+        default_image_name = mlrun.mlconf.default_project_image_name.format(
+            name=self.name
+        )
+        image = image or self.default_image or default_image_name
+
+        self.spec.build.build_config(
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
+        )
+
+        if set_as_default and image != self.default_image:
+            self.set_default_image(image)
+
     def build_image(
         self,
         image: str = None,
@@ -2361,36 +2390,37 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
-        self.spec.build.build_config(
+        self.build_config(
             image=image,
-            base_image=base_image,
-            commands=commands,
-            secret=secret_name,
-            # source, extra, load_source_on_run,
-            with_mlrun=with_mlrun,
-            requirements=requirements,
-            overwrite=overwrite_build_params,
-        )
-
-        image = image or self.default_image or f".mlrun-project-image-{self.name}"
-        function = mlrun.new_function("dummy-function-for-image", kind="job")
-
-        result = self.build_function(
-            function=function,
-            with_mlrun=with_mlrun,
-            skip_deployed=skip_deployed,
-            image=image,
+            set_as_default=set_as_default,
             base_image=base_image,
             commands=commands,
             secret_name=secret_name,
+            with_mlrun=with_mlrun,
             requirements=requirements,
-            mlrun_version_specifier=mlrun_version_specifier,
-            builder_env=builder_env,
             overwrite_build_params=overwrite_build_params,
         )
 
-        if set_as_default and image != self.default_image:
-            self.set_default_image(image)
+        function = mlrun.new_function("dummy--image--build", kind="job")
+
+        build = self.spec.build
+        result = self.build_function(
+            function=function,
+            with_mlrun=build.with_mlrun,
+            image=build.image,
+            base_image=build.base_image,
+            commands=build.commands,
+            secret_name=build.secret,
+            requirements=build.requirements,
+            skip_deployed=skip_deployed,
+            overwrite_build_params=overwrite_build_params,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+        )
+
+        mlrun.db.get_run_db(secrets=self._secrets).delete_function(
+            name=function.metadata.name
+        )
 
         return result
 

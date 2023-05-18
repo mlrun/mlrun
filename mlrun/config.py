@@ -234,10 +234,10 @@ default_config = {
             "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
-            # Whether or not to perform database migration from sqlite to mysql on initialization
+            # Whether to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
             "backup": {
-                # Whether or not to use db backups on initialization
+                # Whether to use db backups on initialization
                 "mode": "enabled",
                 "file_format": "db_backup_%Y%m%d%H%M.db",
                 "use_rotation": True,
@@ -248,6 +248,14 @@ default_config = {
             # None will set this to be equal to the httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
+            # below is a db-specific configuration
+            "mysql": {
+                # comma separated mysql modes (globally) to set on runtime
+                # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
+                #
+                # if set to "nil" or "none", nothing would be set
+                "modes": "STRICT_TRANS_TABLES",
+            },
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

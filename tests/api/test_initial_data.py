@@ -158,5 +158,5 @@ def _initialize_db_without_migrations() -> typing.Tuple[
     db_session = mlrun.api.db.sqldb.session.create_session(dsn=dsn)
     db = mlrun.api.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    mlrun.api.db.init_db.init_db(db_session)
+    mlrun.api.db.init_db.init_db()
     return db, db_session

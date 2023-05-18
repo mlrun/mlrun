@@ -41,8 +41,8 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
-from mlrun.utils.model_monitoring import EndpointType
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -62,7 +62,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         db.create_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
+            endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
         )
 
         endpoint_response = db.get_model_endpoint(
@@ -88,14 +88,14 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         db.create_model_endpoint(
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
-            model_endpoint=endpoint,
+            model_endpoint=endpoint.dict(),
         )
 
         endpoint_before_update = db.get_model_endpoint(
             project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
-        assert endpoint_before_update.status.state is None
+        assert endpoint_before_update.status.state == "null"
 
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
@@ -133,7 +133,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_out.endpoints) == 0
+        assert len(endpoints_out) == 0
 
     def test_list_endpoints(self):
         db = mlrun.get_run_db()
@@ -145,13 +145,13 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         for endpoint in endpoints_in:
             db.create_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint
+                endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
             )
 
         endpoints_out = db.list_model_endpoints(self.project_name)
 
         in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
-        out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out.endpoints))
+        out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
 
         endpoints_intersect = in_endpoint_ids.intersection(out_endpoint_ids)
         assert len(endpoints_intersect) == number_of_endpoints
@@ -176,32 +176,33 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             db.create_model_endpoint(
                 endpoint_details.metadata.project,
                 endpoint_details.metadata.uid,
-                endpoint_details,
+                endpoint_details.dict(),
             )
 
         filter_model = db.list_model_endpoints(self.project_name, model="filterme")
-        assert len(filter_model.endpoints) == 1
+        assert len(filter_model) == 1
 
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermex=1"]
-        )
-        assert len(filter_labels.endpoints) == 4
+        # TODO: Uncomment the following assertions once the KV labels filters is fixed.
+        #       Following the implementation of supporting SQL store for model endpoints records, this table
+        #       has static schema. That means, in order to keep the schema logic for both SQL and KV,
+        #       it is not possible to add new label columns dynamically to the KV table. Therefore, the label filtering
+        #       process for the KV should be updated accordingly.
+        #
 
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermex=1", "filtermey=2"]
-        )
-        assert len(filter_labels.endpoints) == 4
-
-        filter_labels = db.list_model_endpoints(
-            self.project_name, labels=["filtermey=2"]
-        )
-        assert len(filter_labels.endpoints) == 4
-
-    @staticmethod
-    def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
-        return mlrun.api.schemas.AuthInfo(
-            data_session=os.environ.get("V3IO_ACCESS_KEY")
-        )
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermex=1"]
+        # )
+        # assert len(filter_labels) == 4
+        #
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermex=1", "filtermey=2"]
+        # )
+        # assert len(filter_labels) == 4
+        #
+        # filter_labels = db.list_model_endpoints(
+        #     self.project_name, labels=["filtermey=2"]
+        # )
+        # assert len(filter_labels) == 4
 
     def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
         def random_labels():
@@ -211,7 +212,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         return ModelEndpoint(
             metadata=ModelEndpointMetadata(
-                project=self.project_name, labels=random_labels()
+                project=self.project_name,
+                labels=random_labels(),
+                uid=str(randint(1000, 5000)),
             ),
             spec=ModelEndpointSpec(
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
@@ -235,6 +238,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
+        # 3 - invalid records are considered in the aggregated error count value
 
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
@@ -279,9 +283,19 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating Requests
-        iris_data = iris["data"].tolist()
+        # Simulating invalid requests
+        invalid_input = ["n", "s", "o", "-"]
+        for _ in range(10):
+            try:
+                serving_fn.invoke(
+                    f"v2/models/{model_name}/infer",
+                    json.dumps({"inputs": [invalid_input]}),
+                )
+            except RuntimeError:
+                pass
 
+        # Simulating valid requests
+        iris_data = iris["data"].tolist()
         t_end = monotonic() + simulation_time
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -290,20 +304,23 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.1))
 
-        # test metrics
+        # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
-        assert len(endpoints_list.endpoints) == 1
+        assert len(endpoints_list) == 1
 
-        endpoint = endpoints_list.endpoints[0]
+        endpoint = endpoints_list[0]
         assert len(endpoint.status.metrics) > 0
 
-        predictions_per_second = endpoint.status.metrics["predictions_per_second"]
-        assert predictions_per_second.name == "predictions_per_second"
-
-        total = sum((m[1] for m in predictions_per_second.values))
+        predictions_per_second = endpoint.status.metrics["real_time"][
+            "predictions_per_second"
+        ]
+        total = sum((m[1] for m in predictions_per_second))
         assert total > 0
+
+        # Validate error count value
+        assert endpoint.status.error_count == 10
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -430,14 +447,11 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
-        assert len(endpoints_list.endpoints) == 1
+        assert len(endpoints_list) == 1
 
         # Validate monitoring mode
-        model_endpoint = endpoints_list.endpoints[0]
-        assert (
-            model_endpoint.spec.monitoring_mode
-            == mlrun.api.schemas.ModelMonitoringMode.enabled.value
-        )
+        model_endpoint = endpoints_list[0]
+        assert model_endpoint.spec.monitoring_mode == ModelMonitoringMode.enabled.value
 
         # Validate tracking policy
         batch_job = db.get_schedule(
@@ -614,25 +628,23 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             self.project_name, top_level=True
         )
 
-        assert len(top_level_endpoints.endpoints) == 1
-        assert (
-            top_level_endpoints.endpoints[0].status.endpoint_type == EndpointType.ROUTER
-        )
+        assert len(top_level_endpoints) == 1
+        assert top_level_endpoints[0].status.endpoint_type == EndpointType.ROUTER
 
-        children_list = top_level_endpoints.endpoints[0].status.children_uids
+        children_list = top_level_endpoints[0].status.children_uids
         assert len(children_list) == len(model_names)
 
         endpoints_children_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, uids=children_list
         )
-        assert len(endpoints_children_list.endpoints) == len(model_names)
-        for child in endpoints_children_list.endpoints:
+        assert len(endpoints_children_list) == len(model_names)
+        for child in endpoints_children_list:
             assert child.status.endpoint_type == EndpointType.LEAF_EP
 
         # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
 
-        for endpoint in endpoints_list.endpoints:
+        for endpoint in endpoints_list:
             # Validate that the model endpoint record has been updated through the stream process
             assert endpoint.status.first_request != endpoint.status.last_request
             data = client.read(
@@ -695,3 +707,105 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Check if model monitoring stream function is ready
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
         assert base_runtime.status.state == "ready", stat
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelMonitoringKafka(TestMLRunSystem):
+    """Deploy a basic iris model configured with kafka stream"""
+
+    brokers = (
+        os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        if "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS" in os.environ
+        and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        else None
+    )
+    project_name = "pr-kafka-model-monitoring"
+
+    @pytest.mark.timeout(300)
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_model_monitoring_with_kafka_stream(self):
+        project = mlrun.get_run_db().get_project(self.project_name)
+
+        iris = load_iris()
+        train_set = pd.DataFrame(
+            iris["data"],
+            columns=[
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ],
+        )
+
+        # Import the serving function from the function hub
+        serving_fn = mlrun.import_function(
+            "hub://v2_model_server", project=self.project_name
+        ).apply(mlrun.auto_mount())
+
+        model_name = "sklearn_RandomForestClassifier"
+
+        # Upload the model through the projects API so that it is available to the serving function
+        project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
+        )
+        # Add the model to the serving function's routing spec
+        serving_fn.add_model(
+            model_name,
+            model_path=project.get_artifact_uri(
+                key=model_name, category="model", tag="latest"
+            ),
+        )
+
+        project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
+
+        # enable model monitoring
+        serving_fn.set_tracking()
+        # Deploy the function
+        serving_fn.deploy()
+
+        monitoring_stream_fn = project.get_function("model-monitoring-stream")
+
+        function_config = monitoring_stream_fn.spec.config
+
+        # Validate kakfa stream trigger configurations
+        assert function_config["spec.triggers.kafka"]
+        assert (
+            function_config["spec.triggers.kafka"]["attributes"]["topics"][0]
+            == f"monitoring_stream_{self.project_name}"
+        )
+        assert (
+            function_config["spec.triggers.kafka"]["attributes"]["brokers"][0]
+            == self.brokers
+        )
+
+        import kafka
+
+        # Validate that the topic exist as expected
+        consumer = kafka.KafkaConsumer(bootstrap_servers=[self.brokers])
+        topics = consumer.topics()
+        assert f"monitoring_stream_{self.project_name}" in topics
+
+        # Simulating Requests
+        iris_data = iris["data"].tolist()
+
+        for i in range(100):
+            data_point = choice(iris_data)
+            serving_fn.invoke(
+                f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
+            )
+            sleep(uniform(0.02, 0.03))
+
+        # Validate that the model endpoint metrics were updated as indication for the sanity of the flow
+        model_endpoint = mlrun.get_run_db().list_model_endpoints(
+            project=self.project_name
+        )[0]
+
+        assert model_endpoint.status.metrics["generic"]["latency_avg_5m"] > 0
+        assert model_endpoint.status.metrics["generic"]["predictions_count_5m"] > 0

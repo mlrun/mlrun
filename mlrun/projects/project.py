@@ -36,6 +36,7 @@ import yaml
 import mlrun.api.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.regex
 from mlrun.runtimes import RuntimeKinds
 
@@ -57,7 +58,6 @@ from ..utils import (
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
-from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -2105,15 +2105,43 @@ class MlrunProject(ModelObj):
                 mlrun.get_dataitem(filepath).upload(tmp_path)
                 remove(tmp_path)
 
-    def set_model_monitoring_credentials(self, access_key: str):
+    def set_model_monitoring_credentials(
+        self,
+        access_key: str = None,
+        endpoint_store_connection: str = None,
+        stream_path: str = None,
+    ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
-        The supplied credentials must have data access
 
-        :param access_key: Model Monitoring access key for managing user permissions.
+        :param access_key:                Model Monitoring access key for managing user permissions
+        :param endpoint_store_connection: Endpoint store connection string
+        :param stream_path:               Path to the model monitoring stream
         """
-        set_project_model_monitoring_credentials(
-            access_key=access_key, project=self.metadata.name
+
+        secrets_dict = {}
+        if access_key:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
+
+        if endpoint_store_connection:
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
+
+        if stream_path:
+            if stream_path.startswith("kafka://") and "?topic" in stream_path:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Custom kafka topic is not allowed"
+                )
+            secrets_dict[
+                model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+            ] = stream_path
+
+        self.set_secrets(
+            secrets=secrets_dict,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(
@@ -2577,72 +2605,6 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.project = project.metadata.name
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
-    return name or func.metadata.name, func
-
-
-def _init_function_from_dict_legacy(f, project):
-    name = f.get("name", "")
-    url = f.get("url", "")
-    kind = f.get("kind", "")
-    image = f.get("image", None)
-    with_repo = f.get("with_repo", False)
-
-    if with_repo and not project.source:
-        raise ValueError("project source must be specified when cloning context")
-
-    in_context = False
-    if not url and "spec" not in f:
-        raise ValueError("function missing a url or a spec")
-    # We are not using the project method to obtain an absolute path here,
-    # because legacy projects are built differently, and we cannot rely on them to have a spec
-    if url and "://" not in url:
-        if project.context and not url.startswith("/"):
-            url = path.join(project.context, url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
-
-    if "spec" in f:
-        func = new_function(name, runtime=f["spec"])
-    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
-        func = import_function(url)
-        if image:
-            func.spec.image = image
-    elif url.endswith(".ipynb"):
-        func = code_to_function(name, filename=url, image=image, kind=kind)
-    elif url.endswith(".py"):
-        if not image:
-            raise ValueError(
-                "image must be provided with py code files, "
-                "use function object for more control/settings"
-            )
-        if in_context and with_repo:
-            func = new_function(name, command=url, image=image, kind=kind or "job")
-        else:
-            func = code_to_function(name, filename=url, image=image, kind=kind or "job")
-    else:
-        raise ValueError(f"unsupported function url {url} or no spec")
-
-    if with_repo:
-        func.spec.build.source = "./"
-
-    return _init_function_from_obj_legacy(func, project, name)
-
-
-def _init_function_from_obj_legacy(func, project, name=None):
-    build = func.spec.build
-    if project.origin_url:
-        origin = project.origin_url
-        try:
-            if project.repo:
-                origin += "#" + project.repo.head.commit.hexsha
-        except Exception:
-            pass
-        build.code_origin = origin
-    if project.name:
-        func.metadata.project = project.name
-    if project.tag:
-        func.metadata.tag = project.tag
     return name or func.metadata.name, func
 
 

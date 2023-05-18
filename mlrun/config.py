@@ -376,14 +376,24 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
+        # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
+        # stream, and endpoints.
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
+            "stream": "",
         },
+        # Offline storage path can be either relative or a full path. This path is used for general offline data
+        # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
+        "offline_storage_path": "model-endpoints/{kind}",
+        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
+        # when the user is working in CE environment and has not provided any stream path.
+        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
-        "store_type": "kv",
+        "store_type": "v3io-nosql",
+        "endpoint_store_connection": "",
     },
     "secret_stores": {
         "vault": {
@@ -926,6 +936,68 @@ class Config:
         # Get v3io access key from the environment
         return os.environ.get("V3IO_ACCESS_KEY")
 
+    def get_model_monitoring_file_target_path(
+        self,
+        project: str = "",
+        kind: str = "",
+        target: str = "online",
+        artifact_path: str = None,
+    ) -> str:
+        """Get the full path from the configuration based on the provided project and kind.
+
+        :param project:        Project name.
+        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
+                               path for the provided kind. If it doesn't exist, use the default path.
+                               If the target path is offline and the offline path is already a full path in the
+                               configuration, then the result will be that path as-is. If the offline path is a
+                               relative path, then the result will be based on the project artifact path and the offline
+                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
+                               path instead.
+        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
+                               relative artifact path will be taken from the global MLRun artifact path.
+
+        :return: Full configured path for the provided kind.
+        """
+
+        if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project)
+            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project, kind=kind
+            )
+
+        # Get the current offline path from the configuration
+        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
+            project=project, kind=kind
+        )
+
+        # Absolute path
+        if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
+            file_path
+        ):
+            return file_path
+
+        # Relative path
+        else:
+            artifact_path = artifact_path or config.artifact_path
+            if artifact_path[-1] != "/":
+                artifact_path += "/"
+
+            return mlrun.utils.helpers.fill_artifact_path_template(
+                artifact_path=artifact_path + file_path, project=project
+            )
+
+    def is_ce_mode(self) -> bool:
+        # True if the setup is in CE environment
+        return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
+            ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -1048,15 +1120,18 @@ def read_env(env=None, prefix=env_prefix):
         cfg[path[0]] = value
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
+    # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
     is_remote_mlrun = (
         env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
     )
+
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
     v3io_api = env.get("V3IO_API")
     if v3io_api:
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
+        # in remote mlrun we can't use http, so we'll use https
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead

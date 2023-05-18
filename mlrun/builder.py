@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import pathlib
 import re
 import tarfile
@@ -55,20 +55,20 @@ def make_dockerfile(
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if source:
-        dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
+            source_dir = os.path.join(workdir, "source")
             stage1 = f"""
             FROM {base_image} AS extractor
             RUN apt-get update -qqy && apt install --assume-yes unzip
-            RUN mkdir -p /source
-            COPY {source} /source
-            RUN cd /source && unzip {source} && rm {source}
+            RUN mkdir -p {source_dir}
+            COPY {source} {source_dir}
+            RUN cd {source_dir} && unzip {source} && rm {source}
             """
             dock = stage1 + "\n" + dock
 
-            dock += f"COPY --from=extractor /source/ {workdir}\n"
+            dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
         else:
             dock += f"ADD {source} {workdir}\n"
 
@@ -221,7 +221,21 @@ def make_kaniko_pod(
         if end == -1:
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
-        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+        assume_instance_role = not config.httpdb.builder.docker_registry_secret
+        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
+
+        # project secret might conflict with the attached instance role
+        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+        # due to credentials conflict / lack of permission on given credentials
+        if assume_instance_role:
+            kpod.pod.spec.containers[0].env.extend(
+                [
+                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
+                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
+                ]
+            )
 
     # mount regular docker config secret
     elif secret_name:
@@ -231,7 +245,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(kpod, registry, repo):
+def configure_kaniko_ecr_init_container(
+    kpod, registry, repo, assume_instance_role=True
+):
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -242,12 +258,13 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
     )
     init_container_env = {}
 
-    if not config.httpdb.builder.docker_registry_secret:
+    if assume_instance_role:
 
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
         kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+
     else:
         aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
         aws_credentials_file_env_value = "/tmp/credentials"
@@ -396,6 +413,20 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
+    if source_to_copy and (
+        not runtime.spec.clone_target_dir
+        or not os.path.isabs(runtime.spec.clone_target_dir)
+    ):
+        # use a temp dir for permissions and set it as the workdir
+        tmpdir = tempfile.mkdtemp()
+        relative_workdir = runtime.spec.clone_target_dir or ""
+        if relative_workdir.startswith("./"):
+            # TODO: use 'removeprefix' when we drop python 3.7 support
+            # relative_workdir.removeprefix("./")
+            relative_workdir = relative_workdir[2:]
+
+        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
+
     dock = make_dockerfile(
         base_image,
         commands,
@@ -404,6 +435,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
+        workdir=runtime.spec.clone_target_dir,
     )
 
     kpod = make_kaniko_pod(

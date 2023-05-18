@@ -16,6 +16,8 @@ When targets are not specified, data is stored in the configured default targets
 ```{admonition} Limitations
 - Do not name columns starting with either `_` or `aggr_`. They are reserved for internal use. See 
 also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
+- Do not name columns to match the regex pattern `.*_[a-z]+_[0-9]+[smhd]$`, where [a-z]+ is an aggregation name,
+one of: count, sum, sqr, max, min, first, last, avg, stdvar, stddev. E.g. x_count_1h.
 - When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
 

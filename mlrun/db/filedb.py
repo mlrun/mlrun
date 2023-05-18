@@ -14,6 +14,7 @@
 
 import json
 import pathlib
+import typing
 from datetime import datetime, timedelta, timezone
 from os import listdir, makedirs, path, remove, scandir
 from typing import List, Optional, Union
@@ -23,9 +24,9 @@ from dateutil.parser import parse as parse_time
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.model_monitoring.model_endpoint
 
 from ..api import schemas
-from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
@@ -59,7 +60,8 @@ class FileRunDB(RunDBInterface):
         self.dirpath = dirpath
         self._datastore = None
         self._subpath = None
-        self._secrets = None
+        self._secrets: typing.Optional[mlrun.secrets.SecretsStore] = None
+        self._projects = {}
         makedirs(self.schedules_dir, exist_ok=True)
 
     def connect(self, secrets=None):
@@ -552,7 +554,10 @@ class FileRunDB(RunDBInterface):
         self,
         project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        if isinstance(project, dict):
+            project = mlrun.api.schemas.Project(**project)
+        self._projects[project.metadata.name] = project
+        return project
 
     @property
     def schedules_dir(self):
@@ -738,7 +743,8 @@ class FileRunDB(RunDBInterface):
         provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: dict = None,
     ):
-        raise NotImplementedError()
+        for key, value in secrets.items():
+            self._secrets._secrets[key] = value
 
     def list_project_secrets(
         self,
@@ -780,7 +786,9 @@ class FileRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         raise NotImplementedError()
 

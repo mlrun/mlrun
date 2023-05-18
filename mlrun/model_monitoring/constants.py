@@ -14,12 +14,17 @@
 #
 class EventFieldType:
     FUNCTION_URI = "function_uri"
+    FUNCTION = "function"
+    MODEL_URI = "model_uri"
     MODEL = "model"
     VERSION = "version"
     VERSIONED_MODEL = "versioned_model"
     MODEL_CLASS = "model_class"
     TIMESTAMP = "timestamp"
+    # `endpoint_id` is deprecated as a field in the model endpoint schema since 1.3.1, replaced by `uid`.
     ENDPOINT_ID = "endpoint_id"
+    UID = "uid"
+    ENDPOINT_TYPE = "endpoint_type"
     REQUEST_ID = "request_id"
     RECORD_TYPE = "record_type"
     FEATURES = "features"
@@ -27,8 +32,6 @@ class EventFieldType:
     NAMED_FEATURES = "named_features"
     LABELS = "labels"
     LATENCY = "latency"
-    UNPACKED_LABELS = "unpacked_labels"
-    LABEL_COLUMNS = "label_columns"
     LABEL_NAMES = "label_names"
     PREDICTION = "prediction"
     PREDICTIONS = "predictions"
@@ -38,15 +41,27 @@ class EventFieldType:
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
     METRICS = "metrics"
-    BATCH_TIMESTAMP = "batch_timestamp"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
     DEFAULT_BATCH_INTERVALS = "default_batch_intervals"
-    DEFAULT_BATCH_IMAGE = "default_batch_image"
-    STREAM_IMAGE = "stream_image"
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
+    MODEL_ENDPOINTS = "model_endpoints"
+    STATE = "state"
+    PROJECT = "project"
+    STREAM_PATH = "stream_path"
+    ACTIVE = "active"
+    MONITORING_MODE = "monitoring_mode"
+    FEATURE_STATS = "feature_stats"
+    CURRENT_STATS = "current_stats"
+    CHILDREN = "children"
+    CHILDREN_UIDS = "children_uids"
+    DRIFT_MEASURES = "drift_measures"
+    DRIFT_STATUS = "drift_status"
+    MONITOR_CONFIGURATION = "monitor_configuration"
+    FEATURE_SET_URI = "monitoring_feature_set_uri"
+    ALGORITHM = "algorithm"
 
 
 class EventLiveStats:
@@ -61,7 +76,34 @@ class EventKeyMetrics:
     BASE_METRICS = "base_metrics"
     CUSTOM_METRICS = "custom_metrics"
     ENDPOINT_FEATURES = "endpoint_features"
+    GENERIC = "generic"
+    REAL_TIME = "real_time"
 
 
-class StoreTarget:
+class TimeSeriesTarget:
     TSDB = "tsdb"
+
+
+class ModelEndpointTarget:
+    V3IO_NOSQL = "v3io-nosql"
+    SQL = "sql"
+
+
+class ProjectSecretKeys:
+    ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
+    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
+    STREAM_PATH = "STREAM_PATH"
+
+
+class ModelMonitoringStoreKinds:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"
+
+
+class FileTargetKind:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"
+    STREAM = "stream"
+    PARQUET = "parquet"
+    LOG_STREAM = "log_stream"

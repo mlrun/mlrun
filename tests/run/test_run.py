@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import pathlib
 from unittest.mock import MagicMock, Mock
 
@@ -254,6 +255,13 @@ def test_local_context(rundb_mock):
     ), "annotation not updated"
 
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
+
+
+def test_context_from_dict_when_start_time_is_string():
+    context = mlrun.get_or_create_ctx("ctx")
+    context_dict = context.to_dict()
+    context = mlrun.MLClientCtx.from_dict(context_dict)
+    assert isinstance(context._start_time, datetime.datetime)
 
 
 def test_context_from_run_dict():

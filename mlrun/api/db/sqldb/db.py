@@ -1023,6 +1023,14 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
     def get_function(self, session, name, project="", tag="", hash_key=""):
+        """
+        In version 1.4.0 we added a normalization to the function name before storing.
+        To be backwards compatible and allow users to query old non-normalized functions,
+        we're providing a fallback to get_function:
+        normalize the requested name and try to retrieve it from the database.
+        If no answer is received, we will check to see if the original name contained underscores,
+        if so, the retrieval will be repeated and the result (if it exists) returned.
+        """
         try:
             return self._get_function(
                 session, mlrun.utils.normalize_name(name), project, tag, hash_key

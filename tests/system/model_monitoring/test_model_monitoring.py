@@ -26,13 +26,10 @@ import pytest
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
-import mlrun
-import mlrun.api.crud
 import mlrun.artifacts.model
 import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
 import mlrun.feature_store
-import mlrun.utils
+import mlrun.serving.routers
 from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.common.schemas import (
     ModelEndpoint,

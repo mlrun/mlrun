@@ -84,7 +84,7 @@ class ModelEndpointSpec(ObjectSpec):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                mlrun.common.model_monitoring.EventFieldType.FEATURE_NAMES,
+                mlrun.common.model_monitoring.helpers.EventFieldType.FEATURE_NAMES,
                 mlrun.common.model_monitoring.EventFieldType.LABEL_NAMES,
                 mlrun.common.model_monitoring.EventFieldType.MONITOR_CONFIGURATION,
             ]

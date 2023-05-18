@@ -18,7 +18,10 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .model_monitoring_batch import DriftResultType, DriftStatus
+from mlrun.common.model_monitoring.model_monitoring_batch import (
+    DriftResultType,
+    DriftStatus,
+)
 
 
 class FeaturesDriftTablePlot:

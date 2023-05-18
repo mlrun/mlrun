@@ -33,7 +33,7 @@ from fastapi import (
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
+import mlrun.api.crud.model_monitoring.utils
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
 import mlrun.api.utils.auth.verifier
@@ -655,7 +655,7 @@ def _build_function(
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.model_monitoring.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
                             if mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
@@ -680,7 +680,7 @@ def _build_function(
                             )
 
                         # deploy both model monitoring stream and model monitoring batch job
-                        mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
+                        mlrun.api.crud.model_monitoring.utils.MonitoringDeployment().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             db_session=db_session,
                             auth_info=auth_info,

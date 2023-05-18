@@ -23,19 +23,12 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import v3io
 import v3io.dataplane
 import v3io_frames
 
-import mlrun
-import mlrun.common.model_monitoring
-import mlrun.common.schemas
+import mlrun.common.model_monitoring.stores
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
-import mlrun.model_monitoring
-import mlrun.model_monitoring.stores
-import mlrun.run
-import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -497,7 +490,6 @@ class BatchProcessor:
         context: mlrun.run.MLClientCtx,
         project: str,
     ):
-
         """
         Initialize Batch Processor object.
 
@@ -525,7 +517,7 @@ class BatchProcessor:
 
         # Get a runtime database
 
-        self.db = mlrun.model_monitoring.stores.get_model_endpoint_store(
+        self.db = mlrun.common.model_monitoring.stores.get_model_endpoint_store(
             project=project
         )
 

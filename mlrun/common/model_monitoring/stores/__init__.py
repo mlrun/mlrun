@@ -52,7 +52,6 @@ class ModelEndpointStoreType(enum.Enum):
         """
 
         if self.value == ModelEndpointStoreType.v3io_nosql.value:
-
             from .kv_model_endpoint_store import KVModelEndpointStore
 
             # Get V3IO access key from env

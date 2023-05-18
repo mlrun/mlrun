@@ -21,12 +21,7 @@ import typing
 import pandas as pd
 import storey
 
-import mlrun
-import mlrun.common.model_monitoring
-import mlrun.config
-import mlrun.datastore.targets
 import mlrun.feature_store.steps
-import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.model_monitoring import (
@@ -37,7 +32,7 @@ from mlrun.common.model_monitoring import (
     ModelEndpointTarget,
     ProjectSecretKeys,
 )
-from mlrun.model_monitoring.stores import get_model_endpoint_store
+from mlrun.common.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 
 
@@ -407,7 +402,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -465,7 +459,6 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -535,7 +528,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
@@ -745,7 +737,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             endpoint_id in self.last_request
             and self.last_request[endpoint_id] > timestamp
         ):
-
             logger.error(
                 f"current event request time {timestamp} is earlier than the last request time "
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
@@ -767,7 +758,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
         if endpoint_id not in self.endpoints:
-
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
             endpoint_record = get_endpoint_record(
                 project=self.project,
@@ -783,7 +773,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
                 last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
                 if last_request:
-
                     self.last_request[endpoint_id] = last_request
 
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
@@ -1065,7 +1054,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.keys = set()
 
     def do(self, event: typing.Dict):
-
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)

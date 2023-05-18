@@ -19,7 +19,6 @@ import typing
 import v3io.dataplane
 import v3io_frames
 
-import mlrun
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients

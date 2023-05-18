@@ -27,12 +27,10 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
-import mlrun
-import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
 import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.model_monitoring.stores
 import mlrun.common.schemas
-import mlrun.model_monitoring.stores
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
@@ -84,11 +82,12 @@ def test_grafana_proxy_model_endpoints_check_connection(
     reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
-
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
+        value="kv"
+    )
     endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=_get_access_key()
     )
@@ -433,7 +432,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
         value="v3io-nosql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
@@ -485,4 +484,4 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         assert targets == ["f0", "f1", "f2", "f3"]
 
         lens = [t["datapoints"] for t in response]
-        assert all(map(lambda l: len(l) == 10, lens))
+        assert all(map(lambda length: len(length) == 10, lens))

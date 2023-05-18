@@ -30,7 +30,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.utils import logger
 
 
-# TODO: Move the `ArtifactType` to common/constants/model_monitoring.py
+# TODO: Move the `ArtifactType` to common/schemas/artifact.py
 class ArtifactType(Enum):
     """
     Possible artifact types to log using the MLRun `context` decorator.

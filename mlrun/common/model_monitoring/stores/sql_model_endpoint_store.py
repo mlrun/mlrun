@@ -20,11 +20,8 @@ from datetime import datetime, timezone
 import pandas as pd
 import sqlalchemy as db
 
-import mlrun
 import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.model_monitoring.model_endpoint
 import mlrun.utils.model_monitoring
-import mlrun.utils.v3io_clients
 from mlrun.api.db.sqldb.session import create_session, get_engine
 from mlrun.utils import logger
 

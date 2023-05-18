@@ -704,7 +704,7 @@ def code_to_function(
     Spark3Runtime,
     RemoteSparkRuntime,
 ]:
-    """Convenience function to insert code and configure an mlrun runtime.  
+    """Convenience function to insert code and configure an mlrun runtime.
 
     Easiest way to construct a runtime type object. Provides the most often
     used configuration options for all runtimes as parameters.

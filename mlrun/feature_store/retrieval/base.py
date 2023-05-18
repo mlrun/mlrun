@@ -198,24 +198,32 @@ class BaseMerger(abc.ABC):
                     self._append_drop_column(column)
                     column_names.append(column)
 
+            if entity_timestamp_column in [feature.name for feature in feature_set.spec.features]:
+                time_field = entity_timestamp_column
+            elif feature_set.spec.timestamp_key:
+                time_field = feature_set.spec.timestamp_key
+            elif start_time or end_time:
+                logger.warn(f"You provided start_time or end_time but the feature_set {feature_set.name} "
+                            f"doesn't have timestamp_key and a column named {entity_timestamp_column} therefore "
+                            f"the time filter didn't executed on it.")
+                time_field = None
+            else:
+                time_field = None
+
             df = self._get_engine_df(
                 feature_set,
                 name,
                 column_names,
-                start_time,
-                end_time,
-                entity_timestamp_column,
+                start_time if time_field else None,
+                end_time if time_field else None,
+                time_field
             )
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             if feature_set.spec.timestamp_key:
-                entity_timestamp_column_list = [feature_set.spec.timestamp_key]
-                column_names += entity_timestamp_column_list
-                node.data["save_cols"] += entity_timestamp_column_list
-                if not entity_timestamp_column:
-                    # if not entity_timestamp_column the firs `FeatureSet` will define it
-                    entity_timestamp_column = feature_set.spec.timestamp_key
+                column_names.append(feature_set.spec.timestamp_key)
+                node.data["save_cols"].append(feature_set.spec.timestamp_key)
 
             # rename columns to be unique for each feature set and select if needed
             rename_col_dict = {
@@ -343,7 +351,7 @@ class BaseMerger(abc.ABC):
             keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
         for featureset, featureset_df, lr_key in zip(featuresets, featureset_dfs, keys):
-            if featureset.spec.timestamp_key:
+            if featureset.spec.timestamp_key and entity_timestamp_column:
                 merge_func = self._asof_join
                 if self._join_type != "inner":
                     logger.warn(
@@ -361,6 +369,7 @@ class BaseMerger(abc.ABC):
                 lr_key[0],
                 lr_key[1],
             )
+            entity_timestamp_column = entity_timestamp_column or featureset.spec.timestamp_key
 
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)

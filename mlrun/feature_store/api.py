@@ -142,6 +142,7 @@ def get_offline_features(
     :param target:         where to write the results to
     :param drop_columns:   list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
+                                    used also for time filtering when
     :param run_config:     function and/or run configuration
                            see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:      datetime, low limit of time needed to be filtered. Optional.
@@ -200,10 +201,6 @@ def get_offline_features(
 
     start_time = str_to_timestamp(start_time)
     end_time = str_to_timestamp(end_time)
-    if (start_time or end_time) and not entity_timestamp_column:
-        raise TypeError(
-            "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
-        )
     if start_time and not end_time:
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()

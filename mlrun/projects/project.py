@@ -577,7 +577,6 @@ class ProjectSpec(ModelObj):
         self.disable_auto_mount = disable_auto_mount
         self.default_image = default_image
 
-        self._build = None
         self.build = build
 
     @property
@@ -2358,6 +2357,22 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
     ):
+        """specify builder configuration for the project
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+            used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param base_image: base image name/path
+        :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
         )
@@ -2390,6 +2405,28 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        """Builder docker image for the project, based on the project's build config. Parameters allow to override
+        the build config.
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+                        used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun:      add the current mlrun package to the container build
+        :param skip_deployed:   skip the build if we already have the image specified built
+        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
+
         self.build_config(
             image=image,
             set_as_default=set_as_default,

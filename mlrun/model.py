@@ -425,7 +425,9 @@ class ImageBuilder(ModelObj):
 
         :return: function object
         """
-        if not isinstance(commands, list):
+        if not isinstance(commands, list) or not all(
+            isinstance(item, str) for item in commands
+        ):
             raise ValueError("commands must be a string list")
         if not self.commands or overwrite:
             self.commands = commands

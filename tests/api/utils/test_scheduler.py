@@ -208,6 +208,15 @@ async def test_create_schedule_mlrun_function(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
 
+    project_name = config.default_project
+    mlrun.new_project(project_name, save=False)
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 0
+
     expected_call_counter = 1
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
         number_of_jobs=expected_call_counter, seconds_interval=1
@@ -217,14 +226,6 @@ async def test_create_schedule_mlrun_function(
         second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
-    project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
-
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
-        db, project_name
-    )
-    runs = get_db().list_runs(db, project=project_name)
-    assert len(runs) == 0
     scheduler.create_schedule(
         db,
         mlrun.common.schemas.AuthInfo(),
@@ -1228,13 +1229,6 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    now = datetime.now(timezone.utc)
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_5_seconds = now + timedelta(seconds=5)
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
-    )
-    schedule_name = "schedule-name"
     project_name = config.default_project
     mlrun.new_project(project_name, save=False)
 
@@ -1248,6 +1242,14 @@ async def test_schedule_job_concurrency_limit(
 
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
+
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+    )
+    schedule_name = "schedule-name"
 
     scheduler.create_schedule(
         db,

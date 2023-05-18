@@ -152,7 +152,9 @@ async def grafana_list_endpoints(
                     ],
                     endpoint.status.metrics[
                         mlrun.common.model_monitoring.model_monitoring.EventKeyMetrics.GENERIC
-                    ][mlrun.common.model_monitoring.model_monitoring.EventLiveStats.LATENCY_AVG_1H],
+                    ][
+                        mlrun.common.model_monitoring.model_monitoring.EventLiveStats.LATENCY_AVG_1H
+                    ],
                 ]
             )
 

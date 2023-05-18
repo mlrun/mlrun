@@ -1036,9 +1036,11 @@ def _init_endpoint_record(
         versioned_model_name = f"{voting_ensemble.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    endpoint_uid = mlrun.common.model_monitoring.model_monitoring.create_model_endpoint_uid(
-        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
-    ).uid
+    endpoint_uid = (
+        mlrun.common.model_monitoring.model_monitoring.create_model_endpoint_uid(
+            function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+        ).uid
+    )
 
     # If model endpoint object was found in DB, skip the creation process.
     try:

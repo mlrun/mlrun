@@ -934,6 +934,14 @@ class FeatureSet(ModelObj):
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)
+            if time_column == self.spec.timestamp_key:
+                df[time_column] = pd.to_datetime(df[time_column])
+                if start_time:
+                    df = df[df[time_column] > start_time]
+                if end_time:
+                    df = df[df[time_column] <= end_time]
+            if columns:
+                df = df[columns]
             return df
 
         target = get_offline_target(self, name=target_name)

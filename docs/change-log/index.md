@@ -23,7 +23,8 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
-| ML-3823 | Projects that have very large yaml (configuration) files does not case system crash when previewing in UI. [View in Git](https://github.com/mlrun/mlrun/pull/3560).  |
+| ML-3823 | Projects that have very large yaml (configuration) files does not cause system crash when previewing in UI. [View in Git](https://github.com/mlrun/mlrun/pull/3560).  |
+
 
 ###  Documentation
 New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
@@ -223,7 +224,7 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3287 | UI now resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/mlrun/pull/3477), and [UI change in Git](https://github.com/mlrun/ui/pull/1612). |
+| ML-3287 | UI now resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/ui/pull/1612). |
 
 ## v1.2.1
 

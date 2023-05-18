@@ -576,8 +576,6 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     # and their notifications haven't been sent yet.
     global _last_notification_push_time
 
-    _time_before_last_list_runs_query = datetime.datetime.now(datetime.timezone.utc)
-
     runs = db.list_runs(
         db_session,
         project="*",
@@ -601,7 +599,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
-    _last_notification_push_time = _time_before_last_list_runs_query
+    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 async def _stop_logs():

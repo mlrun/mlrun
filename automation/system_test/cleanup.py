@@ -90,23 +90,21 @@ async def _collect_image_tags(
 
 def _remove_image_from_datanode_docker():
     """Remove image from datanode docker"""
-    subprocess.run(
-        [
-            "docker",
-            "images",
-            "--format",
-            "'{{.Repository }}:{{.Tag}}'",
-            "|",
-            "grep",
-            "mlrun",
-            "|",
-            "xargs",
-            "--no-run-if-empty",
-            "docker",
-            "rmi",
-            "-f",
-        ]
+    formatted_docker_images = subprocess.Popen(
+        ["docker", "images", "--format", "'{{.Repository }}:{{.Tag}}'"],
+        stdout=subprocess.PIPE,
     )
+    grep = subprocess.Popen(
+        ["grep", "mlrun"],
+        stdin=formatted_docker_images.stdout,
+        stdout=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["xargs", "--no-run-if-empty", "docker", "rmi", "-f"],
+        stdin=grep.stdout,
+    )
+    formatted_docker_images.stdout.close()
+    grep.stdout.close()
 
 
 async def _delete_image_tags(

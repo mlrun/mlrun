@@ -360,7 +360,7 @@ class SystemTestPreparer:
             ipaddr,
         ]
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command("git", args=["clone", urlscript, "dev_utilities"])
+        self._run_command("git", args=["clone", urlscript, "dev_utilities"], workdir="/home/iguazio")
         self._run_command(
             "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
         )

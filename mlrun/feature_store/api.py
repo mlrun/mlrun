@@ -17,7 +17,7 @@ import pathlib
 import sys
 import warnings
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import pandas as pd
 
@@ -99,7 +99,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
-    timestamp_for_filtering: str = None,
+    timestamp_for_filtering: Union[str, Tuple[str, int]] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
@@ -147,15 +147,30 @@ def get_offline_features(
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param timestamp_for_filtering: str, name of the time filed to fiter. Optional.
-                                    (default the filter executed on the timestamp_key of each featureset)
+    :param timestamp_for_filtering: (str, int). Optional.
+                                    The str represent the name of the time filed to fiter.
+                                    If you sent only a string or tuple such as (str,)
+                                    the default mode will be 1 (see below).
+                                    The integer represent the mode 0-3:
+                                    0 - filter all the featuresets only on it timestamp_key
+                                    1 - filter all the featuresets only on the given column name.
+                                    2 - filter all the featuresets on the given column name,
+                                        and if the featureset don't contain this column
+                                        filter according to it timestamp_key.
+                                    3 - filter all the featuresets on the timestamp_key,
+                                        and if there is no timestamp_key to this featureset
+                                        filter the given column name.
+                                    In all the modes if the feaatureset don't contain the given column name and
+                                    a timestamp_key we will print info to the screen.
+                                    (default the filter executed on the timestamp_key of each featureset - mode 0)
+                                    Note: the time filtering preformed on each featureset before the merge process
     :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.
                                     (default False).
     :param engine:                  processing engine kind ("local", "dask", or "spark")
     :param engine_args:             kwargs for the processing engine
-    :param query:                   The query string used to filter rows
+    :param query:                   The query string used to filter rows on the output
     :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
                                     Supported retrieval engines: "dask", "local"

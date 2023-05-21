@@ -197,21 +197,8 @@ class BaseMerger(abc.ABC):
                 if column not in column_names:
                     self._append_drop_column(column)
                     column_names.append(column)
-
-            time_column = None
-            if timestamp_for_filtering in [
-                feature.name for feature in feature_set.spec.features
-            ]:
-                time_column = timestamp_for_filtering
-            elif feature_set.spec.timestamp_key:
-                time_column = feature_set.spec.timestamp_key
-            elif start_time or end_time:
-                logger.info(
-                    f"You provided start_time or end_time but the feature_set {feature_set.name} "
-                    f"doesn't have timestamp_key and a column named {timestamp_for_filtering} therefore "
-                    f"the time filter didn't executed on it."
-                )
-
+            time_column = self._helper_get_time_column_for_filltering(timestamp_for_filtering,
+                                                                      feature_set, start_time, end_time)
             df = self._get_engine_df(
                 feature_set,
                 name,
@@ -643,6 +630,39 @@ class BaseMerger(abc.ABC):
                 return return_relation
 
         raise mlrun.errors.MLRunRuntimeError("Failed to merge")
+
+    def  _helper_get_time_column_for_filltering(self, timestamp_for_filtering, feature_set, start_time, end_time):
+        if isinstance(timestamp_for_filtering, typing.Tuple) and len(timestamp_for_filtering) == 2:
+            time_column, filter_mode = timestamp_for_filtering
+        elif isinstance(timestamp_for_filtering, typing.Tuple) and len(timestamp_for_filtering) == 1:
+            time_column, filter_mode = timestamp_for_filtering[0], 1
+        elif isinstance(timestamp_for_filtering, str):
+            time_column, filter_mode = timestamp_for_filtering, 1
+        else:
+            time_column, filter_mode = None, 0
+
+        if time_column in [
+            feature.name for feature in feature_set.spec.features
+        ] and feature_set.spec.timestamp_key and filter_mode in [0, 3]:  # both valid
+            time_column = feature_set.spec.timestamp_key
+        elif time_column not in [
+            feature.name for feature in feature_set.spec.features
+        ] and feature_set.spec.timestamp_key and filter_mode != 1:  # only timestamp_key valid
+            time_column = feature_set.spec.timestamp_key
+        elif time_column in [
+            feature.name for feature in feature_set.spec.features
+        ] and not feature_set.spec.timestamp_key and filter_mode == 0:  # only given column name valid
+            time_column = None
+        elif time_column and (start_time or end_time):
+            logger.info(
+                f"You provided start_time or end_time but the feature_set {feature_set.name} "
+                f"doesn't have timestamp_key and a column named {timestamp_for_filtering} therefore "
+                f"the time filter didn't executed on it."
+            )
+        else:
+            time_column = None
+
+        return time_column
 
     @classmethod
     def get_default_image(cls, kind):

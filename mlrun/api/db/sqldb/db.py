@@ -985,6 +985,7 @@ class SQLDB(DBInterface):
         return hash_key
 
     def _get_function(self, session, name, project="", tag="", hash_key=""):
+        project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
         tag_function_uid = None

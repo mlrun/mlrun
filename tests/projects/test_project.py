@@ -465,12 +465,12 @@ def test_set_function_underscore_name(rundb_mock):
     )
     project.set_function(name=func_name, func=func)
 
-    # attempt to get the function using the original name (with underscores) and ensure that it fails
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        project.get_function(key=func_name)
+    # get the function using the original name (with underscores) and ensure that it works and returns normalized name
+    normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=func_name)
+    assert enriched_function.metadata.name == normalized_name
 
     # get the function using a normalized name and make sure it works
-    normalized_name = mlrun.utils.normalize_name(func_name)
     enriched_function = project.get_function(key=normalized_name)
     assert enriched_function.metadata.name == normalized_name
 

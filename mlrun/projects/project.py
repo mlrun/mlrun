@@ -1623,31 +1623,6 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def _get_function(self, key, sync, ignore_cache):
-        """
-        Function can be retrieved from the project spec (cache) or from the database.
-        In sync mode, we first preform a sync of the function_objects from the function_definitions,
-        and then returning it from the function_objects (if exists).
-        When not in sync mode, we verify and return from the function objects directly.
-        In ignore_cache mode, we query the function from the database rather than from the project spec.
-        """
-        if key in self.spec._function_objects and not sync and not ignore_cache:
-            function = self.spec._function_objects[key]
-
-        elif key in self.spec._function_definitions and not ignore_cache:
-            self.sync_functions([key])
-            function = self.spec._function_objects[key]
-        else:
-            try:
-                function = get_db_function(self, key)
-                self.spec._function_objects[key] = function
-            except requests.HTTPError as exc:
-                if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                    raise exc
-                return None, exc
-
-        return function, None
-
     def get_function(
         self,
         key,
@@ -1682,6 +1657,31 @@ class MlrunProject(ModelObj):
             self.spec._function_objects[key] = function
 
         return function
+
+    def _get_function(self, key, sync, ignore_cache):
+        """
+        Function can be retrieved from the project spec (cache) or from the database.
+        In sync mode, we first preform a sync of the function_objects from the function_definitions,
+        and then returning it from the function_objects (if exists).
+        When not in sync mode, we verify and return from the function objects directly.
+        In ignore_cache mode, we query the function from the database rather than from the project spec.
+        """
+        if key in self.spec._function_objects and not sync and not ignore_cache:
+            function = self.spec._function_objects[key]
+
+        elif key in self.spec._function_definitions and not ignore_cache:
+            self.sync_functions([key])
+            function = self.spec._function_objects[key]
+        else:
+            try:
+                function = get_db_function(self, key)
+                self.spec._function_objects[key] = function
+            except requests.HTTPError as exc:
+                if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                    raise exc
+                return None, exc
+
+        return function, None
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""

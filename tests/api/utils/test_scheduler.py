@@ -56,7 +56,10 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
-schedule_end_time_margin = 0.8
+
+# TODO: The margin will need to rise for each additional CPU-consuming operation added along the flow,
+#  we need to consider how to decouple in the future
+schedule_end_time_margin = 0.7
 
 
 async def bump_counter():

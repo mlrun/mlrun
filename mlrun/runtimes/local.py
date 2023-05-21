@@ -45,6 +45,7 @@ from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std
+from .tracking import tracking_services
 
 
 class ParallelRunner:
@@ -167,10 +168,11 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
+        env, tracking_args = tracking_services.init_tracking(context, self.spec.mode)
+        environ.update(env)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
-        return context.to_dict()
-
+        return tracking_services.post_run(context, tracking_args)
 
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
@@ -273,11 +275,13 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
+                env, tracking_args = tracking_services.init_tracking(context, self.spec.mode)
+                environ.update(env)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
-                return context.to_dict()
+                return tracking_services(context, tracking_args)
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
             except RunError as err:
@@ -321,6 +325,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     new_args.append(arg)
                 args = new_args
 
+            env, tracking_args = tracking_services.init_tracking(execution, self.spec.mode, env=env)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
@@ -329,11 +334,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     resp = fp.read()
                 remove(tmp)
                 if resp:
-                    return json.loads(resp)
+                    runobj_dict = json.loads(resp)
+                    tracking_services.post_run(runobj_dict, tracking_args)
+                    return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
-            return runobj.to_dict()
+            runobj_dict = runobj.to_dict()
+            return tracking_services.post_run(runobj_dict, tracking_args)
 
 
 def load_module(file_name, handler, context):
@@ -360,13 +368,15 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    if env and "SYSTEMROOT" in os.environ:
-        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-    print("running:", cmd)
-    process = Popen(
-        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
-    )
-
+    if env:
+        new_env = os.environ.copy()
+        new_env.update(env)
+    else:
+        new_env = os.environ
+    # process = Popen(
+    #     cmd, stdout=PIPE, stderr=PIPE, env=new_env, cwd=cwd, universal_newlines=True
+    # )
+    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=new_env, cwd=cwd)
     def read_stderr(stderr):
         while True:
             nextline = process.stderr.readline()

@@ -86,6 +86,9 @@ def schema_to_store(schema):
                 "Google cloud storage packages are missing, use pip install mlrun[google-cloud-storage]"
             )
         return GoogleCloudStorageStore
+    elif schema == "dbfs":
+        from .dbfs_storage import DBFSStore
+        return DBFSStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 

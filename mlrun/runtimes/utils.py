@@ -28,7 +28,6 @@ import mlrun.api.utils.builder
 import mlrun.common.constants
 import mlrun.utils.regex
 from mlrun.api.utils.clients import nuclio
-from mlrun.db import get_run_db
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.runtimes.constants import MPIJobCRDVersions

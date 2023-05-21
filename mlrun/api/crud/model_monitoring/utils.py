@@ -242,7 +242,7 @@ class MonitoringDeployment:
         """
 
         # Initialize Stream Processor object
-        stream_processor = mlrun.common.model_monitoring.model_monitoring.stream_processing.EventStreamProcessor(
+        stream_processor = mlrun.common.model_monitoring.stream_processing.EventStreamProcessor(
             project=project,
             parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
             parquet_target=parquet_target,

@@ -1036,11 +1036,9 @@ def _init_endpoint_record(
         versioned_model_name = f"{voting_ensemble.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    endpoint_uid = (
-        mlrun.common.model_monitoring.model_monitoring.create_model_endpoint_uid(
-            function_uri=graph_server.function_uri, versioned_model=versioned_model_name
-        ).uid
-    )
+    endpoint_uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
 
     # If model endpoint object was found in DB, skip the creation process.
     try:
@@ -1068,13 +1066,13 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=mlrun.common.model_monitoring.model_monitoring.ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.common.model_monitoring.ModelMonitoringMode.enabled
                     if voting_ensemble.context.server.track_models
-                    else mlrun.common.model_monitoring.model_monitoring.ModelMonitoringMode.disabled,
+                    else mlrun.common.model_monitoring.ModelMonitoringMode.disabled,
                 ),
                 status=mlrun.common.schemas.ModelEndpointStatus(
                     children=list(voting_ensemble.routes.keys()),
-                    endpoint_type=mlrun.common.model_monitoring.model_monitoring.EndpointType.ROUTER,
+                    endpoint_type=mlrun.common.model_monitoring.EndpointType.ROUTER,
                     children_uids=children_uids,
                 ),
             )
@@ -1093,7 +1091,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = (
-                    mlrun.common.model_monitoring.model_monitoring.EndpointType.LEAF_EP
+                    mlrun.common.model_monitoring.EndpointType.LEAF_EP
                 )
                 db.create_model_endpoint(
                     project=project,

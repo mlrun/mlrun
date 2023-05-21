@@ -655,7 +655,7 @@ def _build_function(
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.common.model_monitoring.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
                             if mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project

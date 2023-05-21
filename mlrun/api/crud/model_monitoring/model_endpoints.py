@@ -118,7 +118,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.common.model_monitoring.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db

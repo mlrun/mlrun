@@ -51,7 +51,7 @@ class DBFSStore(DataStore):
                 "Invalid path(key attribute) - path must start with '/'"
             )
 
-    def get(self, key, size=None, offset=0) -> bytes:
+    def get(self, key: str, size=None, offset=0) -> bytes:
         self.path_and_system_validator(key)
         end = offset + size if size else None
         blob = self._filesystem.cat_file(key, start=offset, end=end)
@@ -75,11 +75,11 @@ class DBFSStore(DataStore):
         with self._filesystem.open(key, mode) as f:
             f.write(data)
 
-    def upload(self, key, src_path):
+    def upload(self, key: str, src_path: str):
         self.path_and_system_validator(key)
         self._filesystem.put_file(src_path, key, overwrite=True)
 
-    def stat(self, key):
+    def stat(self, key: str):
         self.path_and_system_validator(key)
         files = self._filesystem.ls(key, detail=True)
         if len(files) == 1 and files[0]["type"] == "file":
@@ -90,7 +90,7 @@ class DBFSStore(DataStore):
             raise ValueError("Operation expects to receive a single file!")
         return FileStats(size, None)
 
-    def listdir(self, key):
+    def listdir(self, key: str):
         self.path_and_system_validator(key)
         if self._filesystem.isfile(key):
             return key

@@ -39,13 +39,9 @@ def get_frontend_spec(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
-    # the cookie like it was before
-    # TODO: remove when Iguazio 3.0 is no longer relevant
-    session: typing.Optional[str] = fastapi.Cookie(None),
 ):
     jobs_dashboard_url = None
-    session = auth_info.session or session
+    session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()

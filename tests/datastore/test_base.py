@@ -28,6 +28,7 @@ from mlrun.datastore.base import HttpStore
 from mlrun.datastore.datastore import schema_to_store
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
+from mlrun.datastore.dbfs_storage import DBFSStore
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
 from mlrun.datastore.v3io import V3ioStore
@@ -125,6 +126,7 @@ def test_kafka_source_without_attributes():
         (["redis", "rediss"], RedisStore, does_not_raise()),
         (["http", "https"], HttpStore, does_not_raise()),
         (["gcs", "gs"], GoogleCloudStorageStore, does_not_raise()),
+        (["dbfs"], DBFSStore, does_not_raise()),
         (["random"], None, pytest.raises(ValueError)),
     ],
 )

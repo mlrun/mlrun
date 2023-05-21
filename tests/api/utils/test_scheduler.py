@@ -56,7 +56,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
-schedule_end_time_margin = 0.5
+schedule_end_time_margin = 0.8
 
 
 async def bump_counter():

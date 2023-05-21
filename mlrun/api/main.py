@@ -24,6 +24,7 @@ import sqlalchemy.orm
 import uvicorn
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.api.api.utils
 import mlrun.api.db.base
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.log_collector
@@ -567,14 +568,13 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     and push their notifications if they haven't been pushed yet.
     """
 
-    # Import here to avoid circular import
-    import mlrun.api.api.utils
-
     # When pushing notifications, push notifications only for runs that entered a terminal state
     # since the last time we pushed notifications.
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
     global _last_notification_push_time
+
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
@@ -599,7 +599,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
-    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
+    _last_notification_push_time = now
 
 
 async def _stop_logs():

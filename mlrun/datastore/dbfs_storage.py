@@ -91,6 +91,9 @@ class DBFSStore(DataStore):
         return FileStats(size, None)
 
     def listdir(self, key: str):
+        """
+        Basic ls of file/dir - without recursion.
+        """
         self.path_and_system_validator(key)
         if self._filesystem.isfile(key):
             return key

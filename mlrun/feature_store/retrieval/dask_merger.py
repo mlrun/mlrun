@@ -50,7 +50,7 @@ class DaskFeatureMerger(BaseMerger):
             entity_df,
             featureset_df,
             left_on=entity_timestamp_column,
-            right_on=entity_timestamp_column,
+            right_on=featureset.spec.timestamp_key,
             left_by=left_keys or None,
             right_by=right_keys or None,
             suffixes=("", f"_{featureset.metadata.name}_"),
@@ -117,14 +117,14 @@ class DaskFeatureMerger(BaseMerger):
         column_names=None,
         start_time=None,
         end_time=None,
-        entity_timestamp_column=None,
+        time_column=None,
     ):
         df = feature_set.to_dataframe(
             columns=column_names,
             df_module=dd,
             start_time=start_time,
             end_time=end_time,
-            time_column=entity_timestamp_column,
+            time_column=time_column,
             index=False,
         )
 

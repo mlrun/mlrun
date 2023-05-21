@@ -73,6 +73,7 @@ class BaseMerger(abc.ABC):
         drop_columns=None,
         start_time=None,
         end_time=None,
+        timestamp_for_filtering=None,
         with_indexes=None,
         update_stats=None,
         query=None,
@@ -86,9 +87,6 @@ class BaseMerger(abc.ABC):
         self._drop_columns = drop_columns or self._drop_columns
         if self.vector.spec.with_indexes or with_indexes:
             self._drop_indexes = False
-
-        if entity_timestamp_column and self._drop_indexes:
-            self._append_drop_column(entity_timestamp_column)
 
         # retrieve the feature set objects/fields needed for the vector
         feature_set_objects, feature_set_fields = self.vector.parse_features(
@@ -104,7 +102,7 @@ class BaseMerger(abc.ABC):
             self.vector.save()
 
         for feature_set in feature_set_objects.values():
-            if not entity_timestamp_column and self._drop_indexes:
+            if self._drop_indexes:
                 self._append_drop_column(feature_set.spec.timestamp_key)
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
@@ -116,6 +114,7 @@ class BaseMerger(abc.ABC):
             feature_set_fields=feature_set_fields,
             start_time=start_time,
             end_time=end_time,
+            timestamp_for_filtering=timestamp_for_filtering,
             query=query,
             order_by=order_by,
         )
@@ -168,6 +167,7 @@ class BaseMerger(abc.ABC):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        timestamp_for_filtering=None,
         query=None,
         order_by=None,
     ):
@@ -198,25 +198,27 @@ class BaseMerger(abc.ABC):
                     self._append_drop_column(column)
                     column_names.append(column)
 
-            if entity_timestamp_column in [feature.name for feature in feature_set.spec.features]:
-                time_field = entity_timestamp_column
+            time_column = None
+            if timestamp_for_filtering in [
+                feature.name for feature in feature_set.spec.features
+            ]:
+                time_column = timestamp_for_filtering
             elif feature_set.spec.timestamp_key:
-                time_field = feature_set.spec.timestamp_key
+                time_column = feature_set.spec.timestamp_key
             elif start_time or end_time:
-                logger.warn(f"You provided start_time or end_time but the feature_set {feature_set.name} "
-                            f"doesn't have timestamp_key and a column named {entity_timestamp_column} therefore "
-                            f"the time filter didn't executed on it.")
-                time_field = None
-            else:
-                time_field = None
+                logger.info(
+                    f"You provided start_time or end_time but the feature_set {feature_set.name} "
+                    f"doesn't have timestamp_key and a column named {timestamp_for_filtering} therefore "
+                    f"the time filter didn't executed on it."
+                )
 
             df = self._get_engine_df(
                 feature_set,
                 name,
                 column_names,
-                start_time if time_field else None,
-                end_time if time_field else None,
-                time_field
+                start_time if time_column else None,
+                end_time if time_column else None,
+                time_column,
             )
 
             column_names += node.data["save_index"]
@@ -369,7 +371,9 @@ class BaseMerger(abc.ABC):
                 lr_key[0],
                 lr_key[1],
             )
-            entity_timestamp_column = entity_timestamp_column or featureset.spec.timestamp_key
+            entity_timestamp_column = (
+                entity_timestamp_column or featureset.spec.timestamp_key
+            )
 
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)
@@ -662,7 +666,7 @@ class BaseMerger(abc.ABC):
         column_names: typing.List[str] = None,
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
-        entity_timestamp_column: str = None,
+        time_column: str = None,
     ):
         """
         Return the feature_set data frame according to the args
@@ -672,7 +676,7 @@ class BaseMerger(abc.ABC):
         :param column_names:            list of columns to select (if not all)
         :param start_time:              filter by start time
         :param end_time:                filter by end time
-        :param entity_timestamp_column: specify the time column name in the file
+        :param time_column: specify the time column name in the file
 
         :return: Data frame of the current engine
         """

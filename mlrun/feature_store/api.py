@@ -99,6 +99,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
+    timestamp_for_filtering: str = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
@@ -136,22 +137,26 @@ def get_offline_features(
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
-                            permissions
-    :param entity_rows:    dataframe with entity rows to join with
-    :param target:         where to write the results to
-    :param drop_columns:   list of columns to drop from the final result
+    :param feature_vector:          feature vector uri or FeatureVector object. passing feature vector obj requires
+                                    update permissions
+    :param entity_rows:             dataframe with entity rows to join with
+    :param target:                  where to write the results to
+    :param drop_columns:            list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-    :param run_config:     function and/or run configuration
-                           see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
-    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
-    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
-    :param engine:          processing engine kind ("local", "dask", or "spark")
-    :param engine_args:     kwargs for the processing engine
-    :param query:           The query string used to filter rows
-    :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
+    :param run_config:              function and/or run configuration
+                                    see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+    :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+    :param timestamp_for_filtering: str, name of the time filed to fiter. Optional.
+                                    (default the filter executed on the timestamp_key of each featureset)
+    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+                                    (default False)
+    :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                    (default False).
+    :param engine:                  processing engine kind ("local", "dask", or "spark")
+    :param engine_args:             kwargs for the processing engine
+    :param query:                   The query string used to filter rows
+    :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
                                     Supported retrieval engines: "dask", "local"
                                     This parameter is in use when entity_timestamp_column and
@@ -162,8 +167,8 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
-    :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
-                            or the alias of the feature you pass in the feature list.
+    :param order_by:                Name or list of names to order by. The name or the names in the list can be the
+                                    feature name or the alias of the feature you pass in the feature list.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -194,6 +199,9 @@ def get_offline_features(
             query=query,
             join_type=join_type,
             order_by=order_by,
+            # start_time=start_time,
+            # end_time=end_time,
+            # timestamp_for_filtering=timestamp_for_filtering,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -209,6 +217,7 @@ def get_offline_features(
         drop_columns=drop_columns,
         start_time=start_time,
         end_time=end_time,
+        timestamp_for_filtering=timestamp_for_filtering,
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,

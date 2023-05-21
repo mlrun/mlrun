@@ -4062,6 +4062,66 @@ class TestFeatureStore(TestMLRunSystem):
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
             fstore.ingest(measurements, source)
+    # @pytest.mark.parametrize("engine", ["local", "dask"])
+    @pytest.mark.parametrize("engine", ["dask"])
+    def test_as_of_join_different_ts(self, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_worker_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts_r": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts_r": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts_r")
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts_r")
+
+        fstore.ingest(fset1, df_left)
+        fstore.ingest(fset2, df_right)
+
+        self._logger.info(
+            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+        )
+        self._logger.info(
+            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+        )
+
+        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
+
+        resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
+        local_engine_res = resp.to_dataframe().sort_index(axis=1)
+
+        assert local_engine_res.shape == (2, 2)
+        # assert local_engine_res.equals(spark_engine_res)
+
 
 
 def verify_purge(fset, targets):

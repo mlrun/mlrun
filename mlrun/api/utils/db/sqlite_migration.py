@@ -64,7 +64,7 @@ class SQLiteMigrationUtil(object):
         self._migrator = self._create_migrator()
         self._mysql_util = None
         if self._mysql_dsn_data:
-            self._mysql_util = MySQLUtil()
+            self._mysql_util = MySQLUtil(logger)
 
     def is_database_migration_needed(self) -> bool:
         # if some data is missing, don't transfer the data

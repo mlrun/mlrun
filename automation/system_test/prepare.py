@@ -136,10 +136,12 @@ class SystemTestPreparer:
 
     def run(self):
         self.connect_to_remote()
-        try:
-            self._install_devutilities()
-        except Exception as exp:
-            self._logger.error("error on install devutilities", exception=str(exp))
+
+        # try:
+        #     self._install_dev_utilities()
+        # except Exception as exp:
+        #     self._logger.error("error on install dev utilities", exception=str(exp))
+
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -339,9 +341,8 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
-    def _install_devutilities(self):
+    def _install_dev_utilities(self):
         urlscript = "https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git"
-        ipaddr = "--ipaddr " + os.environ.get("IP_ADDR_PREFIX")
         list_uninstall = [
             "dev_utilities.py",
             "uninstall",
@@ -357,10 +358,13 @@ class SystemTestPreparer:
             "--mysql",
             "--redisinsight",
             "--kafka",
-            ipaddr,
+            "--ipadd",
+            os.environ.get("IP_ADDR_PREFIX", "localhost"),
         ]
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command("git", args=["clone", urlscript, "dev_utilities"])
+        self._run_command(
+            "git", args=["clone", urlscript, "dev_utilities"], workdir="/home/iguazio"
+        )
         self._run_command(
             "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
         )

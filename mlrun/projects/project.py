@@ -44,7 +44,7 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..model import EntrypointParam, ModelObj
+from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
@@ -543,6 +543,7 @@ class ProjectSpec(ModelObj):
         disable_auto_mount=None,
         workdir=None,
         default_image=None,
+        build=None,
     ):
         self.repo = None
 
@@ -575,6 +576,8 @@ class ProjectSpec(ModelObj):
         self.functions = functions or []
         self.disable_auto_mount = disable_auto_mount
         self.default_image = default_image
+
+        self.build = build
 
     @property
     def source(self) -> str:
@@ -752,6 +755,14 @@ class ProjectSpec(ModelObj):
                 return True
         return False
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
@@ -910,7 +921,6 @@ class MlrunProject(ModelObj):
         self.spec.source = source or self.spec.source
 
         if self.spec.source.startswith("git://"):
-
             source, reference, branch = resolve_git_reference_from_source(source)
             if not branch and not reference:
                 logger.warn(
@@ -2296,12 +2306,12 @@ class MlrunProject(ModelObj):
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
         with_mlrun: bool = None,
         skip_deployed: bool = False,
-        image=None,
-        base_image=None,
+        image: str = None,
+        base_image: str = None,
         commands: list = None,
-        secret_name=None,
+        secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        mlrun_version_specifier=None,
+        mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
@@ -2335,6 +2345,128 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
         )
+
+    def build_config(
+        self,
+        image: str = None,
+        set_as_default: bool = False,
+        with_mlrun: bool = None,
+        base_image: str = None,
+        commands: list = None,
+        secret_name: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        overwrite_build_params: bool = False,
+    ):
+        """specify builder configuration for the project
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+            used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param base_image: base image name/path
+        :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
+        default_image_name = mlrun.mlconf.default_project_image_name.format(
+            name=self.name
+        )
+        image = image or self.default_image or default_image_name
+
+        self.spec.build.build_config(
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
+        )
+
+        if set_as_default and image != self.default_image:
+            self.set_default_image(image)
+
+    def build_image(
+        self,
+        image: str = None,
+        set_as_default: bool = True,
+        with_mlrun: bool = None,
+        skip_deployed: bool = False,
+        base_image: str = None,
+        commands: list = None,
+        secret_name: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        mlrun_version_specifier: str = None,
+        builder_env: dict = None,
+        overwrite_build_params: bool = False,
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        """Builder docker image for the project, based on the project's build config. Parameters allow to override
+        the build config.
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+                        used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun:      add the current mlrun package to the container build
+        :param skip_deployed:   skip the build if we already have the image specified built
+        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
+
+        self.build_config(
+            image=image,
+            set_as_default=set_as_default,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite_build_params=overwrite_build_params,
+        )
+
+        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+        build = self.spec.build
+        result = self.build_function(
+            function=function,
+            with_mlrun=build.with_mlrun,
+            image=build.image,
+            base_image=build.base_image,
+            commands=build.commands,
+            secret_name=build.secret,
+            requirements=build.requirements,
+            skip_deployed=skip_deployed,
+            overwrite_build_params=overwrite_build_params,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+        )
+
+        try:
+            mlrun.db.get_run_db(secrets=self._secrets).delete_function(
+                name=function.metadata.name
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
+                " To remove the function, attempt to manually delete it.",
+                exc=repr(exc),
+            )
+
+        return result
 
     def deploy_function(
         self,

@@ -467,6 +467,7 @@ class GraphContext:
             self.logger = nuclio_context.logger
             self.Response = nuclio_context.Response
             self.worker_id = nuclio_context.worker_id
+            self.platform = nuclio_context.platform
         elif not logger:
             self.logger = mlrun.utils.helpers.logger
 

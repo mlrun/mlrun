@@ -46,7 +46,7 @@ import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.builder import build_runtime
+from mlrun.api.utils.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
@@ -58,7 +58,13 @@ from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 router = APIRouter()
 
 
-@router.post("/func/{project}/{name}")
+@router.post(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
     project: str,
@@ -87,7 +93,7 @@ async def store_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
+    logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
         mlrun.api.crud.Functions().store_function,
         db_session,
@@ -103,7 +109,13 @@ async def store_function(
     }
 
 
-@router.get("/func/{project}/{name}")
+@router.get(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
     name: str,
@@ -154,7 +166,13 @@ async def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/funcs")
+@router.get(
+    "/funcs",
+    deprecated=True,
+    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions instead",
+)
+@router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
     name: str = None,
@@ -439,7 +457,6 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
-
         if state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
@@ -621,7 +638,6 @@ def _build_function(
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                 fn,
                 auth_info,
@@ -821,7 +837,6 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(project: str, function):
-
     _init_serving_function_stream_args(fn=function)
 
     stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -908,8 +923,6 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             allow_internal_secrets=True,
         )
         if not secret_value:
-            import mlrun.api.utils.singletons.project_member
-
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )

@@ -34,7 +34,6 @@ from tabulate import tabulate
 
 import mlrun
 
-from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
@@ -544,7 +543,7 @@ def build(
         logger.info(f"uploading data from {src} to {archive}")
         target = archive if archive.endswith("/") else archive + "/"
         target += f"src-{meta.project}-{meta.name}-{meta.tag or 'latest'}.tar.gz"
-        upload_tarball(src, target)
+        mlrun.datastore.utils.upload_tarball(src, target)
         # todo: replace function.yaml inside the tar
         b.source = target
 

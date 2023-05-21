@@ -238,7 +238,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
-        # 3 - invalid records are considered in the aggregated error count value
 
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
@@ -283,17 +282,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating invalid requests
-        invalid_input = ["n", "s", "o", "-"]
-        for _ in range(10):
-            try:
-                serving_fn.invoke(
-                    f"v2/models/{model_name}/infer",
-                    json.dumps({"inputs": [invalid_input]}),
-                )
-            except RuntimeError:
-                pass
-
         # Simulating valid requests
         iris_data = iris["data"].tolist()
         t_end = monotonic() + simulation_time
@@ -318,9 +306,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ]
         total = sum((m[1] for m in predictions_per_second))
         assert total > 0
-
-        # Validate error count value
-        assert endpoint.status.error_count == 10
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -496,6 +481,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # 2 - deployment status of monitoring stream nuclio function
         # 3 - model endpoints types for both children and router
         # 4 - metrics and drift status per model endpoint
+        # 5 - invalid records are considered in the aggregated error count value
+        # 6 - KV schema file is generated as expected
 
         simulation_time = 120  # 120 seconds to allow tsdb batching
 
@@ -597,6 +584,15 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
 
+        # Simulating invalid request
+        invalid_input = ["n", "s", "o", "-"]
+        with pytest.raises(RuntimeError):
+            serving_fn.invoke(
+                "v2/models/VotingEnsemble/infer",
+                json.dumps({"inputs": [invalid_input]}),
+            )
+
+        # Simulating valid requests
         t_end = monotonic() + simulation_time
         start_time = datetime.now(timezone.utc)
         data_sent = 0
@@ -614,6 +610,9 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
         sleep(60)
+
+        # Check that the KV schema has been generated as expected
+        self._check_kv_schema_file()
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(
@@ -702,10 +701,43 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
 
+                # Validate error count value
+                assert endpoint.status.error_count == 1
+
     def _check_monitoring_building_state(self, base_runtime):
         # Check if model monitoring stream function is ready
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
         assert base_runtime.status.state == "ready", stat
+
+    def _check_kv_schema_file(self):
+        """Check that the KV schema has been generated as expected"""
+
+        # Initialize V3IO client object that will be used to retrieve the KV schema
+        client = mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api
+        )
+
+        # Get the schema raw object
+        schema_raw = client.object.get(
+            container="users",
+            path=f"pipelines/{self.project_name}/model-endpoints/endpoints/.#schema",
+            access_key=os.environ.get("V3IO_ACCESS_KEY"),
+        )
+
+        # Convert the content into a dict
+        schema = json.loads(schema_raw.body)
+
+        # Validate the schema key value
+        assert schema["key"] == model_monitoring_constants.EventFieldType.UID
+
+        # Create a new dictionary of field_name:field_type out of the schema dictionary
+        fields_dict = {item["name"]: item["type"] for item in schema["fields"]}
+
+        # Validate the type of several keys
+        assert fields_dict["error_count"] == "long"
+        assert fields_dict["function_uri"] == "string"
+        assert fields_dict["endpoint_type"] == "string"
+        assert fields_dict["active"] == "boolean"
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

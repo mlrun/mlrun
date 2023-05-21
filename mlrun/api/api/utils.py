@@ -121,9 +121,7 @@ def get_allowed_path_prefixes_list() -> typing.List[str]:
 
 
 def get_secrets(
-    auth_info: typing.Union[
-        mlrun.common.schemas.AuthInfo,
-    ]
+    auth_info: mlrun.common.schemas.AuthInfo,
 ):
     return {
         "V3IO_ACCESS_KEY": auth_info.data_session,

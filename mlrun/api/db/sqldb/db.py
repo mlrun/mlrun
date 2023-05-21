@@ -185,7 +185,11 @@ class SQLDB(DBInterface):
         iter=0,
     ):
         logger.debug(
-            "Storing run to db", project=project, uid=uid, iter=iter, run=run_data
+            "Storing run to db",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
         )
         run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
@@ -1399,9 +1403,7 @@ class SQLDB(DBInterface):
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
-        logger.debug(
-            "Patching project in DB", name=name, project=project, patch_mode=patch_mode
-        )
+        logger.debug("Patching project in DB", name=name, patch_mode=patch_mode)
         project_record = self._get_project_record(session, name)
         self._patch_project_record_from_project(
             session, name, project_record, project, patch_mode
@@ -1429,24 +1431,32 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: typing.Union[
-            mlrun.common.schemas.ProjectsFormat, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         query = self._query(session, Project, owner=owner, state=state)
+
+        # if format is name_only, we don't need to query the full project object, we can just query the name
+        # and return it as a list of strings
+        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            query = self._query(session, Project.name, owner=owner, state=state)
+
+        # attach filters to the query
         if labels:
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+
         project_records = query.all()
+
+        # format the projects according to the requested format
         projects = []
         for project_record in project_records:
             if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-                projects = [project_record.name for project_record in project_records]
-            # leader format is only for follower mode which will format the projects returned from here
+                projects.append(project_record.name)
+
             elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
                 projects.append(
                     mlrun.api.utils.helpers.minimize_project_schema(
@@ -1455,6 +1465,8 @@ class SQLDB(DBInterface):
                         )
                     )
                 )
+
+            # leader format is only for follower mode which will format the projects returned from here
             elif format_ in [
                 mlrun.common.schemas.ProjectsFormat.full,
                 mlrun.common.schemas.ProjectsFormat.leader,
@@ -2769,17 +2781,6 @@ class SQLDB(DBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
-    def _function_latest_uid(self, session, project, name):
-        # FIXME
-        query = (
-            self._query(session, Function.uid)
-            .filter(Function.project == project, Function.name == name)
-            .order_by(Function.updated.desc())
-        ).limit(1)
-        out = query.one_or_none()
-        if out:
-            return out[0]
-
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
         new = set(user_names) - {user.name for user in users}
@@ -3428,6 +3429,9 @@ class SQLDB(DBInterface):
             else:
                 results.append(ordered_source)
         return results
+
+    def _list_hub_sources_without_transform(self, session) -> List[HubSource]:
+        return self._query(session, HubSource).all()
 
     def delete_hub_source(self, session, name):
         logger.debug("Deleting hub source from DB", name=name)

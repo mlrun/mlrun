@@ -18,8 +18,8 @@ import fastapi
 import semver
 
 import mlrun.api.api.deps
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
-import mlrun.builder
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
@@ -39,13 +39,9 @@ def get_frontend_spec(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
-    # the cookie like it was before
-    # TODO: remove when Iguazio 3.0 is no longer relevant
-    session: typing.Optional[str] = fastapi.Cookie(None),
 ):
     jobs_dashboard_url = None
-    session = auth_info.session or session
+    session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
@@ -76,7 +72,7 @@ def get_frontend_spec(
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
         function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
-        function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
+        function_deployment_mlrun_command=mlrun.api.utils.builder.resolve_mlrun_install_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,

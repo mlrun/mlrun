@@ -30,6 +30,8 @@
           doc: ""
           default: ""
       lineno: 1
+      has_varargs: false
+      has_kwargs: false
   id: inc_ann
 - code: |
     def inc(n):
@@ -48,6 +50,8 @@
           doc: ""
           default: ""
       lineno: 1
+      has_varargs: false
+      has_kwargs: false
   id: inc_no_ann
 - code: |
     def inc(n: int) -> int:
@@ -72,6 +76,8 @@
           doc: number to increment
           default: ""
       lineno: 1
+      has_varargs: false
+      has_kwargs: false
   id: inc_ann_doc
 - code: |
     def inc(n: int, delta: int = 1) -> int:
@@ -95,6 +101,8 @@
           doc: ""
           default: "1"
       lineno: 1
+      has_varargs: false
+      has_kwargs: false
   id: inc_ann_default
 - code: |
     def open_archive(context, 
@@ -129,4 +137,6 @@
           doc: "source archive path/url"
           default: "''"
       lineno: 1
+      has_varargs: false
+      has_kwargs: false
   id: undocumented param

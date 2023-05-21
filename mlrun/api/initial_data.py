@@ -19,6 +19,7 @@ import pathlib
 import typing
 
 import dateutil.parser
+import pydantic.error_wrappers
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -43,7 +44,20 @@ def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
     logger.info("Initializing DB data")
-    mlrun.api.utils.db.mysql.MySQLUtil.wait_for_db_liveness(logger)
+
+    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
+    mysql_util = mlrun.api.utils.db.mysql.MySQLUtil(logger)
+    if mysql_util.get_mysql_dsn_data():
+        mysql_util.wait_for_db_liveness()
+        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+    else:
+        dsn = mysql_util.get_dsn()
+        if "sqlite" in dsn:
+            logger.debug("SQLite DB is used, liveness check not needed")
+        else:
+            logger.warn(
+                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+            )
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
@@ -81,9 +95,9 @@ def init_data(
 
             _perform_database_migration(sqlite_migration_util)
 
+            init_db()
             db_session = create_session()
             try:
-                init_db(db_session)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             finally:
@@ -104,10 +118,12 @@ def init_data(
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
-# This is because data version 1 points to to a data migration which was added back in 0.6.0, and
+# This is because data version 1 points to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
-latest_data_version = 2
+
+# NOTE: Bump this number when adding a new data migration
+latest_data_version = 3
 
 
 def _resolve_needed_operations(
@@ -212,6 +228,9 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_1_data_migrations(db, db_session)
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)
+            if current_data_version < 3:
+                _perform_version_3_data_migrations(db, db_session)
+
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -465,6 +484,30 @@ def _align_runs_table(
         db._upsert(db_session, [run], ignore=True)
 
 
+def _perform_version_3_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _rename_marketplace_kind_to_hub(db, db_session)
+
+
+def _rename_marketplace_kind_to_hub(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Renaming 'Marketplace' kinds to 'Hub'")
+
+    hubs = db._list_hub_sources_without_transform(db_session)
+    for hub in hubs:
+        hub_dict = hub.full_object
+
+        # rename kind from "MarketplaceSource" to "HubSource"
+        if "Marketplace" in hub_dict.get("kind", ""):
+            hub_dict["kind"] = hub_dict["kind"].replace("Marketplace", "Hub")
+
+        # save the object back to the db
+        hub.full_object = hub_dict
+        db._upsert(db_session, [hub], ignore=True)
+
+
 def _perform_version_1_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -503,6 +546,21 @@ def _add_default_hub_source_if_needed(
         )
     except mlrun.errors.MLRunNotFoundError:
         hub_marketplace_source = None
+    except pydantic.error_wrappers.ValidationError as exc:
+
+        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
+        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
+        # that a default hub source exists
+        if all(
+            [
+                "validation error for HubSource" in str(exc),
+                "value is not a valid enumeration member" in str(exc),
+            ]
+        ):
+            logger.info("Found existing default hub source, data migration needed")
+            hub_marketplace_source = True
+        else:
+            raise exc
 
     if not hub_marketplace_source:
         hub_source = mlrun.common.schemas.HubSource.generate_default_source()

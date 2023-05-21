@@ -30,7 +30,6 @@ from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     BaseStoreTarget,
     get_default_prefix_for_source,
-    get_default_targets,
     get_target_driver,
     kind_to_driver,
     validate_target_list,
@@ -431,10 +430,10 @@ def ingest(
         not mlrun_context
         and not targets
         and not (featureset.spec.targets or featureset.spec.with_default_targets)
+        and (run_config is not None and not run_config.local)
     ):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
-            "(preview can be used as an alternative to local ingest when targets are not needed)"
+            f"Feature set {featureset.metadata.name} is remote ingested with no targets defined, aborting"
         )
 
     if featureset is not None:
@@ -522,7 +521,7 @@ def ingest(
     if not namespace:
         namespace = _get_namespace(run_config)
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
@@ -719,7 +718,9 @@ def preview(
             )
         # reduce the size of the ingestion if we do not infer stats
         rows_limit = (
-            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+            None
+            if InferOptions.get_common_options(options, InferOptions.Stats)
+            else 1000
         )
         source = init_featureset_graph(
             source,
@@ -803,7 +804,7 @@ def deploy_ingestion_service(
             name=featureset.metadata.name,
         )
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 

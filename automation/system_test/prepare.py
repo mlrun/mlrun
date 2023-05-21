@@ -15,6 +15,7 @@
 
 import datetime
 import logging
+import os
 import pathlib
 import subprocess
 import sys
@@ -136,6 +137,11 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
+        # try:
+        #     self._install_dev_utilities()
+        # except Exception as exp:
+        #     self._logger.error("error on install dev utilities", exception=str(exp))
+
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -174,7 +180,7 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-    ) -> str:
+    ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
@@ -189,7 +195,7 @@ class SystemTestPreparer:
                 workdir=workdir,
             )
         if self._debug:
-            return ""
+            return b"", b""
         try:
             if local:
                 stdout, stderr, exit_status = run_command(
@@ -208,15 +214,19 @@ class SystemTestPreparer:
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
+            err_log_kwargs = {
+                "error": str(exc),
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
             if verbose:
-                self._logger.error(
-                    f"Failed running command {log_command_location}",
-                    command=command,
-                    error=exc,
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_status=exit_status,
-                )
+                err_log_kwargs["command"] = command
+
+            self._logger.error(
+                f"Failed running command {log_command_location}",
+                **err_log_kwargs,
+            )
             raise
         else:
             if verbose:
@@ -227,7 +237,7 @@ class SystemTestPreparer:
                     stderr=stderr,
                     exit_status=exit_status,
                 )
-            return stdout
+            return stdout, stderr
 
     def _run_command_remotely(
         self,
@@ -331,11 +341,41 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
+    def _install_dev_utilities(self):
+        urlscript = "https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git"
+        list_uninstall = [
+            "dev_utilities.py",
+            "uninstall",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+        ]
+        list_install = [
+            "dev_utilities.py",
+            "install",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+            "--ipadd",
+            os.environ.get("IP_ADDR_PREFIX", "localhost"),
+        ]
+        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
+        self._run_command(
+            "git", args=["clone", urlscript, "dev_utilities"], workdir="/home/iguazio"
+        )
+        self._run_command(
+            "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
+        )
+        self._run_command(
+            "python3", args=list_install, workdir="/home/iguazio/dev_utilities"
+        )
+
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
         # s3://<bucket-name>/<object-name>
-
         parsed_url = urllib.parse.urlparse(self._provctl_download_url)
         if self._provctl_download_url.startswith("s3://"):
             object_name = parsed_url.path.lstrip("/")
@@ -343,7 +383,6 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
             self._logger.debug(
@@ -358,7 +397,6 @@ class SystemTestPreparer:
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-
             # upload provctl to data node
             self._logger.debug(
                 "Uploading provctl to datanode",
@@ -368,7 +406,6 @@ class SystemTestPreparer:
             sftp_client = self._ssh_client.open_sftp()
             sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
-
         # make provctl executable
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 
@@ -478,13 +515,12 @@ class SystemTestPreparer:
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")
-            self._iguazio_version = self._run_command(
+            self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
-            ).strip()
-        if isinstance(self._iguazio_version, bytes):
-            self._iguazio_version = self._iguazio_version.decode("utf-8")
+            )
+            self._iguazio_version = self._iguazio_version.strip().decode()
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
@@ -509,6 +545,10 @@ class SystemTestPreparer:
             self._logger.info("No mlrun db pod found")
             return
 
+        self._logger.info(
+            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
+        )
+
         password = ""
         if self._mysql_password:
             password = f"-p {self._mysql_password} "
@@ -520,19 +560,35 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({mlrun_db_pod_name_cmd})",
+                mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,
             ],
             verbose=False,
         )
 
-    def _get_pod_name_command(self, labels, namespace=None):
-        namespace = namespace or self.Constants.namespace
+    def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
-        return "kubectl get pods -n {namespace} -l {labels_selector} | tail -n 1 | awk '{{print $1}}'".format(
-            namespace=namespace, labels_selector=labels_selector
+        pod_name, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "pods",
+                "--namespace",
+                self.Constants.namespace,
+                "--selector",
+                labels_selector,
+                "|",
+                "tail",
+                "-n",
+                "1",
+                "|",
+                "awk",
+                "'{print $1}'",
+            ],
         )
+        if b"No resources found" in stderr or not pod_name:
+            return None
+        return pod_name.strip()
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures
@@ -551,7 +607,7 @@ class SystemTestPreparer:
         )
 
     def _run_kubectl_command(self, args, verbose=True):
-        self._run_command(
+        return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,

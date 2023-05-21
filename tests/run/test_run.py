@@ -22,6 +22,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
+import mlrun.launcher.factory
 from mlrun import MLClientCtx, new_function, new_task
 from tests.conftest import (
     examples_path,
@@ -74,7 +75,7 @@ def test_noparams(db):
 def test_failed_schedule_not_creating_run():
     function = new_function()
     # mock we're with remote api (only there schedule is relevant)
-    function._use_remote_api = Mock(return_value=True)
+    function._is_remote = True
     # mock failure in submit job (failed schedule)
     db = MagicMock()
     function.set_db_connection(db)
@@ -140,6 +141,37 @@ def test_local_runtime_failure_before_executing_the_function_code(db):
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
     assert "failed on pre-loading" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "handler_name,params,kwargs,expected_kwargs",
+    [
+        ("func", {"x": 2}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+        ("func", {"x": 2}, {}, {}),
+        ("func_with_default", {}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
+    ],
+)
+def test_local_runtime_with_kwargs(db, handler_name, params, kwargs, expected_kwargs):
+    params.update(kwargs)
+    function = new_function(command=f"{assets_path}/kwargs.py")
+    result = function.run(local=True, params=params, handler=handler_name)
+    verify_state(result)
+    assert result.outputs.get("return", {}) == expected_kwargs
+
+
+def test_local_runtime_with_kwargs_with_code_to_function(db):
+    function = mlrun.code_to_function(
+        "kwarg",
+        filename=f"{assets_path}/kwargs.py",
+        image="mlrun/mlrun",
+        kind="job",
+        handler="func",
+    )
+    kwargs = {"y": 3, "z": 4}
+    params = {"x": 2}
+    params.update(kwargs)
+    result = function.run(local=True, params=params)
+    assert result.outputs["return"] == kwargs
 
 
 def test_local_runtime_hyper():
@@ -295,7 +327,11 @@ def test_context_from_run_dict():
     run = runtime._create_run_object(run_dict)
     handler = "my_func"
     out_path = "test_artifact_path"
-    run = runtime._enrich_run(
+    launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+        runtime._is_remote
+    )
+    run = launcher._enrich_run(
+        runtime,
         run,
         handler,
         run_dict["metadata"]["project"],

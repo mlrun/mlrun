@@ -826,7 +826,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
@@ -841,7 +841,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "hash_key": hash_key}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
         error = f"get function {project}/{name}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
@@ -863,15 +863,15 @@ class HTTPRunDB(RunDBInterface):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects (as dictionary).
         """
-
+        project = project or config.default_project
         params = {
-            "project": project or config.default_project,
             "name": name,
             "tag": tag,
             "label": labels or [],
         }
         error = "list functions"
-        resp = self.api_call("GET", "funcs", error, params=params)
+        path = f"projects/{project}/functions"
+        resp = self.api_call("GET", path, error, params=params)
         return resp.json()["funcs"]
 
     def list_runtime_resources(
@@ -1143,19 +1143,20 @@ class HTTPRunDB(RunDBInterface):
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         """Retrieve the status of a build operation currently in progress.
 
-        :param func: Function object that is being built.
-        :param offset: Offset into the build logs to retrieve logs from.
-        :param logs: Should build logs be retrieved.
-        :param last_log_timestamp: Last timestamp of logs that were already retrieved. Function will return only logs
-            later than this parameter.
-        :param verbose: Add verbose logs into the output.
+        :param func:                Function object that is being built.
+        :param offset:              Offset into the build logs to retrieve logs from.
+        :param logs:                Should build logs be retrieved.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
         :returns: The following parameters:
 
             - Text of builder logs.
@@ -2140,19 +2141,16 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+
+            # projects is just a list of strings
             return response.json()["projects"]
-        elif format_ in [
-            mlrun.common.schemas.ProjectsFormat.full,
-            mlrun.common.schemas.ProjectsFormat.minimal,
-        ]:
-            return [
-                mlrun.projects.MlrunProject.from_dict(project_dict)
-                for project_dict in response.json()["projects"]
-            ]
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+
+        # forwards compatibility - we want to be able to handle new formats that might be added in the future
+        # if format is not known to the api, it is up to the server to return either an error or a default format
+        return [
+            mlrun.projects.MlrunProject.from_dict(project_dict)
+            for project_dict in response.json()["projects"]
+        ]
 
     def get_project(self, name: str) -> mlrun.projects.MlrunProject:
         """Get details for a specific project."""
@@ -2308,7 +2306,7 @@ class HTTPRunDB(RunDBInterface):
                 format_=mlrun.common.schemas.ProjectsFormat.name_only
             )
             if project_name in projects:
-                raise Exception("Project still exists")
+                raise Exception(f"Project {project_name} still exists")
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_deletion_interval,

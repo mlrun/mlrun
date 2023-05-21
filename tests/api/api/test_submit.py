@@ -81,16 +81,11 @@ def pod_create_mock():
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
     )
-    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.Mock()
+    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.MagicMock()
 
     mock_run_object = mlrun.RunObject()
     mock_run_object.metadata.uid = "1234567890"
     mock_run_object.metadata.project = "project-name"
-
-    wrap_run_result_orig_function = mlrun.runtimes.base.BaseRuntime._wrap_run_result
-    mlrun.runtimes.base.BaseRuntime._wrap_run_result = unittest.mock.Mock(
-        return_value=mock_run_object
-    )
 
     auth_info_mock = AuthInfo(
         username=username, session="some-session", data_session=access_key
@@ -115,7 +110,6 @@ def pod_create_mock():
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )
-    mlrun.runtimes.base.BaseRuntime._wrap_run_result = wrap_run_result_orig_function
     mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )

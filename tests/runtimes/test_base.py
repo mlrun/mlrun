@@ -135,7 +135,9 @@ class TestAutoMount:
                             f.write(requirement + "\n")
                     requirements = temp_file.name
 
-            encoded = self._generate_runtime()._resolve_requirements(requirements)
+            encoded = self._generate_runtime().spec.build._resolve_requirements(
+                requirements
+            )
             assert (
                 encoded == encoded_requirements
             ), f"Failed to encode {requirements} as file {requirements_as_file}"

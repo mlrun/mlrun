@@ -2455,9 +2455,16 @@ class MlrunProject(ModelObj):
             builder_env=builder_env,
         )
 
-        mlrun.db.get_run_db(secrets=self._secrets).delete_function(
-            name=function.metadata.name
-        )
+        try:
+            mlrun.db.get_run_db(secrets=self._secrets).delete_function(
+                name=function.metadata.name
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
+                " To remove the function, attempt to manually delete it.",
+                exc=repr(exc),
+            )
 
         return result
 

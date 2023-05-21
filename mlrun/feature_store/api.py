@@ -163,7 +163,8 @@ def get_offline_features(
                                     In all the modes if the feaatureset don't contain the given column name and
                                     a timestamp_key we will print info to the screen.
                                     (default the filter executed on the timestamp_key of each featureset - mode 0)
-                                    Note: the time filtering preformed on each featureset before the merge process
+                                    Note: the time filtering preformed on each featureset before the merge process using
+                                          start_time and end_time params.
     :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.

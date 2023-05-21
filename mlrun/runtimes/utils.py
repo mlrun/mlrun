@@ -75,6 +75,7 @@ def resolve_mpijob_crd_version():
     if not cached_mpijob_crd_version:
 
         # config override everything
+        # on client side, expecting it to get enriched from the API through the client-spec
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
@@ -95,13 +96,8 @@ def resolve_mpijob_crd_version():
                     mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
                         "crd-version"
                     )
-            elif not in_k8s_cluster:
-                # connect will populate the config from the server config
-                # TODO: something nicer
-                get_run_db()
-                mpijob_crd_version = config.mpijob_crd_version
 
-            # If resolution failed simply use default
+            # backoff to use default if wasn't resolved in API
             if not mpijob_crd_version:
                 mpijob_crd_version = MPIJobCRDVersions.default()
 

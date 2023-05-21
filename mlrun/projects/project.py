@@ -2306,12 +2306,12 @@ class MlrunProject(ModelObj):
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
         with_mlrun: bool = None,
         skip_deployed: bool = False,
-        image=None,
-        base_image=None,
+        image: str = None,
+        base_image: str = None,
         commands: list = None,
-        secret_name=None,
+        secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        mlrun_version_specifier=None,
+        mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
@@ -2351,9 +2351,9 @@ class MlrunProject(ModelObj):
         image: str = None,
         set_as_default: bool = False,
         with_mlrun: bool = None,
-        base_image=None,
+        base_image: str = None,
         commands: list = None,
-        secret_name=None,
+        secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
     ):
@@ -2397,11 +2397,11 @@ class MlrunProject(ModelObj):
         set_as_default: bool = True,
         with_mlrun: bool = None,
         skip_deployed: bool = False,
-        base_image=None,
+        base_image: str = None,
         commands: list = None,
-        secret_name=None,
+        secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        mlrun_version_specifier=None,
+        mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
@@ -2438,7 +2438,7 @@ class MlrunProject(ModelObj):
             overwrite_build_params=overwrite_build_params,
         )
 
-        function = mlrun.new_function("dummy--image--build", kind="job")
+        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
 
         build = self.spec.build
         result = self.build_function(

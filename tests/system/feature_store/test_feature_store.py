@@ -4062,8 +4062,9 @@ class TestFeatureStore(TestMLRunSystem):
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
             fstore.ingest(measurements, source)
-    # @pytest.mark.parametrize("engine", ["local", "dask"])
-    @pytest.mark.parametrize("engine", ["dask"])
+
+
+    @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_as_of_join_different_ts(self, engine):
         engine_args = {}
         if engine == "dask":
@@ -4084,7 +4085,7 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "ent": ["a", "b"],
                 "f1": ["a-val", "b-val"],
-                "ts_r": [test_base_time, test_base_time],
+                "ts_l": [test_base_time, test_base_time],
             }
         )
 
@@ -4101,7 +4102,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts_r")
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts_l")
         fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts_r")
 
         fstore.ingest(fset1, df_left)

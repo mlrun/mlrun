@@ -135,31 +135,22 @@ class KubejobRuntime(KubeResource):
            * True: the existing params are replaced by the new ones
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
-        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment"""
-        if image:
-            self.spec.build.image = image
-        if base_image:
-            self.spec.build.base_image = base_image
-        if commands:
-            self.with_commands(
-                commands, overwrite=overwrite, prepare_image_for_deploy=False
-            )
-        if requirements:
-            self.with_requirements(
-                requirements, overwrite=overwrite, prepare_image_for_deploy=False
-            )
-        if extra:
-            self.spec.build.extra = extra
-        if secret is not None:
-            self.spec.build.secret = secret
-        if source:
-            self.spec.build.source = source
-        if load_source_on_run:
-            self.spec.build.load_source_on_run = load_source_on_run
-        if with_mlrun is not None:
-            self.spec.build.with_mlrun = with_mlrun
-        if auto_build:
-            self.spec.build.auto_build = auto_build
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        """
+
+        self.spec.build.build_config(
+            image,
+            base_image,
+            commands,
+            secret,
+            source,
+            extra,
+            load_source_on_run,
+            with_mlrun,
+            auto_build,
+            requirements,
+            overwrite,
+        )
 
         if verify_base_image or prepare_image_for_deploy:
             if verify_base_image:
@@ -315,7 +306,6 @@ class KubejobRuntime(KubeResource):
         )
 
     def _run(self, runobj: RunObject, execution):
-
         command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:

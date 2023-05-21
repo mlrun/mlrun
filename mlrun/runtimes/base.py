@@ -797,15 +797,7 @@ class BaseRuntime(ModelObj):
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
-        resolved_requirements = self._resolve_requirements(requirements)
-        requirements = self.spec.build.requirements or [] if not overwrite else []
-
-        # make sure we don't append the same line twice
-        for requirement in resolved_requirements:
-            if requirement not in requirements:
-                requirements.append(requirement)
-
-        self.spec.build.requirements = requirements
+        self.spec.build.with_requirements(requirements, overwrite)
 
         if verify_base_image or prepare_image_for_deploy:
             # TODO: remove verify_base_image in 1.6.0
@@ -836,18 +828,7 @@ class BaseRuntime(ModelObj):
 
         :return: function object
         """
-        if not isinstance(commands, list):
-            raise ValueError("commands must be a string list")
-        if not self.spec.build.commands or overwrite:
-            self.spec.build.commands = commands
-        else:
-            # add commands to existing build commands
-            for command in commands:
-                if command not in self.spec.build.commands:
-                    self.spec.build.commands.append(command)
-            # using list(set(x)) won't retain order,
-            # solution inspired from https://stackoverflow.com/a/17016257/8116661
-            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+        self.spec.build.with_commands(commands, overwrite)
 
         if verify_base_image or prepare_image_for_deploy:
             # TODO: remove verify_base_image in 1.6.0
@@ -952,32 +933,6 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
-
-    @staticmethod
-    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
-        # if a string, read the file then encode
-        if isinstance(requirements_to_resolve, str):
-            with open(requirements_to_resolve, "r") as fp:
-                requirements_to_resolve = fp.read().splitlines()
-
-        requirements = []
-        for requirement in requirements_to_resolve:
-            # clean redundant leading and trailing whitespaces
-            requirement = requirement.strip()
-
-            # ignore empty lines
-            # ignore comments
-            if not requirement or requirement.startswith("#"):
-                continue
-
-            # ignore inline comments as well
-            inline_comment = requirement.split(" #")
-            if len(inline_comment) > 1:
-                requirement = inline_comment[0].strip()
-
-            requirements.append(requirement)
-
-        return requirements
 
 
 class BaseRuntimeHandler(ABC):

@@ -39,7 +39,7 @@ class DBFSStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(token=self._get_secret_or_env("DBFS_TOKEN"), instance=self.endpoint)
+        return dict(token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint)
 
     def path_and_system_validator(self, key: str):
         if not self._filesystem:

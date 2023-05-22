@@ -193,6 +193,17 @@ jobs:
         echo "MLRUN_SYSTEM_TESTS_GIT_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" >> tests/system/env.yml
         # TODO: use `prepare.py` for open source system tests as well
 
+    # Enable tmate debugging of manually-triggered workflows if the input option was provided
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+      with:
+
+        # run in detach mode to allow the workflow to continue running while session is active
+        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
+        # it will wait until the user disconnects before finishing up the job.
+        detached: true
+
     - name: Run system tests
       timeout-minutes: 180
       run: |
@@ -218,8 +229,3 @@ jobs:
         minikube kubectl -- --namespace ${NAMESPACE} get pvc
         minikube kubectl -- --namespace ${NAMESPACE} get pv
         set +x
-
-    # Enable tmate debugging of manually-triggered workflows if the input option was provided
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}

@@ -39,7 +39,9 @@ class DBFSStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint)
+        return dict(
+            token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint
+        )
 
     def path_and_system_validator(self, key: str):
         if not self._filesystem:
@@ -53,9 +55,26 @@ class DBFSStore(DataStore):
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         self.path_and_system_validator(key)
-        end = offset + size if size else None
-        blob = self._filesystem.cat_file(key, start=offset, end=end)
-        return blob
+        size_less_then_one_exception = "negative or zero size argument 1 is invalid."
+        if offset:
+            if size is None:
+                size = 1000000  # The maximum number of allowed bytes to read is 1MB.
+            elif size <= 0:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    size_less_then_one_exception
+                )
+            end = offset + size
+            return self._filesystem._get_data(key, start=offset, end=end)
+        elif size is not None:
+            if size <= 0:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    size_less_then_one_exception
+                )
+            else:
+                end = offset + size
+                return self._filesystem._get_data(key, start=offset, end=end)
+        else:
+            return self._filesystem.cat_file(key)
 
     def put(self, key, data, append=False):
 

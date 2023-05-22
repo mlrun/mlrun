@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import random
+import uuid
 from pathlib import Path
 
 import pytest
@@ -24,7 +23,7 @@ import mlrun.errors
 from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
-config_file_path = here / "test-google-cloud-storage.yml"
+config_file_path = here / "test-dbfs-storage.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
@@ -32,66 +31,62 @@ test_filename = here / "test.txt"
 with open(test_filename, "r") as f:
     test_string = f.read()
 
-credential_params = ["credentials_json_file"]
+MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_WORKSPACE"]
 
 
-def google_cloud_storage_configured():
+# def configure_dbfs_storage():
+#     env_params = config["env"]
+#     for key, env_param in env_params.items():
+#         os.environ[key] = env_params
+
+
+def is_dbfs_configured():
     env_params = config["env"]
-    needed_params = ["bucket_name", *credential_params]
-    for param in needed_params:
-        if not env_params.get(param):
+    for necessary_variable in MUST_HAVE_VARIABLES:
+        if env_params.get(necessary_variable, None) is None:
             return False
     return True
 
 
 @pytest.mark.skipif(
-    not google_cloud_storage_configured(),
-    reason="Google cloud storage parameters not configured",
+    not is_dbfs_configured(),
+    reason="DBFS storage parameters not configured",
 )
-class TestGoogleCloudStorage:
-    def setup_method(self, method):
-        self._bucket_name = config["env"].get("bucket_name")
-
-        object_dir = "test_mlrun_gcs_objects"
-        object_file = f"file_{random.randint(0, 1000)}.txt"
-
-        self._bucket_path = "gcs://" + self._bucket_name
-        self._object_path = object_dir + "/" + object_file
-        self._object_url = self._bucket_path + "/" + self._object_path
-        self._blob_url = self._object_url + ".blob"
+class TestDBFSStorage:
+    def setup_method(self):
+        self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
+        self._object_dir = "/test_mlrun_dbfs_objects"
+        self._object_file = f"file_{str(uuid.uuid4())}.txt"
+        self._object_path = self._object_dir + "/" + self._object_file
+        self._dbfs_url = "dbfs://" + self._databricks_workspace
+        self._object_url = self._dbfs_url + self._object_path
 
         logger.info(f"Object URL: {self._object_url}")
 
-    def _perform_google_cloud_storage_tests(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+    def _perform_dbfs_tests(self):
+        secrets = {}
+        token = config["env"].get("DATABRICKS_TOKEN", None)
+        secrets["DATABRICKS_TOKEN"] = token
+        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(test_string)
-
         response = data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
-
+        #
         response = data_item.get(offset=20)
         assert response.decode() == test_string[20:], "Partial result not as expected"
-
+        #
         stat = data_item.stat()
         assert stat.size == len(test_string), "Stat size different than expected"
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
-        assert self._object_path in dir_list, "File not in container dir-list"
+        dir_dataitem = mlrun.run.get_dataitem(self._dbfs_url + self._object_dir)
+        dir_list = dir_dataitem.listdir()
+        assert self._object_file in dir_list, "File not in container dir-list"
 
-        upload_data_item = mlrun.run.get_dataitem(self._blob_url)
-        upload_data_item.upload(test_filename)
+        upload_file_path = self._object_dir + "/" + f"file_{str(uuid.uuid4())}.txt"
+        upload_data_item = mlrun.run.get_dataitem(self._dbfs_url + upload_file_path)
+        upload_data_item.upload(str(test_filename))
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
 
-    def test_using_google_env_variable(self):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["env"].get(
-            "credentials_json_file"
-        )
-        self._perform_google_cloud_storage_tests()
-
-    def test_using_serialized_json_content(self):
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        with open(config["env"].get("credentials_json_file"), "r") as f:
-            credentials = f.read()
-        os.environ["GCP_CREDENTIALS"] = credentials
-        self._perform_google_cloud_storage_tests()
+    def test_secrets_as_input(self):
+        self._perform_dbfs_tests()

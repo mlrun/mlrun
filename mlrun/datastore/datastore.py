@@ -88,6 +88,7 @@ def schema_to_store(schema):
         return GoogleCloudStorageStore
     elif schema == "dbfs":
         from .dbfs_storage import DBFSStore
+
         return DBFSStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")

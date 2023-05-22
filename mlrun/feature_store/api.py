@@ -99,7 +99,7 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
-    timestamp_for_filtering: Union[str, Tuple[str, int]] = None,
+    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
@@ -147,24 +147,13 @@ def get_offline_features(
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param timestamp_for_filtering: (str, int). Optional.
-                                    The str represent the name of the time filed to fiter.
-                                    If you sent only a string or tuple such as (str,)
-                                    the default mode will be 1 (see below).
-                                    The integer represent the mode 0-3:
-                                    0 - filter all the featuresets only on it timestamp_key
-                                    1 - filter all the featuresets only on the given column name.
-                                    2 - filter all the featuresets on the given column name,
-                                        and if the featureset don't contain this column
-                                        filter according to it timestamp_key.
-                                    3 - filter all the featuresets on the timestamp_key,
-                                        and if there is no timestamp_key to this featureset
-                                        filter the given column name.
-                                    In all the modes if the feaatureset don't contain the given column name and
-                                    a timestamp_key we will print info to the screen.
-                                    (default the filter executed on the timestamp_key of each featureset - mode 0)
-                                    Note: the time filtering preformed on each featureset before the merge process using
-                                          start_time and end_time params.
+    :param timestamp_for_filtering: (str, Dist). Optional.
+                                    name of column to filter on, can be str for all the feature sets or
+                                    dictionary ({<feature set name>: <timestamp column name>, ...})
+                                    that indicates the timestamp column name for each feature set.
+                                    by default the filter executed on the timestamp_key of each feature set.
+                                    Note: the time filtering preformed on each feature set before the
+                                    merge process using start_time and end_time params.
     :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.

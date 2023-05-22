@@ -50,8 +50,12 @@ class DaskFeatureMerger(BaseMerger):
             return sorted_partition
 
         # Apply the sorting operation to each partition
-        entity_df = entity_df.map_partitions(sort_partition, timestamp=entity_timestamp_column)
-        featureset_df = featureset_df.map_partitions(sort_partition, timestamp=featureset.spec.timestamp_key)
+        entity_df = entity_df.map_partitions(
+            sort_partition, timestamp=entity_timestamp_column
+        )
+        featureset_df = featureset_df.map_partitions(
+            sort_partition, timestamp=featureset.spec.timestamp_key
+        )
 
         merged_df = merge_asof(
             entity_df,

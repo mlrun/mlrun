@@ -369,10 +369,6 @@ class BaseLauncher(abc.ABC):
     ):
         pass
 
-    @abc.abstractmethod
-    def _save_or_push_notifications(self, runobj):
-        pass
-
     @staticmethod
     @abc.abstractmethod
     def _store_function(

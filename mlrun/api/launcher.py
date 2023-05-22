@@ -137,7 +137,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             finally:
                 result = runtime._update_run_state(resp=resp, task=run, err=last_err)
 
-        self._save_or_push_notifications(run)
+        self._save_notifications(run)
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -165,7 +165,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 project, runtime, copy_function=False
             )
 
-    def _save_or_push_notifications(self, runobj):
+    def _save_notifications(self, runobj):
         if not runobj.spec.notifications:
             mlrun.utils.logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid

@@ -186,7 +186,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 last_err = err
                 result = runtime._update_run_state(task=run, err=err)
 
-        self._save_or_push_notifications(run)
+        self._push_notifications(run)
 
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
@@ -257,11 +257,13 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _save_or_push_notifications(self, runobj):
+    def _push_notifications(self, runobj):
         if not self._are_valid_notifications(runobj):
             return
-        # The run is local, so we can assume that watch=True, therefore this code runs
-        # once the run is completed, and we can just push the notifications.
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
         #       SDK for documentation purposes.
-        mlrun.utils.notifications.NotificationPusher([runobj]).push()
+        # The run is local, so we can assume that watch=True, therefore this code runs
+        # once the run is completed, and we can just push the notifications.
+        # Only push from jupyter, not from the CLI.
+        if self._is_run_local:
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()

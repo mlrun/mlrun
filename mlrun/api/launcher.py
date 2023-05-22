@@ -166,18 +166,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             )
 
     def _save_notifications(self, runobj):
-        if not runobj.spec.notifications:
-            mlrun.utils.logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
-            )
-            return
-
-        # TODO: add support for other notifications per run iteration
-        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
-            mlrun.utils.logger.debug(
-                "Notifications per iteration are not supported, skipping",
-                run_uid=runobj.metadata.uid,
-            )
+        if not self._validate_notifications(runobj):
             return
 
         # If in the api server, we can assume that watch=False, so we save notification

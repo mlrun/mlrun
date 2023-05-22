@@ -3,6 +3,7 @@
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
 - [v1.2.3](#v1-2-3)
+- [v1.2.2](#v1-2-2)
 - [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
@@ -22,8 +23,9 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3764 | The tutorial 02-model-training requires scikit-learn 1.2. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
-| ML-3823 | Projects that have very large yaml (configuration) files does not cause system crash when previewing in UI. [View in Git](https://github.com/mlrun/mlrun/pull/3560).  |
+| ML-3764 | Fixed the scikit-learn to 1.2 in the tutorial 02-model-training. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
+| ML-3794 | Fixed a Mask detection demo notebook (3-automatic-pipeline.ipynb). [View in Git](https://github.com/mlrun/demos/releases/tag/v1.3.1-rc6). |
+| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). || ML- | . [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
 
 
 ###  Documentation
@@ -225,6 +227,17 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3287 | UI now resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/ui/pull/1612). |
+| ML-3801 | Optimized `/projects` endpoint to work faster [View in Git](https://github.com/mlrun/ui/pull/1715). |
+| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). |
+
+## v1.2.2
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3797, ML-3798 | Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
+
 
 ## v1.2.1
 

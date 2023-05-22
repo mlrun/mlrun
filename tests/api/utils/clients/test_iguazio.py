@@ -519,6 +519,8 @@ async def test_list_project(
             for mock_project in project_objects
         ]
     }
+    # delete updated_at from response body, simulating it is not returned from the server
+    del response_body["data"][0]["attributes"]["updated_at"]
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
     for mock_project in project_objects:
         requests_mock.get(

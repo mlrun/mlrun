@@ -23,6 +23,7 @@ import requests
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
 import mlrun.api.schemas
+import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
 import mlrun.datastore
 import mlrun.errors
@@ -465,14 +466,18 @@ def _set_source_code_and_handler(function, config):
 def _resolve_and_set_base_image(
     function, config, client_version, client_python_version
 ):
-
-    # TODO: resolve actual image if given with `.` prefix
     base_image = (
         mlrun.utils.get_in(config, "spec.build.baseImage")
         or function.spec.image
         or function.spec.build.base_image
     )
     if base_image:
+        (
+            base_image,
+            _,
+        ) = mlrun.api.utils.builder.resolve_image_target_and_registry_secret(
+            base_image, secret_name=function.spec.build.secret
+        )
         mlrun.utils.update_in(
             config,
             "spec.build.baseImage",

@@ -16,6 +16,8 @@
 import datetime
 import logging
 import pathlib
+import shutil
+import os
 import subprocess
 import sys
 import tempfile
@@ -27,8 +29,10 @@ import click
 import paramiko
 import yaml
 
+# TODO: remove and use local logger
 import mlrun.utils
 
+project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
@@ -41,7 +45,9 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+        system_tests_env_yaml = (
+            project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        )
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -318,16 +324,20 @@ class SystemTestPreparer:
         )
 
     def _prepare_env_local(self):
-        contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
+        backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
-        self._run_command(
-            "cat > ",
-            workdir=".",
-            args=[filepath],
-            stdin=contents,
-            local=True,
-        )
+
+        # if filepath exists, backup the file first (to avoid overriding it)
+        if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
+            self._logger.debug(
+                "Backing up existing env.yml", destination=backup_filepath
+            )
+            shutil.copy(filepath, backup_filepath)
+
+        serialized_env_config = self._serialize_env_config()
+        with open(filepath, "w") as f:
+            f.write(serialized_env_config)
 
     def _override_mlrun_api_env(self):
         version_specifier = (
@@ -591,6 +601,17 @@ class SystemTestPreparer:
             args=args,
             verbose=verbose,
         )
+
+    def _serialize_env_config(self, allow_none_values: bool = False):
+        env_config = self._env_config.copy()
+
+        # we sanitize None values from config to avoid "null" values in yaml
+        if not allow_none_values:
+            for key in list(env_config):
+                if env_config[key] is None:
+                    del env_config[key]
+
+        return yaml.safe_dump(env_config)
 
 
 @click.group()

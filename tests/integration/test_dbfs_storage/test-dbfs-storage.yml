@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,8 @@
 # limitations under the License.
 #
 env:
-  # Path to Google credentials file (in JSON format)
-  credentials_json_file:
-  # Bucket name
-  bucket_name:
+  # databricks connection token
+  DATABRICKS_TOKEN:
+  # databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
+  # - it is not for use)
+  DATABRICKS_WORKSPACE:

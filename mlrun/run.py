@@ -585,8 +585,11 @@ def new_function(
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
                      for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
-    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+    :param source:   valid absolute path or URL to git, zip, or tar file, e.g.
+                     `git://github.com/mlrun/something.git`,
                      `http://some/url/file.zip`
+                     note path source must exist on the image or exist locally when run is local
+                     (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
     :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 

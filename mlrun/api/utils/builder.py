@@ -358,11 +358,10 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    v3io = (
-        source.startswith("v3io://") or source.startswith("v3ios://")
-        if source
-        else None
-    )
+    is_v3io_source = False
+    if source:
+        is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
     )
@@ -376,7 +375,8 @@ def build_image(
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
-    elif source and "://" in source and not v3io:
+    # source is remote
+    elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -387,8 +387,9 @@ def build_image(
         context = source
         source_to_copy = "."
 
+    # source is local / v3io
     else:
-        if v3io:
+        if is_v3io_source:
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)

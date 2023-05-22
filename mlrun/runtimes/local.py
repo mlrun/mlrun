@@ -217,6 +217,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
+        # _is_run_local is set when the user specifies local=True in run()
+        # in this case we don't want to extract the source code and contaminate the user's local dir
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,

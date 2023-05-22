@@ -943,6 +943,7 @@ class RunStatus(ModelObj):
         iterations=None,
         ui_url=None,
         reason: str = None,
+        notifications: Dict[str, Notification] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -956,6 +957,7 @@ class RunStatus(ModelObj):
         self.iterations = iterations
         self.ui_url = ui_url
         self.reason = reason
+        self.notifications = notifications or {}
 
 
 class RunTemplate(ModelObj):

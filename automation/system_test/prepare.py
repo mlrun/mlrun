@@ -17,8 +17,8 @@ import datetime
 import logging
 import os
 import pathlib
-import subprocess
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -46,7 +46,9 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        system_tests_env_yaml = (
+            project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        )
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -302,7 +304,9 @@ class SystemTestPreparer:
 
         # if filepath exists, backup the file first (to avoid overriding it)
         if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
-            self._logger.debug("Backing up existing env.yml", destination=backup_filepath)
+            self._logger.debug(
+                "Backing up existing env.yml", destination=backup_filepath
+            )
             shutil.copy(filepath, backup_filepath)
 
         serialized_env_config = self._serialize_env_config()

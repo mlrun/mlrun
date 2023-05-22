@@ -189,9 +189,9 @@ jobs:
 
     - name: Prepare system tests env
       run: |
-        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
-        echo "MLRUN_SYSTEM_TESTS_GIT_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" >> tests/system/env.yml
-        # TODO: use `prepare.py` for open source system tests as well
+        python automation/system_test/prepare.py env \
+          "http://$(minikube ip):${MLRUN_API_NODE_PORT}" \
+          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
 
     # Enable tmate debugging of manually-triggered workflows if the input option was provided
     - name: Setup tmate session

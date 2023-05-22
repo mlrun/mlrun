@@ -204,9 +204,9 @@ def get_offline_features(
             query=query,
             join_type=join_type,
             order_by=order_by,
-            # start_time=start_time,
-            # end_time=end_time,
-            # timestamp_for_filtering=timestamp_for_filtering,
+            start_time=start_time,
+            end_time=end_time,
+            timestamp_for_filtering=timestamp_for_filtering,
         )
 
     start_time = str_to_timestamp(start_time)

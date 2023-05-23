@@ -73,11 +73,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True
+    run_local = False
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/davesh0812/mlrun.git@passthrough_time_filter"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):

@@ -475,7 +475,7 @@ def build_image(
     else:
         pod, ns = k8s.create_pod(kpod)
         mlrun.utils.logger.info(
-            f"Build started", pod=pod, namespace=ns, project=project, image=image_target
+            "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
 

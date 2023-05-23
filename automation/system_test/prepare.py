@@ -351,7 +351,6 @@ class SystemTestPreparer:
         )
 
     def _install_dev_utilities(self):
-        urlscript = "https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git"
         list_uninstall = [
             "dev_utilities.py",
             "uninstall",
@@ -372,13 +371,10 @@ class SystemTestPreparer:
         ]
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
         self._run_command(
-            "git", args=["clone", urlscript, "dev_utilities"], workdir="/home/iguazio"
+            "python3", args=list_uninstall, workdir="/home/iguazio/"
         )
         self._run_command(
-            "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
-        )
-        self._run_command(
-            "python3", args=list_install, workdir="/home/iguazio/dev_utilities"
+            "python3", args=list_install, workdir="/home/iguazio/"
         )
 
     def _download_provctl(self):

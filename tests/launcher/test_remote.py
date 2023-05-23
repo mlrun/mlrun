@@ -73,3 +73,29 @@ def test_validate_runtime_success():
         spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
     )
     launcher._validate_runtime(runtime, run)
+
+
+@pytest.mark.parametrize(
+    "kind, requirements, expected_base_image, expected_image",
+    [
+        ("job", [], None, "mlrun/mlrun"),
+        ("job", ["pandas"], "mlrun/mlrun", ""),
+        ("nuclio", ["pandas"], None, "mlrun/mlrun"),
+        ("serving", ["pandas"], None, "mlrun/mlrun"),
+    ],
+)
+def test_prepare_image_for_deploy(
+    kind, requirements, expected_base_image, expected_image
+):
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    runtime = mlrun.code_to_function(
+        name="test",
+        kind=kind,
+        filename=str(func_path),
+        handler=handler,
+        image="mlrun/mlrun",
+        requirements=requirements,
+    )
+    launcher.prepare_image_for_deploy(runtime)
+    assert runtime.spec.build.base_image == expected_base_image
+    assert runtime.spec.image == expected_image

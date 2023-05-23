@@ -305,7 +305,7 @@ class BaseLauncher(abc.ABC):
         return run
 
     @staticmethod
-    def _are_valid_notifications(runobj) -> bool:
+    def _run_has_valid_notifications(runobj) -> bool:
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to push for run", run_uid=runobj.metadata.uid
@@ -357,18 +357,16 @@ class BaseLauncher(abc.ABC):
         pass
 
     @staticmethod
-    @abc.abstractmethod
-    def verify_base_image(runtime):
-        """resolves and sets the build base image if build is needed"""
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(runtime):
-        pass
-
-    @abc.abstractmethod
-    def _save_or_push_notifications(self, runobj):
+    def _enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project: Optional[str] = "",
+    ):
         pass
 
     @staticmethod

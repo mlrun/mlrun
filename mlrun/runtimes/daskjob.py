@@ -352,10 +352,6 @@ class DaskCluster(KubejobRuntime):
                     f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
                 )
 
-                # todo: figure out if test is needed
-                # if self._is_remote_api():
-                #     raise Exception('no access to Kubernetes API')
-
                 status = self.get_status()
                 if status != "running":
                     self._start()

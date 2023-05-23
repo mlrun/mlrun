@@ -211,10 +211,16 @@ def mask_notification_params_on_task(task):
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
+    masked_notifications = []
     if notifications:
         for notification in notifications:
             notification_object = mlrun.model.Notification.from_dict(notification)
-            mask_notification_params_with_secret(project, run_uid, notification_object)
+            masked_notifications.append(
+                mask_notification_params_with_secret(
+                    project, run_uid, notification_object
+                ).to_dict()
+            )
+    task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
 def mask_notification_params_with_secret(

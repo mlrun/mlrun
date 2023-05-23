@@ -620,6 +620,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
+        self.project = "default"
+        self._create_project(client)
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
@@ -661,13 +664,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 expected_runspec,
                 # excluding function attribute as it contains hash of the object, excluding this path because any change
                 # in the structure of the run will require to update the function hash
-                exclude_paths="function",
+                exclude_paths=["root['function']"],
             )
             == {}
         )
 
         self.name = "my-vector-merger"
-        self.project = "default"
 
         expected_code = _default_merger_handler.replace(
             "{{{engine}}}", "SparkFeatureMerger"
@@ -707,6 +709,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         # generate runtime and set source code to load on run
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.metadata.name = "test-spark-runtime"
+        runtime.metadata.project = self.project
         runtime.spec.build.source = "git://github.com/mock/repo"
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported

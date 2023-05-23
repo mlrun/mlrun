@@ -58,7 +58,13 @@ from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 router = APIRouter()
 
 
-@router.post("/func/{project}/{name}")
+@router.post(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
     project: str,
@@ -103,7 +109,13 @@ async def store_function(
     }
 
 
-@router.get("/func/{project}/{name}")
+@router.get(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
     name: str,
@@ -154,7 +166,13 @@ async def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/funcs")
+@router.get(
+    "/funcs",
+    deprecated=True,
+    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions instead",
+)
+@router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
     name: str = None,

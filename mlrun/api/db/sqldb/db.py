@@ -2781,17 +2781,6 @@ class SQLDB(DBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
-    def _function_latest_uid(self, session, project, name):
-        # FIXME
-        query = (
-            self._query(session, Function.uid)
-            .filter(Function.project == project, Function.name == name)
-            .order_by(Function.updated.desc())
-        ).limit(1)
-        out = query.one_or_none()
-        if out:
-            return out[0]
-
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
         new = set(user_names) - {user.name for user in users}

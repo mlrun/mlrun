@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from sqlalchemy.orm import Session
 
 from mlrun.api.db.sqldb.models import Base
 from mlrun.api.db.sqldb.session import get_engine
 from mlrun.config import config
 
 
-def init_db(db_session: Session) -> None:
+def init_db() -> None:
     if config.httpdb.db_type != "filedb":
         Base.metadata.create_all(bind=get_engine())

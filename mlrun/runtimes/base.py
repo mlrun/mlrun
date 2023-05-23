@@ -16,6 +16,7 @@ import getpass
 import http
 import traceback
 import typing
+import warnings
 from abc import ABC, abstractmethod
 from ast import literal_eval
 from base64 import b64encode
@@ -25,6 +26,7 @@ from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import requests.exceptions
+from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -41,7 +43,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
-from ..config import config, is_running_as_api
+from ..config import config
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
@@ -621,47 +623,6 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
-
-        if not runobj.spec.notifications:
-            logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
-            )
-            return
-
-        # TODO: add support for other notifications per run iteration
-        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
-            logger.debug(
-                "Notifications per iteration are not supported, skipping",
-                run_uid=runobj.metadata.uid,
-            )
-            return
-
-        # If the run is remote, and we are in the SDK, we let the api deal with the notifications
-        # so there's nothing to do here.
-        # Otherwise, we continue on.
-        if is_running_as_api():
-
-            # import here to avoid circular imports and to avoid importing api requirements
-            from mlrun.api.crud import Notifications
-
-            # If in the api server, we can assume that watch=False, so we save notification
-            # configs to the DB, for the run monitor to later pick up and push.
-            session = mlrun.api.db.sqldb.session.create_session()
-            Notifications().store_run_notifications(
-                session,
-                runobj.spec.notifications,
-                runobj.metadata.uid,
-                runobj.metadata.project,
-            )
-
-        elif local:
-            # If the run is local, we can assume that watch=True, therefore this code runs
-            # once the run is completed, and we can just push the notifications.
-            # TODO: add store_notifications API endpoint so we can store notifications pushed from the
-            #       SDK for documentation purposes.
-            mlrun.utils.notifications.NotificationPusher([runobj]).push()
-
     def _force_handler(self, handler):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
@@ -824,27 +785,29 @@ class BaseRuntime(ModelObj):
         self,
         requirements: Union[str, List[str]],
         overwrite: bool = False,
-        verify_base_image: bool = True,
+        verify_base_image: bool = False,
+        prepare_image_for_deploy: bool = True,
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:  python requirements file path or list of packages
-        :param overwrite:     overwrite existing requirements
-        :param verify_base_image:  verify that the base image is configured
+        :param requirements:                python requirements file path or list of packages
+        :param overwrite:                   overwrite existing requirements
+        :param verify_base_image:           verify that the base image is configured
+                                            (deprecated, use prepare_image_for_deploy)
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
-        resolved_requirements = self._resolve_requirements(requirements)
-        requirements = self.spec.build.requirements or [] if not overwrite else []
+        self.spec.build.with_requirements(requirements, overwrite)
 
-        # make sure we don't append the same line twice
-        for requirement in resolved_requirements:
-            if requirement not in requirements:
-                requirements.append(requirement)
-
-        self.spec.build.requirements = requirements
-
-        if verify_base_image:
-            self.verify_base_image()
+        if verify_base_image or prepare_image_for_deploy:
+            # TODO: remove verify_base_image in 1.6.0
+            if verify_base_image:
+                warnings.warn(
+                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
+                    "use prepare_image_for_deploy",
+                    category=FutureWarning,
+                )
+            self.prepare_image_for_deploy()
 
         return self
 
@@ -852,68 +815,61 @@ class BaseRuntime(ModelObj):
         self,
         commands: List[str],
         overwrite: bool = False,
-        verify_base_image: bool = True,
+        verify_base_image: bool = False,
+        prepare_image_for_deploy: bool = True,
     ):
         """add commands to build spec.
 
-        :param commands:  list of commands to run during build
+        :param commands:                    list of commands to run during build
+        :param overwrite:                   overwrite existing commands
+        :param verify_base_image:           verify that the base image is configured
+                                            (deprecated, use prepare_image_for_deploy)
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
 
         :return: function object
         """
-        if not isinstance(commands, list):
-            raise ValueError("commands must be a string list")
-        if not self.spec.build.commands or overwrite:
-            self.spec.build.commands = commands
-        else:
-            # add commands to existing build commands
-            for command in commands:
-                if command not in self.spec.build.commands:
-                    self.spec.build.commands.append(command)
-            # using list(set(x)) won't retain order,
-            # solution inspired from https://stackoverflow.com/a/17016257/8116661
-            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
-        if verify_base_image:
-            self.verify_base_image()
+        self.spec.build.with_commands(commands, overwrite)
+
+        if verify_base_image or prepare_image_for_deploy:
+            # TODO: remove verify_base_image in 1.6.0
+            if verify_base_image:
+                warnings.warn(
+                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
+                    "use prepare_image_for_deploy",
+                    category=FutureWarning,
+                )
+
+            self.prepare_image_for_deploy()
         return self
 
     def clean_build_params(self):
-        # when using `with_requirements` we also execute `verify_base_image` which adds the base image and cleans the
-        # spec.image, so we need to restore the image back
+        # when using `with_requirements` we also execute `prepare_image_for_deploy` which adds the base image
+        # and cleans the spec.image, so we need to restore the image back
         if self.spec.build.base_image and not self.spec.image:
             self.spec.image = self.spec.build.base_image
 
         self.spec.build = {}
         return self
 
+    # TODO: remove in 1.6.0
+    @deprecated(
+        version="1.4.0",
+        reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
+        category=FutureWarning,
+    )
     def verify_base_image(self):
-        build = self.spec.build
-        require_build = (
-            build.commands
-            or build.requirements
-            or (build.source and not build.load_source_on_run)
-        )
-        image = self.spec.image
-        # we allow users to not set an image, in that case we'll use the default
-        if (
-            not image
-            and self.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-        ):
-            image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[self.kind]
+        self.prepare_image_for_deploy()
 
-        if (
-            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-            # TODO: need a better way to decide whether a function requires a build
-            and require_build
-            and image
-            and not self.spec.build.base_image
-            # when submitting a run we are loading the function from the db, and using new_function for it,
-            # this results reaching here, but we are already after deploy of the image, meaning we don't need to prepare
-            # the base image for deployment
-            and self._is_remote_api()
-        ):
-            # when the function require build use the image as the base_image for the build
-            self.spec.build.base_image = image
-            self.spec.image = ""
+    def prepare_image_for_deploy(self):
+        """
+        if a function has a 'spec.image' it is considered to be deployed,
+        but because we allow the user to set 'spec.image' for usability purposes,
+        we need to check whether this is a built image or it requires to be built on top.
+        """
+        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+            is_remote=self._is_remote
+        )
+        launcher.prepare_image_for_deploy(self)
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
@@ -977,32 +933,6 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
-
-    @staticmethod
-    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
-        # if a string, read the file then encode
-        if isinstance(requirements_to_resolve, str):
-            with open(requirements_to_resolve, "r") as fp:
-                requirements_to_resolve = fp.read().splitlines()
-
-        requirements = []
-        for requirement in requirements_to_resolve:
-            # clean redundant leading and trailing whitespaces
-            requirement = requirement.strip()
-
-            # ignore empty lines
-            # ignore comments
-            if not requirement or requirement.startswith("#"):
-                continue
-
-            # ignore inline comments as well
-            inline_comment = requirement.split(" #")
-            if len(inline_comment) > 1:
-                requirement = inline_comment[0].strip()
-
-            requirements.append(requirement)
-
-        return requirements
 
 
 class BaseRuntimeHandler(ABC):

@@ -281,7 +281,9 @@ class BaseRuntime(ModelObj):
 
     def run(
         self,
-        runspec: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -306,7 +308,7 @@ class BaseRuntime(ModelObj):
         """
         Run a local or remote task.
 
-        :param runspec:        run template object or dict (see RunTemplate)
+        :param runspec:        the run spec to generate the RunObject from. Can be RunTemplate | RunObject | dict
         :param handler:        pointer or name of a function handler
         :param name:           execution name
         :param project:        project name
@@ -402,25 +404,6 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
-
-    def _create_run_object(self, runspec):
-        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
-        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
-        #       the `RunObject` from the `Runtime`.
-        if runspec:
-            runspec = deepcopy(runspec)
-            if isinstance(runspec, str):
-                runspec = literal_eval(runspec)
-            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
-                raise ValueError(
-                    "task/runspec is not a valid task object," f" type={type(runspec)}"
-                )
-
-        if isinstance(runspec, RunTemplate):
-            runspec = RunObject.from_template(runspec)
-        if isinstance(runspec, dict) or runspec is None:
-            runspec = RunObject.from_dict(runspec)
-        return runspec
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):

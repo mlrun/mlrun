@@ -76,7 +76,9 @@ class BaseLauncher(abc.ABC):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -183,6 +185,9 @@ class BaseLauncher(abc.ABC):
             return mlrun.run.RunObject.from_template(task)
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
+
+        # task is already a RunObject
+        return task
 
     def _enrich_run(
         self,

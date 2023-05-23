@@ -12,10 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-__all__ = [
-    "create_model_endpoint_uid",
-]
-
-from .helpers import (
-    create_model_endpoint_uid,
-)

@@ -14,7 +14,7 @@
 #
 from sqlalchemy.orm import Session
 
-from mlrun.api.db.sqldb.session import create_session as sqldb_create_session
+from mlrun.common.db.sql_session import create_session as sqldb_create_session
 
 
 def create_session() -> Session:

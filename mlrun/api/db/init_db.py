@@ -14,7 +14,7 @@
 #
 
 from mlrun.api.db.sqldb.models import Base
-from mlrun.api.db.sqldb.session import get_engine
+from mlrun.common.db.sql_session import get_engine
 from mlrun.config import config
 
 

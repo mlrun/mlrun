@@ -22,7 +22,7 @@ import sqlalchemy.orm
 import mlrun
 import mlrun.api.db.init_db
 import mlrun.api.db.sqldb.db
-import mlrun.api.db.sqldb.session
+import mlrun.common.db.sql_session
 import mlrun.api.initial_data
 import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
@@ -153,9 +153,9 @@ def _initialize_db_without_migrations() -> typing.Tuple[
 ]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
-    mlrun.api.db.sqldb.session._init_engine(dsn=dsn)
+    mlrun.common.db.session._init_engine(dsn=dsn)
     mlrun.api.utils.singletons.db.initialize_db()
-    db_session = mlrun.api.db.sqldb.session.create_session(dsn=dsn)
+    db_session = mlrun.common.db.session.create_session(dsn=dsn)
     db = mlrun.api.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
     mlrun.api.db.init_db.init_db()

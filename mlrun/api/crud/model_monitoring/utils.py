@@ -22,17 +22,13 @@ import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
-import mlrun.common.model_monitoring.stream_processing
-import mlrun.common.schemas
+import mlrun.api.crud.model_monitoring.stream_processing
+
+import mlrun.common.schemas.model_monitoring
 import mlrun.utils.model_monitoring
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
-from mlrun.api.crud.model_monitoring.helpers import (
-    convert_to_cron_string,
-    get_batching_interval_param,
-    json_loads_if_not_none,
-)
-from mlrun.common import model_monitoring as model_monitoring_constants
+import mlrun.api.crud.model_monitoring.helpers
 from mlrun.utils import logger
 
 _MODEL_MONTORING_COMMON_PATH = (
@@ -197,16 +193,16 @@ class MonitoringDeployment:
             tracking_policy.default_batch_intervals.hour,
             tracking_policy.default_batch_intervals.day,
         ]
-        minutes, hours, days = get_batching_interval_param(interval_list)
+        minutes, hours, days = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(interval_list)
         batch_dict = {"minutes": minutes, "hours": hours, "days": days}
 
         task.spec.parameters[
-            model_monitoring_constants.EventFieldType.BATCH_INTERVALS_DICT
+            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
             "task": task.to_dict(),
-            "schedule": convert_to_cron_string(tracking_policy.default_batch_intervals),
+            "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(tracking_policy.default_batch_intervals),
         }
 
         logger.info(
@@ -242,7 +238,7 @@ class MonitoringDeployment:
         """
 
         # Initialize Stream Processor object
-        stream_processor = mlrun.common.model_monitoring.stream_processing.EventStreamProcessor(
+        stream_processor = mlrun.api.crud.model_monitoring.stream_processing.EventStreamProcessor(
             project=project,
             parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
             parquet_target=parquet_target,
@@ -405,13 +401,13 @@ class MonitoringDeployment:
 
         # Set model monitoring access key for managing permissions
         function.set_env_from_secret(
-            model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
             mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                 project
             ),
             mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
                 mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
             ),
         )
         function.metadata.credentials.access_key = model_monitoring_access_key
@@ -450,8 +446,8 @@ def convert_into_model_endpoint_object(
         if endpoint_features:
             endpoint_obj.status.features = endpoint_features
             # Add the latest drift measures results (calculated by the model monitoring batch)
-            drift_measures = json_loads_if_not_none(
-                endpoint.get(model_monitoring_constants.EventFieldType.DRIFT_MEASURES)
+            drift_measures = mlrun.api.crud.model_monitoring.helpers.json_loads_if_not_none(
+                endpoint.get(mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES)
             )
             endpoint_obj.status.drift_measures = drift_measures
 
@@ -534,7 +530,7 @@ def get_monitoring_parquet_path(
     # Generate monitoring parquet path value
     parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
-        kind=model_monitoring_constants.FileTargetKind.PARQUET,
+        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
         target="offline",
         artifact_path=artifact_path,
     )

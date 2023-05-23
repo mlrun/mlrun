@@ -14,7 +14,7 @@
 from typing import Dict, List, Optional, Union
 
 import mlrun.api.crud
-import mlrun.api.db.sqldb.session
+import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.execution
 import mlrun.launcher.base
@@ -163,7 +163,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.api.db.sqldb.session.create_session()
+        session = mlrun.common.db.session.create_session()
         mlrun.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,

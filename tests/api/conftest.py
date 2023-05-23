@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 from mlrun import mlconf
-from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
 from mlrun.api.utils.singletons.db import initialize_db

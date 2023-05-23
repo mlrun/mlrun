@@ -39,7 +39,7 @@ import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config

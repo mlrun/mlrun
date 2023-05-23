@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud.model_monitoring.grafana
 import mlrun.api.crud.model_monitoring.utils
-import mlrun.common.schemas
+
+import mlrun.common.schemas.model_monitoring.grafana
 from mlrun.api.api import deps
 
 router = APIRouter()
@@ -102,8 +103,8 @@ async def grafana_proxy_model_endpoints_search(
     "/grafana-proxy/model-endpoints/query",
     response_model=List[
         Union[
-            mlrun.common.schemas.GrafanaTable,
-            mlrun.common.schemas.GrafanaTimeSeriesTarget,
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
         ]
     ],
 )
@@ -112,7 +113,7 @@ async def grafana_proxy_model_endpoints_query(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ) -> List[
     Union[
-        mlrun.common.schemas.GrafanaTable, mlrun.common.schemas.GrafanaTimeSeriesTarget
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaTable, mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget
     ]
 ]:
     """

@@ -24,14 +24,8 @@ import storey
 import mlrun.feature_store.steps
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.common.model_monitoring import (
-    EventFieldType,
-    EventKeyMetrics,
-    EventLiveStats,
-    FileTargetKind,
-    ModelEndpointTarget,
-    ProjectSecretKeys,
-)
+from mlrun.common.schemas.model_monitoring.constants import EventFieldType, EventLiveStats, EventKeyMetrics, \
+    ModelEndpointTarget, ProjectSecretKeys, FileTargetKind
 from mlrun.common.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 

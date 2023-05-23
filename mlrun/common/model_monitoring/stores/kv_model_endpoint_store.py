@@ -19,7 +19,8 @@ import typing
 import v3io.dataplane
 import v3io_frames
 
-import mlrun.common.model_monitoring as model_monitoring_constants
+
+import mlrun.common.schemas.model_monitoring
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -53,7 +54,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         self.client.kv.put(
             container=self.container,
             table_path=self.path,
-            key=endpoint[model_monitoring_constants.EventFieldType.UID],
+            key=endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
             attributes=endpoint,
         )
 
@@ -128,7 +129,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
-            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mlrun.common.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -189,13 +190,13 @@ class KVModelEndpointStore(ModelEndpointStore):
         if uids is None:
             uids = []
             for item in items:
-                if model_monitoring_constants.EventFieldType.UID not in item:
+                if mlrun.common.schemas.model_monitoring.EventFieldType.UID not in item:
                     # This is kept for backwards compatibility - in old versions the key column named endpoint_id
                     uids.append(
-                        item[model_monitoring_constants.EventFieldType.ENDPOINT_ID]
+                        item[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID]
                     )
                 else:
-                    uids.append(item[model_monitoring_constants.EventFieldType.UID])
+                    uids.append(item[mlrun.common.schemas.model_monitoring.EventFieldType.UID])
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
@@ -217,14 +218,14 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
-            if model_monitoring_constants.EventFieldType.UID not in endpoint_dict:
+            if mlrun.common.schemas.model_monitoring.EventFieldType.UID not in endpoint_dict:
                 # This is kept for backwards compatibility - in old versions the key column named endpoint_id
                 endpoint_id = endpoint_dict[
-                    model_monitoring_constants.EventFieldType.ENDPOINT_ID
+                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
                 ]
             else:
                 endpoint_id = endpoint_dict[
-                    model_monitoring_constants.EventFieldType.UID
+                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
                 ]
             self.delete_model_endpoint(
                 endpoint_id,
@@ -261,7 +262,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Delete time series DB resources
         try:
             frames.delete(
-                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
+                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=filtered_path,
             )
         except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
@@ -318,7 +319,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         events_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
             )
         )
         (
@@ -336,7 +337,7 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         try:
             data = frames_client.read(
-                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
+                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
                 table=events_path,
                 columns=["endpoint_id", *metrics],
                 filter=f"endpoint_id=='{endpoint_id}'",
@@ -371,7 +372,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         full_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
             )
         )
 
@@ -440,8 +441,8 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(model_monitoring_constants.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(model_monitoring_constants.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(mlrun.common.schemas.model_monitoring.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)

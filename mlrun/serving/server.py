@@ -24,7 +24,7 @@ from typing import Optional, Union
 
 import mlrun
 import mlrun.utils.model_monitoring
-from mlrun.common.model_monitoring import FileTargetKind
+from ..common.schemas.model_monitoring.constants import FileTargetKind
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore

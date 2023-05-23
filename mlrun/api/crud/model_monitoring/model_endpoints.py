@@ -23,8 +23,9 @@ import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.helpers
 import mlrun.api.crud.model_monitoring.utils
 import mlrun.artifacts
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
+
+
+import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 from mlrun.common.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
@@ -118,7 +119,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.common.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
@@ -228,15 +229,15 @@ class ModelEndpoints:
 
         feature_set = mlrun.feature_store.FeatureSet(
             f"monitoring-{serving_function_name}-{model_name}",
-            entities=[model_monitoring_constants.EventFieldType.ENDPOINT_ID],
-            timestamp_key=model_monitoring_constants.EventFieldType.TIMESTAMP,
+            entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
+            timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 
         feature_set.metadata.labels = {
-            model_monitoring_constants.EventFieldType.ENDPOINT_ID: model_endpoint.metadata.uid,
-            model_monitoring_constants.EventFieldType.MODEL_CLASS: model_endpoint.spec.model_class,
+            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: model_endpoint.metadata.uid,
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_CLASS: model_endpoint.spec.model_class,
         }
 
         # Add features to the feature set according to the model object
@@ -276,7 +277,7 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            model_monitoring_constants.FileTargetKind.PARQUET, parquet_path
+            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET, parquet_path
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
 
@@ -629,6 +630,6 @@ class ModelEndpoints:
         )
         if endpoint_metrics:
             model_endpoint_object.status.metrics[
-                model_monitoring_constants.EventKeyMetrics.REAL_TIME
+                mlrun.common.schemas.model_monitoring.EventKeyMetrics.REAL_TIME
             ] = endpoint_metrics
         return model_endpoint_object

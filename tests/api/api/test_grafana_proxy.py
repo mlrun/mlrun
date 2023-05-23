@@ -31,6 +31,7 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.model_monitoring.stores
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
@@ -358,13 +359,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -414,7 +415,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT,
-        kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+        kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS,
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 

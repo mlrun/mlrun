@@ -91,22 +91,29 @@ from .hub import (
 )
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
-from .model_endpoints import (
-    Features,
-    FeatureValues,
+
+from .model_monitoring import (
     GrafanaColumn,
-    GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
     GrafanaTable,
+    GrafanaDataPoint,
     GrafanaTimeSeriesTarget,
+    ModelMonitoringStoreKinds,
+    EndpointType,
+    EventFieldType,
+    EventKeyMetrics,
+    EndpointUID,
+    ModelMonitoringMode,
+    TimeSeriesTarget,
+    Features,
+    FeatureValues,
     ModelEndpoint,
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringStoreKinds,
-)
+    ModelMonitoringStoreKinds,)
 from .notification import NotificationSeverity, NotificationStatus
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination

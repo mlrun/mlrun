@@ -24,7 +24,7 @@ import pytest
 import mlrun.api.crud.model_monitoring.utils
 import mlrun.common.schemas
 import mlrun.model_monitoring
-from mlrun.common.model_monitoring import ModelMonitoringStoreKinds
+from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.common.model_monitoring.stores import (  # noqa: F401
     ModelEndpointStore,
     ModelEndpointStoreType,

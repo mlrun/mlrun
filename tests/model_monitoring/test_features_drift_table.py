@@ -22,7 +22,7 @@ import pandas as pd
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.common.model_monitoring.model_monitoring_batch import (
+from mlrun.api.crud.model_monitoring.model_monitoring_batch import (
     VirtualDrift,
     calculate_inputs_statistics,
 )

@@ -17,10 +17,9 @@ import json
 import warnings
 from typing import Union
 
-import mlrun
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.model
-import mlrun.platforms.iguazio
+
+import mlrun.common.schemas.model_monitoring
+
 from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.config import is_running_as_api
 
@@ -45,7 +44,7 @@ def set_project_model_monitoring_credentials(access_key: str, project: str = Non
     mlrun.get_run_db().create_project_secrets(
         project=project or mlrun.mlconf.default_project,
         provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets={model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key},
+        secrets={mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY: access_key},
     )
 
 
@@ -95,22 +94,22 @@ class TrackingPolicy(mlrun.model.ModelObj):
             struct, fields=cls._dict_fields, deprecated_fields=deprecated_fields
         )
         # Convert default batch interval into ScheduleCronTrigger object
-        if model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
+        if mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
             if isinstance(
                 struct[
-                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                    mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
                 ],
                 str,
             ):
                 new_obj.default_batch_intervals = ScheduleCronTrigger.from_crontab(
                     struct[
-                        model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                        mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
                     ]
                 )
             else:
                 new_obj.default_batch_intervals = ScheduleCronTrigger.parse_obj(
                     struct[
-                        model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                        mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
                     ]
                 )
         return new_obj
@@ -118,11 +117,11 @@ class TrackingPolicy(mlrun.model.ModelObj):
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(
             fields,
-            exclude=[model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS],
+            exclude=[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS],
         )
         if self.default_batch_intervals:
             struct[
-                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
             ] = self.default_batch_intervals.dict()
         return struct
 
@@ -140,7 +139,7 @@ def get_connection_string(project: str = None):
                 project=project,
                 provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
                 allow_secrets_from_k8s=True,
-                secret_key=model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+                secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
             )
             or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
         )
@@ -150,7 +149,7 @@ def get_connection_string(project: str = None):
 
         return (
             mlrun.get_secret_or_env(
-                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             )
             or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
         )
@@ -171,10 +170,10 @@ def get_stream_path(project: str = None):
             project=project,
             provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
             allow_secrets_from_k8s=True,
-            secret_key=model_monitoring_constants.ProjectSecretKeys.STREAM_PATH,
+            secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
         ) or mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
-            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
             target="online",
         )
 
@@ -183,10 +182,10 @@ def get_stream_path(project: str = None):
         import mlrun
 
         stream_uri = mlrun.get_secret_or_env(
-            model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ) or mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
-            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
             target="online",
         )
 
@@ -222,22 +221,22 @@ def validate_errors_and_metrics(endpoint: dict):
     # Validate default value for `error_count`
     # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
     if (
-        model_monitoring_constants.EventFieldType.ERROR_COUNT in endpoint
-        and endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null"
+        mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT in endpoint
+        and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT] == "null"
     ):
-        endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
+        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`
     # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
     if (
-        model_monitoring_constants.EventFieldType.METRICS in endpoint
-        and endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null"
+        mlrun.common.schemas.model_monitoring.EventFieldType.METRICS in endpoint
+        and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] == "null"
     ):
-        endpoint[model_monitoring_constants.EventFieldType.METRICS] = json.dumps(
+        endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] = json.dumps(
             {
-                model_monitoring_constants.EventKeyMetrics.GENERIC: {
-                    model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: 0,
-                    model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
+                    mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+                    mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
         )

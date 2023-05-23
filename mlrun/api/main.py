@@ -24,7 +24,6 @@ import sqlalchemy.orm
 import uvicorn
 from fastapi.exception_handlers import http_exception_handler
 
-import mlrun.api.api.utils
 import mlrun.api.db.base
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.log_collector
@@ -567,6 +566,8 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
     """
+    # Import here to avoid circular import
+    import mlrun.api.api.utils
 
     # When pushing notifications, push notifications only for runs that entered a terminal state
     # since the last time we pushed notifications.

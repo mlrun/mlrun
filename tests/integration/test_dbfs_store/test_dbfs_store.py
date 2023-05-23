@@ -16,6 +16,7 @@ import os
 import uuid
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
@@ -29,6 +30,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_filename = here / "test.txt"
+test_parquet = here / "test_data.parquet"
 with open(test_filename, "r") as f:
     test_string = f.read()
 
@@ -80,11 +82,23 @@ class TestDBFSStore:
         dir_list = dir_dataitem.listdir()
         assert self._object_file in dir_list, "File not in container dir-list"
 
-        upload_file_path = self._object_dir + "/" + f"file_{str(uuid.uuid4())}.txt"
-        upload_data_item = mlrun.run.get_dataitem(self._dbfs_url + upload_file_path)
-        upload_data_item.upload(str(test_filename))
-        response = upload_data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+        source_parquet = pd.read_parquet(test_parquet)
+        upload_parquet_file_path = (
+            self._object_dir + "/" + f"file_{str(uuid.uuid4())}.parquet"
+        )
+        upload_parquet_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_parquet_file_path
+        )
+        upload_parquet_data_item.upload(str(test_parquet))
+        response = upload_parquet_data_item.as_df()
+        assert source_parquet.equals(response), "Result differs from original parquet"
+        upload_parquet_data_item.delete()
+        with pytest.raises(FileNotFoundError) as file_not_found_error:
+            upload_parquet_data_item.stat()
+        assert (
+            str(file_not_found_error.value)
+            == f"No file or directory exists on path {upload_parquet_file_path}."
+        )
 
     def test_secrets_as_input(self):
         secrets = {}
@@ -97,13 +111,3 @@ class TestDBFSStore:
         for key, env_param in env_params.items():
             os.environ[key] = env_param
         self._perform_dbfs_tests(secrets={})
-
-    def supports_isdir(self):
-        return False
-
-    def rm(self, path, recursive=False, maxdepth=None):
-        if maxdepth:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "dbfs file system does not support maxdepth option in rm function."
-            )
-        self.get_filesystem().rm(path=path, recursive=recursive)

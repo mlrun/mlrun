@@ -123,3 +123,37 @@ class DBFSStore(DataStore):
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
         ]
         return files
+
+    def supports_isdir(self):
+        return False
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        if maxdepth:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "dbfs file system does not support maxdepth option in rm function."
+            )
+        self.get_filesystem().rm(path=path, recursive=recursive)
+
+    def as_df(
+        self,
+        url,
+        subpath,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        return super().as_df(
+            url=subpath,
+            subpath="",
+            columns=columns,
+            df_module=df_module,
+            format=format,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+            **kwargs,
+        )

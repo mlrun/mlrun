@@ -37,12 +37,6 @@ with open(test_filename, "r") as f:
 MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_WORKSPACE"]
 
 
-# def configure_dbfs_storage():
-#     env_params = config["env"]
-#     for key, env_param in env_params.items():
-#         os.environ[key] = env_params
-
-
 def is_dbfs_configured():
     env_params = config["env"]
     for necessary_variable in MUST_HAVE_VARIABLES:

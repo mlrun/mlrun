@@ -324,12 +324,12 @@ def test_context_from_run_dict():
         },
     }
     runtime = mlrun.runtimes.base.BaseRuntime.from_dict(run_dict)
-    run = runtime._create_run_object(run_dict)
     handler = "my_func"
     out_path = "test_artifact_path"
     launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
         runtime._is_remote
     )
+    run = launcher._create_run_object(run_dict)
     run = launcher._enrich_run(
         runtime,
         run,

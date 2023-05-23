@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 import pathlib
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.errors
@@ -43,8 +43,10 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
-        handler: Optional[str] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,

@@ -16,7 +16,7 @@ import ast
 import copy
 import os
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.config
@@ -76,8 +76,10 @@ class BaseLauncher(abc.ABC):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
-        handler: Optional[str] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
@@ -184,6 +186,9 @@ class BaseLauncher(abc.ABC):
         elif isinstance(task, dict):
             return mlrun.run.RunObject.from_dict(task)
 
+        # task is already a RunObject
+        return task
+
     def _enrich_run(
         self,
         runtime,
@@ -206,6 +211,8 @@ class BaseLauncher(abc.ABC):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
         )
+        # callable handlers are valid for handler and dask runtimes,
+        # for other runtimes we need to convert the handler to a string
         if run.spec.handler and runtime.kind not in ["handler", "dask"]:
             run.spec.handler = run.spec.handler_name
 

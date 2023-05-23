@@ -32,7 +32,9 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",

@@ -15,7 +15,6 @@ import enum
 import getpass
 import http
 import traceback
-import typing
 import warnings
 from abc import ABC, abstractmethod
 from ast import literal_eval
@@ -23,7 +22,7 @@ from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests.exceptions
 from deprecated import deprecated
@@ -282,26 +281,26 @@ class BaseRuntime(ModelObj):
 
     def run(
         self,
-        runspec: RunObject = None,
-        handler=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        out_path: str = "",
-        workdir: str = "",
-        artifact_path: str = "",
-        watch: bool = True,
-        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        hyperparams: Dict[str, list] = None,
-        hyper_param_options: HyperParamOptions = None,
-        verbose=None,
-        scrape_metrics: bool = None,
-        local=False,
-        local_code_path=None,
-        auto_build=None,
-        param_file_secrets: Dict[str, str] = None,
-        notifications: List[mlrun.model.Notification] = None,
+        runspec: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        handler: Optional[str, Callable] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         """
@@ -938,7 +937,7 @@ class BaseRuntime(ModelObj):
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
     kind = "base"
-    class_modes: typing.Dict[RuntimeClassMode, str] = {}
+    class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -957,7 +956,7 @@ class BaseRuntimeHandler(ABC):
         return True
 
     def _get_possible_mlrun_class_label_values(
-        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+        self, class_mode: Union[RuntimeClassMode, str] = None
     ) -> List[str]:
         """
         Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
@@ -971,7 +970,7 @@ class BaseRuntimeHandler(ABC):
     def list_resources(
         self,
         project: str,
-        object_id: typing.Optional[str] = None,
+        object_id: Optional[str] = None,
         label_selector: str = None,
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
@@ -1228,8 +1227,8 @@ class BaseRuntimeHandler(ABC):
 
     def _add_object_label_selector_if_needed(
         self,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
+        object_id: Optional[str] = None,
+        label_selector: Optional[str] = None,
     ):
         if object_id:
             object_label_selector = self._get_object_label_selector(object_id)
@@ -1362,7 +1361,7 @@ class BaseRuntimeHandler(ABC):
         return in_terminal_state, last_container_completion_time, run_state
 
     def _get_default_label_selector(
-        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+        self, class_mode: Union[RuntimeClassMode, str] = None
     ) -> str:
         """
         Override this to add a default label selector
@@ -1440,9 +1439,9 @@ class BaseRuntimeHandler(ABC):
     def resolve_label_selector(
         self,
         project: str,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
-        class_mode: typing.Union[RuntimeClassMode, str] = None,
+        object_id: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
@@ -1473,7 +1472,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def resolve_object_id(
         run: dict,
-    ) -> typing.Optional[str]:
+    ) -> Optional[str]:
         """
         Get the object id from the run object
         Override this if the object id is not the run uid

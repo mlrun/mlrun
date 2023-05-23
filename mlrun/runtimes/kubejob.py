@@ -109,6 +109,7 @@ class KubejobRuntime(KubeResource):
         with_mlrun=None,
         auto_build=None,
         requirements=None,
+        requirements_file=None,
         overwrite=False,
         verify_base_image=False,
         prepare_image_for_deploy=True,
@@ -126,7 +127,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param requirements: requirements.txt file to install or list of packages to install
+        :param requirements: a list of packages to install
+        :param requirements_file: requirements.txt file to install
         :param overwrite:  overwrite existing build configuration
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -148,6 +150,7 @@ class KubejobRuntime(KubeResource):
             with_mlrun,
             auto_build,
             requirements,
+            requirements_file,
             overwrite,
         )
 

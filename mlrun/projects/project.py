@@ -2322,6 +2322,7 @@ class MlrunProject(ModelObj):
         commands: list = None,
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = None,
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
@@ -2335,7 +2336,8 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param requirements:    list of python packages, defaults to None
+        :param requirements_file:    pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2351,6 +2353,7 @@ class MlrunProject(ModelObj):
             commands=commands,
             secret_name=secret_name,
             requirements=requirements,
+            requirements_file=requirements_file,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
@@ -2366,6 +2369,7 @@ class MlrunProject(ModelObj):
         commands: list = None,
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = None,
         overwrite_build_params: bool = False,
     ):
         """specify builder configuration for the project
@@ -2377,7 +2381,8 @@ class MlrunProject(ModelObj):
         :param base_image: base image name/path
         :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param requirements: a list of packages to install on the built image
+        :param requirements_file: requirements.txt file to install on the built image
         :param overwrite_build_params:  overwrite existing build configuration (default False)
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -2396,6 +2401,7 @@ class MlrunProject(ModelObj):
             secret=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite=overwrite_build_params,
         )
 
@@ -2412,6 +2418,7 @@ class MlrunProject(ModelObj):
         commands: list = None,
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = None,
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
@@ -2427,7 +2434,8 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param requirements:    list of python packages, defaults to None
+        :param requirements_file:    pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2446,6 +2454,7 @@ class MlrunProject(ModelObj):
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite_build_params=overwrite_build_params,
         )
 

@@ -24,7 +24,7 @@ import mlrun.errors
 from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
-config_file_path = here / "test-dbfs-storage.yml"
+config_file_path = here / "test-dbfs-store.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
@@ -53,7 +53,7 @@ def is_dbfs_configured():
     not is_dbfs_configured(),
     reason="DBFS storage parameters not configured",
 )
-class TestDBFSStorage:
+class TestDBFSStore:
     def setup_method(self):
         self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
         self._object_dir = "/test_mlrun_dbfs_objects"

@@ -28,12 +28,13 @@ from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.feature_store
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils
-from mlrun.api.schemas import (
+from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
+from mlrun.common.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
@@ -41,7 +42,6 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -282,9 +282,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy the function
         serving_fn.deploy()
 
-        # Simulating Requests
+        # Simulating valid requests
         iris_data = iris["data"].tolist()
-
         t_end = monotonic() + simulation_time
         while monotonic() < t_end:
             data_point = choice(iris_data)
@@ -293,7 +292,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(uniform(0.2, 1.1))
 
-        # test metrics
+        # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -368,7 +367,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
             fv, target=mlrun.datastore.targets.ParquetTarget()
         )
 
-        # Train the model using the auto trainer from the marketplace
+        # Train the model using the auto trainer from the hub
         train = mlrun.import_function("hub://auto-trainer", new_name="train")
         train.deploy()
         model_class = "sklearn.linear_model.LinearRegression"
@@ -446,7 +445,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
-        #  from mlrun marketplace is upgraded to 1.0.8
+        #  from mlrun hub is upgraded to 1.0.8
         # assert len(model_obj.spec.feature_stats) == len(
         #     model_endpoint.spec.feature_names
         # ) + len(model_endpoint.spec.label_names)
@@ -482,6 +481,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # 2 - deployment status of monitoring stream nuclio function
         # 3 - model endpoints types for both children and router
         # 4 - metrics and drift status per model endpoint
+        # 5 - invalid records are considered in the aggregated error count value
+        # 6 - KV schema file is generated as expected
 
         simulation_time = 120  # 120 seconds to allow tsdb batching
 
@@ -529,11 +530,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # Import the auto trainer function from the marketplace (hub://)
+        # Import the auto trainer function from the hub (hub://)
         train = mlrun.import_function("hub://auto-trainer")
 
         for name, pkg in model_names.items():
-
             # Run the function and specify input dataset path and some parameters (algorithm and label column name)
             train_run = train.run(
                 name=name,
@@ -584,6 +584,15 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
 
+        # Simulating invalid request
+        invalid_input = ["n", "s", "o", "-"]
+        with pytest.raises(RuntimeError):
+            serving_fn.invoke(
+                "v2/models/VotingEnsemble/infer",
+                json.dumps({"inputs": [invalid_input]}),
+            )
+
+        # Simulating valid requests
         t_end = monotonic() + simulation_time
         start_time = datetime.now(timezone.utc)
         data_sent = 0
@@ -601,6 +610,9 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
         sleep(60)
+
+        # Check that the KV schema has been generated as expected
+        self._check_kv_schema_file()
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(
@@ -689,10 +701,43 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
 
+                # Validate error count value
+                assert endpoint.status.error_count == 1
+
     def _check_monitoring_building_state(self, base_runtime):
         # Check if model monitoring stream function is ready
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
         assert base_runtime.status.state == "ready", stat
+
+    def _check_kv_schema_file(self):
+        """Check that the KV schema has been generated as expected"""
+
+        # Initialize V3IO client object that will be used to retrieve the KV schema
+        client = mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api
+        )
+
+        # Get the schema raw object
+        schema_raw = client.object.get(
+            container="users",
+            path=f"pipelines/{self.project_name}/model-endpoints/endpoints/.#schema",
+            access_key=os.environ.get("V3IO_ACCESS_KEY"),
+        )
+
+        # Convert the content into a dict
+        schema = json.loads(schema_raw.body)
+
+        # Validate the schema key value
+        assert schema["key"] == model_monitoring_constants.EventFieldType.UID
+
+        # Create a new dictionary of field_name:field_type out of the schema dictionary
+        fields_dict = {item["name"]: item["type"] for item in schema["fields"]}
+
+        # Validate the type of several keys
+        assert fields_dict["error_count"] == "long"
+        assert fields_dict["function_uri"] == "string"
+        assert fields_dict["endpoint_type"] == "string"
+        assert fields_dict["active"] == "boolean"
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

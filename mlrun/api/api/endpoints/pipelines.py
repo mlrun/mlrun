@@ -23,20 +23,20 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.utils import logger
 
 router = APIRouter()
 
 
 @router.get(
-    "/projects/{project}/pipelines", response_model=mlrun.api.schemas.PipelinesOutput
+    "/projects/{project}/pipelines", response_model=mlrun.common.schemas.PipelinesOutput
 )
 async def list_pipelines(
     project: str,
@@ -44,11 +44,11 @@ async def list_pipelines(
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
-    format_: mlrun.api.schemas.PipelinesFormat = Query(
-        mlrun.api.schemas.PipelinesFormat.metadata_only, alias="format"
+    format_: mlrun.common.schemas.PipelinesFormat = Query(
+        mlrun.common.schemas.PipelinesFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(deps.get_db_session),
@@ -58,16 +58,18 @@ async def list_pipelines(
     if project != "*":
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     total_size, next_page_token, runs = None, None, []
-    if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
         # "*"), so we can't really get back only the names here
         computed_format = (
-            mlrun.api.schemas.PipelinesFormat.metadata_only
-            if format_ == mlrun.api.schemas.PipelinesFormat.name_only
+            mlrun.common.schemas.PipelinesFormat.metadata_only
+            if format_ == mlrun.common.schemas.PipelinesFormat.name_only
             else format_
         )
         total_size, next_page_token, runs = await run_in_threadpool(
@@ -82,7 +84,7 @@ async def list_pipelines(
             page_size,
         )
     allowed_runs = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
         runs,
         lambda run: (
             run["project"],
@@ -90,9 +92,9 @@ async def list_pipelines(
         ),
         auth_info,
     )
-    if format_ == mlrun.api.schemas.PipelinesFormat.name_only:
+    if format_ == mlrun.common.schemas.PipelinesFormat.name_only:
         allowed_runs = [run["name"] for run in allowed_runs]
-    return mlrun.api.schemas.PipelinesOutput(
+    return mlrun.common.schemas.PipelinesOutput(
         runs=allowed_runs,
         total_size=total_size or 0,
         next_page_token=next_page_token or None,
@@ -106,7 +108,7 @@ async def create_pipeline(
     namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -119,7 +121,7 @@ async def create_pipeline(
 
 
 async def _create_pipeline(
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     request: Request,
     namespace: str,
     experiment_name: str,
@@ -129,10 +131,10 @@ async def _create_pipeline(
     # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
     if project:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",
-            mlrun.api.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
     run_name = run_name or experiment_name + " " + datetime.now().strftime(
@@ -153,16 +155,16 @@ async def _create_pipeline(
         )
     else:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",
-            mlrun.api.schemas.AuthorizationAction.create,
+            mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
 
     arguments = {}
     arguments_data = request.headers.get(
-        mlrun.api.schemas.HeaderNames.pipeline_arguments
+        mlrun.common.schemas.HeaderNames.pipeline_arguments
     )
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
@@ -203,10 +205,10 @@ async def get_pipeline(
     run_id: str,
     project: str,
     namespace: str = Query(config.namespace),
-    format_: mlrun.api.schemas.PipelinesFormat = Query(
-        mlrun.api.schemas.PipelinesFormat.summary, alias="format"
+    format_: mlrun.common.schemas.PipelinesFormat = Query(
+        mlrun.common.schemas.PipelinesFormat.summary, alias="format"
     ),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(deps.get_db_session),
@@ -223,10 +225,10 @@ async def get_pipeline(
         await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     return pipeline
@@ -234,7 +236,7 @@ async def get_pipeline(
 
 async def _get_pipeline_without_project(
     db_session: Session,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     run_id: str,
     namespace: str,
 ):
@@ -249,13 +251,13 @@ async def _get_pipeline_without_project(
         run_id,
         namespace=namespace,
         # minimal format that includes the project
-        format_=mlrun.api.schemas.PipelinesFormat.summary,
+        format_=mlrun.common.schemas.PipelinesFormat.summary,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
+        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
         run["run"]["project"],
         run["run"]["id"],
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return run

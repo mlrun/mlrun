@@ -17,8 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
+import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
-from mlrun.api import schemas
 
 
 class RunDBError(Exception):
@@ -71,10 +71,12 @@ class RunDBInterface(ABC):
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
         last_update_time_to: datetime.datetime = None,
-        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -108,7 +110,7 @@ class RunDBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         pass
 
@@ -148,7 +150,7 @@ class RunDBInterface(ABC):
         self,
         project: str,
         tag_name: str,
-        tag_objects: schemas.TagObjects,
+        tag_objects: mlrun.common.schemas.TagObjects,
         replace: bool = False,
     ):
         pass
@@ -158,7 +160,7 @@ class RunDBInterface(ABC):
         self,
         project: str,
         tag_name: str,
-        tag_objects: schemas.TagObjects,
+        tag_objects: mlrun.common.schemas.TagObjects,
     ):
         pass
 
@@ -184,11 +186,11 @@ class RunDBInterface(ABC):
     @staticmethod
     def _resolve_artifacts_to_tag_objects(
         artifacts,
-    ) -> schemas.TagObjects:
+    ) -> mlrun.common.schemas.TagObjects:
         """
         :param artifacts: Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
             dictionaries, or a single object.
-        :return: :py:class:`~mlrun.api.schemas.TagObjects`
+        :return: :py:class:`~mlrun.common.schemas.TagObjects`
         """
         # to avoid circular imports we import here
         import mlrun.artifacts.base
@@ -204,7 +206,7 @@ class RunDBInterface(ABC):
                 else artifact
             )
             artifact_identifiers.append(
-                schemas.ArtifactIdentifier(
+                mlrun.common.schemas.ArtifactIdentifier(
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
@@ -214,13 +216,15 @@ class RunDBInterface(ABC):
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )
             )
-        return schemas.TagObjects(kind="artifact", identifiers=artifact_identifiers)
+        return mlrun.common.schemas.TagObjects(
+            kind="artifact", identifiers=artifact_identifiers
+        )
 
     @abstractmethod
     def delete_project(
         self,
         name: str,
-        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         pass
 
@@ -228,8 +232,8 @@ class RunDBInterface(ABC):
     def store_project(
         self,
         name: str,
-        project: schemas.Project,
-    ) -> schemas.Project:
+        project: mlrun.common.schemas.Project,
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abstractmethod
@@ -237,40 +241,45 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: dict,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-    ) -> schemas.Project:
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abstractmethod
     def create_project(
         self,
-        project: schemas.Project,
-    ) -> schemas.Project:
+        project: mlrun.common.schemas.Project,
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abstractmethod
     def list_projects(
         self,
         owner: str = None,
-        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: schemas.ProjectState = None,
-    ) -> schemas.ProjectsOutput:
+        state: mlrun.common.schemas.ProjectState = None,
+    ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
     @abstractmethod
-    def get_project(self, name: str) -> schemas.Project:
+    def get_project(self, name: str) -> mlrun.common.schemas.Project:
         pass
 
     @abstractmethod
     def list_artifact_tags(
-        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+        self,
+        project=None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         pass
 
     @abstractmethod
     def create_feature_set(
-        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+        self,
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
+        project="",
+        versioned=True,
     ) -> dict:
         pass
 
@@ -288,7 +297,7 @@ class RunDBInterface(ABC):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod
@@ -298,7 +307,7 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         labels: List[str] = None,
-    ) -> schemas.EntitiesOutput:
+    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     @abstractmethod
@@ -311,17 +320,21 @@ class RunDBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
     @abstractmethod
     def store_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet],
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -338,7 +351,9 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -349,7 +364,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def create_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
         project="",
         versioned=True,
     ) -> dict:
@@ -369,17 +384,21 @@ class RunDBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
     @abstractmethod
     def store_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
         name=None,
         project="",
         tag=None,
@@ -396,7 +415,9 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -413,10 +434,10 @@ class RunDBInterface(ABC):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, schemas.PipelinesFormat
-        ] = schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
-    ) -> schemas.PipelinesOutput:
+    ) -> mlrun.common.schemas.PipelinesOutput:
         pass
 
     @abstractmethod
@@ -424,8 +445,8 @@ class RunDBInterface(ABC):
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         pass
@@ -436,10 +457,10 @@ class RunDBInterface(ABC):
         project: str,
         token: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
-    ) -> schemas.SecretsData:
+    ) -> mlrun.common.schemas.SecretsData:
         pass
 
     @abstractmethod
@@ -447,10 +468,10 @@ class RunDBInterface(ABC):
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         token: str = None,
-    ) -> schemas.SecretKeysData:
+    ) -> mlrun.common.schemas.SecretKeysData:
         pass
 
     @abstractmethod
@@ -458,8 +479,8 @@ class RunDBInterface(ABC):
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         pass
@@ -469,8 +490,8 @@ class RunDBInterface(ABC):
         self,
         user: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         pass
@@ -529,31 +550,33 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         pass
 
     @abstractmethod
-    def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def store_hub_source(
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         pass
 
     @abstractmethod
-    def list_marketplace_sources(self):
+    def list_hub_sources(self):
         pass
 
     @abstractmethod
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         pass
 
     @abstractmethod
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         pass
 
     @abstractmethod
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         version: str = None,
@@ -563,7 +586,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,
@@ -575,6 +598,17 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def verify_authorization(
-        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+        self,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         pass

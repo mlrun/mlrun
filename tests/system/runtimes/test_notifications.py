@@ -32,10 +32,12 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
             assert len(runs) == 1
             assert len(runs[0]["status"]["notifications"]) == 2
-            for notification in runs[0]["status"]["notifications"]:
-                if notification["name"] == error_notification.name:
+            for notification_name, notification in runs[0]["status"][
+                "notifications"
+            ].items():
+                if notification_name == error_notification.name:
                     assert notification["status"] == "error"
-                elif notification["name"] == success_notification.name:
+                elif notification_name == success_notification.name:
                     assert notification["status"] == "sent"
 
         error_notification = self._create_notification(
@@ -67,7 +69,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         # the notifications are sent asynchronously, so we need to wait for them
         mlrun.utils.retry_until_successful(
             1,
-            20,
+            40,
             self._logger,
             True,
             _assert_notifications,

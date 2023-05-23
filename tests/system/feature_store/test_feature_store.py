@@ -1099,37 +1099,33 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        from storey import CSVSource, ReduceToDataFrame, build_flow
-
-        csv_path = str(self.results_path / _generate_random_name() / ".csv")
-        targets = [CSVTarget("mycsv", path=csv_path)]
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata_short.csv")),
+            parse_dates=["date_of_birth"],
+        )
         stocks_set = fstore.FeatureSet(
-            "tests", entities=[Entity("ticker", ValueType.STRING)]
+            "tests", entities=[Entity("id", ValueType.INT64)]
         )
-        fstore.ingest(
+        result = fstore.ingest(
             stocks_set,
-            stocks,
+            source=source,
             infer_options=fstore.InferOptions.default(),
-            targets=targets,
         )
-
-        # reading csv file
-        final_path = stocks_set.get_target_path("mycsv")
-        controller = build_flow([CSVSource(final_path), ReduceToDataFrame()]).run()
-        termination_result = controller.await_termination()
-
         expected = pd.DataFrame(
             {
-                0: ["ticker", "MSFT", "GOOG", "AAPL"],
-                1: ["name", "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"],
-            }
+                "name": ["John", "Jane", "Bob"],
+                "number": [10, 20, 30],
+                "float_number": [1.5, 2.5, 3.5],
+                "date_of_birth": [
+                    datetime(1990, 1, 1),
+                    datetime(1995, 5, 10),
+                    datetime(1985, 12, 15),
+                ],
+            },
+            index=pd.Index([1, 2, 3], name="id"),
         )
-
-        assert termination_result.equals(
-            expected
-        ), f"{termination_result}\n!=\n{expected}"
-        os.remove(final_path)
+        assert result.equals(expected)
 
     def test_multiple_entities(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -1853,7 +1849,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
 
         reference_df = pd.read_csv(csv_file)
-        reference_df = reference_df[0:chunksize].set_index("patient_id")
+        reference_df = reference_df.set_index("patient_id")
 
         # patient_id (index) and timestamp (timestamp_key) are not in features list
         assert features + ["timestamp"] == list(reference_df.columns)
@@ -2384,7 +2380,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.preview(
+        df = fstore.ingest(
             fset,
             df,
         )
@@ -2429,7 +2425,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.preview(fset, df)
+        df = fstore.ingest(fset, df)
         assert df.to_dict() == {
             "foreignkey1": {
                 "mykey1_1": "AB",
@@ -2749,7 +2745,7 @@ class TestFeatureStore(TestMLRunSystem):
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
-        df = fstore.preview(fset, df)
+        df = fstore.ingest(fset, df)
         assert df.to_dict() == {
             "name": {"a": "a", "b": "b"},
             "sum": {"a": 16, "b": 26},

@@ -70,7 +70,7 @@ def run_function(
     selector: str = None,
     project_object=None,
     auto_build: bool = None,
-    schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
     notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
@@ -98,7 +98,7 @@ def run_function(
 
     example (use with project)::
 
-        # create a project with two functions (local and from marketplace)
+        # create a project with two functions (local and from hub)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
         project.set_function("hub://auto-trainer", "train")

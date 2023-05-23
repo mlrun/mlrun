@@ -272,6 +272,23 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "val-with-artifact",
         ]
 
+    def test_function_with_kwargs(self):
+        code_path = str(self.assets_path / "function_with_kwargs.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-kwargs",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        kwargs = {"some_arg": "a-value-123", "another_arg": "another-value-456"}
+        params = {"x": "2"}
+        params.update(kwargs)
+        run = function.run(params=params, handler="func")
+        assert run.outputs["return"] == kwargs
+
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         cases = [

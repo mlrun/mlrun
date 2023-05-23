@@ -34,24 +34,23 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
-import mlrun.model_monitoring.constants
+import mlrun.common.model_monitoring
+import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.api.schemas import SecretProviderName, SecretsData
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.builder import build_runtime
+from mlrun.api.utils.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
-from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
@@ -59,14 +58,20 @@ from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 router = APIRouter()
 
 
-@router.post("/func/{project}/{name}")
+@router.post(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
     project: str,
     name: str,
     tag: str = "",
     versioned: bool = False,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -76,10 +81,10 @@ async def store_function(
         auth_info=auth_info,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.store,
+        mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
     data = None
@@ -88,7 +93,7 @@ async def store_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
+    logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
         mlrun.api.crud.Functions().store_function,
         db_session,
@@ -104,13 +109,19 @@ async def store_function(
     }
 
 
-@router.get("/func/{project}/{name}")
+@router.get(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
     name: str,
     tag: str = "",
     hash_key="",
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     func = await run_in_threadpool(
@@ -122,10 +133,10 @@ async def get_function(
         hash_key,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return {
@@ -139,14 +150,14 @@ async def get_function(
 async def delete_function(
     project: str,
     name: str,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.delete,
+        mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
     await run_in_threadpool(
@@ -155,21 +166,27 @@ async def delete_function(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/funcs")
+@router.get(
+    "/funcs",
+    deprecated=True,
+    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions instead",
+)
+@router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
     hash_key: str = None,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     functions = await run_in_threadpool(
@@ -182,7 +199,7 @@ async def list_functions(
         hash_key=hash_key,
     )
     functions = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
             function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
@@ -199,13 +216,13 @@ async def list_functions(
 @router.post("/build/function/")
 async def build_function(
     request: Request,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.client_version
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
     client_python_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.python_version
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
     data = None
@@ -225,10 +242,10 @@ async def build_function(
         auth_info=auth_info,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         function_name,
-        mlrun.api.schemas.AuthorizationAction.update,
+        mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
 
@@ -240,7 +257,7 @@ async def build_function(
     ).get("track_models", False):
         if (
             mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.api.schemas.ClusterizationRole.chief
+            != mlrun.common.schemas.ClusterizationRole.chief
         ):
             logger.info(
                 "Requesting to deploy serving function with track models, re-routing to chief",
@@ -275,18 +292,18 @@ async def build_function(
     }
 
 
-@router.post("/start/function", response_model=mlrun.api.schemas.BackgroundTask)
-@router.post("/start/function/", response_model=mlrun.api.schemas.BackgroundTask)
+@router.post("/start/function", response_model=mlrun.common.schemas.BackgroundTask)
+@router.post("/start/function/", response_model=mlrun.common.schemas.BackgroundTask)
 async def start_function(
     request: Request,
     background_tasks: BackgroundTasks,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.client_version
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
     client_python_version: Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.python_version
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
     # TODO: ensure project here !!! for background task
@@ -300,10 +317,10 @@ async def start_function(
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
-        mlrun.api.schemas.AuthorizationAction.update,
+        mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
     background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
@@ -329,7 +346,7 @@ async def start_function(
 @router.post("/status/function/")
 async def function_status(
     request: Request,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
     data = None
     try:
@@ -353,16 +370,16 @@ async def build_status(
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
         # store since with the current mechanism we update the status (and store the function) in the DB when a client
         # query for the status
-        mlrun.api.schemas.AuthorizationAction.store,
+        mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
     fn = await run_in_threadpool(
@@ -418,7 +435,7 @@ def _handle_job_deploy_status(
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == mlrun.api.schemas.FunctionState.ready:
+        if state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -440,8 +457,7 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
-
-        if state == mlrun.api.schemas.FunctionState.ready:
+        if state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -465,18 +481,20 @@ def _handle_job_deploy_status(
         )
 
     logger.info(f"get pod {pod} status")
-    state = get_k8s().get_pod_status(pod)
+    state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
+        pod
+    )
     logger.info(f"pod state={state}")
 
     if state == "succeeded":
         logger.info("build completed successfully")
-        state = mlrun.api.schemas.FunctionState.ready
+        state = mlrun.common.schemas.FunctionState.ready
     if state in ["failed", "error"]:
         logger.error(f"build {state}, watch the build pod logs: {pod}")
-        state = mlrun.api.schemas.FunctionState.error
+        state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = get_k8s().logs(pod)
+        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -487,11 +505,11 @@ def _handle_job_deploy_status(
             out = resp[offset:].encode()
 
     update_in(fn, "status.state", state)
-    if state == mlrun.api.schemas.FunctionState.ready:
+    if state == mlrun.common.schemas.FunctionState.ready:
         update_in(fn, "spec.image", image)
 
     versioned = False
-    if state == mlrun.api.schemas.FunctionState.ready:
+    if state == mlrun.common.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
         db_session,
@@ -524,7 +542,7 @@ def _handle_nuclio_deploy_status(
         last_log_timestamp,
         text,
         status,
-    ) = get_nuclio_deploy_status(
+    ) = mlrun.api.crud.runtimes.nuclio.function.get_nuclio_deploy_status(
         name,
         project,
         tag,
@@ -596,7 +614,7 @@ def _handle_nuclio_deploy_status(
 
 def _build_function(
     db_session,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     function,
     with_mlrun=True,
     skip_deployed=False,
@@ -620,7 +638,6 @@ def _build_function(
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                 fn,
                 auth_info,
@@ -638,7 +655,7 @@ def _build_function(
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
                             if mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
@@ -678,7 +695,7 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(
+            mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,
@@ -740,7 +757,7 @@ def _parse_start_function_body(db_session, data):
 
 def _start_function(
     function,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     client_version: str = None,
     client_python_version: str = None,
 ):
@@ -778,7 +795,7 @@ def _start_function(
         mlrun.api.db.session.close_session(db_session)
 
 
-async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
+async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
     logger.info(f"function_status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
@@ -794,10 +811,10 @@ async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.function,
+        mlrun.common.schemas.AuthorizationResourceTypes.function,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
 
@@ -820,7 +837,6 @@ async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(project: str, function):
-
     _init_serving_function_stream_args(fn=function)
 
     stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -886,8 +902,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-
-    provider = SecretProviderName.kubernetes
+    provider = mlrun.common.schemas.SecretProviderName.kubernetes
     secret_value = Secrets().get_project_secret(
         project_name,
         provider,
@@ -908,8 +923,6 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             allow_internal_secrets=True,
         )
         if not secret_value:
-            import mlrun.api.utils.singletons.project_member
-
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )
@@ -926,7 +939,9 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 project_owner=project_owner.username,
             )
 
-    secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
+    secrets = mlrun.common.schemas.SecretsData(
+        provider=provider, secrets={internal_key_name: secret_value}
+    )
     Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
     if user_provided_key:
         logger.info(

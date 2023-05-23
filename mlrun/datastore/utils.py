@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import tarfile
+import tempfile
 import typing
 from urllib.parse import parse_qs, urlparse
+
+import mlrun.datastore
 
 
 def store_path_to_spark(path):
@@ -66,3 +70,14 @@ def parse_kafka_url(
         topic = url.path
         topic = topic.lstrip("/")
     return topic, bootstrap_servers
+
+
+def upload_tarball(source_dir, target, secrets=None):
+
+    # will delete the temp file
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
+        with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
+            tar.add(source_dir, arcname="")
+        stores = mlrun.datastore.store_manager.set(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.upload(subpath, temp_fh.name)

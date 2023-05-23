@@ -191,6 +191,12 @@ class ArtifactManager:
         if db_key is None:
             # set the default artifact db key
             if producer.kind == "run":
+                # When the producer's type is "run,"
+                # we generate a different db_key than the one we obtained in the request.
+                # As a result, a new artifact for the requested key will be created,
+                # which will contain the new db_key and will represent the current run.
+                # We implement this so that the user can query an artifact,
+                # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
                 db_key = key

@@ -23,8 +23,8 @@ import kubernetes
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base
@@ -89,7 +89,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
-            mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.assert_called_once()
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
 
         assert self._get_create_custom_object_namespace_arg() == self.namespace
 
@@ -620,6 +620,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
+        self.project = "default"
+        self._create_project(client)
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
@@ -661,13 +664,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 expected_runspec,
                 # excluding function attribute as it contains hash of the object, excluding this path because any change
                 # in the structure of the run will require to update the function hash
-                exclude_paths="function",
+                exclude_paths=["root['function']"],
             )
             == {}
         )
 
         self.name = "my-vector-merger"
-        self.project = "default"
 
         expected_code = _default_merger_handler.replace(
             "{{{engine}}}", "SparkFeatureMerger"
@@ -707,6 +709,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         # generate runtime and set source code to load on run
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.metadata.name = "test-spark-runtime"
+        runtime.metadata.project = self.project
         runtime.spec.build.source = "git://github.com/mock/repo"
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported

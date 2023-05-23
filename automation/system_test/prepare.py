@@ -15,11 +15,14 @@
 
 import datetime
 import logging
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import typing
 import urllib.parse
 
 import boto3
@@ -27,8 +30,10 @@ import click
 import paramiko
 import yaml
 
+# TODO: remove and use local logger
 import mlrun.utils
 
+project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
@@ -41,7 +46,9 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+        system_tests_env_yaml = (
+            project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        )
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -135,6 +142,11 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
+        # try:
+        #     self._install_dev_utilities()
+        # except Exception as exp:
+        #     self._logger.error("error on install dev utilities", exception=str(exp))
+
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -173,7 +185,7 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-    ) -> str:
+    ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
@@ -188,10 +200,10 @@ class SystemTestPreparer:
                 workdir=workdir,
             )
         if self._debug:
-            return ""
+            return b"", b""
         try:
             if local:
-                stdout, stderr, exit_status = self._run_command_locally(
+                stdout, stderr, exit_status = run_command(
                     command, args, workdir, stdin, live
                 )
             else:
@@ -207,15 +219,19 @@ class SystemTestPreparer:
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
+            err_log_kwargs = {
+                "error": str(exc),
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
             if verbose:
-                self._logger.error(
-                    f"Failed running command {log_command_location}",
-                    command=command,
-                    error=exc,
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_status=exit_status,
-                )
+                err_log_kwargs["command"] = command
+
+            self._logger.error(
+                f"Failed running command {log_command_location}",
+                **err_log_kwargs,
+            )
             raise
         else:
             if verbose:
@@ -226,7 +242,7 @@ class SystemTestPreparer:
                     stderr=stderr,
                     exit_status=exit_status,
                 )
-            return stdout
+            return stdout, stderr
 
     def _run_command_remotely(
         self,
@@ -274,45 +290,6 @@ class SystemTestPreparer:
 
         return stdout, stderr, exit_status
 
-    @staticmethod
-    def _run_command_locally(
-        command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
-        live: bool = True,
-    ) -> (str, str, int):
-        stdout, stderr, exit_status = "", "", 0
-        if workdir:
-            command = f"cd {workdir}; " + command
-        if args:
-            command += " " + " ".join(args)
-
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            shell=True,
-        )
-
-        if stdin:
-            process.stdin.write(bytes(stdin, "ascii"))
-            process.stdin.close()
-
-        if live:
-            for line in iter(process.stdout.readline, b""):
-                stdout += str(line)
-                sys.stdout.write(line.decode(sys.stdout.encoding))
-        else:
-            stdout = process.stdout.read()
-
-        stderr = process.stderr.read()
-
-        exit_status = process.wait()
-
-        return stdout, stderr, exit_status
-
     def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
@@ -321,16 +298,20 @@ class SystemTestPreparer:
         )
 
     def _prepare_env_local(self):
-        contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
+        backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
-        self._run_command(
-            "cat > ",
-            workdir=".",
-            args=[filepath],
-            stdin=contents,
-            local=True,
-        )
+
+        # if filepath exists, backup the file first (to avoid overriding it)
+        if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
+            self._logger.debug(
+                "Backing up existing env.yml", destination=backup_filepath
+            )
+            shutil.copy(filepath, backup_filepath)
+
+        serialized_env_config = self._serialize_env_config()
+        with open(filepath, "w") as f:
+            f.write(serialized_env_config)
 
     def _override_mlrun_api_env(self):
         version_specifier = (
@@ -369,11 +350,41 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
+    def _install_dev_utilities(self):
+        urlscript = "https://gist.github.com/a51d75fe52e95df617b5dbb983c8e6e1.git"
+        list_uninstall = [
+            "dev_utilities.py",
+            "uninstall",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+        ]
+        list_install = [
+            "dev_utilities.py",
+            "install",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+            "--ipadd",
+            os.environ.get("IP_ADDR_PREFIX", "localhost"),
+        ]
+        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
+        self._run_command(
+            "git", args=["clone", urlscript, "dev_utilities"], workdir="/home/iguazio"
+        )
+        self._run_command(
+            "python3", args=list_uninstall, workdir="/home/iguazio/dev_utilities"
+        )
+        self._run_command(
+            "python3", args=list_install, workdir="/home/iguazio/dev_utilities"
+        )
+
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
         # s3://<bucket-name>/<object-name>
-
         parsed_url = urllib.parse.urlparse(self._provctl_download_url)
         if self._provctl_download_url.startswith("s3://"):
             object_name = parsed_url.path.lstrip("/")
@@ -381,7 +392,6 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
             self._logger.debug(
@@ -396,7 +406,6 @@ class SystemTestPreparer:
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-
             # upload provctl to data node
             self._logger.debug(
                 "Uploading provctl to datanode",
@@ -406,7 +415,6 @@ class SystemTestPreparer:
             sftp_client = self._ssh_client.open_sftp()
             sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
-
         # make provctl executable
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 
@@ -516,13 +524,12 @@ class SystemTestPreparer:
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")
-            self._iguazio_version = self._run_command(
+            self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
-            ).strip()
-        if isinstance(self._iguazio_version, bytes):
-            self._iguazio_version = self._iguazio_version.decode("utf-8")
+            )
+            self._iguazio_version = self._iguazio_version.strip().decode()
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
@@ -547,6 +554,10 @@ class SystemTestPreparer:
             self._logger.info("No mlrun db pod found")
             return
 
+        self._logger.info(
+            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
+        )
+
         password = ""
         if self._mysql_password:
             password = f"-p {self._mysql_password} "
@@ -558,19 +569,35 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({mlrun_db_pod_name_cmd})",
+                mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,
             ],
             verbose=False,
         )
 
-    def _get_pod_name_command(self, labels, namespace=None):
-        namespace = namespace or self.Constants.namespace
+    def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
-        return "kubectl get pods -n {namespace} -l {labels_selector} | tail -n 1 | awk '{{print $1}}'".format(
-            namespace=namespace, labels_selector=labels_selector
+        pod_name, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "pods",
+                "--namespace",
+                self.Constants.namespace,
+                "--selector",
+                labels_selector,
+                "|",
+                "tail",
+                "-n",
+                "1",
+                "|",
+                "awk",
+                "'{print $1}'",
+            ],
         )
+        if b"No resources found" in stderr or not pod_name:
+            return None
+        return pod_name.strip()
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures
@@ -589,11 +616,22 @@ class SystemTestPreparer:
         )
 
     def _run_kubectl_command(self, args, verbose=True):
-        self._run_command(
+        return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,
         )
+
+    def _serialize_env_config(self, allow_none_values: bool = False):
+        env_config = self._env_config.copy()
+
+        # we sanitize None values from config to avoid "null" values in yaml
+        if not allow_none_values:
+            for key in list(env_config):
+                if env_config[key] is None:
+                    del env_config[key]
+
+        return yaml.safe_dump(env_config)
 
 
 @click.group()
@@ -718,11 +756,11 @@ def run(
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("webapi-direct-url", type=str, required=True)
-@click.argument("framesd-url", type=str, required=True)
-@click.argument("username", type=str, required=True)
-@click.argument("access-key", type=str, required=True)
-@click.argument("spark-service", type=str, required=True)
+@click.argument("webapi-direct-url", type=str, required=False)
+@click.argument("framesd-url", type=str, required=False)
+@click.argument("username", type=str, required=False)
+@click.argument("access-key", type=str, required=False)
+@click.argument("spark-service", type=str, required=False)
 @click.argument("password", type=str, default=None, required=False)
 @click.argument("slack-webhook-url", type=str, default=None, required=False)
 @click.option(
@@ -764,6 +802,60 @@ def env(
     except Exception as exc:
         logger.error("Failed preparing local system test environment", exc=exc)
         raise
+
+
+def run_command(
+    command: str,
+    args: list = None,
+    workdir: str = None,
+    stdin: str = None,
+    live: bool = True,
+    log_file_handler: typing.IO[str] = None,
+) -> (str, str, int):
+    if workdir:
+        command = f"cd {workdir}; " + command
+    if args:
+        command += " " + " ".join(args)
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        shell=True,
+    )
+
+    if stdin:
+        process.stdin.write(bytes(stdin, "ascii"))
+        process.stdin.close()
+
+    stdout = _handle_command_stdout(process.stdout, log_file_handler, live)
+    stderr = process.stderr.read()
+    exit_status = process.wait()
+
+    return stdout, stderr, exit_status
+
+
+def _handle_command_stdout(
+    stdout_stream: typing.IO[bytes],
+    log_file_handler: typing.IO[str] = None,
+    live: bool = True,
+) -> str:
+    def _write_to_log_file(text: bytes):
+        if log_file_handler:
+            log_file_handler.write(text.decode(sys.stdout.encoding))
+
+    stdout = ""
+    if live:
+        for line in iter(stdout_stream.readline, b""):
+            stdout += str(line)
+            sys.stdout.write(line.decode(sys.stdout.encoding))
+            _write_to_log_file(line)
+    else:
+        stdout = stdout_stream.read()
+        _write_to_log_file(stdout)
+
+    return stdout
 
 
 if __name__ == "__main__":

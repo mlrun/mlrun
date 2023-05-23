@@ -32,8 +32,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
+import mlrun.common.schemas
 import mlrun.utils.db
-from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 Base = declarative_base()
@@ -107,7 +107,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
 
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -129,7 +129,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
 
@@ -185,7 +185,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
 
         def get_identifier_string(self) -> str:
@@ -208,7 +208,7 @@ with warnings.catch_warnings():
         )
         iteration = Column(Integer)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         start_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
         updated = Column(
@@ -270,7 +270,7 @@ with warnings.catch_warnings():
         creation_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
         cron_trigger_str = Column(String(255, collation=SQLCollationUtil.collation()))
         last_run_uri = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         struct = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
@@ -288,11 +288,11 @@ with warnings.catch_warnings():
             self.struct = pickle.dumps(value)
 
         @property
-        def cron_trigger(self) -> schemas.ScheduleCronTrigger:
+        def cron_trigger(self) -> mlrun.common.schemas.ScheduleCronTrigger:
             return orjson.loads(self.cron_trigger_str)
 
         @cron_trigger.setter
-        def cron_trigger(self, trigger: schemas.ScheduleCronTrigger):
+        def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
     # Define "many to many" users/projects
@@ -322,7 +322,7 @@ with warnings.catch_warnings():
         source = Column(String(255, collation=SQLCollationUtil.collation()))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", sqlalchemy.dialects.mysql.MEDIUMBLOB)
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
@@ -459,9 +459,9 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
-    class MarketplaceSource(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "marketplace_sources"
-        __table_args__ = (UniqueConstraint("name", name="_marketplace_sources_uc"),)
+    class HubSource(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "hub_sources"
+        __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))

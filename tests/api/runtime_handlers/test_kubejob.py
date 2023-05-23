@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.conftest
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
@@ -81,8 +81,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_list_resources_grouped_by(self, db: Session, client: TestClient):
         for group_by in [
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
-            mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField.job,
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         ]:
             pods = self._mock_list_resources_pods()
             self._assert_runtime_handler_list_resources(
@@ -98,7 +98,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         resources = self._assert_runtime_handler_list_resources(
             RuntimeKinds.job,
             expected_pods=pods,
-            group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.project,
+            group_by=mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         )
         # the legacy builder pod does not have a project label, verify it is listed under the empty key
         # so it will be removed on cleanup

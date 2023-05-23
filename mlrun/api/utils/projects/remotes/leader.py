@@ -16,7 +16,7 @@ import abc
 import datetime
 import typing
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 
 class Member(abc.ABC):
@@ -24,7 +24,7 @@ class Member(abc.ABC):
     def create_project(
         self,
         session: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
         wait_for_completion: bool = True,
     ) -> bool:
         pass
@@ -34,7 +34,7 @@ class Member(abc.ABC):
         self,
         session: str,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         pass
 
@@ -43,7 +43,7 @@ class Member(abc.ABC):
         self,
         session: str,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
         pass
@@ -54,7 +54,7 @@ class Member(abc.ABC):
         session: str,
         updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
-        typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
+        typing.List[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]
     ]:
         pass
 
@@ -63,13 +63,13 @@ class Member(abc.ABC):
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abc.abstractmethod
     def format_as_leader_project(
-        self, project: mlrun.api.schemas.Project
-    ) -> mlrun.api.schemas.IguazioProject:
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
         pass
 
     @abc.abstractmethod
@@ -77,5 +77,5 @@ class Member(abc.ABC):
         self,
         session: str,
         name: str,
-    ) -> mlrun.api.schemas.ProjectOwner:
+    ) -> mlrun.common.schemas.ProjectOwner:
         pass

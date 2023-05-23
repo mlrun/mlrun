@@ -36,7 +36,7 @@ import yaml
 from deprecated import deprecated
 from kfp import Client
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
@@ -585,8 +585,11 @@ def new_function(
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
                      for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
-    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+    :param source:   valid absolute path or URL to git, zip, or tar file, e.g.
+                     `git://github.com/mlrun/something.git`,
                      `http://some/url/file.zip`
+                     note path source must exist on the image or exist locally when run is local
+                     (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
     :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
@@ -652,8 +655,9 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements)
-    runner.verify_base_image()
+        runner.with_requirements(requirements, prepare_image_for_deploy=False)
+
+    runner.prepare_image_for_deploy()
     return runner
 
 
@@ -921,7 +925,7 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.verify_base_image()
+    r.prepare_image_for_deploy()
 
     if with_doc:
         update_function_entry_points(r, code)
@@ -1195,8 +1199,8 @@ def get_pipeline(
     run_id,
     namespace=None,
     format_: Union[
-        str, mlrun.api.schemas.PipelinesFormat
-    ] = mlrun.api.schemas.PipelinesFormat.summary,
+        str, mlrun.common.schemas.PipelinesFormat
+    ] = mlrun.common.schemas.PipelinesFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1232,7 +1236,7 @@ def get_pipeline(
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
+                or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
             ):
                 resp = format_summary_from_kfp_run(resp)
 
@@ -1248,7 +1252,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+    format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
@@ -1268,7 +1272,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.api.schemas.PipelinesFormat.full
+        format_ = mlrun.common.schemas.PipelinesFormat.full
     run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

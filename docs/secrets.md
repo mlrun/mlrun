@@ -10,11 +10,11 @@ and how much exposure they create for your secrets.
 **In this section**
 - [Overview](#overview)
 - [MLRun-managed secrets](#mlrun-managed-secrets)
-  - [Using tasks with secrets](#using-tasks-with-secrets) 
+  - [Using tasks with secrets](#using-tasks-with-secrets)
   - [Secret providers](#secret-providers)
-     - [Kubernetes project secrets](#kubernetes-project-secrets)
-     - [Azure Vault](#azure-vault)
-     - [Demo/Development secret providers](#demo-development-secret-providers)
+    - [Kubernetes project secrets](#kubernetes-project-secrets)
+    - [Azure Vault](#azure-vault)
+    - [Demo/Development secret providers](#demo-development-secret-providers)
 - [Externally managed secrets](#externally-managed-secrets)
   - [Mapping secrets to environment](#mapping-secrets-to-environment)
   - [Mapping secrets as files](#mapping-secrets-as-files)
@@ -317,9 +317,11 @@ MLRun provides facilities to map k8s secrets that were created externally to job
 the spec of the runtime that is created should be modified by mounting secrets to it - either as files or as 
 environment variables containing specific keys from the secret.
 
+In the following examples, assume a k8s secret called `my-secret` was created in the same k8s namespace where MLRun is running, with two
+keys in it - `secret1` and `secret2`.
+
 ### Mapping secrets to environment
-Let's assume a k8s secret called `my-secret` was created in the same k8s namespace where MLRun is running, with two
-keys in it - `secret1` and `secret2`. The following example adds these two secret keys as environment variables
+ The following example adds these two secret keys as environment variables
 to an MLRun job:
 
 ```{code-block} python
@@ -359,9 +361,9 @@ function:
 
 ```python
 # Mount all keys in the secret as files under /mnt/secrets
-function.mount_secret("my-secret", "/mnt/secrets/")
+function.apply(mlrun.platforms.mount_secret("my-secret", "/mnt/secrets/"))
 ```
 
-This creates two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these
+In our example, the two keys in `my-secret` are created as two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these
 files provide the values. It is possible to limit the keys mounted to the function - see the documentation
 of {py:func}`~mlrun.platforms.mount_secret` for more details.

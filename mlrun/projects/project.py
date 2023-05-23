@@ -33,20 +33,21 @@ import kfp
 import nuclio
 import yaml
 
-import mlrun.api.schemas
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.runtimes
+import mlrun.runtimes.pod
+import mlrun.runtimes.utils
 import mlrun.utils.regex
-from mlrun.runtimes import RuntimeKinds
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..model import EntrypointParam, ModelObj
+from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -114,7 +115,7 @@ def new_project(
 
     example::
 
-        # create a project with local and marketplace functions, a workflow, and an artifact
+        # create a project with local and hub functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
         project.set_function('hub://auto-trainer', 'train')
@@ -195,7 +196,7 @@ def new_project(
         if overwrite:
             logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
             _delete_project_from_db(
-                name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+                name, secrets, mlrun.common.schemas.DeletionStrategy.cascade
             )
 
         try:
@@ -538,11 +539,12 @@ class ProjectSpec(ModelObj):
         goals=None,
         load_source_on_run=None,
         default_requirements: typing.Union[str, typing.List[str]] = None,
-        desired_state=mlrun.api.schemas.ProjectState.online.value,
+        desired_state=mlrun.common.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=None,
         workdir=None,
         default_image=None,
+        build=None,
     ):
         self.repo = None
 
@@ -576,6 +578,8 @@ class ProjectSpec(ModelObj):
         self.disable_auto_mount = disable_auto_mount
         self.default_image = default_image
 
+        self.build = build
+
     @property
     def source(self) -> str:
         """source url or git repo"""
@@ -585,8 +589,6 @@ class ProjectSpec(ModelObj):
                 if url:
                     self._source = url
 
-        if self._source in [".", "./"]:
-            return path.abspath(self.context)
         return self._source
 
     @source.setter
@@ -754,6 +756,14 @@ class ProjectSpec(ModelObj):
                 return True
         return False
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
@@ -899,20 +909,28 @@ class MlrunProject(ModelObj):
     def source(self, source):
         self.spec.source = source
 
-    def set_source(self, source, pull_at_runtime=False, workdir=None):
+    def set_source(
+        self,
+        source: str = "",
+        pull_at_runtime: bool = False,
+        workdir: Optional[str] = None,
+    ):
         """set the project source code path(can be git/tar/zip archive)
 
-        :param source:     valid path to git, zip, or tar file, (or None for current) e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
+        :param source:          valid absolute path or URL to git, zip, or tar file, (or None for current) e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
-        :param workdir:    the relative workdir path (under the context dir)
+        :param workdir:         workdir path relative to the context dir or absolute
         """
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
+
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
 
         if self.spec.source.startswith("git://"):
-
             source, reference, branch = resolve_git_reference_from_source(source)
             if not branch and not reference:
                 logger.warn(
@@ -1022,7 +1040,7 @@ class MlrunProject(ModelObj):
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
         handler=None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl=None,
         **args,
     ):
@@ -1044,8 +1062,14 @@ class MlrunProject(ModelObj):
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
         if embed:
-            if self.spec.context and not workflow_path.startswith("/"):
-                workflow_path = path.join(self.spec.context, workflow_path)
+            if (
+                self.context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(self.context)
+            ):
+                workflow_path = path.join(self.context, workflow_path)
             with open(workflow_path, "r") as fp:
                 txt = fp.read()
             workflow = {"name": name, "code": txt}
@@ -1599,6 +1623,7 @@ class MlrunProject(ModelObj):
             if image:
                 function_object.spec.image = image
             if with_repo:
+                # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
             if requirements:
                 function_object.with_requirements(requirements)
@@ -1749,7 +1774,7 @@ class MlrunProject(ModelObj):
         if not names:
             names = self.spec._function_definitions.keys()
             funcs = {}
-        origin = add_code_metadata(self.spec.context)
+        origin = mlrun.runtimes.utils.add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)
             if not f:
@@ -1816,7 +1841,7 @@ class MlrunProject(ModelObj):
         self,
         secrets: dict = None,
         file_path: str = None,
-        provider: typing.Union[str, mlrun.api.schemas.SecretProviderName] = None,
+        provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
         """set project secrets from dict or secrets env file
         when using a secrets file it should have lines in the form KEY=VALUE, comment line start with "#"
@@ -1843,18 +1868,21 @@ class MlrunProject(ModelObj):
                 "must specify secrets OR file_path"
             )
         if file_path:
-            secrets = dotenv.dotenv_values(file_path)
-            if None in secrets.values():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "env file lines must be in the form key=value"
-                )
+            if path.isfile(file_path):
+                secrets = dotenv.dotenv_values(file_path)
+                if None in secrets.values():
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "env file lines must be in the form key=value"
+                    )
+            else:
+                raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         # drop V3IO paths/credentials and MLrun service API address
         env_vars = {
             key: val
             for key, val in secrets.items()
             if key != "MLRUN_DBPATH" and not key.startswith("V3IO_")
         }
-        provider = provider or mlrun.api.schemas.SecretProviderName.kubernetes
+        provider = provider or mlrun.common.schemas.SecretProviderName.kubernetes
         mlrun.db.get_run_db().create_project_secrets(
             self.metadata.name, provider=provider, secrets=env_vars
         )
@@ -1899,7 +1927,9 @@ class MlrunProject(ModelObj):
         ttl: int = None,
         engine: str = None,
         local: bool = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
+        schedule: typing.Union[
+            str, mlrun.common.schemas.ScheduleCronTrigger, bool
+        ] = None,
         timeout: int = None,
         overwrite: bool = False,
         source: str = None,
@@ -2178,7 +2208,7 @@ class MlrunProject(ModelObj):
 
         self.set_secrets(
             secrets=secrets_dict,
-            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         )
 
     def run_function(
@@ -2199,7 +2229,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
         notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
@@ -2208,7 +2238,7 @@ class MlrunProject(ModelObj):
 
         example (use with project)::
 
-            # create a project with two functions (local and from marketplace)
+            # create a project with two functions (local and from hub)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://auto-trainer", "train")
@@ -2287,12 +2317,12 @@ class MlrunProject(ModelObj):
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
         with_mlrun: bool = None,
         skip_deployed: bool = False,
-        image=None,
-        base_image=None,
+        image: str = None,
+        base_image: str = None,
         commands: list = None,
-        secret_name=None,
+        secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        mlrun_version_specifier=None,
+        mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
@@ -2326,6 +2356,128 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
         )
+
+    def build_config(
+        self,
+        image: str = None,
+        set_as_default: bool = False,
+        with_mlrun: bool = None,
+        base_image: str = None,
+        commands: list = None,
+        secret_name: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        overwrite_build_params: bool = False,
+    ):
+        """specify builder configuration for the project
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+            used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun: add the current mlrun package to the container build
+        :param base_image: base image name/path
+        :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
+        default_image_name = mlrun.mlconf.default_project_image_name.format(
+            name=self.name
+        )
+        image = image or self.default_image or default_image_name
+
+        self.spec.build.build_config(
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
+        )
+
+        if set_as_default and image != self.default_image:
+            self.set_default_image(image)
+
+    def build_image(
+        self,
+        image: str = None,
+        set_as_default: bool = True,
+        with_mlrun: bool = None,
+        skip_deployed: bool = False,
+        base_image: str = None,
+        commands: list = None,
+        secret_name: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        mlrun_version_specifier: str = None,
+        builder_env: dict = None,
+        overwrite_build_params: bool = False,
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
+        """Builder docker image for the project, based on the project's build config. Parameters allow to override
+        the build config.
+
+        :param image: target image name/path. If not specified the project's existing `default_image` name will be
+                        used. If not set, the `mlconf.default_project_image_name` value will be used
+        :param set_as_default: set `image` to be the project's default image (default False)
+        :param with_mlrun:      add the current mlrun package to the container build
+        :param skip_deployed:   skip the build if we already have the image specified built
+        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
+                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite existing build configuration (default False)
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        """
+
+        self.build_config(
+            image=image,
+            set_as_default=set_as_default,
+            base_image=base_image,
+            commands=commands,
+            secret_name=secret_name,
+            with_mlrun=with_mlrun,
+            requirements=requirements,
+            overwrite_build_params=overwrite_build_params,
+        )
+
+        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+        build = self.spec.build
+        result = self.build_function(
+            function=function,
+            with_mlrun=build.with_mlrun,
+            image=build.image,
+            base_image=build.base_image,
+            commands=build.commands,
+            secret_name=build.secret,
+            requirements=build.requirements,
+            skip_deployed=skip_deployed,
+            overwrite_build_params=overwrite_build_params,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+        )
+
+        try:
+            mlrun.db.get_run_db(secrets=self._secrets).delete_function(
+                name=function.metadata.name
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Image was successfully built, but failed to delete temporary function {function.metadata.name}."
+                " To remove the function, attempt to manually delete it.",
+                exc=repr(exc),
+            )
+
+        return result
 
     def deploy_function(
         self,
@@ -2383,7 +2535,7 @@ class MlrunProject(ModelObj):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: typing.Union[str, mlrun.api.schemas.ArtifactCategories] = None,
+        category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -2624,6 +2776,7 @@ def _init_function_from_dict(f, project, name=None):
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
+        # mark source to be enriched before run with project source (enrich_function_object)
         func.spec.build.source = "./"
     if requirements:
         func.with_requirements(requirements)
@@ -2651,7 +2804,9 @@ def _init_function_from_obj(func, project, name=None):
 def _has_module(handler, kind):
     if not handler:
         return False
-    return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
+    return (
+        kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes() and ":" in handler
+    ) or "." in handler
 
 
 def _is_imported_artifact(artifact):

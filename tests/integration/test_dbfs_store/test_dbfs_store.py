@@ -97,3 +97,13 @@ class TestDBFSStore:
         for key, env_param in env_params.items():
             os.environ[key] = env_param
         self._perform_dbfs_tests(secrets={})
+
+    def supports_isdir(self):
+        return False
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        if maxdepth:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "dbfs file system does not support maxdepth option in rm function."
+            )
+        self.get_filesystem().rm(path=path, recursive=recursive)

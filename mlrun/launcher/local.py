@@ -135,13 +135,15 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
 
-        logger.info(
-            "Storing function",
-            name=run.metadata.name,
-            uid=run.metadata.uid,
-            db=runtime.spec.rundb,
-        )
-        self._store_function(runtime, run)
+        # store function object in db unless running from within a run pod
+        if not runtime.is_child:
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=runtime.spec.rundb,
+            )
+            self._store_function(runtime, run)
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),

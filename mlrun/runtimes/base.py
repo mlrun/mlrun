@@ -17,9 +17,7 @@ import http
 import traceback
 import warnings
 from abc import ABC, abstractmethod
-from ast import literal_eval
 from base64 import b64encode
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -48,14 +46,7 @@ from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
 from ..kfpops import mlrun_op
 from ..lists import RunList
-from ..model import (
-    BaseMetadata,
-    HyperParamOptions,
-    ImageBuilder,
-    ModelObj,
-    RunObject,
-    RunTemplate,
-)
+from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,

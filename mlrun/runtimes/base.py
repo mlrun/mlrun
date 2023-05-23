@@ -308,36 +308,35 @@ class BaseRuntime(ModelObj):
         """
         Run a local or remote task.
 
-        :param runspec:        The run spec to generate the RunObject from. Can be RunTemplate | RunObject | dict
-        :param handler:        Pointer or name of a function handler
-        :param name:           Execution name
-        :param project:        Project name
-        :param params:         Input parameters (dict)
+        :param runspec:        The run spec to generate the RunObject from. Can be RunTemplate | RunObject | dict.
+        :param handler:        Pointer or name of a function handler.
+        :param name:           Execution name.
+        :param project:        Project name.
+        :param params:         Input parameters (dict).
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param out_path:       Default artifact output path
-        :param artifact_path:  Default artifact output path (will replace out_path)
-        :param workdir:        Default input artifacts path
-        :param watch:          Watch/follow run log
+        :param out_path:       Default artifact output path.
+        :param artifact_path:  Default artifact output path (will replace out_path).
+        :param workdir:        Default input artifacts path.
+        :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
                                (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    Dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
-                               and other options in the hyper_param_options parameter
-        :param hyper_param_options:  Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
-                                     hyper parameter options
-        :param verbose:        Add verbose prints/logs
-        :param scrape_metrics: Whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param local:      Run the function locally vs on the runtime/cluster
-        :param local_code_path: Path of the code for local runs & debug
-        :param auto_build: When set to True and the function require build it will be built on the first
-                           function run, use only if you dont plan on changing the build config between runs
-        :param param_file_secrets: Dictionary of secrets to be used only for accessing the hyper-param parameter file.
-                            These secrets are only used locally and will not be stored anywhere
-        :param notifications: List of notifications to push when the run is completed
+                               and other options in the hyper_param_options parameter.
+        :param hyper_param_options: Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyperparameter options.
+        :param verbose:             Add verbose prints/logs.
+        :param scrape_metrics:      Whether to add the `mlrun/scrape-metrics` label to this run's resources.
+        :param local:               Run the function locally vs on the runtime/cluster.
+        :param local_code_path:     Path of the code for local runs & debug.
+        :param auto_build:          When set to True and the function require build it will be built on the first
+                                    function run, use only if you don't plan on changing the build config between runs.
+        :param param_file_secrets:  Dictionary of secrets to be used only for accessing the hyper-param parameter file.
+                                    These secrets are only used locally and will not be stored anywhere
+        :param notifications:       List of notifications to push when the run is completed
         :param returns: List of log hints - configurations for how to log the returning values from the handler's run
                         (as artifacts or results). The list's length must be equal to the amount of returning objects. A
                         log hint may be given as:

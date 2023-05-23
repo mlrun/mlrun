@@ -472,6 +472,8 @@ def _resolve_and_set_base_image(
         or function.spec.build.base_image
     )
     if base_image:
+        # we ignore the returned registry secret as nuclio uses the image pull secret, which is resolved in the
+        # build params
         (
             base_image,
             _,

@@ -26,7 +26,7 @@ from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
 from mlrun.datastore.datastore import schema_to_store
-from mlrun.datastore.dbfs_storage import DBFSStore
+from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore

@@ -87,7 +87,7 @@ def schema_to_store(schema):
             )
         return GoogleCloudStorageStore
     elif schema == "dbfs":
-        from .dbfs_storage import DBFSStore
+        from .dbfs_store import DBFSStore
 
         return DBFSStore
     else:

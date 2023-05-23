@@ -1000,9 +1000,9 @@ class SQLDB(DBInterface):
             )
         except mlrun.errors.MLRunNotFoundError as exc:
             if "_" in name:
-                logger.debug(
-                    f"Function {normalized_function_name} was not found,"
-                    f" trying to find function by its original name"
+                logger.warning(
+                    "Failed to get underscore-named function, trying without normalization",
+                    function_name=name,
                 )
                 return self._get_function(session, name, project, tag, hash_key)
             else:

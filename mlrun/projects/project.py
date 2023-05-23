@@ -1661,7 +1661,7 @@ class MlrunProject(ModelObj):
     def _get_function(self, key, sync, ignore_cache):
         """
         Function can be retrieved from the project spec (cache) or from the database.
-        In sync mode, we first preform a sync of the function_objects from the function_definitions,
+        In sync mode, we first perform a sync of the function_objects from the function_definitions,
         and then returning it from the function_objects (if exists).
         When not in sync mode, we verify and return from the function objects directly.
         In ignore_cache mode, we query the function from the database rather than from the project spec.

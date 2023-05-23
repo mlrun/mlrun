@@ -77,7 +77,7 @@ class BaseLauncher(abc.ABC):
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
-        handler: Optional[str, Callable] = None,
+        handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,

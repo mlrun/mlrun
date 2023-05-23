@@ -926,6 +926,16 @@ class FeatureSet(ModelObj):
             columns = entities + columns
 
         if self.spec.passthrough:
+            def _filter_df(df_data):
+                if time_column:
+                    df_data[time_column] = pd.to_datetime(df_data[time_column])
+                    if start_time:
+                        df_data = df_data[df_data[time_column] > start_time]
+                    if end_time:
+                        df_data = df_data[df_data[time_column] <= end_time]
+                if columns:
+                    df_data = df_data[columns]
+                return df_data
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
@@ -933,15 +943,13 @@ class FeatureSet(ModelObj):
             df = self.spec.source.to_dataframe()
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
             if not isinstance(df, pd.DataFrame):
-                df = pd.concat(df)
-            if time_column:
-                df[time_column] = pd.to_datetime(df[time_column])
-                if start_time:
-                    df = df[df[time_column] > start_time]
-                if end_time:
-                    df = df[df[time_column] <= end_time]
-            if columns:
-                df = df[columns]
+                modified_dfs = []
+                for data in df:
+                    data = _filter_df(data)
+                    modified_dfs.append(data)
+                df = pd.concat(modified_dfs)
+            else:
+                df = _filter_df(df)
             return df
 
         target = get_offline_target(self, name=target_name)

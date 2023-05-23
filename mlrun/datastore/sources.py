@@ -91,13 +91,30 @@ class BaseSourceDriver(DataSource):
             )
         return df
 
-    def to_spark_df(self, session, named_view=False, time_field=None):
-        if self.support_spark:
-            df = session.read.load(**self.get_spark_options())
-            if named_view:
-                df.createOrReplaceTempView(self.name)
-            return df
-        raise NotImplementedError()
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+        if not self.support_spark:
+            raise NotImplementedError()
+
+        df = session.read.load(**self.get_spark_options())
+        if named_view:
+            df.createOrReplaceTempView(self.name)
+        return self._filter_spark_df(df, time_field, columns)
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+
+        from pyspark.sql.functions import col
+
+        if time_field:
+            if self.start_time:
+                df = df.filter(col(time_field) > self.start_time)
+            if self.end_time:
+                df = df.filter(col(time_field) <= self.end_time)
+
+        if columns:
+            df = df.select([col(name) for name in columns])
+        return df
+
+
 
     def get_spark_options(self):
         # options used in spark.read.load(**options)
@@ -187,7 +204,7 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
-    def to_spark_df(self, session, named_view=False, time_field=None):
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
 
         df = session.read.load(**self.get_spark_options())
@@ -201,7 +218,7 @@ class CSVSource(BaseSourceDriver):
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
-        return df
+        return self._filter_spark_df(df, time_field, columns)
 
     def to_dataframe(self):
         kwargs = self.attributes.get("reader_args", {})
@@ -480,7 +497,7 @@ class BigQuerySource(BaseSourceDriver):
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
 
-    def to_spark_df(self, session, named_view=False, time_field=None):
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:
@@ -510,7 +527,7 @@ class BigQuerySource(BaseSourceDriver):
         df = session.read.format("bigquery").load(**options)
         if named_view:
             df.createOrReplaceTempView(self.name)
-        return df
+        return self._filter_spark_df(df, time_field, columns)
 
 
 class SnowflakeSource(BaseSourceDriver):

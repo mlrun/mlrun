@@ -98,14 +98,14 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         window = Window.partitionBy("_row_nr").orderBy(
-            col(f"ft__{featureset.spec.timestamp_key}").desc(),
+            col(rename_right_keys.get(featureset.spec.timestamp_key, featureset.spec.timestamp_key)).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
 
         for key in right_keys + [featureset.spec.timestamp_key]:
-            if key in entity_df.columns + [featureset.spec.timestamp_key]:
+            if key in entity_df.columns + [entity_timestamp_column]:
                 filter_most_recent_feature_timestamp = (
                     filter_most_recent_feature_timestamp.drop(
                         aliased_featureset_df[f"ft__{key}"]
@@ -224,12 +224,7 @@ class SparkFeatureMerger(BaseMerger):
             end_time=end_time,
         )
 
-        # add the index/key to selected columns
-        timestamp_key = feature_set.spec.timestamp_key
-
-        return source.to_spark_df(
-            self.spark, named_view=self.named_view, time_field=timestamp_key
-        )
+        return source.to_spark_df(self.spark, named_view=self.named_view, time_field=time_column)
 
     def _rename_columns_and_select(
         self,

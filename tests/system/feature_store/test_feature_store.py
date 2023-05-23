@@ -4118,7 +4118,7 @@ class TestFeatureStore(TestMLRunSystem):
         "timestamp_for_filtering",
         [None, "other_ts", "bad_ts", {"fs1": "other_ts"}, {"fs1": "bad_ts"}],
     )
-    def test_time_filter(self, engine, timestamp_for_filtering):
+    def test_time_and_columns_filter(self, engine, timestamp_for_filtering):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
@@ -4157,7 +4157,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         fstore.ingest(fset1, df)
 
-        vec = fstore.FeatureVector("vec1", ["fs1.*"])
+        vec = fstore.FeatureVector("vec1", ["fs1.val"])
 
         resp = fstore.get_offline_features(
             vec,
@@ -4177,7 +4177,9 @@ class TestFeatureStore(TestMLRunSystem):
         elif timestamp_for_filtering == "other_ts":
             assert res_df["val"].tolist() == [3, 4]
         else:
-            res_df.equals(df.drop(columns="ent", inplace=True))
+            res_df.equals(df.drop(columns=["ent", "other_ts", "ts_key"], inplace=True))
+
+        assert res_df.columns == ["val"]
 
 
 def verify_purge(fset, targets):

@@ -31,6 +31,7 @@ with config_file_path.open() as fp:
 
 test_filename = here / "test.txt"
 test_parquet = here / "test_data.parquet"
+test_csv = here / "test_data.csv"
 with open(test_filename, "r") as f:
     test_string = f.read()
 
@@ -93,6 +94,15 @@ class TestDBFSStore:
             str(file_not_found_error.value)
             == f"No file or directory exists on path {upload_parquet_file_path}."
         )
+
+        source_csv = pd.read_csv(test_csv)
+        upload_csv_file_path = self._object_dir + "/" + f"file_{str(uuid.uuid4())}.csv"
+        upload_csv_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_csv_file_path
+        )
+        upload_csv_data_item.upload(str(test_csv))
+        response = upload_csv_data_item.as_df()
+        assert source_csv.equals(response), "Result differs from original csv"
 
     def test_secrets_as_input(self):
         secrets = {}

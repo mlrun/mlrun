@@ -2322,10 +2322,10 @@ class MlrunProject(ModelObj):
         commands: list = None,
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        requirements_file: str = None,
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2337,12 +2337,12 @@ class MlrunProject(ModelObj):
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements:    list of python packages, defaults to None
-        :param requirements_file:    pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
          add to existing parameters
+        :param requirements_file:    pip requirements file path, defaults to None
         """
         return build_function(
             function,
@@ -2418,10 +2418,10 @@ class MlrunProject(ModelObj):
         commands: list = None,
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
-        requirements_file: str = None,
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2435,7 +2435,6 @@ class MlrunProject(ModelObj):
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements:    list of python packages, defaults to None
-        :param requirements_file:    pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2444,6 +2443,7 @@ class MlrunProject(ModelObj):
            * False: the new params are merged with the existing (currently merge is applied to requirements and
              commands)
            * True: the existing params are replaced by the new ones
+        :param requirements_file:    pip requirements file path, defaults to None
         """
 
         self.build_config(

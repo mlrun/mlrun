@@ -756,19 +756,19 @@ class BaseRuntime(ModelObj):
     def with_requirements(
         self,
         requirements: Union[str, List[str]],
-        requirements_file: str = "",
         overwrite: bool = False,
         verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
+        requirements_file: str = "",
     ):
         """add package requirements from file or list to build spec.
 
         :param requirements:                a list of python packages
-        :param requirements_file:           python requirements file path
         :param overwrite:                   overwrite existing requirements
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param requirements_file:           a local python requirements file path
         :return: function object
         """
         self.spec.build.with_requirements(requirements, requirements_file, overwrite)

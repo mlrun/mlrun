@@ -456,7 +456,7 @@ class ImageBuilder(ModelObj):
         :param overwrite:           overwrite existing requirements
         :return: function object
         """
-        if isinstance(requirements, str) and os.path.exists(requirements):
+        if isinstance(requirements, str) and os.path.isfile(requirements):
             # TODO: remove in 1.6.0
             warnings.warn(
                 "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
@@ -486,7 +486,7 @@ class ImageBuilder(ModelObj):
         # TODO: remove in 1.6.0, when requirements can only be a list
         if isinstance(requirements, str):
             # if it's a file path, read the file and add its content to the list
-            if os.path.exists(requirements):
+            if os.path.isfile(requirements):
                 with open(requirements, "r") as fp:
                     requirements_to_resolve.extend(fp.read().splitlines())
             else:

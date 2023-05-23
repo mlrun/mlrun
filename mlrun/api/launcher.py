@@ -30,7 +30,9 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -137,7 +139,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             finally:
                 result = runtime._update_run_state(resp=resp, task=run, err=last_err)
 
-        self._save_or_push_notifications(run)
+        self._save_notifications(run)
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -165,19 +167,8 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 project, runtime, copy_function=False
             )
 
-    def _save_or_push_notifications(self, runobj):
-        if not runobj.spec.notifications:
-            mlrun.utils.logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
-            )
-            return
-
-        # TODO: add support for other notifications per run iteration
-        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
-            mlrun.utils.logger.debug(
-                "Notifications per iteration are not supported, skipping",
-                run_uid=runobj.metadata.uid,
-            )
+    def _save_notifications(self, runobj):
+        if not self._run_has_valid_notifications(runobj):
             return
 
         # If in the api server, we can assume that watch=False, so we save notification

@@ -123,13 +123,14 @@ class Pipelines(
                 if project and project != "*":
                     run_project = self.resolve_project_from_pipeline(run)
                     if run_project != project:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
+                        raise mlrun.errors.MLRunNotFoundError(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
                 run = self._format_run(
                     db_session, run, format_, api_run_detail.to_dict()
                 )
-
+        except mlrun.errors.MLRunHTTPStatusError:
+            raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting kfp run: {err_to_str(exc)}"

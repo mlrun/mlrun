@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import uuid
 from pathlib import Path
 
@@ -63,10 +64,7 @@ class TestDBFSStorage:
 
         logger.info(f"Object URL: {self._object_url}")
 
-    def _perform_dbfs_tests(self):
-        secrets = {}
-        token = config["env"].get("DATABRICKS_TOKEN", None)
-        secrets["DATABRICKS_TOKEN"] = token
+    def _perform_dbfs_tests(self, secrets):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(test_string)
         response = data_item.get()
@@ -89,4 +87,13 @@ class TestDBFSStorage:
         assert response.decode() == test_string, "Result differs from original test"
 
     def test_secrets_as_input(self):
-        self._perform_dbfs_tests()
+        secrets = {}
+        token = config["env"].get("DATABRICKS_TOKEN", None)
+        secrets["DATABRICKS_TOKEN"] = token
+        self._perform_dbfs_tests(secrets=secrets)
+
+    def test_using_dbfs_env_variable(self):
+        env_params = config["env"]
+        for key, env_param in env_params.items():
+            os.environ[key] = env_param
+        self._perform_dbfs_tests(secrets={})

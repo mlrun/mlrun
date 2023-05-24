@@ -32,10 +32,8 @@ class DBFSStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
-        if self._filesystem:
-            return self._filesystem
-
-        self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
+        if not self._filesystem:
+            self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

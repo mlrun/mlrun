@@ -566,7 +566,6 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
     """
-
     # Import here to avoid circular import
     import mlrun.api.api.utils
 
@@ -575,6 +574,8 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
     global _last_notification_push_time
+
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
@@ -599,7 +600,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
-    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
+    _last_notification_push_time = now
 
 
 async def _stop_logs():

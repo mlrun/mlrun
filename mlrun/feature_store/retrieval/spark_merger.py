@@ -230,8 +230,18 @@ class SparkFeatureMerger(BaseMerger):
             end_time=end_time,
         )
 
+        columns = column_names + [ent.name for ent in feature_set.spec.entities]
+        if (
+            feature_set.spec.timestamp_key
+            and feature_set.spec.timestamp_key not in columns
+        ):
+            columns.append(feature_set.spec.timestamp_key)
+
         return source.to_spark_df(
-            self.spark, named_view=self.named_view, time_field=time_column
+            self.spark,
+            named_view=self.named_view,
+            time_field=time_column,
+            columns=columns,
         )
 
     def _rename_columns_and_select(

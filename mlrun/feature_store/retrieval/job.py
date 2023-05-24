@@ -33,7 +33,7 @@ def run_merge_job(
     engine_args: dict,
     spark_service: str = None,
     entity_rows=None,
-    timestamp_column=None,
+    entity_timestamp_column=None,
     run_config=None,
     drop_columns=None,
     with_indexes=None,
@@ -102,7 +102,7 @@ def run_merge_job(
         params={
             "vector_uri": vector.uri,
             "target": target.to_dict(),
-            "timestamp_column": timestamp_column,
+            "entity_timestamp_column": entity_timestamp_column,
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
@@ -180,11 +180,10 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', 
+                  entity_timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', 
                   engine_args=None, order_by=None, start_time=None, end_time=None, timestamp_for_filtering=None,):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
-    entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
     if entity_rows:
         entity_rows = entity_rows.as_df()
 

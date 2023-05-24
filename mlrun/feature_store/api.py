@@ -197,7 +197,7 @@ def get_offline_features(
             engine_args,
             spark_service,
             entity_rows,
-            timestamp_column=entity_timestamp_column,
+            entity_timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,

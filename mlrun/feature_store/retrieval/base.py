@@ -218,7 +218,8 @@ class BaseMerger(abc.ABC):
             ):
                 logger.info(
                     f"You provided start_time or end_time but the feature_set {name} "
-                    f"doesn't have timestamp_key therefore the time filter didn't executed on it."
+                    f"doesn't have timestamp_key or {timestamp_for_filtering} you spesified for this feature set "
+                    f"is not in it's features therefore the time filter didn't executed on it."
                 )
                 time_column = None
 
@@ -233,9 +234,11 @@ class BaseMerger(abc.ABC):
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
+            fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
             if feature_set.spec.timestamp_key:
                 column_names.append(feature_set.spec.timestamp_key)
                 node.data["save_cols"].append(feature_set.spec.timestamp_key)
+                fs_entities_and_timestamp.append(feature_set.spec.timestamp_key)
 
             # rename columns to be unique for each feature set and select if needed
             rename_col_dict = {
@@ -243,9 +246,8 @@ class BaseMerger(abc.ABC):
                 for column in column_names
                 if column not in node.data["save_cols"]
             }
-            fs_entities = list(feature_set.spec.entities.keys())
             df_temp = self._rename_columns_and_select(
-                df, rename_col_dict, columns=list(set(column_names + fs_entities))
+                df, rename_col_dict, columns=list(set(column_names + fs_entities_and_timestamp))
             )
 
             if df_temp is not None:
@@ -260,7 +262,7 @@ class BaseMerger(abc.ABC):
             # update alias according to the unique column name
             new_columns = []
             if not self._drop_indexes:
-                new_columns.extend([(ind, ind) for ind in fs_entities])
+                new_columns.extend([(ind, ind) for ind in fs_entities_and_timestamp])
             for column, alias in columns:
                 if column in rename_col_dict:
                     new_columns.append((rename_col_dict[column], alias or column))
@@ -277,19 +279,19 @@ class BaseMerger(abc.ABC):
             entity_rows = self.spark.createDataFrame(entity_rows)
 
         # join the feature data frames
-        self.merge(
+        res_time = self.merge(
             entity_df=entity_rows,
-            entity_timestamp_column=entity_timestamp_column,
+            entity_timestamp_column=entity_timestamp_column if entity_rows else None,
             featuresets=feature_sets,
             featureset_dfs=dfs,
             keys=keys,
         )
 
         all_columns = None
-        if not self._drop_indexes and entity_timestamp_column:
-            if entity_timestamp_column not in self._alias.values():
+        if not self._drop_indexes and res_time:
+            if res_time not in self._alias.values():
                 self._update_alias(
-                    key=entity_timestamp_column, val=entity_timestamp_column
+                    key=res_time, val=res_time
                 )
             all_columns = list(self._alias.keys())
 
@@ -391,6 +393,7 @@ class BaseMerger(abc.ABC):
             del featureset_df
 
         self._result_df = merged_df
+        return entity_timestamp_column
 
     @abc.abstractmethod
     def _asof_join(

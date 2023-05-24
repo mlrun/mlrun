@@ -15,7 +15,8 @@
 import fsspec
 
 import mlrun.errors
-from mlrun.datastore.helpers import ONE_GB, ONE_MB
+from mlrun.datastore.helpers import ONE_MB
+
 from .base import DataStore, FileStats
 
 # dbfs objects will be represented with the following URL: dbfs://<path>
@@ -24,10 +25,6 @@ from .base import DataStore, FileStats
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        if self.endpoint.startswith("https://"):
-            self.endpoint.replace("https://", "")
-        if self.endpoint.startswith("http://"):
-            self.endpoint.replace("http://", "")
         self.get_filesystem(silent=False)
 
     def get_filesystem(self, silent=True):
@@ -119,7 +116,9 @@ class DBFSStore(DataStore):
         key_length = len(key)
         #  Get only the files and directories under key path, without the key path itself.
         files = [
-            file.split("/", 1)[1][key_length:] for file in files if len(file.split("/")) > 1
+            file.split("/", 1)[1][key_length:]
+            for file in files
+            if len(file.split("/")) > 1
         ]
         return files
 

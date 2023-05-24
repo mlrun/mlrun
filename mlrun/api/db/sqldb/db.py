@@ -1032,6 +1032,7 @@ class SQLDB(DBInterface):
 
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
+        self._delete_function_schedules(session, project, name)
         self._delete_class_labels(
             session, Function, project=project, name=name, commit=False
         )
@@ -1115,6 +1116,12 @@ class SQLDB(DBInterface):
             session.delete(obj)
         if commit:
             session.commit()
+
+    def _delete_function_schedules(self, session, project, function_name, commit=True):
+        try:
+            self.delete_schedule(session=session, project=project, name=function_name)
+        except mlrun.errors.MLRunNotFoundError:
+            pass
 
     def _list_function_tags(self, session, project, function_id):
         query = (

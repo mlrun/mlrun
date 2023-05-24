@@ -22,5 +22,6 @@ load-project
 run-build-deploy
 build-run-workflows-pipelines
 ci-integration
+ci-cd-automate
 ../secrets
 ```

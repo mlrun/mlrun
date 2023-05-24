@@ -43,6 +43,7 @@ from ..runtimes import BaseRuntime
 from ..utils import (
     datetime_to_iso,
     dict_to_json,
+    helpers,
     logger,
     new_pipe_metadata,
     normalize_name,
@@ -2584,6 +2585,7 @@ class HTTPRunDB(RunDBInterface):
         )
 
     @staticmethod
+    @helpers.run_once
     def _validate_version_compatibility(server_version, client_version) -> bool:
         try:
             parsed_server_version = semver.VersionInfo.parse(server_version)

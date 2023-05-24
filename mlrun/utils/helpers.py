@@ -1467,6 +1467,27 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
     return url
 
 
+def run_once(f):
+    """A decorator to run a function only once.
+
+    NOTE: This decorator is not thread-safe and do not support async functions.
+    use with caution.
+    """
+
+    def wrapper(*args, **kwargs):
+        if not wrapper.has_run:
+            wrapper.has_run = True
+            return_value = f(*args, **kwargs)
+            wrapper.response = return_value
+            return return_value
+        return wrapper.return_value
+
+    # set the initial values to ensure function will invoke at least once
+    wrapper.return_value = None
+    wrapper.has_run = False
+    return wrapper
+
+
 def is_file_path(filepath):
     root, ext = os.path.splitext(filepath)
     return os.path.isfile(filepath) and ext

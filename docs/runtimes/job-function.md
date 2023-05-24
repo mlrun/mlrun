@@ -15,11 +15,11 @@ Examples:
 
 ```python
 # register a (single) python file as a function
-project.set_function('src/data_prep.py', 'data-prep', image='mlrun/mlrun', handler='prep', kind="job")
+project.set_function('src/data_prep.py', name='data-prep', image='mlrun/mlrun', handler='prep', kind="job")
 
 # register a notebook file as a function, specify custom image and extra requirements 
 project.set_function('src/mynb.ipynb', name='test-function', image="my-org/my-image",
-                      handler="run_test", requirements="requirements.txt", kind="job")
+                      handler="run_test", requirements=["scikit-learn"], kind="job")
 
 # register a module.handler as a function (requires defining the default sources/work dir, if it's not root)
 project.spec.workdir = "src"
@@ -28,7 +28,7 @@ project.set_function(name="train", handler="training.train",  image="mlrun/mlrun
 
 To run the job:
 ```
-project.run_function()
+project.run_function("train")
 ```
 
 **See also**

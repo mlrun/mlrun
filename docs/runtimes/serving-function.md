@@ -7,7 +7,7 @@ You can also import an existing serving function/template from the {ref}`functio
 This example converts a notebook to a serving function, adds a model to it, and deploys it:
 
 ```python
-serving = project.set_function(name="my-serving", func="my_serving.py", kind="serving", image="mlrun/mlrun", handler="handler")
+serving = project.set_function(name="my-serving", func="my_serving.ipynb", kind="serving", image="mlrun/mlrun", handler="handler")
 serving.add_model(key="iris", model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl", model_class="ClassifierModel")
 project.deploy_function(serving)
 ```

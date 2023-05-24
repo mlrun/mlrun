@@ -25,7 +25,8 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3764 | Fixed the scikit-learn to 1.2 in the tutorial 02-model-training. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
 | ML-3794 | Fixed a Mask detection demo notebook (3-automatic-pipeline.ipynb). [View in Git](https://github.com/mlrun/demos/releases/tag/v1.3.1-rc6). |
-| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). || ML- | . [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
+| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
+| ML-3823 | Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560). |
 
 
 ###  Documentation
@@ -564,7 +565,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
-| ML-3824 | MLRun supports TensorFlow up to 2.9. | NA | v1.3.1 |
+| ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
  
 
 ## Deprecations

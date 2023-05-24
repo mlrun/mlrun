@@ -126,7 +126,6 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
-        "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
         "ipython": {">=7.0, <9.0"},
         "importlib_metadata": {">=3.6"},

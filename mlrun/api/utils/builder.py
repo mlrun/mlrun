@@ -26,13 +26,8 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
+import mlrun.utils
 from mlrun.config import config
-from mlrun.utils import (
-    enrich_image_url,
-    get_parsed_docker_registry,
-    logger,
-    normalize_name,
-)
 
 
 def make_dockerfile(
@@ -86,7 +81,7 @@ def make_dockerfile(
         dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
-    logger.debug("Resolved dockerfile", dockfile_contents=dock)
+    mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
     return dock
 
 
@@ -329,7 +324,7 @@ def build_image(
 ):
     runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
-    image_target, secret_name = _resolve_image_target_and_registry_secret(
+    image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
     if requirements and isinstance(requirements, list):
@@ -353,16 +348,15 @@ def build_image(
             commands.append(mlrun_command)
 
     if not inline_code and not source and not commands and not requirements:
-        logger.info("skipping build, nothing to add")
+        mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
 
     context = "/context"
     to_mount = False
-    v3io = (
-        source.startswith("v3io://") or source.startswith("v3ios://")
-        if source
-        else None
-    )
+    is_v3io_source = False
+    if source:
+        is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
+
     access_key = builder_env.get(
         "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
     )
@@ -376,7 +370,8 @@ def build_image(
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
-    elif source and "://" in source and not v3io:
+    # source is remote
+    elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -387,8 +382,9 @@ def build_image(
         context = source
         source_to_copy = "."
 
+    # source is local / v3io
     else:
-        if v3io:
+        if is_v3io_source:
             source = parsed_url.path
             to_mount = True
             source_dir_to_mount, source_to_copy = path.split(source)
@@ -478,7 +474,9 @@ def build_image(
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        logger.info(f'started build, to watch build logs use "mlrun watch {pod} {ns}"')
+        mlrun.utils.logger.info(
+            "Build started", pod=pod, namespace=ns, project=project, image=image_target
+        )
         return f"build:{pod}"
 
 
@@ -596,16 +594,22 @@ def build_runtime(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "build spec must have a target image, set build.image = <target image>"
         )
-    logger.info(f"building image ({build.image})")
+    name = mlrun.utils.normalize_name(f"mlrun-build-{runtime.metadata.name}")
 
-    name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    enriched_base_image = enrich_image_url(
+    enriched_base_image = mlrun.utils.enrich_image_url(
         base_image,
         client_version,
         client_python_version,
+    )
+    mlrun.utils.logger.info(
+        "Building runtime image",
+        base_image=enriched_base_image,
+        image=build.image,
+        project=project,
+        name=name,
     )
 
     status = build_image(
@@ -645,7 +649,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    logger.info(f"build completed with {status}")
+    mlrun.utils.logger.info(f"build completed with {status}")
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False
@@ -654,6 +658,38 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def resolve_image_target_and_registry_secret(
+    image_target: str, registry: str = None, secret_name: str = None
+) -> (str, str):
+    if registry:
+        return "/".join([registry, image_target]), secret_name
+
+    # if dest starts with a dot, we add the configured registry to the start of the dest
+    if image_target.startswith(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+    ):
+
+        # remove prefix from image name
+        image_target = image_target[
+            len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
+        ]
+
+        registry, repository = mlrun.utils.get_parsed_docker_registry()
+        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
+        if not registry:
+            raise ValueError(
+                "Default docker registry is not defined, set "
+                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
+            )
+        image_target_components = [registry, image_target]
+        if repository and repository not in image_target:
+            image_target_components = [registry, repository, image_target]
+
+        return "/".join(image_target_components), secret_name
+
+    return image_target, secret_name
 
 
 def _generate_builder_env(project, builder_env):
@@ -672,35 +708,3 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
-
-
-def _resolve_image_target_and_registry_secret(
-    image_target: str, registry: str = None, secret_name: str = None
-) -> (str, str):
-    if registry:
-        return "/".join([registry, image_target]), secret_name
-
-    # if dest starts with a dot, we add the configured registry to the start of the dest
-    if image_target.startswith(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
-    ):
-
-        # remove prefix from image name
-        image_target = image_target[
-            len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
-        ]
-
-        registry, repository = get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
-        if not registry:
-            raise ValueError(
-                "Default docker registry is not defined, set "
-                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
-            )
-        image_target_components = [registry, image_target]
-        if repository and repository not in image_target:
-            image_target_components = [registry, repository, image_target]
-
-        return "/".join(image_target_components), secret_name
-
-    return image_target, secret_name

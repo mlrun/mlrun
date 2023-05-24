@@ -20,6 +20,8 @@ import aiohttp
 import pytest
 import tabulate
 
+import mlrun.api.api.utils
+import mlrun.api.crud
 import mlrun.utils.notifications
 
 
@@ -289,3 +291,28 @@ def test_inverse_dependencies(
     custom_notification_pusher.push("test-message", "info", [])
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
+
+
+def test_notification_params_masking_on_run(monkeypatch):
+    def _store_project_secrets(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        mlrun.api.crud.Secrets, "store_project_secrets", _store_project_secrets
+    )
+    run_uid = "test-run-uid"
+    run = {
+        "metadata": {"uid": run_uid, "project": "test-project"},
+        "spec": {
+            "notifications": [
+                {"when": "completed", "params": {"sensitive": "sensitive-value"}}
+            ]
+        },
+    }
+    mlrun.api.api.utils.mask_notification_params_on_task(run)
+    assert "sensitive" not in run["spec"]["notifications"][0]["params"]
+    assert "secret" in run["spec"]["notifications"][0]["params"]
+    assert (
+        run["spec"]["notifications"][0]["params"]["secret"]
+        == f"mlrun.notifications.{run_uid}"
+    )

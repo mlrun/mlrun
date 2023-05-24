@@ -64,6 +64,10 @@ class TestProject(TestMLRunSystem):
         pass
 
     def custom_teardown(self):
+        self._logger.debug(
+            "Deleting custom projects",
+            num_projects_to_delete=len(self.custom_project_names_to_delete),
+        )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -123,7 +127,7 @@ class TestProject(TestMLRunSystem):
         )
 
     def test_run(self):
-        name = "pipe1"
+        name = "pipe0"
         self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)

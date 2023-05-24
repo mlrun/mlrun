@@ -121,6 +121,36 @@ def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     assert function_queried_with_hash_key["metadata"]["tag"] == ""
 
 
+def test_get_function_when_using_not_normalize_name(
+    db: DBInterface, db_session: Session
+):
+    # add a function with a non-normalized name to the database
+    function_name = "function_name"
+    project_name = "project"
+    _generate_and_insert_function_record(db_session, function_name, project_name)
+
+    # getting the function using the non-normalized name, and ensure that it works
+    response = db.get_function(db_session, function_name, project_name)
+    assert response["metadata"]["name"] == function_name
+
+
+def _generate_and_insert_function_record(
+    db_session: Session, function_name: str, project_name: str
+):
+    function = {
+        "metadata": {"name": function_name, "project": project_name},
+        "spec": {"asd": "test"},
+    }
+    fn = Function(
+        name=function_name, project=project_name, struct=function, uid="1", id="1"
+    )
+    tag = Function.Tag(project=project_name, name="latest", obj_name=fn.name)
+    tag.obj_id, tag.uid = fn.id, fn.uid
+    db_session.add(fn)
+    db_session.add(tag)
+    db_session.commit()
+
+
 def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(

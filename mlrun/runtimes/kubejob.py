@@ -63,18 +63,17 @@ class KubejobRuntime(KubeResource):
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:          valid path to git, zip, or tar file, e.g.
+        :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
                                 http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
         :param handler:         default function handler
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
-        if source.endswith(".zip") and not pull_at_runtime:
-            logger.warn(
-                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
-            )
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
 
         self.spec.build.source = source
         if handler:

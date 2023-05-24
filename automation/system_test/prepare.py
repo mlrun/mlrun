@@ -15,7 +15,9 @@
 
 import datetime
 import logging
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,8 +29,10 @@ import click
 import paramiko
 import yaml
 
+# TODO: remove and use local logger
 import mlrun.utils
 
+project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
@@ -41,7 +45,9 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+        system_tests_env_yaml = (
+            project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        )
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -68,7 +74,6 @@ class SystemTestPreparer:
         access_key: str = None,
         iguazio_version: str = None,
         spark_service: str = None,
-        password: str = None,
         slack_webhook_url: str = None,
         mysql_user: str = None,
         mysql_password: str = None,
@@ -113,8 +118,6 @@ class SystemTestPreparer:
             # (e.g. tests which use public repos, therefor doesn't need that access token)
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
-        if password:
-            self._env_config["V3IO_PASSWORD"] = password
 
     def prepare_local_env(self):
         self._prepare_env_local()
@@ -321,16 +324,20 @@ class SystemTestPreparer:
         )
 
     def _prepare_env_local(self):
-        contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
+        backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
-        self._run_command(
-            "cat > ",
-            workdir=".",
-            args=[filepath],
-            stdin=contents,
-            local=True,
-        )
+
+        # if filepath exists, backup the file first (to avoid overriding it)
+        if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
+            self._logger.debug(
+                "Backing up existing env.yml", destination=backup_filepath
+            )
+            shutil.copy(filepath, backup_filepath)
+
+        serialized_env_config = self._serialize_env_config()
+        with open(filepath, "w") as f:
+            f.write(serialized_env_config)
 
     def _override_mlrun_api_env(self):
         version_specifier = (
@@ -595,6 +602,17 @@ class SystemTestPreparer:
             verbose=verbose,
         )
 
+    def _serialize_env_config(self, allow_none_values: bool = False):
+        env_config = self._env_config.copy()
+
+        # we sanitize None values from config to avoid "null" values in yaml
+        if not allow_none_values:
+            for key in list(env_config):
+                if env_config[key] is None:
+                    del env_config[key]
+
+        return yaml.safe_dump(env_config)
+
 
 @click.group()
 def main():
@@ -602,7 +620,7 @@ def main():
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("mlrun-version", type=str, required=True)
+@click.option("--mlrun-version")
 @click.option(
     "--override-image-registry",
     "-oireg",
@@ -627,25 +645,24 @@ def main():
     default=None,
     help="The commit (in mlrun/mlrun) of the tested mlrun version.",
 )
-@click.argument("data-cluster-ip", type=str, required=True)
-@click.argument("data-cluster-ssh-username", type=str, required=True)
-@click.argument("data-cluster-ssh-password", type=str, required=True)
-@click.argument("app-cluster-ssh-password", type=str, required=True)
-@click.argument("github-access-token", type=str, required=True)
-@click.argument("provctl-download-url", type=str, required=True)
-@click.argument("provctl-download-s3-access-key", type=str, required=True)
-@click.argument("provctl-download-s3-key-id", type=str, required=True)
-@click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("webapi-direct-url", type=str, required=True)
-@click.argument("framesd-url", type=str, required=True)
-@click.argument("username", type=str, required=True)
-@click.argument("access-key", type=str, required=True)
-@click.argument("iguazio-version", type=str, default=None, required=True)
-@click.argument("spark-service", type=str, required=True)
-@click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
-@click.argument("mysql-user", type=str, default=None, required=False)
-@click.argument("mysql-password", type=str, default=None, required=False)
+@click.option("--data-cluster-ip", required=True)
+@click.option("--data-cluster-ssh-username", required=True)
+@click.option("--data-cluster-ssh-password", required=True)
+@click.option("--app-cluster-ssh-password", required=True)
+@click.option("--github-access-token", required=True)
+@click.option("--provctl-download-url", required=True)
+@click.option("--provctl-download-s3-access-key", required=True)
+@click.option("--provctl-download-s3-key-id", required=True)
+@click.option("--mlrun-dbpath", required=True)
+@click.option("--webapi-direct-url", required=True)
+@click.option("--framesd-url", required=True)
+@click.option("--username", required=True)
+@click.option("--access-key", required=True)
+@click.option("--iguazio-version", default=None)
+@click.option("--spark-service", required=True)
+@click.option("--slack-webhook-url")
+@click.option("--mysql-user")
+@click.option("--mysql-password")
 @click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
 @click.option(
     "--debug",
@@ -674,7 +691,6 @@ def run(
     access_key: str,
     iguazio_version: str,
     spark_service: str,
-    password: str,
     slack_webhook_url: str,
     mysql_user: str,
     mysql_password: str,
@@ -702,7 +718,6 @@ def run(
         access_key,
         iguazio_version,
         spark_service,
-        password,
         slack_webhook_url,
         mysql_user,
         mysql_password,
@@ -717,22 +732,26 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("webapi-direct-url", type=str, required=True)
-@click.argument("framesd-url", type=str, required=True)
-@click.argument("username", type=str, required=True)
-@click.argument("access-key", type=str, required=True)
-@click.argument("spark-service", type=str, required=True)
-@click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
+@click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
+@click.option("--webapi-direct-url", help="Iguazio webapi direct url")
+@click.option("--framesd-url", help="Iguazio framesd url")
+@click.option("--username", help="Iguazio running username")
+@click.option("--access-key", help="Iguazio running user access key")
+@click.option("--spark-service", help="Iguazio kubernetes spark service name")
+@click.option(
+    "--slack-webhook-url", help="Slack webhook url to send tests notifications to"
+)
 @click.option(
     "--debug",
     "-d",
     is_flag=True,
     help="Don't run the ci only show the commands that will be run",
 )
-@click.argument("branch", type=str, default=None, required=False)
-@click.argument("github-access-token", type=str, default=None, required=False)
+@click.option("--branch", help="The mlrun branch to run the tests against")
+@click.option(
+    "--github-access-token",
+    help="Github access token to use for fetching private functions",
+)
 def env(
     mlrun_dbpath: str,
     webapi_direct_url: str,
@@ -740,7 +759,6 @@ def env(
     username: str,
     access_key: str,
     spark_service: str,
-    password: str,
     slack_webhook_url: str,
     debug: bool,
     branch: str,
@@ -753,7 +771,6 @@ def env(
         username=username,
         access_key=access_key,
         spark_service=spark_service,
-        password=password,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
         branch=branch,

@@ -247,7 +247,9 @@ class BaseMerger(abc.ABC):
                 if column not in node.data["save_cols"]
             }
             df_temp = self._rename_columns_and_select(
-                df, rename_col_dict, columns=list(set(column_names + fs_entities_and_timestamp))
+                df,
+                rename_col_dict,
+                columns=list(set(column_names + fs_entities_and_timestamp)),
             )
 
             if df_temp is not None:
@@ -290,9 +292,7 @@ class BaseMerger(abc.ABC):
         all_columns = None
         if not self._drop_indexes and res_time:
             if res_time not in self._alias.values():
-                self._update_alias(
-                    key=res_time, val=res_time
-                )
+                self._update_alias(key=res_time, val=res_time)
             all_columns = list(self._alias.keys())
 
         df_temp = self._rename_columns_and_select(

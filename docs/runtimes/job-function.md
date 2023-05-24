@@ -25,7 +25,7 @@ project.set_function(name="train", handler="training.train",  image="mlrun/mlrun
 
 To run the job:
 ```
-project.run_function()
+project.run_function("train")
 ```
 
 **See also**

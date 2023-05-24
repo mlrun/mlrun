@@ -17,7 +17,7 @@ import pathlib
 import sys
 import warnings
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 

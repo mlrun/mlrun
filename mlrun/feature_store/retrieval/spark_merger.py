@@ -82,7 +82,9 @@ class SparkFeatureMerger(BaseMerger):
         join_cond = (
             entity_with_id[entity_timestamp_column]
             >= aliased_featureset_df[
-                rename_right_keys.get(featureset.spec.timestamp_key, featureset.spec.timestamp_key)
+                rename_right_keys.get(
+                    featureset.spec.timestamp_key, featureset.spec.timestamp_key
+                )
             ]
         )
 
@@ -98,7 +100,11 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         window = Window.partitionBy("_row_nr").orderBy(
-            col(rename_right_keys.get(featureset.spec.timestamp_key, featureset.spec.timestamp_key)).desc(),
+            col(
+                rename_right_keys.get(
+                    featureset.spec.timestamp_key, featureset.spec.timestamp_key
+                )
+            ).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
@@ -224,7 +230,9 @@ class SparkFeatureMerger(BaseMerger):
             end_time=end_time,
         )
 
-        return source.to_spark_df(self.spark, named_view=self.named_view, time_field=time_column)
+        return source.to_spark_df(
+            self.spark, named_view=self.named_view, time_field=time_column
+        )
 
     def _rename_columns_and_select(
         self,

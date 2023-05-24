@@ -114,8 +114,6 @@ class BaseSourceDriver(DataSource):
             df = df.select([col(name) for name in columns])
         return df
 
-
-
     def get_spark_options(self):
         # options used in spark.read.load(**options)
         raise NotImplementedError()

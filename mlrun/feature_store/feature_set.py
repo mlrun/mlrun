@@ -926,6 +926,7 @@ class FeatureSet(ModelObj):
             columns = entities + columns
 
         if self.spec.passthrough:
+
             def _filter_df(df_data):
                 if time_column:
                     df_data[time_column] = pd.to_datetime(df_data[time_column])
@@ -936,6 +937,7 @@ class FeatureSet(ModelObj):
                 if columns:
                     df_data = df_data[columns]
                 return df_data
+
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"

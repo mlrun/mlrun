@@ -2127,6 +2127,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             join_employee_department.sort_index(axis=1),
             resp_1.to_dataframe().sort_index(axis=1),
         )
+
     @pytest.mark.parametrize("ts_r", ["ts", "ts_r"])
     def test_as_of_join_result(self, ts_r):
         test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
@@ -2238,7 +2239,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df.to_parquet(path=path, filesystem=fsys)
         source = ParquetSource("pq1", path=path)
 
-        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts_key",  passthrough=passthrough)
+        fset1 = fstore.FeatureSet(
+            "fs1", entities=["ent"], timestamp_key="ts_key", passthrough=passthrough
+        )
         self.set_targets(fset1, also_in_remote=True)
 
         fstore.ingest(fset1, source)
@@ -2257,7 +2260,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local),
             spark_service=self.spark_service,
-            target=target
+            target=target,
         )
         res_df = resp.to_dataframe().sort_index(axis=1)
 

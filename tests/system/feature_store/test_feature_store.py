@@ -849,9 +849,7 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fstore.FeatureVector("myvector", features)
-        resp2 = fstore.get_offline_features(
-            vector, with_indexes=True
-        )
+        resp2 = fstore.get_offline_features(vector, with_indexes=True)
         resp2 = resp2.to_dataframe().to_dict()
 
         assert resp1 == resp2
@@ -925,7 +923,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected = source.to_dataframe().set_index("patient_id")
 
-        start_time = expected['timestamp'][10]
+        start_time = expected["timestamp"][10]
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
@@ -950,7 +948,7 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
 
         # check time filter with passthrough
-        expected = expected[(expected['timestamp'] > start_time)]
+        expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
         # assert get_online correctness

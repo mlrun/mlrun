@@ -347,7 +347,7 @@ class ParquetSource(BaseSourceDriver):
         }
 
     def to_dataframe(self, **kwargs):
-        kwargs = self.attributes.get("reader_args", {}).update(**kwargs)
+        kwargs = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             format="parquet", **kwargs
         )

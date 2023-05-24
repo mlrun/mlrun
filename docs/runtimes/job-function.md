@@ -12,7 +12,7 @@ Examples:
 
 ```python
 # register a (single) python file as a function
-project.set_function('src/data_prep.py', 'data-prep', image='mlrun/mlrun', handler='prep', kind="job")
+project.set_function('src/data_prep.py', name='data-prep', image='mlrun/mlrun', handler='prep', kind="job")
 
 # register a notebook file as a function, specify custom image and extra requirements 
 project.set_function('src/mynb.ipynb', name='test-function', image="my-org/my-image",

@@ -1477,9 +1477,7 @@ def run_once(f):
     def wrapper(*args, **kwargs):
         if not wrapper.has_run:
             wrapper.has_run = True
-            return_value = f(*args, **kwargs)
-            wrapper.response = return_value
-            return return_value
+            wrapper.return_value = f(*args, **kwargs)
         return wrapper.return_value
 
     # set the initial values to ensure function will invoke at least once

@@ -53,20 +53,20 @@ class DBFSStore(DataStore):
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         self.path_and_system_validator(key)
-        size_less_then_one_exception = "negative or zero size argument 1 is invalid."
+        size_less_than_one_exception = "negative or zero size argument 1 is invalid."
         if offset:
             if size is None:
                 size = 1000000  # The maximum number of allowed bytes to read is 1MB.
             elif size <= 0:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    size_less_then_one_exception
+                    size_less_than_one_exception
                 )
             end = offset + size
             return self._filesystem._get_data(key, start=offset, end=end)
         elif size is not None:
             if size <= 0:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    size_less_then_one_exception
+                    size_less_than_one_exception
                 )
             else:
                 end = offset + size

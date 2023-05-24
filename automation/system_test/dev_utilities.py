@@ -299,6 +299,7 @@ def status_h(svc):
 def cli():
     pass
 
+
 cli.add_command(install)
 cli.add_command(uninstall)
 cli.add_command(list_services)

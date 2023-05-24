@@ -117,8 +117,9 @@ class DBFSStore(DataStore):
         remote_path = f"{key}/*"
         files = self._filesystem.glob(remote_path)
         key_length = len(key)
+        #  Get only the files and directories under key path, without the key path itself.
         files = [
-            f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
+            file.split("/", 1)[1][key_length:] for file in files if len(file.split("/")) > 1
         ]
         return files
 

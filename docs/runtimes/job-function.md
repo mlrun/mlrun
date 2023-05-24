@@ -16,7 +16,7 @@ project.set_function('src/data_prep.py', name='data-prep', image='mlrun/mlrun', 
 
 # register a notebook file as a function, specify custom image and extra requirements 
 project.set_function('src/mynb.ipynb', name='test-function', image="my-org/my-image",
-                      handler="run_test", requirements="requirements.txt", kind="job")
+                      handler="run_test", requirements=["scikit-learn"], kind="job")
 
 # register a module.handler as a function (requires defining the default sources/work dir, if it's not root)
 project.spec.workdir = "src"

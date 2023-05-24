@@ -475,7 +475,7 @@ def build_image(
     else:
         pod, ns = k8s.create_pod(kpod)
         mlrun.utils.logger.info(
-            f'started build, to watch build logs use "mlrun watch {pod} {ns}"'
+            "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
 
@@ -594,9 +594,8 @@ def build_runtime(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "build spec must have a target image, set build.image = <target image>"
         )
-    mlrun.utils.logger.info(f"building image ({build.image})")
-
     name = mlrun.utils.normalize_name(f"mlrun-build-{runtime.metadata.name}")
+
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
@@ -604,6 +603,13 @@ def build_runtime(
         base_image,
         client_version,
         client_python_version,
+    )
+    mlrun.utils.logger.info(
+        "Building runtime image",
+        base_image=enriched_base_image,
+        image=build.image,
+        project=project,
+        name=name,
     )
 
     status = build_image(

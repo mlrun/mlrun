@@ -405,13 +405,10 @@ async def build_status(
     return await run_in_threadpool(
         _handle_job_deploy_status,
         db_session,
-        auth_info,
         fn,
         name,
         project,
         tag,
-        last_log_timestamp,
-        verbose,
         offset,
         logs,
     )
@@ -419,13 +416,10 @@ async def build_status(
 
 def _handle_job_deploy_status(
     db_session,
-    auth_info,
     fn,
     name,
     project,
     tag,
-    last_log_timestamp,
-    verbose,
     offset,
     logs,
 ):
@@ -480,22 +474,24 @@ def _handle_job_deploy_status(
             },
         )
 
-    logger.info(f"get pod {pod} status")
+    # TODO: change state to pod_status
     state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
         pod
     )
-    logger.info(f"pod state={state}")
+    logger.info("Resolved pod status", pod_status=state, pod_name=pod)
 
     if state == "succeeded":
-        logger.info("build completed successfully")
+        logger.info("Build completed successfully")
         state = mlrun.common.schemas.FunctionState.ready
     if state in ["failed", "error"]:
-        logger.error(f"build {state}, watch the build pod logs: {pod}")
+        logger.error("Build failed", pod_name=pod, pod_status=state)
         state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
         resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
+
+            # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
@@ -724,7 +720,7 @@ def _build_function(
                 client_python_version=client_python_version,
             )
         fn.save(versioned=True)
-        logger.info("Fn:\n %s", fn.to_yaml())
+        logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(

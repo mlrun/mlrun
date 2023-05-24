@@ -309,7 +309,6 @@ class MLClientCtx(object):
         if inputs and isinstance(inputs, dict):
             for k, v in inputs.items():
                 if v:
-                    # do not load artifact from the API server - not needed
                     self._set_input(k, v)
 
         if host and not is_api:
@@ -380,7 +379,7 @@ class MLClientCtx(object):
 
     @property
     def inputs(self):
-        """dictionary of input data items (read-only)"""
+        """dictionary of input data item urls (read-only)"""
         return self._inputs
 
     @property
@@ -497,27 +496,34 @@ class MLClientCtx(object):
             url = key
         if self.in_path and is_relative_path(url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(
+        self._inputs[key] = url
+
+    def get_input(self, key: str, url: str = ""):
+        """
+        Get an input :py:class:`~mlrun.DataItem` object,
+        data objects have methods such as .get(), .download(), .url, .. to access the actual data.
+        Requires access to the data store secrets if configured.
+
+        Example::
+
+            data = context.get_input("my_data").get()
+
+        :param key:  The key name for the input url entry.
+        :param url:  The url of the input data (file, stream, ..) - optional, saved in the inputs dictionary
+                     if the key is not already present.
+
+        :return:     :py:class:`~mlrun.datastore.base.DataItem` object
+        """
+        if key not in self._inputs:
+            self._set_input(key, url)
+
+        url = self._inputs[key]
+        return self._data_stores.object(
             url,
             key,
             project=self._project,
             allow_empty_resources=self._allow_empty_resources,
         )
-        self._inputs[key] = obj
-        return obj
-
-    def get_input(self, key: str, url: str = ""):
-        """get an input :py:class:`~mlrun.DataItem` object, data objects have methods such as
-        .get(), .download(), .url, .. to access the actual data
-
-        example::
-
-            data = context.get_input("my_data").get()
-        """
-        if key not in self._inputs:
-            return self._set_input(key, url)
-        else:
-            return self._inputs[key]
 
     def log_result(self, key: str, value, commit=False):
         """log a scalar result value
@@ -945,7 +951,7 @@ class MLClientCtx(object):
                 "handler": self._handler,
                 "outputs": self._outputs,
                 run_keys.output_path: self.artifact_path,
-                run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},
+                run_keys.inputs: self._inputs,
                 "notifications": self._notifications,
             },
             "status": {
@@ -982,7 +988,7 @@ class MLClientCtx(object):
             "metadata.annotations": self._annotations,
             "spec.parameters": self._parameters,
             "spec.outputs": self._outputs,
-            "spec.inputs": {k: v.artifact_url for k, v in self._inputs.items()},
+            "spec.inputs": self._inputs,
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),

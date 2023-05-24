@@ -327,7 +327,7 @@ def test_context_from_run_dict(is_api):
             "parameters": {"p1": 1, "p2": "a string"},
             "inputs": {
                 "input-key": "input-url",
-                # "store-input": "store://store-input",
+                "store-input": "store://store-input",
             },
         },
     }
@@ -366,10 +366,9 @@ def test_context_from_run_dict(is_api):
         context.get_input("input-key").artifact_url
         == run_dict["spec"]["inputs"]["input-key"]
     )
-    # assert (
-    #     context.get_input("store-input").artifact_url
-    #     == run_dict["spec"]["inputs"]["store-input"]
-    # )
+    assert context._inputs["input-key"] == run_dict["spec"]["inputs"]["input-key"]
+    # not using get_input because it will try to load the artifact from the nop db
+    assert context._inputs["store-input"] == run_dict["spec"]["inputs"]["store-input"]
     assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
     assert (
         context.annotations["annotation-key"]

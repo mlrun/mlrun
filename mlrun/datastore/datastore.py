@@ -165,12 +165,7 @@ class StoreManager:
         return resource, target
 
     def object(
-        self,
-        url,
-        key="",
-        project="",
-        allow_empty_resources=None,
-        secrets: dict = None,
+        self, url, key="", project="", allow_empty_resources=None, secrets: dict = None
     ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):

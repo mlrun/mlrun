@@ -56,7 +56,7 @@ from tests.system.feature_store.expected_stats import expected_stats
 class TestFeatureStoreSparkEngine(TestMLRunSystem):
     """
     This suite tests feature store functionality with the remote spark runtime (spark service). It does not test spark
-    operator. Make sure that, in env-dave.yml, MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE is set to the name of a spark service
+    operator. Make sure that, in env.yml, MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE is set to the name of a spark service
     that exists on the remote system, or alternative set spark_service (below) to that name.
 
     To run the tests against code other than mlrun/mlrun@development, set test_branch below.

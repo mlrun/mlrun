@@ -807,3 +807,13 @@ def test_remove_owner_name_in_load_project_from_yaml():
     imported_project = mlrun.load_project("./", str(project_file_path), save=False)
     assert project.spec.owner == "some_owner"
     assert imported_project.spec.owner is None
+
+
+def test_set_secrets_file_not_found():
+    # Create project and generate owner name
+    project_name = "project-name"
+    file_name = ".env-test"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        project.set_secrets(file_path=file_name)
+    assert f"{file_name} does not exist" in str(excinfo.value)

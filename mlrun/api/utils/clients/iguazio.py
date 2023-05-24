@@ -364,9 +364,16 @@ class Client(
     ) -> typing.Optional[datetime.datetime]:
         latest_updated_at = None
         for iguazio_project in response_body["data"]:
-            updated_at = datetime.datetime.fromisoformat(
-                iguazio_project["attributes"]["updated_at"]
-            )
+
+            # iguazio project might be in creating mode, in which case it doesn't have an updated_at field yet
+            updated_at_str = iguazio_project["attributes"].get("updated_at")
+            if not updated_at_str:
+                logger.debug(
+                    "Project is in creating mode, skipping",
+                    name=iguazio_project.get("attributes", {}).get("name", "unknown"),
+                )
+                continue
+            updated_at = datetime.datetime.fromisoformat(updated_at_str)
             if latest_updated_at is None or latest_updated_at < updated_at:
                 latest_updated_at = updated_at
         return latest_updated_at

@@ -304,5 +304,6 @@ cli.add_command(uninstall)
 cli.add_command(list_services)
 cli.add_command(status)
 
+
 if __name__ == '__main__':
     cli()

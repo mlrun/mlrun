@@ -12,19 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
 import subprocess
 import click
 import base64
-import json
-import argparse
 
 
 @click.group()
 def cli():
     pass
-
 
 
 def run_click_command(command, **kwargs):
@@ -35,10 +30,8 @@ def run_click_command(command, **kwargs):
     """
     # create a Click context object
     ctx = click.Context(command)
-
     # invoke the Click command with the desired arguments
     ctx.invoke(command, **kwargs)
-
 
 
 def get_installed_releases(namespace):
@@ -91,14 +84,15 @@ def create_ingress_resource(domain_name,ipadd):
         - {}
         secretName: ingress-tls
     """.format(ipadd,domain_name,domain_name)
-
     subprocess.run(['kubectl', 'apply', '-f', '-'], input=yaml_manifest.encode(), check=True)
+
 
 def get_ingress_controller_version():
     # Run the kubectl command and capture its output
     cmd = "kubectl get ingress -n default-tenant | grep shell.default-tenant | awk '{print $3}' | awk -F shell.default-tenant '{print $2}'"
     result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.stdout.decode('utf-8').strip()
+
 
 def get_svc_password(namespace, service_name, key):
     cmd = (f'kubectl get secret --namespace {namespace} {service_name} -o jsonpath="{{.data.{key}}}" | base64 --decode')
@@ -117,6 +111,7 @@ def check_redis_installation():
     cmd = ("helm ls -A | grep -w redis | awk '{print $1}' | wc -l")
     result = subprocess.check_output(cmd, shell=True)
     return (result.decode('utf-8').strip())
+
 
 def add_repos():
     repos = {'bitnami': 'https://charts.bitnami.com/bitnami'}
@@ -141,22 +136,18 @@ def install_redisinsight(ipadd):
         fqdn = (get_ingress_controller_version())
         full_domain = ('redisinsight' + fqdn)
         create_ingress_resource(full_domain,ipadd)
-
         deployment_name = "redisinsight"
         container_name = "redisinsight-chart"
         env_name = "RITRUSTEDORIGINS"
         full_domain = full_domain
         pfull_domain = ("https://" + full_domain)
-
         patch_command = (f'kubectl patch deployment -n devtools {deployment_name} -p \'{{"spec":{{"template":{{"spec":{{"containers":[{{"name":"{container_name}","env":[{{"name":"{env_name}","value":"{pfull_domain}"}}]}}]}}}}}}}}\'')
         subprocess.run(patch_command, shell=True)
         clean_command = ('rm -rf redisinsight-chart-0.1.0.tgz*')
         subprocess.run(clean_command, shell=True)
-
     else:
         print("redis is not install, please install redis first")
         exit()
-
 
 
 @click.command()
@@ -184,7 +175,6 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             print(f"Error installing local-path storage class: {output}")
     else:
         print("local-path storage class already exists.")
-
     services = {
         'redis': {'chart': 'bitnami/redis', 'set_values': '--set master.service.nodePorts.redis=31001'},
         'kafka': {'chart': 'bitnami/kafka', 'set_values': '--set service.nodePorts.client=31002'},
@@ -193,7 +183,6 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
     namespace = 'devtools'
     # Add Helm repos
     add_repos()
-
     # Check if the namespace exists, if not create it
     check_namespace_cmd = f'kubectl get namespace {namespace}'
     try:
@@ -201,7 +190,6 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
     except subprocess.CalledProcessError:
         create_namespace_cmd = f'kubectl create namespace {namespace}'
         subprocess.run(create_namespace_cmd.split(), check=True)
-
     for service, data in services.items():
         if locals().get(service):
             chart = data['chart']
@@ -209,7 +197,6 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             cmd = f"helm install {service} {chart} {set_values} --namespace {namespace}"
             print (cmd)
             subprocess.run(cmd.split(), check=True)
-
     if redisinsight:
         install_redisinsight(ipadd)
 
@@ -237,6 +224,7 @@ def uninstall(redis, kafka, mysql, redisinsight):
         pass
         # code to handle any exception
 
+
 @click.command()
 def list_services():
     namespace = 'devtools'
@@ -248,10 +236,6 @@ def list_services():
 def list_services_h():
     namespace = ('devtools')
     return  get_installed_releases(namespace)
-
-
-
-
 
 
 @click.command()

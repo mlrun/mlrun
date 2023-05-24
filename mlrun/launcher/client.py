@@ -14,6 +14,7 @@
 import abc
 import getpass
 import os
+from typing import Optional
 
 import IPython
 
@@ -31,7 +32,9 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
     """
 
     @staticmethod
-    def _enrich_runtime(runtime):
+    def _enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+    ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
 
@@ -132,7 +135,7 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(run.to_dict())
 
-        if mlrun.utils.is_ipython and mlrun.config.ipython_widget:
+        if mlrun.utils.is_ipython and mlrun.config.config.ipython_widget:
             results_tbl.show()
             print()
             ui_url = mlrun.utils.get_ui_url(project, uid)

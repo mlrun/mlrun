@@ -14,6 +14,7 @@
 import datetime
 import getpass
 import glob
+import http
 import json
 import pathlib
 import shutil
@@ -31,14 +32,17 @@ import git.exc
 import inflection
 import kfp
 import nuclio
+import requests
 import yaml
 
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
+import mlrun.runtimes
+import mlrun.runtimes.pod
+import mlrun.runtimes.utils
 import mlrun.utils.regex
-from mlrun.runtimes import RuntimeKinds
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -46,7 +50,6 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -908,15 +911,24 @@ class MlrunProject(ModelObj):
     def source(self, source):
         self.spec.source = source
 
-    def set_source(self, source, pull_at_runtime=False, workdir=None):
+    def set_source(
+        self,
+        source: str = "",
+        pull_at_runtime: bool = False,
+        workdir: Optional[str] = None,
+    ):
         """set the project source code path(can be git/tar/zip archive)
 
-        :param source:     valid path to git, zip, or tar file, (or None for current) e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
+        :param source:          valid absolute path or URL to git, zip, or tar file, (or None for current) e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
-        :param workdir:    the relative workdir path (under the context dir)
+        :param workdir:         workdir path relative to the context dir or absolute
         """
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
+
         self.spec.load_source_on_run = pull_at_runtime
         self.spec.source = source or self.spec.source
 
@@ -1613,6 +1625,7 @@ class MlrunProject(ModelObj):
             if image:
                 function_object.spec.image = image
             if with_repo:
+                # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
             if requirements:
                 function_object.with_requirements(requirements)
@@ -1649,20 +1662,47 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        if key in self.spec._function_objects and not sync and not ignore_cache:
-            function = self.spec._function_objects[key]
-        elif key in self.spec._function_definitions and not ignore_cache:
-            self.sync_functions([key])
-            function = self.spec._function_objects[key]
-        else:
-            function = get_db_function(self, key)
-            self.spec._function_objects[key] = function
+        function, err = self._get_function(
+            mlrun.utils.normalize_name(key), sync, ignore_cache
+        )
+        if not function and "_" in key:
+            function, err = self._get_function(key, sync, ignore_cache)
+
+        if not function:
+            raise err
+
         if enrich:
             function = enrich_function_object(
                 self, function, copy_function=copy_function
             )
             self.spec._function_objects[key] = function
+
         return function
+
+    def _get_function(self, key, sync, ignore_cache):
+        """
+        Function can be retrieved from the project spec (cache) or from the database.
+        In sync mode, we first perform a sync of the function_objects from the function_definitions,
+        and then returning it from the function_objects (if exists).
+        When not in sync mode, we verify and return from the function objects directly.
+        In ignore_cache mode, we query the function from the database rather than from the project spec.
+        """
+        if key in self.spec._function_objects and not sync and not ignore_cache:
+            function = self.spec._function_objects[key]
+
+        elif key in self.spec._function_definitions and not ignore_cache:
+            self.sync_functions([key])
+            function = self.spec._function_objects[key]
+        else:
+            try:
+                function = get_db_function(self, key)
+                self.spec._function_objects[key] = function
+            except requests.HTTPError as exc:
+                if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
+                    raise exc
+                return None, exc
+
+        return function, None
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
@@ -1763,7 +1803,7 @@ class MlrunProject(ModelObj):
         if not names:
             names = self.spec._function_definitions.keys()
             funcs = {}
-        origin = add_code_metadata(self.spec.context)
+        origin = mlrun.runtimes.utils.add_code_metadata(self.spec.context)
         for name in names:
             f = self.spec._function_definitions.get(name)
             if not f:
@@ -2314,20 +2354,22 @@ class MlrunProject(ModelObj):
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
-        :param function:        name of the function (in the project) or function object
-        :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have an image for the function
-        :param image:           target image name/path
-        :param base_image:      base image name/path (commands and source code will be added to it)
-        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
-        :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param function:            name of the function (in the project) or function object
+        :param with_mlrun:          add the current mlrun package to the container build
+        :param skip_deployed:       skip the build if we already have an image for the function
+        :param image:               target image name/path
+        :param base_image:          base image name/path (commands and source code will be added to it)
+        :param commands:            list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:         k8s secret for accessing the docker registry
+        :param requirements:        list of python packages, defaults to None
+        :param requirements_file:   pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
+                                    e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
          add to existing parameters
         """
@@ -2340,6 +2382,7 @@ class MlrunProject(ModelObj):
             commands=commands,
             secret_name=secret_name,
             requirements=requirements,
+            requirements_file=requirements_file,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
@@ -2356,6 +2399,7 @@ class MlrunProject(ModelObj):
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2366,7 +2410,8 @@ class MlrunProject(ModelObj):
         :param base_image: base image name/path
         :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param requirements: a list of packages to install on the built image
+        :param requirements_file: requirements file to install on the built image
         :param overwrite_build_params:  overwrite existing build configuration (default False)
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -2385,6 +2430,7 @@ class MlrunProject(ModelObj):
             secret=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite=overwrite_build_params,
         )
 
@@ -2404,6 +2450,7 @@ class MlrunProject(ModelObj):
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2416,7 +2463,8 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param requirements:    list of python packages, defaults to None
+        :param requirements_file:  pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2435,6 +2483,7 @@ class MlrunProject(ModelObj):
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite_build_params=overwrite_build_params,
         )
 
@@ -2765,6 +2814,7 @@ def _init_function_from_dict(f, project, name=None):
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
+        # mark source to be enriched before run with project source (enrich_function_object)
         func.spec.build.source = "./"
     if requirements:
         func.with_requirements(requirements)
@@ -2792,7 +2842,9 @@ def _init_function_from_obj(func, project, name=None):
 def _has_module(handler, kind):
     if not handler:
         return False
-    return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
+    return (
+        kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes() and ":" in handler
+    ) or "." in handler
 
 
 def _is_imported_artifact(artifact):

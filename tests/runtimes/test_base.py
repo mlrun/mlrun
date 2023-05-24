@@ -127,13 +127,7 @@ class TestAutoMount:
             if requirements_as_file:
 
                 # create a temporary file with the requirements
-                with tempfile.NamedTemporaryFile(
-                    delete=False, dir=self._temp_dir
-                ) as temp_file:
-                    with open(temp_file.name, "w") as f:
-                        for requirement in requirements:
-                            f.write(requirement + "\n")
-                    requirements = temp_file.name
+                requirements = self._create_temp_requirements_file(requirements)
 
             encoded = self._generate_runtime().spec.build._resolve_requirements(
                 requirements
@@ -141,6 +135,53 @@ class TestAutoMount:
             assert (
                 encoded == encoded_requirements
             ), f"Failed to encode {requirements} as file {requirements_as_file}"
+
+    @pytest.mark.parametrize(
+        "requirements,requirements_in_file,encoded_requirements,requirements_as_file",
+        [
+            (
+                ["pandas==1.0.0", "numpy==1.0.0"],
+                ["something==1.0.0", "otherthing==1.0.0"],
+                [
+                    "something==1.0.0",
+                    "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
+                ],
+                False,
+            ),
+            (
+                ["pandas==1.0.0", "numpy==1.0.0"],
+                ["something==1.0.0", "otherthing==1.0.0"],
+                [
+                    "something==1.0.0",
+                    "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
+                ],
+                True,
+            ),
+        ],
+    )
+    def test_resolve_requirements_file(
+        self,
+        requirements,
+        requirements_in_file,
+        encoded_requirements,
+        requirements_as_file,
+    ):
+        # create requirements file
+        requirements_file = self._create_temp_requirements_file(requirements_in_file)
+
+        if requirements_as_file:
+            requirements = self._create_temp_requirements_file(requirements)
+
+        encoded = self._generate_runtime().spec.build._resolve_requirements(
+            requirements, requirements_file
+        )
+        assert (
+            encoded == encoded_requirements
+        ), f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
 
     def test_fill_credentials(self, rundb_mock):
         """
@@ -292,3 +333,12 @@ class TestAutoMount:
         rundb_mock.reset()
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
+
+    def _create_temp_requirements_file(self, requirements):
+        with tempfile.NamedTemporaryFile(
+            delete=False, dir=self._temp_dir, suffix=".txt"
+        ) as temp_file:
+            with open(temp_file.name, "w") as f:
+                for requirement in requirements:
+                    f.write(requirement + "\n")
+            return temp_file.name

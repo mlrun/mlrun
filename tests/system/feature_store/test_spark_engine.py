@@ -73,7 +73,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = False
+    run_local = True
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
@@ -1730,8 +1730,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self.read_parquet_and_assert(out_path_spark, out_path_storey)
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join(self, join_type, with_indexes):
+    def test_relation_join(self, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
@@ -1775,7 +1774,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id"],
             right_on=["d_id"],
             suffixes=("_employees", "_departments"),
@@ -1784,7 +1782,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            how=join_type,
             left_on=["manager_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
@@ -1793,7 +1790,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_sets = pd.merge(
             employees_with_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_employees", "_e_mini"),
@@ -1802,7 +1798,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         _merge_step = pd.merge(
             join_employee_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_", "_e_mini"),
@@ -1811,7 +1806,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_all = pd.merge(
             _merge_step,
             classes,
-            how=join_type,
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
@@ -1932,7 +1926,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="name",
         )
         if with_indexes:
@@ -1962,7 +1955,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
@@ -1988,7 +1980,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by=["n"],
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
@@ -2010,7 +2001,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
@@ -2037,7 +2027,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())

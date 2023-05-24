@@ -15,9 +15,9 @@
 
 import datetime
 import logging
+import os
 import pathlib
 import shutil
-import os
 import subprocess
 import sys
 import tempfile

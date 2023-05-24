@@ -143,10 +143,10 @@ class TestAutoMount:
                 ["pandas==1.0.0", "numpy==1.0.0"],
                 ["something==1.0.0", "otherthing==1.0.0"],
                 [
-                    "pandas==1.0.0",
-                    "numpy==1.0.0",
                     "something==1.0.0",
                     "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
                 ],
                 False,
             ),
@@ -154,10 +154,10 @@ class TestAutoMount:
                 ["pandas==1.0.0", "numpy==1.0.0"],
                 ["something==1.0.0", "otherthing==1.0.0"],
                 [
-                    "pandas==1.0.0",
-                    "numpy==1.0.0",
                     "something==1.0.0",
                     "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
                 ],
                 True,
             ),
@@ -335,7 +335,9 @@ class TestAutoMount:
         rundb_mock.assert_env_variables(expected_env)
 
     def _create_temp_requirements_file(self, requirements):
-        with tempfile.NamedTemporaryFile(delete=False, dir=self._temp_dir) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            delete=False, dir=self._temp_dir, suffix=".txt"
+        ) as temp_file:
             with open(temp_file.name, "w") as f:
                 for requirement in requirements:
                     f.write(requirement + "\n")

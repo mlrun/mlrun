@@ -15,7 +15,7 @@
 import fsspec
 
 import mlrun.errors
-
+from mlrun.datastore.helpers import ONE_GB, ONE_MB
 from .base import DataStore, FileStats
 
 # dbfs objects will be represented with the following URL: dbfs://<path>
@@ -56,7 +56,7 @@ class DBFSStore(DataStore):
         size_less_than_one_exception = "negative or zero size argument 1 is invalid."
         if offset:
             if size is None:
-                size = 1000000  # The maximum number of allowed bytes to read is 1MB.
+                size = ONE_MB  # The maximum number of allowed bytes to read is 1MB.
             elif size <= 0:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     size_less_than_one_exception

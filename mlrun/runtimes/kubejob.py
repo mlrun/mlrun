@@ -128,6 +128,7 @@ class KubejobRuntime(KubeResource):
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: a list of packages to install
+        :param requirements_file: requirements file to install
         :param overwrite:  overwrite existing build configuration
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -136,7 +137,6 @@ class KubejobRuntime(KubeResource):
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
-        :param requirements_file:           requirements.txt file to install
         """
 
         self.spec.build.build_config(

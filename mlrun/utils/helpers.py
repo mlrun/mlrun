@@ -16,6 +16,7 @@ import enum
 import hashlib
 import inspect
 import json
+import os
 import re
 import sys
 import time
@@ -1330,6 +1331,11 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
     if not branch and not reference:
         url = f"{url}#refs/heads/{repo.active_branch}"
     return url
+
+
+def is_file_path(filepath):
+    root, ext = os.path.splitext(filepath)
+    return os.path.isfile(filepath) and ext
 
 
 class DeprecationHelper(object):

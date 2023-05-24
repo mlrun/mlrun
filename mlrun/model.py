@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-import os.path
 import pathlib
 import re
 import time
@@ -451,12 +450,13 @@ class ImageBuilder(ModelObj):
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:        python requirements file path or list of packages
-        :param requirements_file:   a list of python packages
-        :param overwrite:           overwrite existing requirements
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
+        :param overwrite:           overwrite existing requirements,
+                                    when False (default) will append to existing requirements
         :return: function object
         """
-        if isinstance(requirements, str) and os.path.isfile(requirements):
+        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
             # TODO: remove in 1.6.0
             warnings.warn(
                 "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
@@ -482,24 +482,24 @@ class ImageBuilder(ModelObj):
     ) -> list:
         requirements_to_resolve = []
 
-        # handle the requirements argument
-        # TODO: remove in 1.6.0, when requirements can only be a list
-        if isinstance(requirements, str):
-            # if it's a file path, read the file and add its content to the list
-            if os.path.isfile(requirements):
-                with open(requirements, "r") as fp:
-                    requirements_to_resolve.extend(fp.read().splitlines())
-            else:
-                # it's a string but not a file path, split it by lines and add it to the list
-                requirements_to_resolve.extend(requirements.splitlines())
-        else:
-            # it's a list, add it to the list
-            requirements_to_resolve.extend(requirements)
-
         # handle the requirements_file argument
         if requirements_file:
             with open(requirements_file, "r") as fp:
                 requirements_to_resolve.extend(fp.read().splitlines())
+
+        # handle the requirements argument
+        # TODO: remove in 1.6.0, when requirements can only be a list
+        if isinstance(requirements, str):
+            # if it's a file path, read the file and add its content to the list
+            if mlrun.utils.is_file_path(requirements):
+                with open(requirements, "r") as fp:
+                    requirements_to_resolve.extend(fp.read().splitlines())
+            else:
+                # it's a string but not a file path, split it by lines and add it to the list
+                requirements_to_resolve.append(requirements)
+        else:
+            # it's a list, add it to the list
+            requirements_to_resolve.extend(requirements)
 
         requirements = []
         for requirement in requirements_to_resolve:

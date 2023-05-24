@@ -26,6 +26,7 @@ from tests.system.base import TestMLRunSystem
 class TestAPIArtifacts(TestMLRunSystem):
     project_name = "db-system-test-project"
 
+    @pytest.mark.enterprise
     def test_fail_overflowing_artifact(self):
         """
         Test that we fail when trying to (inline) log an artifact that is too big

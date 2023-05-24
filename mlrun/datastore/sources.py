@@ -32,7 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import store_path_to_spark
+from .utils import filter_df_start_end_time, select_columns_from_df, store_path_to_spark
 
 
 def get_source_from_dict(source):
@@ -73,23 +73,32 @@ class BaseSourceDriver(DataSource):
         """get storey Table object"""
         return None
 
-    def to_dataframe(self):
-        return mlrun.store_manager.object(url=self.path).as_df()
+    def to_dataframe(self, **kwargs):
+        return select_columns_from_df(
+            self.filter_df_start_end_time(
+                mlrun.store_manager.object(url=self.path).as_df(**kwargs), **kwargs
+            ),
+            kwargs.get("columns"),
+        )
 
-    def filter_df_start_end_time(self, df, time_field):
+    def filter_df_start_end_time(
+        self,
+        df,
+        time_field=None,
+        start_time=None,
+        end_time=None,
+        external=False,
+        **kwargs,
+    ):
         # give priority to source time_field over the feature set's timestamp_key
-        if self.time_field:
-            time_field = self.time_field
+        if not external:
+            start_time = self.start_time or start_time
+            end_time = self.end_time or end_time
+            time_field = self.time_field or time_field
 
-        if self.start_time or self.end_time:
-            self.start_time = (
-                datetime.min if self.start_time is None else self.start_time
-            )
-            self.end_time = datetime.max if self.end_time is None else self.end_time
-            df = df.filter(
-                (df[time_field] > self.start_time) & (df[time_field] <= self.end_time)
-            )
-        return df
+        return filter_df_start_end_time(
+            df, time_field=time_field, start_time=start_time, end_time=end_time
+        )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if not self.support_spark:
@@ -218,13 +227,19 @@ class CSVSource(BaseSourceDriver):
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
 
-    def to_dataframe(self):
-        kwargs = self.attributes.get("reader_args", {})
+    def to_dataframe(self, **kwargs):
+        reader_args = self.attributes.get("reader_args", {})
         chunksize = self.attributes.get("chunksize")
         if chunksize:
-            kwargs["chunksize"] = chunksize
-        return mlrun.store_manager.object(url=self.path).as_df(
-            parse_dates=self._parse_dates, **kwargs
+            reader_args["chunksize"] = chunksize
+        return select_columns_from_df(
+            self.filter_df_start_end_time(
+                mlrun.store_manager.object(url=self.path).as_df(
+                    parse_dates=self._parse_dates, **reader_args
+                ),
+                **kwargs,
+            ),
+            kwargs.get("columns"),
         )
 
     def is_iterator(self):
@@ -331,8 +346,8 @@ class ParquetSource(BaseSourceDriver):
             "format": "parquet",
         }
 
-    def to_dataframe(self):
-        kwargs = self.attributes.get("reader_args", {})
+    def to_dataframe(self, **kwargs):
+        kwargs = self.attributes.get("reader_args", {}).update(**kwargs)
         return mlrun.store_manager.object(url=self.path).as_df(
             format="parquet", **kwargs
         )
@@ -449,7 +464,7 @@ class BigQuerySource(BaseSourceDriver):
             return credentials, gcp_project or gcp_cred_dict["project_id"]
         return None, gcp_project
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
@@ -490,7 +505,13 @@ class BigQuerySource(BaseSourceDriver):
                 bqstorage_client=BigQueryReadClient(), dtypes=dtypes
             )
         else:
-            return rows_iterator.to_dataframe(dtypes=dtypes)
+            # TODO : filter as part of the query
+            return select_columns_from_df(
+                self.filter_df_start_end_time(
+                    rows_iterator.to_dataframe(dtypes=dtypes), **kwargs
+                ),
+                kwargs.get("columns"),
+            )
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
@@ -525,6 +546,7 @@ class BigQuerySource(BaseSourceDriver):
         df = session.read.format("bigquery").load(**options)
         if named_view:
             df.createOrReplaceTempView(self.name)
+        # TODO : filter as part of the query
         return self._filter_spark_df(df, time_field, columns)
 
 
@@ -864,7 +886,7 @@ class KafkaSource(OnlineSource):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
         )
@@ -953,7 +975,7 @@ class SQLSource(BaseSourceDriver):
             end_time=end_time,
         )
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         import sqlalchemy as db
 
         query = self.attributes.get("query", None)
@@ -964,11 +986,15 @@ class SQLSource(BaseSourceDriver):
         if table_name and db_path:
             engine = db.create_engine(db_path)
             with engine.connect() as con:
-                return pd.read_sql(
-                    query,
-                    con=con,
-                    chunksize=self.attributes.get("chunksize"),
-                    parse_dates=self.attributes.get("time_fields"),
+                return self.filter_df_start_end_time(
+                    pd.read_sql(
+                        query,
+                        con=con,
+                        chunksize=self.attributes.get("chunksize"),
+                        parse_dates=self.attributes.get("time_fields"),
+                        columns=kwargs.get("columns"),
+                    ),
+                    **kwargs,
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -19,6 +19,7 @@ import sys
 import time
 from collections import Counter
 from copy import copy
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
@@ -35,7 +36,12 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
-from .utils import parse_kafka_url, store_path_to_spark
+from .utils import (
+    filter_df_start_end_time,
+    parse_kafka_url,
+    select_columns_from_df,
+    store_path_to_spark,
+)
 
 
 class TargetTypes:
@@ -664,13 +670,21 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self.get_target_path()).as_df(
+        return select_columns_from_df(
+            filter_df_start_end_time(
+                mlrun.get_dataitem(self.get_target_path()).as_df(
+                    columns=columns,
+                    df_module=df_module,
+                    start_time=start_time,
+                    end_time=end_time,
+                    time_column=time_column,
+                    **kwargs,
+                ),
+                start_time=start_time,
+                end_time=end_time,
+                time_field=time_column,
+            ),
             columns=columns,
-            df_module=df_module,
-            start_time=start_time,
-            end_time=end_time,
-            time_column=time_column,
-            **kwargs,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -987,6 +1001,9 @@ class CSVTarget(BaseStoreTarget):
             df_module=df_module,
             entities=entities,
             format="csv",
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
             **kwargs,
         )
         if entities:
@@ -1474,7 +1491,15 @@ class DFTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        return self._df
+        return select_columns_from_df(
+            filter_df_start_end_time(
+                self._df,
+                start_time=start_time,
+                end_time=end_time,
+                time_field=time_column,
+            ),
+            columns,
+        )
 
 
 class SQLTarget(BaseStoreTarget):
@@ -1644,15 +1669,19 @@ class SQLTarget(BaseStoreTarget):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
-            df = pd.read_sql(
-                f"SELECT * FROM {self.attributes.get('table_name')}",
-                con=conn,
-                parse_dates=self.attributes.get("time_fields"),
+            df = filter_df_start_end_time(
+                pd.read_sql(
+                    f"SELECT * FROM {self.attributes.get('table_name')}",
+                    con=conn,
+                    parse_dates=self.attributes.get("time_fields"),
+                    columns=columns,
+                ),
+                start_time=start_time,
+                end_time=end_time,
+                time_field=time_column,
             )
             if self._primary_key_column:
                 df.set_index(self._primary_key_column, inplace=True)
-            if columns:
-                df = df[columns]
         return df
 
     def write_dataframe(

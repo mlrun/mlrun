@@ -17,6 +17,8 @@ import tempfile
 import typing
 from urllib.parse import parse_qs, urlparse
 
+import pandas as pd
+
 import mlrun.datastore
 
 
@@ -73,7 +75,6 @@ def parse_kafka_url(
 
 
 def upload_tarball(source_dir, target, secrets=None):
-
     # will delete the temp file
     with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
@@ -81,3 +82,43 @@ def upload_tarball(source_dir, target, secrets=None):
         stores = mlrun.datastore.store_manager.set(secrets)
         datastore, subpath = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
+
+
+class RestartableIterator:
+    def __init__(self, iterable):
+        self.iterable = iterable
+
+    def __iter__(self):
+        return iter(self.iterable)
+
+
+def filter_df_start_end_time(df, time_field=None, start_time=None, end_time=None):
+    df = _iter_over_df(df)
+    for df_in in df:
+        if time_field:
+            df_in[time_field] = pd.to_datetime(df_in[time_field])
+            if start_time:
+                df_in = df_in[df_in[time_field] > start_time]
+            if end_time:
+                df_in = df_in[df_in[time_field] <= end_time]
+            if not isinstance(df, RestartableIterator):
+                return df_in
+        return df
+
+
+def select_columns_from_df(df, columns):
+    df = _iter_over_df(df)
+    for df_in in df:
+        if columns:
+            df_in = df_in[columns]
+        if not isinstance(df, RestartableIterator):
+            return df_in
+    return df
+
+
+def _iter_over_df(df):
+    if not isinstance(df, pd.DataFrame):
+        df = RestartableIterator(df)
+    else:
+        df = [df]
+    return df

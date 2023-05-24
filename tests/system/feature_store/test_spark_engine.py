@@ -2245,6 +2245,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         vec = fstore.FeatureVector("vec1", ["fs1.val"])
 
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
+
         resp = fstore.get_offline_features(
             feature_vector=vec,
             start_time=test_base_time - pd.Timedelta(minutes=3),
@@ -2253,6 +2257,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local),
             spark_service=self.spark_service,
+            target=target
         )
         res_df = resp.to_dataframe().sort_index(axis=1)
 

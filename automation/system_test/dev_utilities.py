@@ -49,7 +49,7 @@ def run_command(cmd):
     return result.stdout.decode('utf-8'), result.returncode
 
 
-def create_ingress_resource(domain_name,ipadd):
+def create_ingress_resource(domain_name, ipadd):
     # Replace the placeholder string with the actual domain name
     yaml_manifest = """
     apiVersion: networking.k8s.io/v1
@@ -83,13 +83,18 @@ def create_ingress_resource(domain_name,ipadd):
       - hosts:
         - {}
         secretName: ingress-tls
-    """.format(ipadd,domain_name,domain_name)
+    """.format(ipadd, domain_name, domain_name)
     subprocess.run(['kubectl', 'apply', '-f', '-'], input=yaml_manifest.encode(), check=True)
 
 
 def get_ingress_controller_version():
     # Run the kubectl command and capture its output
-    cmd = "kubectl get ingress -n default-tenant | grep shell.default-tenant | awk '{print $3}' | awk -F shell.default-tenant '{print $2}'"
+    kubectl_cmd = "kubectl"
+    namespace = "default-tenant"
+    grep_cmd = "grep shell.default-tenant"
+    awk_cmd1 = "awk '{print $3}'"
+    awk_cmd2 = "awk -F shell.default-tenant '{print $2}'"
+    cmd = f"{kubectl_cmd} get ingress -n {namespace} | {grep_cmd} | {awk_cmd1} | {awk_cmd2}"
     result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.stdout.decode('utf-8').strip()
 
@@ -123,14 +128,35 @@ def add_repos():
 def install_redisinsight(ipadd):
     print(check_redis_installation)
     if check_redis_installation() == "1":
-        subprocess.run(['rm', '-rf', 'redisinsight-chart-0.1.0.tgz*' ])
+        subprocess.run(['rm', '-rf', 'redisinsight-chart-0.1.0.tgz*'])
         chart_url = 'https://docs.redis.com/latest/pkgs/redisinsight-chart-0.1.0.tgz'
         chart_file = 'redisinsight-chart-0.1.0.tgz'
         subprocess.run(['wget', chart_url])
         # get redis password
-        redis_password = subprocess.check_output(['kubectl', 'get', 'secret', '--namespace', 'devtools', 'redis', '-o', 'jsonpath="{.data.redis-password}"']).decode('utf-8').replace('"', '').strip()
+        redis_password = (
+            subprocess.check_output(
+                ['kubectl', 'get', 'secret', '--namespace', 'devtools', 'redis', '-o', 'jsonpath="{.data.redis-password}"'],
+                encoding='utf-8'
+            )
+            .strip('"\n')
+        )        
         redis_password = base64.b64decode(redis_password).decode('utf-8')
-        cmd = f"helm install redisinsight {chart_file} --set redis.url=redis-master  --set master.service.nodePort=6379 --set auth.password={redis_password}  --set fullnameOverride=redisinsight  --namespace devtools"
+        cmd = [
+            "helm",
+            "install",
+            "redisinsight",
+            chart_file,
+            "--set",
+            "redis.url=redis-master",
+            "--set",
+            "master.service.nodePort=6379",
+            "--set",
+            f"auth.password={redis_password}",
+            "--set",
+            "fullnameOverride=redisinsight",
+            "--namespace",
+            "devtools"
+        ]        
         subprocess.run(cmd.split(), check=True)
         # run patch cmd
         fqdn = (get_ingress_controller_version())

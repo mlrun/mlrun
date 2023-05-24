@@ -104,19 +104,18 @@ def test_delete_schedule_when_deleting_function(db: DBInterface, db_session: Ses
     project_name, func_name = "project", "function"
     func = _generate_function()
 
-    db.store_function(
-        db_session, func.to_dict(), func.metadata.name, versioned=True
-    )
+    db.store_function(db_session, func.to_dict(), func.metadata.name, versioned=True)
 
     # creating a schedule for the created function
-    db.create_schedule(db_session,
-                       project=project_name,
-                       name=func_name,
-                       kind=mlrun.common.schemas.ScheduleKinds.local_function,
-                       scheduled_object="*/15 * * * *",
-                       cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute="*/15"),
-                       concurrency_limit=15
-                       )
+    db.create_schedule(
+        db_session,
+        project=project_name,
+        name=func_name,
+        kind=mlrun.common.schemas.ScheduleKinds.local_function,
+        scheduled_object="*/15 * * * *",
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute="*/15"),
+        concurrency_limit=15,
+    )
 
     # get the schedule and make sure it was created
     schedule = db.get_schedule(session=db_session, project=project_name, name=func_name)

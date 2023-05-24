@@ -418,6 +418,9 @@ def test_version_compatibility_validation(server_version, client_version, compat
         server_version, client_version
     )
 
+    # reset has_run to ensure function can run more than once
+    HTTPRunDB._validate_version_compatibility.has_run = False
+
 
 def _create_feature_set(name):
     return {

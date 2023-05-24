@@ -1669,6 +1669,7 @@ class SQLTarget(BaseStoreTarget):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
+            # TODO : filter as part of the query
             df = filter_df_start_end_time(
                 pd.read_sql(
                     f"SELECT * FROM {self.attributes.get('table_name')}",

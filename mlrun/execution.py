@@ -304,12 +304,13 @@ class MLClientCtx(object):
 
         self._init_dbs(rundb)
 
-        # init data related objects (require DB & Secrets to be set first)
-        self._data_stores.from_dict(spec)
-        if inputs and isinstance(inputs, dict):
-            for k, v in inputs.items():
-                if v:
-                    self._set_input(k, v)
+        if spec:
+            # init data related objects (require DB & Secrets to be set first)
+            self._data_stores.from_dict(spec)
+            if inputs and isinstance(inputs, dict):
+                for k, v in inputs.items():
+                    if v:
+                        self._set_input(k, v)
 
         if host and not is_api:
             self.set_label("host", host)

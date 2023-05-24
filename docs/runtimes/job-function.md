@@ -1,11 +1,14 @@
 (job-function)=
 # Function of type `job`
 
-The `job` type function runs the code in a Kubernetes Pod.
+You can deploy a model using a `job` type function, which runs the code in a Kubernetes Pod. 
 
-You can create (register) a function with basic attributes such as code, requirements, image, etc. using the 
+You can create (register) a `job` function with basic attributes such as code, requirements, image, etc. using the 
 {py:meth}`~mlrun.projects.MlrunProject.set_function` method.
-Functions can be created from a single code, notebook file, or have access to the entire project context directory. (By adding the `with_repo=True` flag, the project context is cloned into the function runtime environment.) 
+You can also import an existing job function/template from the {ref}`function-hub`.
+
+Functions can be created from a single code, notebook file, or have access to the entire project context directory. 
+(By adding the `with_repo=True` flag, the project context is cloned into the function runtime environment.) 
 
 Examples:
 

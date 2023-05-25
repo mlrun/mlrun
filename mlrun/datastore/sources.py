@@ -101,13 +101,12 @@ class BaseSourceDriver(DataSource):
         )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
-        if not self.support_spark:
-            raise NotImplementedError()
-
-        df = session.read.load(**self.get_spark_options())
-        if named_view:
-            df.createOrReplaceTempView(self.name)
-        return self._filter_spark_df(df, time_field, columns)
+        if self.support_spark:
+            df = session.read.load(**self.get_spark_options())
+            if named_view:
+                df.createOrReplaceTempView(self.name)
+            return self._filter_spark_df(df, time_field, columns)
+        raise NotImplementedError()
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
 

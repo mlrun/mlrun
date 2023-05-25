@@ -889,7 +889,6 @@ def _ingest_with_spark(
             df = source
         else:
             df = source.to_spark_df(spark, time_field=timestamp_key)
-            df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 

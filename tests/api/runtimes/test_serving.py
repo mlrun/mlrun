@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
 import mlrun.api.crud.runtimes.nuclio.function
-import tests.api.api.utils
 from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.db import SQLDB
@@ -255,7 +254,6 @@ class TestServingRuntime(TestNuclioRuntime):
         mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
-        tests.api.api.utils.create_project(client, self.project)
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
         req = {

@@ -376,6 +376,7 @@ class FeatureSet(ModelObj):
         self.status = None
         self._last_state = ""
         self._aggregations = {}
+        self.set_targets()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -479,8 +480,20 @@ class FeatureSet(ModelObj):
         else:
             self.spec.with_default_targets = False
 
-        validate_target_list(targets=targets)
+        self.spec.targets = []
+        self.__set_targets_add_targets_helper(targets)
 
+        if default_final_step:
+            self.spec.graph.final_step = default_final_step
+
+    def __set_targets_add_targets_helper(self, targets):
+        """
+        Add the desired target list
+
+        :param targets: list of target type names ('csv', 'nosql', ..) or target objects
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), StreamTarget(), ..
+        """
+        validate_target_list(targets=targets)
         for target in targets:
             kind = target.kind if hasattr(target, "kind") else target
             if kind not in TargetTypes.all():
@@ -492,8 +505,6 @@ class FeatureSet(ModelObj):
                     target, name=str(target), partitioned=(target == "parquet")
                 )
             self.spec.targets.update(target)
-        if default_final_step:
-            self.spec.graph.final_step = default_final_step
 
     def validate_steps(self, namespace):
         if not self.spec:

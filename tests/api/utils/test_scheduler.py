@@ -56,7 +56,10 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
-schedule_end_time_margin = 0.5
+
+# TODO: The margin will need to rise for each additional CPU-consuming operation added along the flow,
+#  we need to consider how to decouple in the future
+schedule_end_time_margin = 0.7
 
 
 async def bump_counter():
@@ -73,6 +76,19 @@ async def bump_counter_and_wait():
 
 async def do_nothing():
     pass
+
+
+def create_project(
+    db: Session, project_name: str = None
+) -> mlrun.common.schemas.Project:
+    """API tests use sql db, so we need to create the project with its schema"""
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name=project_name or config.default_project
+        )
+    )
+    mlrun.api.crud.Projects().create_project(db, project)
+    return project
 
 
 @pytest.mark.asyncio
@@ -151,7 +167,7 @@ async def test_invoke_schedule(
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
@@ -208,6 +224,15 @@ async def test_create_schedule_mlrun_function(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
 
+    project_name = config.default_project
+    create_project(db, project_name)
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 0
+
     expected_call_counter = 1
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
         number_of_jobs=expected_call_counter, seconds_interval=1
@@ -217,14 +242,6 @@ async def test_create_schedule_mlrun_function(
         second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
-    project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
-
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
-        db, project_name
-    )
-    runs = get_db().list_runs(db, project=project_name)
-    assert len(runs) == 0
     scheduler.create_schedule(
         db,
         mlrun.common.schemas.AuthInfo(),
@@ -287,7 +304,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
 ):
     name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -1016,7 +1033,7 @@ async def test_update_schedule(
     inactive_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -1228,15 +1245,8 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    now = datetime.now(timezone.utc)
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_5_seconds = now + timedelta(seconds=5)
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
-        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
-    )
-    schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = (
         _create_mlrun_function_and_matching_scheduled_object(
@@ -1248,6 +1258,14 @@ async def test_schedule_job_concurrency_limit(
 
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
+
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+    )
+    schedule_name = "schedule-name"
 
     scheduler.create_schedule(
         db,
@@ -1308,7 +1326,7 @@ async def test_schedule_job_next_run_time(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    mlrun.new_project(project_name, save=False)
+    create_project(db, project_name)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name, handler="sleep_two_seconds"

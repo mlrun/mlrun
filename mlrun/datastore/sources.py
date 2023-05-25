@@ -194,7 +194,6 @@ class CSVSource(BaseSourceDriver):
 
         return storey.CSVSource(
             paths=self.path,
-            header=True,
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=self._get_store().get_storage_options(),

@@ -48,6 +48,10 @@ default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
+    "kubernetes": {
+        "kubeconfig_path": "",  # local path to kubeconfig file (for development purposes),
+        # empty by default as the API already running inside k8s cluster
+    },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",
@@ -77,6 +81,8 @@ default_config = {
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
+    # template for project default image name. Parameter {name} will be replaced with project name
+    "default_project_image_name": ".mlrun-project-image-{name}",
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
@@ -230,10 +236,10 @@ default_config = {
             "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
-            # Whether or not to perform database migration from sqlite to mysql on initialization
+            # Whether to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
             "backup": {
-                # Whether or not to use db backups on initialization
+                # Whether to use db backups on initialization
                 "mode": "enabled",
                 "file_format": "db_backup_%Y%m%d%H%M.db",
                 "use_rotation": True,
@@ -244,6 +250,14 @@ default_config = {
             # None will set this to be equal to the httpdb.max_workers
             "connections_pool_size": None,
             "connections_pool_max_overflow": None,
+            # below is a db-specific configuration
+            "mysql": {
+                # comma separated mysql modes (globally) to set on runtime
+                # optional values (as per https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html#sql-mode-full):
+                #
+                # if set to "nil" or "none", nothing would be set
+                "modes": "STRICT_TRANS_TABLES",
+            },
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work
@@ -537,8 +551,7 @@ def is_running_as_api():
     global _is_running_as_api
 
     if _is_running_as_api is None:
-        # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+        _is_running_as_api = os.getenv("MLRUN_IS_API_SERVER", "false").lower() == "true"
 
     return _is_running_as_api
 
@@ -1028,7 +1041,7 @@ def _populate(skip_errors=False):
 def _do_populate(env=None, skip_errors=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
+    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)

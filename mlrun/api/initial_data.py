@@ -44,7 +44,20 @@ def init_data(
     from_scratch: bool = False, perform_migrations_if_needed: bool = False
 ) -> None:
     logger.info("Initializing DB data")
-    mlrun.api.utils.db.mysql.MySQLUtil.wait_for_db_liveness(logger)
+
+    # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
+    mysql_util = mlrun.api.utils.db.mysql.MySQLUtil(logger)
+    if mysql_util.get_mysql_dsn_data():
+        mysql_util.wait_for_db_liveness()
+        mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+    else:
+        dsn = mysql_util.get_dsn()
+        if "sqlite" in dsn:
+            logger.debug("SQLite DB is used, liveness check not needed")
+        else:
+            logger.warn(
+                f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
+            )
 
     sqlite_migration_util = None
     if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
@@ -82,9 +95,9 @@ def init_data(
 
             _perform_database_migration(sqlite_migration_util)
 
+            init_db()
             db_session = create_session()
             try:
-                init_db(db_session)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             finally:
@@ -105,9 +118,11 @@ def init_data(
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
-# This is because data version 1 points to to a data migration which was added back in 0.6.0, and
+# This is because data version 1 points to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
+
+# NOTE: Bump this number when adding a new data migration
 latest_data_version = 3
 
 

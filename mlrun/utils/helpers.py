@@ -16,6 +16,7 @@ import enum
 import hashlib
 import inspect
 import json
+import os
 import re
 import sys
 import time
@@ -161,6 +162,34 @@ def verify_field_regex(
             else:
                 return False
     return True
+
+
+def validate_builder_source(
+    source: str, pull_at_runtime: bool = False, workdir: str = None
+):
+    if pull_at_runtime or not source:
+        return
+
+    if "://" not in source:
+        if not path.isabs(source):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+                "set 'source' to a remote URL to clone/copy the source to the base image, "
+                "or set 'pull_at_runtime' to True to pull the source at runtime."
+            )
+    else:
+        logger.warn(
+            "Loading local source at build time requires the source to be on the base image, "
+            "in which case it is recommended to use 'workdir' instead",
+            source=source,
+            workdir=workdir,
+        )
+
+    if source.endswith(".zip"):
+        logger.warn(
+            "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
+            source=source,
+        )
 
 
 def validate_tag_name(
@@ -1302,6 +1331,11 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
     if not branch and not reference:
         url = f"{url}#refs/heads/{repo.active_branch}"
     return url
+
+
+def is_file_path(filepath):
+    root, ext = os.path.splitext(filepath)
+    return os.path.isfile(filepath) and ext
 
 
 class DeprecationHelper(object):

@@ -147,10 +147,9 @@ def get_offline_features(
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param timestamp_for_filtering: (str, Dist). Optional.
-                                    name of column to filter on, can be str for all the feature sets or
+    :param timestamp_for_filtering: name of the column to filter, can be str for all the feature sets or
                                     dictionary ({<feature set name>: <timestamp column name>, ...})
-                                    that indicates the timestamp column name for each feature set.
+                                    that indicates the timestamp column name for each feature set. Optional.
                                     by default the filter executed on the timestamp_key of each feature set.
                                     Note: the time filtering preformed on each feature set before the
                                     merge process using start_time and end_time params.

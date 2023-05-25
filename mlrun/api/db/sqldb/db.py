@@ -1121,7 +1121,11 @@ class SQLDB(DBInterface):
         try:
             self.delete_schedule(session=session, project=project, name=function_name)
         except mlrun.errors.MLRunNotFoundError:
-            pass
+            logger.info(
+                "No schedules were found for function",
+                project=project,
+                function=function_name,
+            )
 
     def _list_function_tags(self, session, project, function_id):
         query = (

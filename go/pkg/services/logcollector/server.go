@@ -659,7 +659,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	startedStreamingGoroutine <- true
 
 	// create a log file to the pod
-	logFilePath := s.resolvePodLogFilePath(projectName, runUID)
+	logFilePath := s.resolveRunLogFilePath(projectName, runUID)
 	if err := common.EnsureFileExists(logFilePath); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to ensure log file",
@@ -788,8 +788,8 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	return true, nil
 }
 
-// resolvePodLogFilePath returns the path to the pod log file
-func (s *Server) resolvePodLogFilePath(projectName, runUID string) string {
+// resolveRunLogFilePath returns the path to the pod log file
+func (s *Server) resolveRunLogFilePath(projectName, runUID string) string {
 	return path.Join(s.baseDir, projectName, runUID)
 }
 
@@ -838,7 +838,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 		}
 
 		// get run log file path
-		runLogFilePath := s.resolvePodLogFilePath(projectName, runUID)
+		runLogFilePath := s.resolveRunLogFilePath(projectName, runUID)
 
 		if exists, err := common.FileExists(runLogFilePath); err != nil {
 			s.Logger.WarnWithCtx(ctx,

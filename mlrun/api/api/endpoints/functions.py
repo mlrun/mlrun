@@ -640,13 +640,17 @@ def _build_function(
                                 fn.metadata.project,
                                 mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
                             )
-                            if mlrun.utils.model_monitoring.get_stream_path(
+
+                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
-                            ).startswith("v3io://"):
+                            )
+
+                            if stream_path.startswith("v3io://"):
                                 # Initialize model monitoring V3IO stream
                                 _create_model_monitoring_stream(
                                     project=fn.metadata.project,
                                     function=fn,
+                                    stream_path=stream_path,
                                 )
 
                         if fn.spec.tracking_policy:
@@ -819,13 +823,8 @@ async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
         )
 
 
-def _create_model_monitoring_stream(project: str, function):
-
+def _create_model_monitoring_stream(project: str, function, stream_path):
     _init_serving_function_stream_args(fn=function)
-
-    stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project, kind="events"
-    )
 
     _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 

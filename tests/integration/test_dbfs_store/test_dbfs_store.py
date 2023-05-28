@@ -66,10 +66,8 @@ class TestDBFSStore:
         data_item.put(test_string)
         response = data_item.get()
         assert response.decode() == test_string
-        #
         response = data_item.get(offset=20)
         assert response.decode() == test_string[20:]
-        #
         stat = data_item.stat()
         assert stat.size == len(test_string)
 

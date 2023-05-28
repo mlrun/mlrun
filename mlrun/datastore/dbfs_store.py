@@ -73,9 +73,7 @@ class DBFSStore(DataStore):
         if isinstance(data, bytes):
             mode += "b"
         elif not isinstance(data, str):
-            raise TypeError(
-                f"Unknown data type {type(data)}"
-            )
+            raise TypeError(f"Unknown data type {type(data)}")
         with self._filesystem.open(key, mode) as f:
             f.write(data)
 

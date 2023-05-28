@@ -46,10 +46,8 @@ class DaskFeatureMerger(BaseMerger):
         right_keys: list,
     ):
         def sort_partition(partition, timestamp):
-            sorted_partition = partition.sort_values(timestamp)
-            return sorted_partition
+            return partition.sort_values(timestamp)
 
-        # Apply the sorting operation to each partition
         entity_df = entity_df.map_partitions(
             sort_partition, timestamp=entity_timestamp_column
         )

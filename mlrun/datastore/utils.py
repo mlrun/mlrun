@@ -84,7 +84,7 @@ def upload_tarball(source_dir, target, secrets=None):
         datastore.upload(subpath, temp_fh.name)
 
 
-class RestartableIterator:
+class _RestartableIterator:
     def __init__(self, iterable):
         self.iterable = iterable
 
@@ -92,7 +92,7 @@ class RestartableIterator:
         return iter(self.iterable)
 
 
-def filter_df_start_end_time(df, time_field=None, start_time=None, end_time=None):
+def helper_filter_df(df, time_field=None, start_time=None, end_time=None):
     df = _iter_over_df(df)
     for df_in in df:
         if time_field:
@@ -101,24 +101,24 @@ def filter_df_start_end_time(df, time_field=None, start_time=None, end_time=None
                 df_in = df_in[df_in[time_field] > start_time]
             if end_time:
                 df_in = df_in[df_in[time_field] <= end_time]
-            if not isinstance(df, RestartableIterator):
+            if not isinstance(df, _RestartableIterator):
                 return df_in
         return df
 
 
-def select_columns_from_df(df, columns):
+def helper_select_columns_from_df(df, columns):
     df = _iter_over_df(df)
     for df_in in df:
         if columns:
             df_in = df_in[columns]
-        if not isinstance(df, RestartableIterator):
+        if not isinstance(df, _RestartableIterator):
             return df_in
     return df
 
 
 def _iter_over_df(df):
     if not isinstance(df, pd.DataFrame):
-        df = RestartableIterator(df)
+        df = _RestartableIterator(df)
     else:
         df = [df]
     return df

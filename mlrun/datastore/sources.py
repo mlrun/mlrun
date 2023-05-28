@@ -32,7 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import filter_df_start_end_time, select_columns_from_df, store_path_to_spark
+from .utils import helper_select_columns_from_df, store_path_to_spark
 
 
 def get_source_from_dict(source):
@@ -74,7 +74,7 @@ class BaseSourceDriver(DataSource):
         return None
 
     def to_dataframe(self, **kwargs):
-        return select_columns_from_df(
+        return helper_select_columns_from_df(
             self.filter_df_start_end_time(
                 mlrun.store_manager.object(url=self.path).as_df(**kwargs), **kwargs
             ),
@@ -230,7 +230,7 @@ class CSVSource(BaseSourceDriver):
         chunksize = self.attributes.get("chunksize")
         if chunksize:
             reader_args["chunksize"] = chunksize
-        return select_columns_from_df(
+        return helper_select_columns_from_df(
             self.filter_df_start_end_time(
                 mlrun.store_manager.object(url=self.path).as_df(
                     parse_dates=self._parse_dates, **reader_args
@@ -504,7 +504,7 @@ class BigQuerySource(BaseSourceDriver):
             )
         else:
             # TODO : filter as part of the query
-            return select_columns_from_df(
+            return helper_select_columns_from_df(
                 self.filter_df_start_end_time(
                     rows_iterator.to_dataframe(dtypes=dtypes), **kwargs
                 ),

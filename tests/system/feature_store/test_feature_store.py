@@ -4107,9 +4107,10 @@ class TestFeatureStore(TestMLRunSystem):
         vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
 
         resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
-        local_engine_res = resp.to_dataframe().sort_index(axis=1)
+        res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert local_engine_res.shape == (2, 2)
+        assert res_df.shape == (2, 2)
+        assert res_df["f2"].tolist() == ["newest", "only-value"]
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize(

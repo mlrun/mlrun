@@ -36,9 +36,9 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .utils import (
-    filter_df_start_end_time,
+    helper_filter_df,
+    helper_select_columns_from_df,
     parse_kafka_url,
-    select_columns_from_df,
     store_path_to_spark,
 )
 
@@ -669,8 +669,8 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return select_columns_from_df(
-            filter_df_start_end_time(
+        return helper_select_columns_from_df(
+            helper_filter_df(
                 mlrun.get_dataitem(self.get_target_path()).as_df(
                     columns=columns,
                     df_module=df_module,
@@ -1490,8 +1490,8 @@ class DFTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        return select_columns_from_df(
-            filter_df_start_end_time(
+        return helper_select_columns_from_df(
+            helper_filter_df(
                 self._df,
                 start_time=start_time,
                 end_time=end_time,
@@ -1669,7 +1669,7 @@ class SQLTarget(BaseStoreTarget):
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
             # TODO : filter as part of the query
-            df = filter_df_start_end_time(
+            df = helper_filter_df(
                 pd.read_sql(
                     f"SELECT * FROM {self.attributes.get('table_name')}",
                     con=conn,

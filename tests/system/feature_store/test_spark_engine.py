@@ -1362,7 +1362,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
@@ -1432,7 +1432,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
         )
@@ -1929,7 +1929,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1959,7 +1959,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -1985,7 +1985,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -2007,7 +2007,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -2034,7 +2034,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             join_type=join_type,
@@ -2117,7 +2117,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by=["n"],
@@ -2179,11 +2179,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)
 
-        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
-
-        resp = fstore.get_offline_features(vec, engine="local")
-        local_engine_res = resp.to_dataframe().sort_index(axis=1)
-
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
         )
@@ -2193,14 +2188,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
             target=target,
         )
         spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
         assert spark_engine_res.shape == (2, 2)
-        assert local_engine_res.equals(spark_engine_res)
+        assert spark_engine_res["f2"].tolist() == ["newest", "only-value"]
 
     @pytest.mark.parametrize(
         "timestamp_for_filtering",
@@ -2258,7 +2253,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             end_time=test_base_time,
             timestamp_for_filtering=timestamp_for_filtering,
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
             target=target,
         )

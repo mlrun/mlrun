@@ -215,18 +215,19 @@ class BaseMerger(abc.ABC):
             else:
                 time_column = feature_set.spec.timestamp_key
 
-            if (start_time or end_time) and (
-                not time_column
-                or (
-                    time_column != feature_set.spec.timestamp_key
-                    and time_column
-                    not in [feature.name for feature in feature_set.spec.features]
-                )
-            ):
+            if (start_time or end_time) and not time_column:
+                # not timestamp and not timestamp_for_filtering
                 logger.info(
                     f"You provided start_time or end_time but the feature_set {name} "
-                    f"doesn't have timestamp_key or {timestamp_for_filtering} you spesified for this feature set "
-                    f"is not in it's features therefore the time filter didn't executed on it."
+                    f"doesn't have timestamp_key and you didn't specified a timestamp column fot it."
+                    f"Therefore, it was not filtered based on time."
+                )
+            elif (start_time or end_time) and time_column and time_column != feature_set.spec.timestamp_key \
+                    and time_column not in [feature.name for feature in feature_set.spec.features]:
+                logger.info(
+                    f"You provided start_time or end_time but the feature_set {name} "
+                    f"doesn't have feature named {time_column} to filter on."
+                    f"Therefore, it was not filtered based on time."
                 )
                 time_column = None
 
@@ -288,7 +289,7 @@ class BaseMerger(abc.ABC):
             entity_rows = self.spark.createDataFrame(entity_rows)
 
         # join the feature data frames
-        res_time = self.merge(
+        result_timestamp = self.merge(
             entity_df=entity_rows,
             entity_timestamp_column=entity_timestamp_column if entity_rows else None,
             featuresets=feature_sets,
@@ -297,9 +298,9 @@ class BaseMerger(abc.ABC):
         )
 
         all_columns = None
-        if not self._drop_indexes and res_time:
-            if res_time not in self._alias.values():
-                self._update_alias(key=res_time, val=res_time)
+        if not self._drop_indexes and result_timestamp:
+            if result_timestamp not in self._alias.values():
+                self._update_alias(key=result_timestamp, val=result_timestamp)
             all_columns = list(self._alias.keys())
 
         df_temp = self._rename_columns_and_select(
@@ -696,7 +697,7 @@ class BaseMerger(abc.ABC):
         :param column_names:            list of columns to select (if not all)
         :param start_time:              filter by start time
         :param end_time:                filter by end time
-        :param time_column: specify the time column name in the file
+        :param time_column:             specify the time column name to filter on
 
         :return: Data frame of the current engine
         """

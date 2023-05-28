@@ -51,7 +51,7 @@ class DBFSStore(DataStore):
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         key = self._prepare_path_and_verify_filesystem(key)
-        if size <= 0:
+        if size is not None and size <= 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "size cannot be negative or zero"
             )

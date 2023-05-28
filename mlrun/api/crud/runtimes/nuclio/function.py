@@ -65,7 +65,11 @@ def deploy_nuclio_function(
     )
 
     try:
-        logger.info("Starting Nuclio function deployment")
+        logger.info(
+            "Starting Nuclio function deployment",
+            function_name=function_name,
+            project_name=project_name,
+        )
         return nuclio.deploy.deploy_config(
             function_config,
             dashboard_url=mlrun.mlconf.nuclio_dashboard_url,

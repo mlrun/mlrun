@@ -105,7 +105,7 @@ class DBFSStore(DataStore):
         files = self._filesystem.glob(remote_path)
         key_length = len(key)
         #  Get only the files and directories under key path, without the key path itself.
-        # for example for /test_mlrun_dbfs_objects/test.txt the function will return ['test.txt']
+        # for example for /test_mlrun_dbfs_objects/test.txt the function will return ['test.txt'].
         files = [
             file.split("/", 1)[1][key_length:]
             for file in files

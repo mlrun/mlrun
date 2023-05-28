@@ -66,7 +66,7 @@ class DBFSStore(DataStore):
         key = self._prepare_path_and_verify_filesystem(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Append mode not supported for Databricks file system!"
+                "Append mode not supported for Databricks file system"
             )
         #  can not use append mode because it overrides data.
         mode = "w"
@@ -74,7 +74,7 @@ class DBFSStore(DataStore):
             mode += "b"
         elif not isinstance(data, str):
             raise TypeError(
-                "Data type unknown.  Unable to put in Databricks file system!"
+                "Data type unknown.  Unable to put in Databricks file system"
             )
         with self._filesystem.open(key, mode) as f:
             f.write(data)

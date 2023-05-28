@@ -221,7 +221,9 @@ As the graph is initialized, this class instance can receive global parameters i
 determine its behavior.
 
 The following example class multiples a feature by a value and adds it to the event (for simplicity, data type 
-checks and validations were omitted as well as needed imports):
+checks and validations were omitted as well as needed imports). Note that the class also extends 
+{py:class}`~mlrun.serving.utils.StepToDict` - this class implements generic serialization of graph steps to
+a python dictionary. This functionality allows passing instances of this class to `graph.to()` and `graph.add_step()`:
 
 ```python
 class MultiplyFeature(StepToDict, MLRunStep):

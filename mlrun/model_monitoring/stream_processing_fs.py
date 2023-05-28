@@ -620,9 +620,10 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # If error key has been found in the current event,
         # increase the error counter by 1 and raise the error description
-        if "error" in event:
+        error = event.get("error")
+        if error:
             self.error_count[endpoint_id] += 1
-            raise mlrun.errors.MLRunInvalidArgumentError(f"{event['error']}")
+            raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")

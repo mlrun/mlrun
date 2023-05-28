@@ -45,7 +45,7 @@ class DBFSStore(DataStore):
             )
         if not key.startswith("/"):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid path(key attribute) - path must start with '/'"
+                "Invalid key parameter - key must start with '/'"
             )
 
     def get(self, key: str, size=None, offset=0) -> bytes:

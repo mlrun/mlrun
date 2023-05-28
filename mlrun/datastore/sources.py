@@ -32,7 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import helper_select_columns_from_df, store_path_to_spark
+from .utils import helper_select_columns_from_df, store_path_to_spark, helper_filter_df
 
 
 def get_source_from_dict(source):
@@ -96,7 +96,7 @@ class BaseSourceDriver(DataSource):
             end_time = self.end_time or end_time
             time_field = self.time_field or time_field
 
-        return filter_df_start_end_time(
+        return helper_filter_df(
             df, time_field=time_field, start_time=start_time, end_time=end_time
         )
 

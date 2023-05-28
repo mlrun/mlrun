@@ -40,7 +40,7 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import Response
-from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
+from ..utils import get_caller_globals, logger, normalize_name
 from .common import (
     RunConfig,
     get_feature_set_by_uri,
@@ -207,11 +207,6 @@ def get_offline_features(
             timestamp_for_filtering=timestamp_for_filtering,
         )
 
-    start_time = str_to_timestamp(start_time)
-    end_time = str_to_timestamp(end_time)
-    if start_time and not end_time:
-        # if end_time is not specified set it to now()
-        end_time = pd.Timestamp.now()
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,

@@ -96,6 +96,10 @@ def run_merge_job(
         set_default_resources(
             function.spec.executor_resources, function.with_executor_requests
         )
+    if start_time and not isinstance(start_time, str):
+        start_time = start_time.isoformat()
+    if end_time and not isinstance(end_time, str):
+        end_time = end_time.isoformat()
 
     task = new_task(
         name=name,

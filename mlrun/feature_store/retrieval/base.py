@@ -16,12 +16,14 @@ import abc
 import typing
 from datetime import datetime
 
+import pandas as pd
+
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
 from mlrun.feature_store.feature_vector import Feature
 
-from ...utils import logger
+from ...utils import logger, str_to_timestamp
 from ..feature_vector import OfflineVectorResponse
 
 
@@ -106,6 +108,12 @@ class BaseMerger(abc.ABC):
                 self._append_drop_column(feature_set.spec.timestamp_key)
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
+
+        start_time = str_to_timestamp(start_time)
+        end_time = str_to_timestamp(end_time)
+        if start_time and not end_time:
+            # if end_time is not specified set it to now()
+            end_time = pd.Timestamp.now()
 
         return self._generate_vector(
             entity_rows,
@@ -198,10 +206,9 @@ class BaseMerger(abc.ABC):
                     self._append_drop_column(column)
                     column_names.append(column)
 
-            if isinstance(timestamp_for_filtering, typing.Dict):
-                time_column = (
-                    timestamp_for_filtering.get(name, None)
-                    or feature_set.spec.timestamp_key
+            if isinstance(timestamp_for_filtering, dict):
+                time_column = timestamp_for_filtering.get(
+                    name, feature_set.spec.timestamp_key
                 )
             elif isinstance(timestamp_for_filtering, str):
                 time_column = timestamp_for_filtering

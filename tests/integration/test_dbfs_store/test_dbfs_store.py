@@ -55,7 +55,7 @@ class TestDBFSStore:
         self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
         self._object_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
-        self._object_path = self._object_dir + "/" + self._object_file
+        self._object_path = f"{self._object_dir}/{self._object_file}"
         self._dbfs_url = "dbfs://" + self._databricks_workspace
         self._object_url = self._dbfs_url + self._object_path
 
@@ -77,7 +77,7 @@ class TestDBFSStore:
 
         source_parquet = pd.read_parquet(test_parquet)
         upload_parquet_file_path = (
-            self._object_dir + "/" + f"file_{str(uuid.uuid4())}.parquet"
+            f"{self._object_dir}/file_{str(uuid.uuid4())}.parquet"
         )
         upload_parquet_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_parquet_file_path
@@ -94,7 +94,7 @@ class TestDBFSStore:
         )
 
         source_csv = pd.read_csv(test_csv)
-        upload_csv_file_path = self._object_dir + "/" + f"file_{str(uuid.uuid4())}.csv"
+        upload_csv_file_path = f"{self._object_dir}/file_{str(uuid.uuid4())}.csv"
         upload_csv_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_csv_file_path
         )

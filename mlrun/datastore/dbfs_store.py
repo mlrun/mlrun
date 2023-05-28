@@ -74,7 +74,7 @@ class DBFSStore(DataStore):
             mode += "b"
         elif not isinstance(data, str):
             raise TypeError(
-                "Data type unknown.  Unable to put in Databricks file system"
+                f"Unknown data type {type(data)}"
             )
         with self._filesystem.open(key, mode) as f:
             f.write(data)

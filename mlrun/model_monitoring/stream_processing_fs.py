@@ -618,8 +618,11 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
 
-        # Handle errors coming from stream
-        self.handle_errors(endpoint_id, event)
+        # If error key has been found in the current event,
+        # increase the error counter by 1 and raise the error description
+        if "error" in event:
+            self.error_count[endpoint_id] += 1
+            raise mlrun.errors.MLRunInvalidArgumentError(f"{event['error']}")
 
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
@@ -797,21 +800,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             return True
         self.error_count[endpoint_id] += 1
         return False
-
-    def handle_errors(self, endpoint_id, event):
-        """
-        If error key has been found in the current event,
-        increase the error counter by 1 and raise the error description
-
-        :param endpoint_id: current model endpoint unique id.
-        :param event:       event dictionary that will be used for searching the possible error.
-
-        :raise mlrun.errors.MLRunInvalidArgumentError: description of the event error that will be pushed to the
-                                                       error stream
-        """
-        if "error" in event:
-            self.error_count[endpoint_id] += 1
-            raise mlrun.errors.MLRunInvalidArgumentError(f"{event['error']}")
 
 
 def is_not_none(field: typing.Any, dict_path: typing.List[str]):

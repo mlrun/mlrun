@@ -38,7 +38,7 @@ class DBFSStore(DataStore):
             token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint
         )
 
-    def path_and_system_validator(self, key: str):
+    def _prepare_path_and_verify_filesystem(self, key: str):
         if not self._filesystem:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Performing actions on data-item without a valid filesystem"
@@ -49,7 +49,7 @@ class DBFSStore(DataStore):
             )
 
     def get(self, key: str, size=None, offset=0) -> bytes:
-        self.path_and_system_validator(key)
+        key = self._prepare_path_and_verify_filesystem(key)
         size_less_than_one_exception = "negative or zero size argument 1 is invalid."
         if offset:
             if size is None:
@@ -73,7 +73,7 @@ class DBFSStore(DataStore):
 
     def put(self, key, data, append=False):
 
-        self.path_and_system_validator(key)
+        key = self._prepare_path_and_verify_filesystem(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Append mode not supported for Databricks file system!"
@@ -90,11 +90,11 @@ class DBFSStore(DataStore):
             f.write(data)
 
     def upload(self, key: str, src_path: str):
-        self.path_and_system_validator(key)
+        key = self._prepare_path_and_verify_filesystem(key)
         self._filesystem.put_file(src_path, key, overwrite=True)
 
     def stat(self, key: str):
-        self.path_and_system_validator(key)
+        key = self._prepare_path_and_verify_filesystem(key)
         files = self._filesystem.ls(key, detail=True)
         if len(files) == 1 and files[0]["type"] == "file":
             size = files[0]["size"]
@@ -108,7 +108,7 @@ class DBFSStore(DataStore):
         """
         Basic ls of file/dir - without recursion.
         """
-        self.path_and_system_validator(key)
+        key = self._prepare_path_and_verify_filesystem(key)
         if self._filesystem.isfile(key):
             return key
         remote_path = f"{key}/*"

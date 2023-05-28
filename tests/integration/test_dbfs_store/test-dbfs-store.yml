@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 env:
-  # databricks connection token
+  # databricks authentication token
   DATABRICKS_TOKEN:
   # databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
   # - it is not for use)

@@ -182,19 +182,20 @@ For example:
 <a id="build_config"></a>
 ## Image build configuration
 
-Using the {py:meth}`~mlrun.projects.MlrunProject.set_default_image` function configures a project to use an existing 
-image. In addition to that, a project can contain the configurations for building this default image. This is done 
-through the {py:meth}`~mlrun.projects.MlrunProject.build_config` and {py:meth}`~mlrun.projects.MlrunProject.build_image` 
+Use the {py:meth}`~mlrun.projects.MlrunProject.set_default_image` function to configure a project to use an existing 
+image. The configuration for building this default image can be contained within the project, by using the 
+{py:meth}`~mlrun.projects.MlrunProject.build_config` and {py:meth}`~mlrun.projects.MlrunProject.build_image` 
 functions. 
 
 The project build configuration is maintained in the project object. When saving, exporting and importing the project 
 these configurations are carried over with it. This makes it simple to transport a project between systems while 
-ensuring the needed runtime images are built and are ready for execution. 
+ensuring that the needed runtime images are built and are ready for execution. 
 
-When using {py:meth}`~mlrun.projects.MlrunProject.build_config` build configurations can be passed along with the 
-resulting image name, and these are used to build the image. The image name is assigned following these rules:
+When using {py:meth}`~mlrun.projects.MlrunProject.build_config`, build configurations can be passed along with the 
+resulting image name, and these are used to build the image. The image name is assigned following these rules, 
+based on the project configuration and provided parameters:
 
-1. The name passed in the `image` parameter of the {py:meth}`~mlrun.projects.MlrunProject.build_config` function.
+1. If provided, the name passed in the `image` parameter of {py:meth}`~mlrun.projects.MlrunProject.build_config`.
 2. The project's default image name, if configured using {py:meth}`~mlrun.projects.MlrunProject.set_default_image`.
 3. The value set in MLRun's `default_project_image_name` config parameter - by default this value is 
    `.mlrun-project-image-{name}` with the project name as template parameter.
@@ -212,7 +213,7 @@ For example:
      requirements=["vaderSentiment"],
  )
 
- # Export project configuration. The yaml file will contain build configuration in it
+ # Export the project configuration. The yaml file will contain the build configuration
  proj_file_path = "~/mlrun/my-project/project.yaml"
  project.export(proj_file_path)
 ```
@@ -225,7 +226,7 @@ This project can then be imported and the default image can be built:
  # Build the default image for the project, based on project build config
  new_project.build_image()
 
- # Set a new function and run it, will use the my-project-image image built previously
+ # Set a new function and run it (new function uses the my-project-image image built previously)
  new_project.set_function("sentiment.py", name="scores", kind="job", handler="handler")
  new_project.run_function("scores")
 ```
@@ -233,10 +234,11 @@ This project can then be imported and the default image can be built:
 <a id="build_image"></a>
 ## build_image
 
-The {py:meth}`~mlrun.projects.MlrunProject.build_image` function builds an image using the existing build configuration, 
-and it can also be used to set the build configuration and build the image based on it in a single step. 
-When using `set_as_default=False` any build config provided will still be kept in the project object
-but the generated image name will not be set as the default image for this project. 
+The {py:meth}`~mlrun.projects.MlrunProject.build_image` function builds an image using the existing build configuration. 
+This method can also be used to set the build configuration and build the image based on it - in a single step. 
+
+When using `set_as_default=False` any build config provided is still kept in the project object but the generated 
+image name is not set as the default image for this project. 
 
 For example:
 

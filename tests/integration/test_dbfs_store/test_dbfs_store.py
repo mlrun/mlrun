@@ -65,17 +65,17 @@ class TestDBFSStore:
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(test_string)
         response = data_item.get()
-        assert response.decode() == test_string, "Result differs from original test"
+        assert response.decode() == test_string
         #
         response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:], "Partial result not as expected"
+        assert response.decode() == test_string[20:]
         #
         stat = data_item.stat()
-        assert stat.size == len(test_string), "Stat size different than expected"
+        assert stat.size == len(test_string)
 
         dir_dataitem = mlrun.run.get_dataitem(self._dbfs_url + self._object_dir)
         dir_list = dir_dataitem.listdir()
-        assert self._object_file in dir_list, "File not in container dir-list"
+        assert self._object_file in dir_list
 
         source_parquet = pd.read_parquet(test_parquet)
         upload_parquet_file_path = (
@@ -86,7 +86,7 @@ class TestDBFSStore:
         )
         upload_parquet_data_item.upload(str(test_parquet))
         response = upload_parquet_data_item.as_df()
-        assert source_parquet.equals(response), "Result differs from original parquet"
+        assert source_parquet.equals(response)
         upload_parquet_data_item.delete()
         with pytest.raises(FileNotFoundError) as file_not_found_error:
             upload_parquet_data_item.stat()
@@ -102,7 +102,7 @@ class TestDBFSStore:
         )
         upload_csv_data_item.upload(str(test_csv))
         response = upload_csv_data_item.as_df()
-        assert source_csv.equals(response), "Result differs from original csv"
+        assert source_csv.equals(response)
 
     def test_secrets_as_input(self):
         secrets = {}

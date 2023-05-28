@@ -73,7 +73,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True
+    run_local = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
@@ -1362,7 +1362,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
@@ -1432,7 +1432,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
         )
@@ -1923,7 +1923,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by="name",
@@ -1952,7 +1952,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by="n",
@@ -1977,7 +1977,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by=["n"],
@@ -1998,7 +1998,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by="name",
@@ -2024,7 +2024,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by="n",
@@ -2106,7 +2106,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             vector,
             target=target,
             with_indexes=with_indexes,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
             order_by=["n"],
@@ -2191,7 +2191,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(
             vec_for_spark,
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
             target=target,
         )

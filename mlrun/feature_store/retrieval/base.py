@@ -79,8 +79,6 @@ class BaseMerger(abc.ABC):
         order_by=None,
     ):
         self._target = target
-        # default join_type is inner
-        self._join_type = "inner"
 
         # calculate the index columns and columns we need to drop
         self._drop_columns = drop_columns or self._drop_columns

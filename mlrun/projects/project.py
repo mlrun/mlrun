@@ -2373,21 +2373,31 @@ class MlrunProject(ModelObj):
         :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
          add to existing parameters
         """
-        return build_function(
-            function,
-            with_mlrun=with_mlrun,
-            skip_deployed=skip_deployed,
-            image=image,
-            base_image=base_image,
-            commands=commands,
-            secret_name=secret_name,
-            requirements=requirements,
-            requirements_file=requirements_file,
-            mlrun_version_specifier=mlrun_version_specifier,
-            builder_env=builder_env,
-            project_object=self,
-            overwrite_build_params=overwrite_build_params,
-        )
+        image = image.removeprefix("https://").removeprefix("http://")
+        try:
+            return build_function(
+                function,
+                with_mlrun=with_mlrun,
+                skip_deployed=skip_deployed,
+                image=image,
+                base_image=base_image,
+                commands=commands,
+                secret_name=secret_name,
+                requirements=requirements,
+                requirements_file=requirements_file,
+                mlrun_version_specifier=mlrun_version_specifier,
+                builder_env=builder_env,
+                project_object=self,
+                overwrite_build_params=overwrite_build_params,
+            )
+        except mlrun.errors.MLRunRuntimeError as exc:
+            if not secret_name and image.startswith("."):
+                logger.warnning(
+                    "There is no prefix for the image name, and no secret is provided. Try again using a prefix or supply a Docker registry secret",
+                    image=image,
+                    secret_name=secret_name,
+                )
+                raise exc
 
     def build_config(
         self,

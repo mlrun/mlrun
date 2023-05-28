@@ -222,8 +222,13 @@ class BaseMerger(abc.ABC):
                     f"doesn't have timestamp_key and you didn't specified a timestamp column fot it."
                     f"Therefore, it was not filtered based on time."
                 )
-            elif (start_time or end_time) and time_column and time_column != feature_set.spec.timestamp_key \
-                    and time_column not in [feature.name for feature in feature_set.spec.features]:
+            elif (
+                (start_time or end_time)
+                and time_column
+                and time_column != feature_set.spec.timestamp_key
+                and time_column
+                not in [feature.name for feature in feature_set.spec.features]
+            ):
                 logger.info(
                     f"You provided start_time or end_time but the feature_set {name} "
                     f"doesn't have feature named {time_column} to filter on."

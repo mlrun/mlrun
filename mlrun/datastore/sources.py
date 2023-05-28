@@ -32,7 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import helper_select_columns_from_df, store_path_to_spark, helper_filter_df
+from .utils import helper_filter_df, helper_select_columns_from_df, store_path_to_spark
 
 
 def get_source_from_dict(source):

@@ -370,12 +370,8 @@ class SystemTestPreparer:
             os.environ.get("IP_ADDR_PREFIX", "localhost"),
         ]
         self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command(
-            "python3", args=list_uninstall, workdir="/home/iguazio/"
-        )
-        self._run_command(
-            "python3", args=list_install, workdir="/home/iguazio/"
-        )
+        self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/")
+        self._run_command("python3", args=list_install, workdir="/home/iguazio/")
 
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
@@ -516,7 +512,6 @@ class SystemTestPreparer:
         self._run_command(f"cat {provctl_patch_mlrun_log}")
 
     def _resolve_iguazio_version(self):
-
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")

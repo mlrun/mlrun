@@ -211,14 +211,15 @@ The following are the main differences between transformation steps executing on
 
 To support multiple engines, a custom transformation should extend the {py:class}`~mlrun.feature_store.steps.MLRunStep` 
 class. This class allows implementing engine-specific code by overriding the following methods:
-`_do_storey`, `_do_pandas` and `_do_spark`. To add support for a given engine, the relevant `do` method needs to be 
-implemented. 
+{py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey`, {py:func}`~mlrun.feature_store.steps.MLRunStep._do_pandas` 
+and {py:func}`~mlrun.feature_store.steps.MLRunStep._do_spark`. To add support for a given engine, the relevant `do` 
+method needs to be implemented. 
 
 When a graph is executed, each step is a single instance of the relevant class that gets invoked as events flow through 
 the graph. For `spark` and `pandas` engines, this only happens once per ingestion, as the entire data-frame is fed to 
-the graph. For the `storey` engine the same instance's `_do_storey` function will be invoked per input row. 
-As the graph is initialized, this class instance can receive global parameters in its `__init__` method that will
-determine its behavior.
+the graph. For the `storey` engine the same instance's {py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey` 
+function will be invoked per input row. As the graph is initialized, this class instance can receive global parameters 
+in its `__init__` method that will determine its behavior.
 
 The following example class multiples a feature by a value and adds it to the event (for simplicity, data type 
 checks and validations were omitted as well as needed imports). Note that the class also extends 
@@ -245,17 +246,22 @@ class MultiplyFeature(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         # event is a pyspark.sql.DataFrame
-        return event.withColumn(self._new_feature, col(self._feature) * lit(self._value))
+        return event.withColumn(self._new_feature, 
+                                col(self._feature) * lit(self._value)
+                                )
 ```
 
-Using this step in a feature-set graph using the `pandas` engine. This example will add a feature called 
-`number1_times_4` with the value of the `number1` feature multiplied by 4. Note how the global parameters are sent to
-the class when defining the graph step:
+The following example uses this step in a feature-set graph with the `pandas` engine. This example adds a feature called 
+`number1_times_4` with the value of the `number1` feature multiplied by 4. Note how the global parameters are passed
+when creating the graph step:
 
 ```python
 import mlrun.feature_store as fstore
 
-feature_set = fstore.FeatureSet("fs-new", entities=[fstore.Entity("id")], engine="pandas")
+feature_set = fstore.FeatureSet("fs-new", 
+                                entities=[fstore.Entity("id")], 
+                                engine="pandas",
+                                )
 # Adding multiply step, with specific parameters
 feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
 df_pandas = fstore.ingest(feature_set, data)

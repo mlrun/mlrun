@@ -84,41 +84,45 @@ def upload_tarball(source_dir, target, secrets=None):
         datastore.upload(subpath, temp_fh.name)
 
 
-class _RestartableIterator:
-    def __init__(self, iterable):
-        self.iterable = iterable
-
-    def __iter__(self):
-        return iter(self.iterable)
-
-
-def helper_filter_df(df, time_field=None, start_time=None, end_time=None):
-    df = _iter_over_df(df)
-    for df_in in df:
-        if time_field:
-            df_in[time_field] = pd.to_datetime(df_in[time_field])
-            if start_time:
-                df_in = df_in[df_in[time_field] > start_time]
-            if end_time:
-                df_in = df_in[df_in[time_field] <= end_time]
-            if not isinstance(df, _RestartableIterator):
-                return df_in
+def helper_filter_df(
+    df, time_field=None, start_time=None, end_time=None
+) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
+    if not time_field or (not start_time and not end_time):
         return df
-
-
-def helper_select_columns_from_df(df, columns):
-    df = _iter_over_df(df)
-    for df_in in df:
-        if columns:
-            df_in = df_in[columns]
-        if not isinstance(df, _RestartableIterator):
-            return df_in
-    return df
-
-
-def _iter_over_df(df):
-    if not isinstance(df, pd.DataFrame):
-        df = _RestartableIterator(df)
+    if isinstance(df, pd.DataFrame):
+        df[time_field] = pd.to_datetime(df[time_field])
+        if start_time:
+            df = df[df[time_field] > start_time]
+        if end_time:
+            df = df[df[time_field] <= end_time]
+        return df
     else:
-        df = [df]
-    return df
+        filter_df_generator(df, time_field, start_time, end_time)
+
+
+def filter_df_generator(
+    dfs, time_field, start_time, end_time
+) -> typing.Iterator[pd.DataFrame]:
+    for df_in in dfs:
+        df_in[time_field] = pd.to_datetime(df_in[time_field])
+        if start_time:
+            df_in = df_in[df_in[time_field] > start_time]
+        if end_time:
+            df_in = df_in[df_in[time_field] <= end_time]
+        yield df_in
+
+
+def helper_select_columns_from_df(
+    df, columns
+) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
+    if not columns:
+        return df
+    if isinstance(df, pd.DataFrame):
+        return df[columns]
+    else:
+        return select_columns_generator(df, columns)
+
+
+def select_columns_generator(df, columns) -> typing.Iterator[pd.DataFrame]:
+    for df_in in df:
+        yield df_in[columns]

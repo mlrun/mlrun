@@ -14,7 +14,7 @@
 #
 # This name is referenced in the release.yaml workflow, if you're changing here - change there
 name: Build
-run-name: Build ${{ inputs.version }} ${{ github.ref }}
+run-name: Build ${{ inputs.version }} ${{ github.ref_name }}
 
 on:
   push:

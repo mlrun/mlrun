@@ -224,9 +224,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-        quotes_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # quotes_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         df = fstore.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
@@ -1166,9 +1166,9 @@ class TestFeatureStore(TestMLRunSystem):
             options=fstore.InferOptions.default(),
         )
 
-        data_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # data_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         fstore.ingest(data_set, data, return_df=True)
 
         features = [
@@ -1619,7 +1619,7 @@ class TestFeatureStore(TestMLRunSystem):
             default_final_step="FeaturesetValidator",
         )
 
-        quotes_set.plot(with_targets=True)
+        # quotes_set.plot(with_targets=True)
 
         inf_out = fstore.preview(quotes_set, quotes)
         ing_out = fstore.ingest(quotes_set, quotes, return_df=True)
@@ -3714,38 +3714,27 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "entity_1": [i for i in range(1, 11, 2)],
                 "entity_2": [i for i in range(11, 21, 2)],
-                "val_er": ["val_er"] * 5
+                "val_er": ["val_er"] * 5,
             }
         )
 
         fs_1_df = pd.DataFrame(
-            {
-                "entity_1": [i for i in range(1, 11, 2)],
-                "val_er": ["val_1"] * 5
-            }
+            {"entity_1": [i for i in range(1, 11, 2)], "val_1": ["val_1"] * 5}
         )
 
         fs_2_df = pd.DataFrame(
-            {
-                "entity_2": [i for i in range(11, 21, 2)],
-                "val_er": ["val_2"] * 5
-            }
+            {"entity_2": [i for i in range(11, 21, 2)], "val_2": ["val_2"] * 5}
         )
 
-        join_res = pd.merge(
-            entity_rows,
-            fs_1_df,
-            on=["entity_1"]
-        )
+        join_ref = pd.merge(entity_rows, fs_1_df, on=["entity_1"])
 
-        join_res = pd.merge(
-            join_res,
-            fs_2_df,
-            on=["entity_2"]
-        )
+        join_ref = pd.merge(join_ref, fs_2_df, on=["entity_2"])
 
-        print(join_res)
-        # relations according to departments_set relations
+        if with_indexes:
+            join_ref.set_index(["entity_1", "entity_2"], inplace=True)
+        else:
+            join_ref.drop(columns=["entity_1", "entity_2"], inplace=True)
+
         feature_set_1_entity = fstore.Entity("entity_1")
         feature_set_1 = fstore.FeatureSet(
             "feature_set_1",
@@ -3777,7 +3766,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
         )
 
-        print(resp.to_dataframe())
+        df_res = resp.to_dataframe()
+        assert_frame_equal(join_ref, df_res)
+
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("join_type", ["inner", "outer"])

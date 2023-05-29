@@ -193,6 +193,7 @@ class BaseMerger(abc.ABC):
             feature_set_objects, feature_set_fields
         )
 
+        filtered = False
         for node in fs_link_list:
             name = node.name
             feature_set = feature_set_objects[name]
@@ -215,26 +216,16 @@ class BaseMerger(abc.ABC):
             else:
                 time_column = feature_set.spec.timestamp_key
 
-            if (start_time or end_time) and not time_column:
-                # not timestamp and not timestamp_for_filtering
-                logger.info(
-                    f"You provided start_time or end_time but the feature_set {name} "
-                    f"doesn't have timestamp_key and you didn't specified a timestamp column fot it."
-                    f"Therefore, it was not filtered based on time."
-                )
-            elif (
-                (start_time or end_time)
-                and time_column
-                and time_column != feature_set.spec.timestamp_key
-                and time_column
-                not in [feature.name for feature in feature_set.spec.features]
-            ):
-                logger.info(
-                    f"You provided start_time or end_time but the feature_set {name} "
+            if time_column != feature_set.spec.timestamp_key and time_column not in [
+                feature.name for feature in feature_set.spec.features
+            ]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The {name} feature_set "
                     f"doesn't have feature named {time_column} to filter on."
-                    f"Therefore, it was not filtered based on time."
                 )
-                time_column = None
+
+            if (start_time or end_time) and time_column:
+                filtered = True
 
             df = self._get_engine_df(
                 feature_set,
@@ -285,6 +276,12 @@ class BaseMerger(abc.ABC):
                     new_columns.append((column, alias))
             self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
+        # None of the feature sets was filtered as required
+        if filtered and (start_time or end_time):
+            raise mlrun.errors.MLRunRuntimeError(
+                "start_time and end_time can only be provided in conjunction with "
+                "a timestamp column, or when the feature_sets has a timestamp_key"
+            )
         # convert pandas entity_rows to spark DF if needed
         if (
             entity_rows is not None

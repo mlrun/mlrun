@@ -49,7 +49,7 @@ class DatabricksFileRangeFix(DatabricksFile):
         return return_buffer
 
     def _to_sized_blocks(self, start=0, end=100):
-        """Helper function to split a range from 0 to total_length into bloksizes"""
+        """Helper function to split a range from 0 to total_length into blocksizes"""
         for data_chunk in range(start, end, self.blocksize):
             data_start = data_chunk
             data_end = min(end, data_chunk + self.blocksize)

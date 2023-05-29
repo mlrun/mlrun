@@ -100,7 +100,7 @@ def get_ingress_controller_version():
 
 
 def get_svc_password(namespace, service_name, key):
-    cmd = (f'kubectl get secret --namespace {namespace} {service_name} -o jsonpath="{{.data.{key}}}" | base64 --decode')
+    cmd = f'kubectl get secret --namespace {namespace} {service_name} -o jsonpath="{{.data.{key}}}" | base64 --decode'
     result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.stdout.decode('utf-8').strip()
 
@@ -113,9 +113,9 @@ def print_svc_info(svc_host, svc_port, svc_username, svc_password, nodeport):
 
 
 def check_redis_installation():
-    cmd = ("helm ls -A | grep -w redis | awk '{print $1}' | wc -l")
+    cmd = "helm ls -A | grep -w redis | awk '{print $1}' | wc -l"
     result = subprocess.check_output(cmd, shell=True)
-    return (result.decode('utf-8').strip())
+    return result.decode('utf-8').strip()
 
 
 def add_repos():
@@ -135,11 +135,12 @@ def install_redisinsight(ipadd):
         # get redis password
         redis_password = (
             subprocess.check_output(
-                ['kubectl', 'get', 'secret', '--namespace', 'devtools', 'redis', '-o', 'jsonpath="{.data.redis-password}"'],
+                ['kubectl', 'get', 'secret', '--namespace', 'devtools', 'redis', '-o',
+                 'jsonpath="{.data.redis-password}"'],
                 encoding='utf-8'
             )
             .strip('"\n')
-        )        
+        )
         redis_password = base64.b64decode(redis_password).decode('utf-8')
         cmd = [
             "helm",
@@ -156,20 +157,23 @@ def install_redisinsight(ipadd):
             "fullnameOverride=redisinsight",
             "--namespace",
             "devtools"
-        ]        
+        ]
         subprocess.run(cmd.split(), check=True)
         # run patch cmd
         fqdn = (get_ingress_controller_version())
         full_domain = ('redisinsight' + fqdn)
-        create_ingress_resource(full_domain,ipadd)
+        create_ingress_resource(full_domain, ipadd)
         deployment_name = "redisinsight"
         container_name = "redisinsight-chart"
         env_name = "RITRUSTEDORIGINS"
         full_domain = full_domain
         pfull_domain = ("https://" + full_domain)
-        patch_command = (f'kubectl patch deployment -n devtools {deployment_name} -p \'{{"spec":{{"template":{{"spec":{{"containers":[{{"name":"{container_name}","env":[{{"name":"{env_name}","value":"{pfull_domain}"}}]}}]}}}}}}}}\'')
+        patch_command = (
+            f'kubectl patch deployment -n devtools {deployment_name} -p \'{{"spec":{{"template":{{"spec":{{'
+            f'"containers":[{{"name":"{container_name}","env":[{{"name":"{env_name}","value":"'
+            f'{pfull_domain}"}}]}}]}}}}}}}}\'')
         subprocess.run(patch_command, shell=True)
-        clean_command = ('rm -rf redisinsight-chart-0.1.0.tgz*')
+        clean_command = 'rm -rf redisinsight-chart-0.1.0.tgz*'
         subprocess.run(clean_command, shell=True)
     else:
         print("redis is not install, please install redis first")
@@ -187,11 +191,13 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
     output, exit_code = run_command("kubectl get storageclass local-path >/dev/null 2>&1")
     if exit_code != 0:
         # Install the local-path provisioner
-        cmd = "kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.24/deploy/local-path-storage.yaml"
+        cmd = "kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.24/deploy/local" \
+              "-path-storage.yaml"
         output, exit_code = run_command(cmd)
         if exit_code == 0:
             # Set the local-path storage class as the default
-            cmd = "kubectl patch storageclass local-path -p '{\"metadata\": {\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'"
+            cmd = "kubectl patch storageclass local-path -p '{\"metadata\": {\"annotations\":{" \
+                  "\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'"
             output, exit_code = run_command(cmd)
             if exit_code == 0:
                 print("local-path storage class has been installed and set as the default.")
@@ -221,7 +227,7 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             chart = data['chart']
             set_values = data['set_values']
             cmd = f"helm install {service} {chart} {set_values} --namespace {namespace}"
-            print (cmd)
+            print(cmd)
             subprocess.run(cmd.split(), check=True)
     if redisinsight:
         install_redisinsight(ipadd)
@@ -236,16 +242,16 @@ def uninstall(redis, kafka, mysql, redisinsight):
     services = ['redis', 'kafka', 'mysql', 'redisinsight']
     namespace = 'devtools'
     try:
-      if redisinsight:
-          cmd = ("kubectl delete ingress -n devtools redisinsight")
-          subprocess.run(cmd.split(), check=True)
-      for service in services:
-          if locals().get(service):
-              cmd = f"helm uninstall {service} --namespace {namespace}"
-              subprocess.run(cmd.split(), check=True)
-      print("namespace deleteted")
-      delns = ("kubectl delete namespace  devtools")
-      subprocess.run(cmd.split(), check=True)
+        if redisinsight:
+            cmd = "kubectl delete ingress -n devtools redisinsight"
+            subprocess.run(cmd.split(), check=True)
+        for service in services:
+            if locals().get(service):
+                cmd = f"helm uninstall {service} --namespace {namespace}"
+                subprocess.run(cmd.split(), check=True)
+        print("namespace deleteted")
+        delns = "kubectl delete namespace  devtools"
+        subprocess.run(cmd.split(), check=True)
     except:
         pass
         # code to handle any exception
@@ -254,14 +260,14 @@ def uninstall(redis, kafka, mysql, redisinsight):
 @click.command()
 def list_services():
     namespace = 'devtools'
-    #for service in services:
+    # for service in services:
     cmd = f'helm ls  --namespace {namespace} '
     subprocess.run(cmd.split(), check=True)
 
 
 def list_services_h():
-    namespace = ('devtools')
-    return  get_installed_releases(namespace)
+    namespace = 'devtools'
+    return get_installed_releases(namespace)
 
 
 @click.command()
@@ -270,33 +276,36 @@ def list_services_h():
 @click.option('--mysql', is_flag=True, help='Install MySQL')
 @click.option('--redisinsight', is_flag=True, help='Install Redis GUI')
 def status(redis, kafka, mysql, redisinsight):
-    namespace=("devtools")
+    namespace = "devtools"
     if redis:
-        svc_password = get_svc_password(namespace,  "redis",'redis-password')
-        print_svc_info('redis-master-0.redis-headless.devtools.svc.cluster.local', 6379, 'default', svc_password,'-------')
+        svc_password = get_svc_password(namespace, "redis", 'redis-password')
+        print_svc_info('redis-master-0.redis-headless.devtools.svc.cluster.local', 6379, 'default', svc_password,
+                       '-------')
     if kafka:
-        print_svc_info('kafka', 9092, '-------', '-------','-------')
+        print_svc_info('kafka', 9092, '-------', '-------', '-------')
     if mysql:
-        svc_password = get_svc_password(namespace,  "mysql",'mysql-root-password')
-        print_svc_info('mysql', 3306, 'root', svc_password,'-------')
+        svc_password = get_svc_password(namespace, "mysql", 'mysql-root-password')
+        print_svc_info('mysql', 3306, 'root', svc_password, '-------')
     if redisinsight:
         fqdn = (get_ingress_controller_version())
         full_domain = ('https://redisinsight' + fqdn)
-        print_svc_info('', ' '+ full_domain, '-------', '-------','-------')
+        print_svc_info('', ' ' + full_domain, '-------', '-------', '-------')
 
 
 def status_h(svc):
-    namespace=("devtools")
+    namespace = "devtools"
     if svc == 'redis':
-        svc_password = get_svc_password(namespace,  "redis",'redis-password')
-        dict = {"app_url": "redis-master-0.redis-headless.devtools.svc.cluster.local:6379", "username": "default", "password": svc_password}
+        svc_password = get_svc_password(namespace, "redis", 'redis-password')
+        dict = {"app_url": "redis-master-0.redis-headless.devtools.svc.cluster.local:6379", "username": "default",
+                "password": svc_password}
         return dict
     if svc == 'kafka':
         dict = {"app_url": "kafka-0.kafka-headless.devtools.svc.cluster.local:9092"}
         return dict
     if svc == 'mysql':
-        svc_password = get_svc_password(namespace,  "mysql",'mysql-root-password')
-        dict = {"app_url": "mysql-0.mysql.devtools.svc.cluster.local:3306", "username": "root", "password": svc_password}
+        svc_password = get_svc_password(namespace, "mysql", 'mysql-root-password')
+        dict = {"app_url": "mysql-0.mysql.devtools.svc.cluster.local:3306", "username": "root",
+                "password": svc_password}
         return dict
     if svc == 'redisinsight':
         fqdn = (get_ingress_controller_version())
@@ -314,7 +323,6 @@ cli.add_command(install)
 cli.add_command(uninstall)
 cli.add_command(list_services)
 cli.add_command(status)
-
 
 if __name__ == '__main__':
     cli()

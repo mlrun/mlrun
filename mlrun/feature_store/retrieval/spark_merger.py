@@ -78,15 +78,13 @@ class SparkFeatureMerger(BaseMerger):
 
         aliased_featureset_df = featureset_df.select(projection)
         right_timestamp = rename_right_keys.get(
-                    featureset.spec.timestamp_key, featureset.spec.timestamp_key
-                )
+            featureset.spec.timestamp_key, featureset.spec.timestamp_key
+        )
 
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[
-                right_timestamp
-            ]
+            >= aliased_featureset_df[right_timestamp]
         )
 
         # join based on entities
@@ -101,9 +99,7 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         window = Window.partitionBy("_row_nr").orderBy(
-            col(
-                right_timestamp
-            ).desc(),
+            col(right_timestamp).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)

@@ -923,7 +923,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected = source.to_dataframe().set_index("patient_id")
 
-        start_time = expected["timestamp"][10]  # The file is sorted by time, 10 is just an arbitrary number
+        start_time = expected["timestamp"][
+            10
+        ]  # The file is sorted by time, 10 is just an arbitrary number
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(

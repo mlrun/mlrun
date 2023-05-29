@@ -17,11 +17,6 @@ import click
 import base64
 
 
-@click.group()
-def cli():
-    pass
-
-
 def run_click_command(command, **kwargs):
     """
     Runs a click command with the specified arguments.
@@ -253,6 +248,7 @@ def uninstall(redis, kafka, mysql, redisinsight):
         delns = "kubectl delete namespace  devtools"
         subprocess.run(cmd.split(), check=True)
     except:
+        print ("ignore error")
         pass
         # code to handle any exception
 

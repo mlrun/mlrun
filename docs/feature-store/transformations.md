@@ -194,7 +194,7 @@ that was added previously. The class is initialized with a multiplier of 3.
 ## Supporting multiple engines
 
 MLRun supports multiple processing engines for executing graphs. These engines differ in the way they invoke graph
-steps. When implementing custom transformations, the code has to support all engines which are expected to run it. 
+steps. When implementing custom transformations, the code has to support all engines that are expected to run it. 
 
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
@@ -207,22 +207,22 @@ The following are the main differences between transformation steps executing on
   `full_event` is configured for the step). The step is expected to process the event and return the modified event.
 * `spark` - the step receives a Spark dataframe object. Steps are expected to add their processing and calculations to 
   the dataframe (either in-place or not) and return the resulting dataframe without materializing the data. 
-* `pandas` - the step receives a Pandas dataframe, and processes it. It then returns the dataframe.
+* `pandas` - the step receives a Pandas dataframe, processes it, and returns the dataframe.
 
-To support multiple engines, a custom transformation should extend the {py:class}`~mlrun.feature_store.steps.MLRunStep` 
-class. This class allows implementing engine-specific code by overriding the following methods:
+To support multiple engines, extend the {py:class}`~mlrun.feature_store.steps.MLRunStep` class with a custom
+transformation. This class allows implementing engine-specific code by overriding the following methods:
 {py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey`, {py:func}`~mlrun.feature_store.steps.MLRunStep._do_pandas` 
 and {py:func}`~mlrun.feature_store.steps.MLRunStep._do_spark`. To add support for a given engine, the relevant `do` 
 method needs to be implemented. 
 
 When a graph is executed, each step is a single instance of the relevant class that gets invoked as events flow through 
-the graph. For `spark` and `pandas` engines, this only happens once per ingestion, as the entire data-frame is fed to 
+the graph. For `spark` and `pandas` engines, this only happens once per ingestion, since the entire data-frame is fed to 
 the graph. For the `storey` engine the same instance's {py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey` 
 function will be invoked per input row. As the graph is initialized, this class instance can receive global parameters 
-in its `__init__` method that will determine its behavior.
+in its `__init__` method that determines its behavior.
 
-The following example class multiples a feature by a value and adds it to the event (for simplicity, data type 
-checks and validations were omitted as well as needed imports). Note that the class also extends 
+The following example class multiples a feature by a value and adds it to the event. (For simplicity, data type 
+checks and validations were omitted as well as needed imports.) Note that the class also extends 
 {py:class}`~mlrun.serving.utils.StepToDict` - this class implements generic serialization of graph steps to
 a python dictionary. This functionality allows passing instances of this class to `graph.to()` and `graph.add_step()`:
 

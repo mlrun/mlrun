@@ -42,7 +42,7 @@ class MLRunStep(MapClass):
     def __init__(self, **kwargs):
         """Abstract class for mlrun step.
         Can be used in pandas/storey/spark feature set ingestion. Extend this class and implement the relevant
-        `_do_XXX` methods to support the execution engines needed.
+        `_do_XXX` methods to support the required execution engines.
         """
         super().__init__(**kwargs)
         self._engine_to_do_method = {
@@ -56,7 +56,7 @@ class MLRunStep(MapClass):
         This method defines the do method of this class according to the first event type.
 
         .. warning::
-            When extending this class, do not override this method - only override the `_do_XXX` methods.
+            When extending this class, do not override this method; only override the `_do_XXX` methods.
         """
         engine = get_engine(event)
         self.do = self._engine_to_do_method.get(engine, None)

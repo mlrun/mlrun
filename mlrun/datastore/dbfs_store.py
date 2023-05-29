@@ -12,14 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import fsspec
+from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
 
 import mlrun.errors
-from mlrun.datastore.helpers import ONE_MB
-
 from .base import DataStore, FileStats
 
 # dbfs objects will be represented with the following URL: dbfs://<path>
+
+
+class DatabricksFileRangeFix(DatabricksFile):
+    def _upload_chunk(self, final=False):
+        """Internal function to add a chunk of data to a started upload"""
+        self.buffer.seek(0)
+        data = self.buffer.getvalue()
+
+        data_chunks = [
+            data[start:end] for start, end in self._to_sized_blocks(end=len(data))
+        ]
+
+        for data_chunk in data_chunks:
+            self.fs._add_data(handle=self.handle, data=data_chunk)
+
+        if final:
+            self.fs._close_handle(handle=self.handle)
+            return True
+
+    def _fetch_range(self, start, end):
+        """Internal function to download a block of data"""
+        return_buffer = b""
+        for chunk_start, chunk_end in self._to_sized_blocks(start, end):
+            return_buffer += self.fs._get_data(
+                path=self.path, start=chunk_start, end=chunk_end
+            )
+
+        return return_buffer
+
+    def _to_sized_blocks(self, start=0, end=100):
+        """Helper function to split a range from 0 to total_length into bloksizes"""
+        for data_chunk in range(start, end, self.blocksize):
+            data_start = data_chunk
+            data_end = min(end, data_chunk + self.blocksize)
+            yield data_start, data_end
+
+
+class DatabricksFileSystemRangeFix(DatabricksFileSystem):
+    def _open(self, path, mode="rb", block_size="default", **kwargs):
+        """
+        Overwrite the base class method to make sure to create a DBFile.
+        All arguments are copied from the base method.
+
+        Only the default blocksize is allowed.
+        """
+        return DatabricksFileRangeFix(
+            self, path, mode=mode, block_size=block_size, **kwargs
+        )
 
 
 class DBFSStore(DataStore):
@@ -30,7 +76,10 @@ class DBFSStore(DataStore):
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
-            self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
+            #  self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
+            self._filesystem = DatabricksFileSystemRangeFix(
+                **self.get_storage_options()
+            )
         return self._filesystem
 
     def get_storage_options(self):
@@ -57,9 +106,8 @@ class DBFSStore(DataStore):
             )
         if not size and not offset:
             return self._filesystem.cat_file(key)
-            # the maximum number of allowed bytes to read is 1MB
-        end = offset + (size or ONE_MB)
-        return self._filesystem._get_data(key, start=offset, end=end)
+        end = offset + size if size is not None else None
+        return self._filesystem.cat_file(key, start=offset, end=end)
 
     def put(self, key, data, append=False):
 

@@ -513,9 +513,9 @@ class BaseMerger(abc.ABC):
                     node = other_node
 
     @staticmethod
-    def _create_linked_relation_list(feature_set_objects, feature_set_fields):
+    def _create_linked_relation_list(feature_set_objects, feature_set_fields, entity_rows=None):
         feature_set_names = list(feature_set_fields.keys())
-        if len(feature_set_names) == 1:
+        if len(feature_set_names) == 1 and not entity_rows:
             return BaseMerger._LinkedList(
                 head=BaseMerger._Node(
                     name=feature_set_names[0],
@@ -613,6 +613,32 @@ class BaseMerger(abc.ABC):
                 )
                 linked_list_relation.head.data["save_index"] = keys
             return linked_list_relation
+
+        def _build_entity_rows_relation(entity_rows_relation, fs_name):
+            name_head = entity_rows_relation.head.name
+            feature_set_in_entity_list = feature_set_entity_list_dict[fs_name]
+            feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
+
+            if all([ent in entity_rows.columns for ent in feature_set_in_entity_list_names]):
+                # add to the link list feature set according to indexes match
+                keys = feature_set_in_entity_list_names
+                entity_rows_relation.add_last(
+                    BaseMerger._Node(
+                        fs_name,
+                        data={
+                            "left_keys": keys,
+                            "right_keys": keys,
+                            "save_cols": [],
+                            "save_index": keys,
+                        },
+                        order=name_in_order,
+                    )
+                )
+                entity_rows_relation.head.data["save_index"] = keys
+
+
+        if entity_rows:
+            entity_rows_linked_relation = _create_relation("entity_rows", -1)
 
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)

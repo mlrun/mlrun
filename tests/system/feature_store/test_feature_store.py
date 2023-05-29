@@ -3695,6 +3695,91 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_relation_join_entity_rows(self, engine, with_indexes):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_scheduler_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
+        entity_rows = pd.DataFrame(
+            {
+                "entity_1": [i for i in range(1, 11, 2)],
+                "entity_2": [i for i in range(11, 21, 2)],
+                "val_er": ["val_er"] * 5
+            }
+        )
+
+        fs_1_df = pd.DataFrame(
+            {
+                "entity_1": [i for i in range(1, 11, 2)],
+                "val_er": ["val_1"] * 5
+            }
+        )
+
+        fs_2_df = pd.DataFrame(
+            {
+                "entity_2": [i for i in range(11, 21, 2)],
+                "val_er": ["val_2"] * 5
+            }
+        )
+
+        join_res = pd.merge(
+            entity_rows,
+            fs_1_df,
+            on=["entity_1"]
+        )
+
+        join_res = pd.merge(
+            join_res,
+            fs_2_df,
+            on=["entity_2"]
+        )
+
+        print(join_res)
+        # relations according to departments_set relations
+        feature_set_1_entity = fstore.Entity("entity_1")
+        feature_set_1 = fstore.FeatureSet(
+            "feature_set_1",
+            entities=[feature_set_1_entity],
+        )
+        feature_set_1.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(feature_set_1, fs_1_df)
+
+        feature_set_2_entity = fstore.Entity("entity_2")
+        feature_set_2 = fstore.FeatureSet(
+            "feature_set_2",
+            entities=[feature_set_2_entity],
+        )
+        feature_set_2.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(feature_set_2, fs_2_df)
+
+        features = ["feature_set_1.*", "feature_set_2.*"]
+
+        vector = fstore.FeatureVector(
+            "test-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        resp = fstore.get_offline_features(
+            vector,
+            entity_rows=entity_rows,
+            with_indexes=with_indexes,
+            engine=engine,
+            engine_args=engine_args,
+        )
+
+        print(resp.to_dataframe())
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("join_type", ["inner", "outer"])
     def test_relation_join_multi_entities(self, engine, join_type, with_indexes):
         engine_args = {}

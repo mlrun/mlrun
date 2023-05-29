@@ -30,6 +30,7 @@ def test_local_context(rundb_mock):
     run = db.read_run(context._uid, project=project_name)
     assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
 
+    # calls __exit__ and commits the context
     with context:
         context.log_artifact("xx", body="123", local_path="a.txt")
         context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
@@ -125,9 +126,9 @@ def test_context_set_state(rundb_mock, state, error, expected_state):
     run = db.read_run(context._uid, project=project_name)
     assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
 
+    # calls __exit__ and commits the context
     with context:
         context.set_state(execution_state=state, error=error, commit=False)
-        context.commit(completed=True)
 
     assert context._state == expected_state, "task state was not set correctly"
     assert context._error == error, "task error was not set"

@@ -86,7 +86,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 def helper_filter_df(
     df, time_field=None, start_time=None, end_time=None
-) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
+) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not time_field or (not start_time and not end_time):
         return df
     if isinstance(df, pd.DataFrame):
@@ -114,7 +114,7 @@ def filter_df_generator(
 
 def helper_select_columns_from_df(
     df, columns
-) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
+) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
         return df
     if isinstance(df, pd.DataFrame):

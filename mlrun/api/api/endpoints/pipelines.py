@@ -32,12 +32,10 @@ from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.utils import logger
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}/pipelines")
 
 
-@router.get(
-    "/projects/{project}/pipelines", response_model=mlrun.common.schemas.PipelinesOutput
-)
+@router.get("", response_model=mlrun.common.schemas.PipelinesOutput)
 async def list_pipelines(
     project: str,
     namespace: str = None,
@@ -101,7 +99,7 @@ async def list_pipelines(
     )
 
 
-@router.post("/projects/{project}/pipelines")
+@router.post("")
 async def create_pipeline(
     project: str,
     request: Request,
@@ -200,7 +198,7 @@ def _try_resolve_project_from_body(
     )
 
 
-@router.get("/projects/{project}/pipelines/{run_id}")
+@router.get("/{run_id}")
 async def get_pipeline(
     run_id: str,
     project: str,

@@ -231,6 +231,22 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
     )
 
 
+def test_get_pipeline_nonexistent_project(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
+    project = "n0_pr0ject"
+    api_run_detail = _generate_get_run_mock()
+    _mock_get_run(kfp_client_mock, api_run_detail)
+    response = client.get(
+        f"projects/{project}/pipelines/{api_run_detail.run.id}",
+        params={"format": format_},
+    )
+    assert response.status_code == http.HTTPStatus.NOT_FOUND.value
+
+
 def _generate_list_runs_mocks():
     workflow_manifest = _generate_workflow_manifest()
     return [

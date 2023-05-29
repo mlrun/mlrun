@@ -409,7 +409,7 @@ class TestFeatureStore(TestMLRunSystem):
         df_without_time_and_indexes = fstore.get_offline_features(vector).to_dataframe()
         assert isinstance(
             df_without_time_and_indexes.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
+        ), "index column is not of default RangeIndex"
         assert (
             df_without_time_and_indexes.index.name is None
         ), "index column is not of default type"
@@ -418,7 +418,7 @@ class TestFeatureStore(TestMLRunSystem):
         ), "'ticker' column shouldn't be present"
         assert (
             "time" not in df_without_time_and_indexes.columns
-        ), "'time' column should be present"
+        ), "'time' column shouldn't be present"
         assert (
             "another_time" in df_without_time_and_indexes.columns
         ), "'another_time' column should be present"
@@ -923,7 +923,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected = source.to_dataframe().set_index("patient_id")
 
-        start_time = expected["timestamp"][10]
+        start_time = expected["timestamp"][10]  # The file is sorted by time, 10 is just an arbitrary number
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(

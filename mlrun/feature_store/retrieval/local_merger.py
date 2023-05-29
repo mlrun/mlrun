@@ -110,8 +110,6 @@ class LocalFeatureMerger(BaseMerger):
         end_time=None,
         time_column=None,
     ):
-        # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
-        # column is from a specific feature set (can't be entity timestamp)
         df = feature_set.to_dataframe(
             columns=column_names,
             start_time=start_time,

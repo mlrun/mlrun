@@ -692,7 +692,7 @@ class BaseMerger(abc.ABC):
         column_names: typing.List[str] = None,
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
-        time_column: str = None,
+        time_column: typing.Optional[str] = None,
     ):
         """
         Return the feature_set data frame according to the args

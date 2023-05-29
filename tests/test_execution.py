@@ -89,7 +89,7 @@ def test_context_from_dict_when_start_time_is_string():
 )
 def test_context_from_run_dict(is_api):
     mlrun.config.is_running_as_api = Mock(return_value=is_api)
-    run_dict = generate_run_dict()
+    run_dict = _generate_run_dict()
 
     # create run object from dict and dict again to mock the run serialization
     run = mlrun.run.RunObject.from_dict(run_dict)
@@ -140,7 +140,7 @@ def test_context_set_state(rundb_mock, state, error, expected_state):
 )
 def test_context_inputs(rundb_mock, is_api):
     mlrun.config.is_running_as_api = Mock(return_value=is_api)
-    run_dict = generate_run_dict()
+    run_dict = _generate_run_dict()
 
     # create run object from dict and dict again to mock the run serialization
     run = mlrun.run.RunObject.from_dict(run_dict)
@@ -168,7 +168,7 @@ def test_context_inputs(rundb_mock, is_api):
     assert context.get_input(key).artifact_url == run_dict["spec"]["inputs"][key]
 
 
-def generate_run_dict():
+def _generate_run_dict():
     return {
         "metadata": {
             "name": "test-context-from-run-dict",

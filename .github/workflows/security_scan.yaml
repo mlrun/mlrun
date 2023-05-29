@@ -15,7 +15,7 @@
 
 # Currently supported running against prebuilt images
 name: Security Scan
-run-name: Security Scan ${{ inputs.tag }}
+run-name: Scanning ${{ inputs.tag }}
 
 on:
   workflow_dispatch:

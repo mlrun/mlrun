@@ -1141,22 +1141,24 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
-        def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
-            status = resp["run"]["status"]
-            show_kfp_run(resp, clear_output=True)
-            if status not in RunStatuses.stable_statuses():
-                # TODO: think of nicer liveness indication and make it re-usable
-                # log '.' each retry as a liveness indication
-                logger.debug(".")
+        def _wait_for_pipeline_completion():
+            pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
+            pipeline_status = pipeline["run"]["status"]
+            show_kfp_run(pipeline, clear_output=True)
+            if pipeline_status not in RunStatuses.stable_statuses():
+                logger.debug(
+                    "Waiting for pipeline completion",
+                    run_id=run_id,
+                    status=pipeline_status,
+                )
                 raise RuntimeError("pipeline run has not completed yet")
 
-            return resp
+            return pipeline
 
         if mldb.kind != "http":
             raise ValueError(
-                "get pipeline require access to remote api-service"
-                ", please set the dbpath url"
+                "get pipeline requires access to remote api-service"
+                ", set the dbpath url"
             )
 
         resp = retry_until_successful(
@@ -1164,7 +1166,7 @@ def wait_for_pipeline_completion(
             timeout,
             logger,
             False,
-            get_pipeline_if_completed,
+            _wait_for_pipeline_completion,
             run_id,
             namespace=namespace,
         )

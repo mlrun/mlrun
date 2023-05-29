@@ -610,7 +610,6 @@ class BaseMerger(abc.ABC):
             return linked_list_relation
 
         def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-            name_head = entity_rows_relation.head.name
             feature_set_in_entity_list = feature_set_entity_list_dict[fs_name]
             feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
 

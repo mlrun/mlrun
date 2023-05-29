@@ -51,7 +51,7 @@ class NotificationPusher(object):
             for notification in run.spec.notifications:
                 notification.status = run.status.notifications.get(
                     notification.name
-                ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
+                ).status
                 if self._should_notify(run, notification):
                     self._notification_data.append((run, notification))
 

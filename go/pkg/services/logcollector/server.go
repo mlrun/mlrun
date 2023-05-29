@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path"
@@ -432,10 +433,6 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 // HasLogs returns true if the log file exists for a given run id
 func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
-	s.Logger.DebugWithCtx(ctx,
-		"Received has log request",
-		"runUID", request.RunUID,
-		"project", request.ProjectName)
 
 	// get log file path
 	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
@@ -659,7 +656,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	startedStreamingGoroutine <- true
 
 	// create a log file to the pod
-	logFilePath := s.resolveRunLogFilePath(projectName, runUID)
+	logFilePath := s.resolvePodLogFilePath(projectName, runUID, podName)
 	if err := common.EnsureFileExists(logFilePath); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to ensure log file",
@@ -788,9 +785,9 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	return true, nil
 }
 
-// resolveRunLogFilePath returns the path to the pod log file
-func (s *Server) resolveRunLogFilePath(projectName, runUID string) string {
-	return path.Join(s.baseDir, projectName, runUID)
+// resolvePodLogFilePath returns the path to the pod log file
+func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) string {
+	return path.Join(s.baseDir, projectName, fmt.Sprintf("%s_%s", runUID, podName))
 }
 
 // getLogFilePath returns the path to the run's latest log file
@@ -811,6 +808,8 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 	defer projectMutex.(*sync.Mutex).Unlock()
 
 	var logFilePath string
+	var latestModTime time.Time
+
 	var retryCount int
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
 		defer func() {
@@ -837,29 +836,52 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 			return false, errors.Wrap(err, "Failed to get project directory")
 		}
 
-		// get run log file path
-		runLogFilePath := s.resolveRunLogFilePath(projectName, runUID)
+		// list all files in project directory
+		if err := filepath.WalkDir(filepath.Join(s.baseDir, projectName),
+			func(path string, dirEntry fs.DirEntry, err error) error {
+				if err != nil {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to walk path",
+						"retryCount", retryCount,
+						"path", path,
+						"err", errors.GetErrorStackString(err, 10))
+					return errors.Wrapf(err, "Failed to walk path %s", path)
+				}
 
-		if exists, err := common.FileExists(runLogFilePath); err != nil {
-			s.Logger.WarnWithCtx(ctx,
-				"Failed to get run log file path",
-				"retryCount", retryCount,
-				"runUID", runUID,
-				"projectName", projectName,
-				"err", err.Error())
-			return false, errors.Wrap(err, "Failed to get project directory")
-		} else if !exists {
-			s.Logger.WarnWithCtx(ctx,
-				"Run log file not found",
-				"retryCount", retryCount,
-				"runUID", runUID,
-				"projectName", projectName)
-			return true, errors.New("Run log file not found")
+				// skip directories
+				if dirEntry.IsDir() {
+					return nil
+				}
+
+				// if file name starts with run id, it's a log file
+				if strings.HasPrefix(dirEntry.Name(), runUID) {
+					info, err := dirEntry.Info()
+					if err != nil {
+						return errors.Wrapf(err, "Failed to get file info for %s", path)
+					}
+
+					// if it's the first file, set it as the log file path
+					// otherwise, check if it's the latest modified file
+					if logFilePath == "" || info.ModTime().After(latestModTime) {
+						logFilePath = path
+						latestModTime = info.ModTime()
+					}
+				}
+
+				return nil
+			}); err != nil {
+
+			// retry
+			return true, errors.Wrap(err, "Failed to list files in base directory")
 		}
 
-		// found it
-		logFilePath = runLogFilePath
+		if logFilePath == "" {
+			return true, errors.Errorf("Log file not found for run %s", runUID)
+		}
+
+		// found log file
 		return false, nil
+
 	}); err != nil {
 		return "", errors.Wrap(err, "Exhausted getting log file path")
 	}
@@ -1086,7 +1108,7 @@ func (s *Server) successfulBaseResponse() *protologcollector.BaseResponse {
 func (s *Server) deleteRunLogFiles(ctx context.Context, runUID, project string) error {
 
 	// get all files that have the runUID as a prefix
-	pattern := path.Join(s.baseDir, project, runUID)
+	pattern := path.Join(s.baseDir, project, fmt.Sprintf("%s_*", runUID))
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get log files")

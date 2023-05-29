@@ -331,9 +331,7 @@ def _resolve_and_set_build_requirements(function, nuclio_spec):
             resolved_requirements.append(shlex.quote(requirement))
 
         encoded_requirements = " ".join(resolved_requirements)
-        nuclio_spec.cmd.append(
-            f"python -m pip install --upgrade {encoded_requirements}"
-        )
+        nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
 
 
 def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):

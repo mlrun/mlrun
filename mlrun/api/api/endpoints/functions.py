@@ -490,6 +490,7 @@ def _handle_job_deploy_status(
     if (logs and state != "pending") or state in terminal_states:
         resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
+
             # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -652,17 +653,13 @@ def _build_function(
                                 fn.metadata.project,
                                 mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
-
-                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
+                            if mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
-                            )
-
-                            if stream_path.startswith("v3io://"):
+                            ).startswith("v3io://"):
                                 # Initialize model monitoring V3IO stream
                                 _create_model_monitoring_stream(
                                     project=fn.metadata.project,
                                     function=fn,
-                                    stream_path=stream_path,
                                 )
 
                         if fn.spec.tracking_policy:
@@ -835,8 +832,12 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         )
 
 
-def _create_model_monitoring_stream(project: str, function, stream_path):
+def _create_model_monitoring_stream(project: str, function):
     _init_serving_function_stream_args(fn=function)
+
+    stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project, kind="events"
+    )
 
     _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 

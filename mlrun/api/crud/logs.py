@@ -244,7 +244,10 @@ class Logs(
     def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):
         """
         Checks if the log file exists for the given project and uid
-        A Run's log file path is: /mlrun/logs/{project}/{uid}
+        There could be two types of log files:
+        1. Log file which was created by the legacy logger with the following file format - project/<run-uid>)
+        2. Log file which was created by the new logger with the following file format- /project/<run-uid>-<pod-name>
+        Therefore, we check if the log file exists for both formats
         :param project: project name
         :param uid: run uid
         :return: True if the log file exists, False otherwise, and the log file path
@@ -252,10 +255,9 @@ class Logs(
         project_logs_dir = project_logs_path(project)
         if not project_logs_dir.exists():
             return False, None
-
-        log_file = log_path(project, uid)
-        if log_file.exists():
-            return True, log_file
+        for file in os.listdir(str(project_logs_dir)):
+            if file.startswith(uid):
+                return True, project_logs_dir / file
 
         return False, None
 

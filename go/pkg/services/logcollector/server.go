@@ -1087,7 +1087,3 @@ func (s *Server) deleteProjectLogs(project string) error {
 
 	return nil
 }
-
-func (s *Server) getLogFileCacheKey(runUID, project string) string {
-	return fmt.Sprintf("%s/%s", runUID, project)
-}

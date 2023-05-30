@@ -184,6 +184,8 @@ class BaseMerger(abc.ABC):
         fs_link_list = self._create_linked_relation_list(
             feature_set_objects, feature_set_fields
         )
+        if isinstance(fs_link_list, list):
+            raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
         for node in fs_link_list:
             name = node.name
@@ -628,8 +630,7 @@ class BaseMerger(abc.ABC):
                 return_relation.concat(relation_list)
             if return_relation.len == len(feature_set_objects):
                 return return_relation
-
-        raise mlrun.errors.MLRunRuntimeError("Failed to merge")
+        return relation_linked_lists
 
     @classmethod
     def get_default_image(cls, kind):

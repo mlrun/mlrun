@@ -90,3 +90,141 @@ def init_feature_vector_graph(vector, query_options, update_stats=False):
     server.init_states(context=None, namespace=None, resource_cache=cache)
     server.init_object(None)
     return graph, index_columns
+
+
+#
+# from .base import BaseMerger
+#
+# class OnlineFeatureMerger(BaseMerger):
+#     engine = "storey"
+#     support_online = True
+#
+#     def __init__(self, vector, **engine_args):
+#         super().__init__(vector, **engine_args)
+#         # todo : check what needed
+#
+#     def _build_feature_vector_graph(
+#             self,
+#             vector,
+#             feature_set_fields,
+#             feature_set_objects,
+#             fixed_window_type,
+#     ):
+#         graph = vector.spec.graph.copy()
+#         start_states, default_final_state, responders = graph.check_and_process_graph(
+#             allow_empty=True
+#         )
+#         next = graph
+#
+#         lists_of_fs_link_list = self._create_linked_relation_list(
+#             feature_set_objects, feature_set_fields
+#         )
+#
+#         if not isinstance(fs_link_list, list):
+#             lists_of_fs_link_list = list(fs_link_list)
+#         for fs_link_list in lists_of_fs_link_list:
+#             for name, columns in feature_set_fields.items():
+#                 featureset = feature_set_objects[name]
+#                 column_names = [name for name, alias in columns]
+#                 aliases = {name: alias for name, alias in columns if alias}
+#
+#                 entity_list = list(featureset.spec.entities.keys())
+#                 next = next.to(
+#                     "storey.QueryByKey",
+#                     f"query-{name}",
+#                     features=column_names,
+#                     table=featureset.uri,
+#                     key_field=entity_list,
+#                     aliases=aliases,
+#                     fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
+#                 )
+#         for name in start_states:
+#             next.set_next(name)
+#
+#         if not start_states:  # graph was empty
+#             next.respond()
+#         elif not responders and default_final_state:  # graph has clear state sequence
+#             graph[default_final_state].respond()
+#         elif not responders:
+#             raise mlrun.errors.MLRunInvalidArgumentError(
+#                 "the graph doesnt have an explicit final step to respond on"
+#             )
+#         return graph
+#
+#     def init_feature_vector_graph(vector, query_options, update_stats=False):
+#         try:
+#             from storey import SyncEmitSource
+#         except ImportError as exc:
+#             raise ImportError(f"storey not installed, use pip install storey, {exc}")
+#
+#         feature_set_objects, feature_set_fields = vector.parse_features(
+#             offline=False, update_stats=update_stats
+#         )
+#         graph = _build_feature_vector_graph(
+#             vector, feature_set_fields, feature_set_objects, query_options
+#         )
+#         graph.set_flow_source(SyncEmitSource())
+#         server = create_graph_server(graph=graph, parameters={})
+#
+#         cache = ResourceCache()
+#         index_columns = []
+#         for featureset in feature_set_objects.values():
+#             driver = get_online_target(featureset)
+#             if not driver:
+#                 raise mlrun.errors.MLRunInvalidArgumentError(
+#                     f"resource {featureset.uri} does not have an online data target"
+#                 )
+#             cache.cache_table(featureset.uri, driver.get_table_object())
+#             for key in featureset.spec.entities.keys():
+#                 if not vector.spec.with_indexes and key not in index_columns:
+#                     index_columns.append(key)
+#         server.init_states(context=None, namespace=None, resource_cache=cache)
+#         server.init_object(None)
+#         return graph, index_columns
+#
+#     def _asof_join(
+#         self,
+#         entity_df,
+#         entity_timestamp_column: str,
+#         featureset,
+#         featureset_df,
+#         left_keys: list,
+#         right_keys: list,
+#     ):
+#         raise NotImplementedError()
+#
+#     def _join(
+#         self,
+#         entity_df,
+#         entity_timestamp_column: str,
+#         featureset,
+#         featureset_df,
+#         left_keys: list,
+#         right_keys: list,
+#     ):
+#         raise NotImplementedError()
+#
+#     def _create_engine_env(self):
+#         raise NotImplementedError()
+#
+#     def _get_engine_df(
+#         self,
+#         feature_set,
+#         feature_set_name,
+#         column_names=None,
+#         start_time=None,
+#         end_time=None,
+#         entity_timestamp_column=None,
+#     ):
+#         raise NotImplementedError()
+#
+#     def _rename_columns_and_select(self, df, rename_col_dict, columns=None):
+#         raise NotImplementedError()
+#
+#     def _drop_columns_from_result(self):
+#         raise NotImplementedError()
+#     def _filter(self, query):
+#         raise NotImplementedError()
+#
+#     def _order_by(self, order_by_active):
+#         raise NotImplementedError()

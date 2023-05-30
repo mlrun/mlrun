@@ -75,7 +75,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     csv_source = "testdata.csv"
     run_local = False
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 

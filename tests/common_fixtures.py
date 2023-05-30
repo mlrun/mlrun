@@ -119,17 +119,13 @@ def db():
     dsn = "sqlite:///:memory:?check_same_thread=false"
     db_session = None
     try:
-        orig_httpdb_dsn = config.httpdb.dsn
         config.httpdb.dsn = dsn
-
         _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()
         db = SQLDB(dsn)
         db.initialize(db_session)
-
-        orig_dbpath = config.dbpath
         config.dbpath = dsn
     finally:
         if db_session is not None:
@@ -137,10 +133,7 @@ def db():
     mlrun.api.utils.singletons.db.initialize_db(db)
     mlrun.api.utils.singletons.logs_dir.initialize_logs_dir()
     mlrun.api.utils.singletons.project_member.initialize_project_member()
-    yield db
-
-    config.httpdb.dsn = orig_httpdb_dsn
-    config.dbpath = orig_dbpath
+    return db
 
 
 @pytest.fixture

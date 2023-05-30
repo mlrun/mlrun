@@ -298,7 +298,7 @@ def get_online_feature_service(
         update_stats = True
 
     engine_args = {"impute_policy": impute_policy}
-    merger_engine = get_merger("online")
+    merger_engine = get_merger("storey")
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
     merger = merger_engine(feature_vector, **engine_args)

@@ -23,7 +23,7 @@ mergers = {
     "local": LocalFeatureMerger,
     "dask": DaskFeatureMerger,
     "spark": SparkFeatureMerger,
-    "online": OnlineFeatureMerger,
+    "storey": OnlineFeatureMerger,
 }
 
 

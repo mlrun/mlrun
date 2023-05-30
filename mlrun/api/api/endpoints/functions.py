@@ -480,7 +480,7 @@ def _handle_job_deploy_status(
             resp = get_k8s().logs(pod)
         except ApiException as exc:
             logger.warning(
-                f"Failed to get build logs",
+                "Failed to get build logs",
                 function_name=name,
                 function_state=state,
                 pod=pod,

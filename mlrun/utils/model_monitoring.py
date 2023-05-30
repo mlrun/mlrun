@@ -162,7 +162,6 @@ def get_stream_path(project: str = None):
     """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
 
     if is_running_as_api():
-
         # Running on API server side
         import mlrun.api.crud.secrets
         import mlrun.api.schemas
@@ -179,7 +178,6 @@ def get_stream_path(project: str = None):
         )
 
     else:
-
         import mlrun
 
         stream_uri = mlrun.get_secret_or_env(
@@ -205,11 +203,13 @@ def get_stream_path(project: str = None):
     return stream_uri
 
 
-def validate_errors_and_metrics(endpoint: dict):
+def validate_old_schema_fields(endpoint: dict):
     """
-    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
+    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0.
+    In addition, this function also validates that the key name of the endpoint unique id is `uid` and not
+     `endpoint_id` that has been used before 1.3.0.
 
-    Leaving here for backwards compatibility which related to the model endpoint schema
+    Leaving here for backwards compatibility which related to the model endpoint schema.
 
     :param endpoint: An endpoint flattened dictionary.
     """
@@ -241,3 +241,9 @@ def validate_errors_and_metrics(endpoint: dict):
                 }
             }
         )
+    # Validate key `uid` instead of `endpoint_id`
+    # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
+    if model_monitoring_constants.EventFieldType.ENDPOINT_ID in endpoint:
+        endpoint[model_monitoring_constants.EventFieldType.UID] = endpoint[
+            model_monitoring_constants.EventFieldType.ENDPOINT_ID
+        ]

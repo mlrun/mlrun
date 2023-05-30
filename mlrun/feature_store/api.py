@@ -277,8 +277,8 @@ def get_online_feature_service(
 
     :param feature_vector:      feature vector uri or FeatureVector object. passing feature vector obj requires update
                                 permissions
-    :param entity_rows_keys:    list of the names of the feature_vector entity,
-                                the same entities that needed for the get function.
+    :param entity_rows_keys:    name list of the feature_vector indexes,
+                                the same indexes that needed for the get function.
     :param run_config:          function and/or run configuration for remote jobs/services
     :param impute_policy:       a dict with `impute_policy` per feature, the dict key is the feature name and the dict
                                 value indicate which value will be used in case the feature is NaN/empty, the replaced

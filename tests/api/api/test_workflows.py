@@ -18,16 +18,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
 
 
 def _create_proj_with_workflow(client: TestClient):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=PROJECT_NAME),
-        spec=mlrun.api.schemas.ProjectSpec(
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT_NAME),
+        spec=mlrun.common.schemas.ProjectSpec(
             description="banana",
             source="git://github.com/mlrun/project-demo",
             goals="some goals",

@@ -3040,7 +3040,7 @@ class HTTPRunDB(RunDBInterface):
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
 
-        :returns:    :py:class:`~mlrun.api.schemas.WorkflowResponse`.
+        :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
         image = (
             workflow_spec.image

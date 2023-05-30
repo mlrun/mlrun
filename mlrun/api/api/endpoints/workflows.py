@@ -26,11 +26,11 @@ import mlrun
 import mlrun.api.api.deps
 import mlrun.api.api.utils
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.projects.pipelines
 from mlrun.api.api.utils import log_and_raise
 from mlrun.utils.helpers import logger
@@ -39,7 +39,7 @@ router = fastapi.APIRouter()
 
 
 def _get_workflow_by_name(
-    project: mlrun.api.schemas.Project, name: str
+    project: mlrun.common.schemas.Project, name: str
 ) -> typing.Optional[Dict]:
     """
     Getting workflow from project
@@ -58,11 +58,11 @@ def _get_workflow_by_name(
 
 
 def _fill_workflow_missing_fields_from_project(
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
     name: str,
-    spec: mlrun.api.schemas.WorkflowSpec,
+    spec: mlrun.common.schemas.WorkflowSpec,
     arguments: typing.Dict,
-) -> mlrun.api.schemas.WorkflowSpec:
+) -> mlrun.common.schemas.WorkflowSpec:
     """
     Fill the workflow spec details from the project object, with favour to spec
 
@@ -84,7 +84,7 @@ def _fill_workflow_missing_fields_from_project(
             if val:
                 workflow[key] = val
 
-    workflow_spec = mlrun.api.schemas.WorkflowSpec(**workflow)
+    workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
     # Overriding arguments of the existing workflow:
     if arguments:
         workflow_spec.args = workflow_spec.args or {}
@@ -95,8 +95,8 @@ def _fill_workflow_missing_fields_from_project(
 
 def is_requested_schedule(
     name: str,
-    workflow_spec: mlrun.api.schemas.WorkflowSpec,
-    project: mlrun.api.schemas.Project,
+    workflow_spec: mlrun.common.schemas.WorkflowSpec,
+    project: mlrun.common.schemas.Project,
 ) -> bool:
     """
     Checks if the workflow needs to be scheduled, which can be decided either the request itself
@@ -113,14 +113,14 @@ def is_requested_schedule(
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
     status_code=HTTPStatus.ACCEPTED.value,
-    response_model=mlrun.api.schemas.WorkflowResponse,
+    response_model=mlrun.common.schemas.WorkflowResponse,
 )
 async def submit_workflow(
     project: str,
     name: str,
     request: fastapi.Request,
-    workflow_request: mlrun.api.schemas.WorkflowRequest = mlrun.api.schemas.WorkflowRequest(),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    workflow_request: mlrun.common.schemas.WorkflowRequest = mlrun.common.schemas.WorkflowRequest(),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
@@ -157,25 +157,25 @@ async def submit_workflow(
 
     # check permission CREATE run
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.run,
         project_name=project.metadata.name,
         resource_name=workflow_request.run_name or "",
-        action=mlrun.api.schemas.AuthorizationAction.create,
+        action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
     # check permission READ workflow
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.workflow,
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
         resource_name=name,
-        action=mlrun.api.schemas.AuthorizationAction.read,
+        action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
     # Re-route to chief in case of schedule
     if (
         is_requested_schedule(name, workflow_request.spec, project)
         and mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.common.schemas.ClusterizationRole.chief
     ):
         chief_client = mlrun.api.utils.clients.chief.Client()
         return await chief_client.submit_workflow(
@@ -246,7 +246,7 @@ async def submit_workflow(
             reason=f"Workflow {workflow_spec.name} {workflow_action} failed!, error: {error}"
         )
 
-    return mlrun.api.schemas.WorkflowResponse(
+    return mlrun.common.schemas.WorkflowResponse(
         project=project.metadata.name,
         name=workflow_spec.name,
         status=status,
@@ -257,18 +257,18 @@ async def submit_workflow(
 
 @router.get(
     "/projects/{project}/workflows/{name}/references/{uid}",
-    response_model=mlrun.api.schemas.GetWorkflowResponse,
+    response_model=mlrun.common.schemas.GetWorkflowResponse,
 )
 async def get_workflow_id(
     project: str,
     name: str,
     uid: str,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
     engine: str = "kfp",
-) -> mlrun.api.schemas.GetWorkflowResponse:
+) -> mlrun.common.schemas.GetWorkflowResponse:
     """
     Retrieve workflow id from the uid of the workflow runner.
     When creating a remote workflow we are creating an auxiliary function
@@ -292,18 +292,18 @@ async def get_workflow_id(
     """
     # Check permission READ run:
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     # Check permission READ workflow:
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.workflow,
+        mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
 

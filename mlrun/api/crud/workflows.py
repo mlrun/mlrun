@@ -17,7 +17,7 @@ from typing import List, Tuple
 
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.api.api.utils import (
     apply_enrichment_and_validation_on_function,
@@ -36,7 +36,7 @@ class WorkflowRunners(
         run_name: str,
         project: str,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         image: str,
     ) -> mlrun.run.KubejobRuntime:
         """
@@ -75,10 +75,10 @@ class WorkflowRunners(
     def schedule(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.api.schemas.Project,
-        workflow_request: mlrun.api.schemas.WorkflowRequest,
+        project: mlrun.common.schemas.Project,
+        workflow_request: mlrun.common.schemas.WorkflowRequest,
         db_session: Session = None,
-        auth_info: mlrun.api.schemas.AuthInfo = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         """
         Schedule workflow runner.
@@ -119,7 +119,7 @@ class WorkflowRunners(
                 scheduled_object=scheduled_object,
                 cron_trigger=schedule,
                 labels=runner.metadata.labels,
-                kind=mlrun.api.schemas.ScheduleKinds.job,
+                kind=mlrun.common.schemas.ScheduleKinds.job,
             )
         else:
             try:
@@ -128,7 +128,7 @@ class WorkflowRunners(
                     auth_info=auth_info,
                     project=project.metadata.name,
                     name=workflow_spec.name,
-                    kind=mlrun.api.schemas.ScheduleKinds.job,
+                    kind=mlrun.common.schemas.ScheduleKinds.job,
                     scheduled_object=scheduled_object,
                     cron_trigger=schedule,
                     labels=runner.metadata.labels,
@@ -142,8 +142,8 @@ class WorkflowRunners(
     def run(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.api.schemas.Project,
-        workflow_request: mlrun.api.schemas.WorkflowRequest = None,
+        project: mlrun.common.schemas.Project,
+        workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
     ) -> RunObject:
         """
@@ -186,7 +186,7 @@ class WorkflowRunners(
     @staticmethod
     def get_workflow_id(
         uid: str, project: str, engine: str, db_session: Session
-    ) -> mlrun.api.schemas.GetWorkflowResponse:
+    ) -> mlrun.common.schemas.GetWorkflowResponse:
         """
         Retrieving the actual workflow id form the workflow runner
 
@@ -218,7 +218,7 @@ class WorkflowRunners(
                     f"workflow id of run {uid}:{project} not found"
                 )
 
-        return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)
+        return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
 
     @staticmethod
     def _label_run_object(
@@ -239,7 +239,7 @@ class WorkflowRunners(
 
     @staticmethod
     def _set_source(
-        project: mlrun.api.schemas.Project, source: str, load_only: bool = False
+        project: mlrun.common.schemas.Project, source: str, load_only: bool = False
     ) -> bool:
         """
         Setting the project source.
@@ -267,8 +267,8 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_scheduling(
         self,
-        project: mlrun.api.schemas.Project,
-        workflow_request: mlrun.api.schemas.WorkflowRequest,
+        project: mlrun.common.schemas.Project,
+        workflow_request: mlrun.common.schemas.WorkflowRequest,
         labels: List[Tuple[str, str]],
     ) -> mlrun.run.RunObject:
         """
@@ -316,9 +316,9 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_single_run(
         self,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
         labels: List,
-        workflow_request: mlrun.api.schemas.WorkflowRequest = None,
+        workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
         load_only: bool = False,
     ) -> mlrun.run.RunObject:

@@ -61,7 +61,8 @@ To install a specific version, use the command: `pip install mlrun==<version>`. 
     mlrun
     <other-package>
     ```
-    
+    Do so even if you already have MLRun installed so that pip will take MLRun requirements into consideration when installing the other package.
+
 ## Configure remote environment
 You have a few options to configure your remote environment:
 - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)

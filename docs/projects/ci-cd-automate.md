@@ -6,6 +6,6 @@
 ```{toctree}
 :maxdepth: 1
 
-automate-project-yaml
+automate-project-git-source
 load-project-yaml
 ````

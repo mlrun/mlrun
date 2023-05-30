@@ -30,8 +30,8 @@ from fastapi import (
     Request,
     Response,
 )
-from kubernetes.client.rest import ApiException
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud

@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
 - [v1.2.3](#v1-2-3)
@@ -16,6 +17,16 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
+
+## v1.3.2	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3896 | Fixed: MLRun API failed to get pod logs. |
+| ML-3897 |  |
+
 
 ## v1.3.1
 

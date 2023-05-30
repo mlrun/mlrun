@@ -492,7 +492,13 @@ def _handle_job_deploy_status(
         try:
             resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         except ApiException as exc:
-            logger.warning(f"failed to get pod logs {pod}, {exc}")
+            logger.warning(
+                f"Failed to get build logs",
+                function_name=name,
+                function_state=state,
+                pod=pod,
+                exc_info=exc,
+            )
             resp = ""
 
         if state in terminal_states:

@@ -170,8 +170,9 @@ async def delete_function(
         name,
     )
     if schedule:
-        # schedules are only supposed to be run by the chief, therefore, if the run is configured to run as scheduled,
-        # and we are running in worker, we forward the request to the chief
+        # when deleting a function, we should also delete its schedules if exists
+        # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
+        # and we are running in worker, we send the request to the chief client
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.common.schemas.ClusterizationRole.chief

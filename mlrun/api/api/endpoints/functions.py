@@ -30,6 +30,7 @@ from fastapi import (
     Request,
     Response,
 )
+from kubernetes.client.rest import ApiException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -488,7 +489,12 @@ def _handle_job_deploy_status(
         state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
+        try:
+            resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
+        except ApiException as exc:
+            logger.warning(f"failed to get pod logs {pod}, {exc}")
+            resp = ""
+
         if state in terminal_states:
             # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)

@@ -3018,7 +3018,9 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str,
         workflow_spec: Union[
-            mlrun.projects.pipelines.WorkflowSpec, schemas.WorkflowSpec, dict
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
         ],
         arguments: Optional[Dict] = None,
         artifact_path: Optional[str] = None,
@@ -3052,7 +3054,7 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, schemas.WorkflowSpec):
+        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
@@ -3064,7 +3066,7 @@ class HTTPRunDB(RunDBInterface):
             f"projects/{project}/workflows/{name}/submit",
             json=req,
         )
-        return schemas.WorkflowResponse(**response.json())
+        return mlrun.common.schemas.WorkflowResponse(**response.json())
 
     def get_workflow_id(
         self,
@@ -3081,7 +3083,7 @@ class HTTPRunDB(RunDBInterface):
         :param run_id:  the id of the workflow runner - the job that runs the workflow
         :param engine:  pipeline runner
 
-        :returns:   :py:class:`~mlrun.api.schemas.GetWorkflowResponse`.
+        :returns:   :py:class:`~mlrun.common.schemas.GetWorkflowResponse`.
         """
         params = {}
         if engine:
@@ -3091,13 +3093,13 @@ class HTTPRunDB(RunDBInterface):
             f"projects/{project}/workflows/{name}/references/{run_id}",
             params=params,
         )
-        return schemas.GetWorkflowResponse(**response.json())
+        return mlrun.common.schemas.GetWorkflowResponse(**response.json())
 
     def load_project(
         self,
         name: str,
         url: str,
-    ) -> schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         """
         Loading a project remotely from the given source.
         :param name:        project name
@@ -3108,7 +3110,7 @@ class HTTPRunDB(RunDBInterface):
         :returns:      A BackgroundTask object, with details on execution process and its status.
         """
         response = self.api_call("POST", f"projects/{name}/load", params={"url": url})
-        return schemas.BackgroundTask(**response.json())
+        return mlrun.common.schemas.BackgroundTask(**response.json())
 
 
 def _as_json(obj):

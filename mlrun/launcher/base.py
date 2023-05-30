@@ -73,6 +73,7 @@ class BaseLauncher(abc.ABC):
         hash_key = hash_key if versioned else None
         return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
+    @abc.abstractmethod
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",

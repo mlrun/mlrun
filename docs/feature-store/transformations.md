@@ -190,3 +190,82 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class is initialized with a multiplier of 3.
+
+## Supporting multiple engines
+
+MLRun supports multiple processing engines for executing graphs. These engines differ in the way they invoke graph
+steps. When implementing custom transformations, the code has to support all engines that are expected to run it. 
+
+```{admonition} Note
+The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
+[here](../serving/available-steps.html#data-transformations).
+```
+
+The following are the main differences between transformation steps executing on different engines:
+
+* `storey` - the step receives a single event (either as a dictionary or as an Event object, depending on whether 
+  `full_event` is configured for the step). The step is expected to process the event and return the modified event.
+* `spark` - the step receives a Spark dataframe object. Steps are expected to add their processing and calculations to 
+  the dataframe (either in-place or not) and return the resulting dataframe without materializing the data. 
+* `pandas` - the step receives a Pandas dataframe, processes it, and returns the dataframe.
+
+To support multiple engines, extend the {py:class}`~mlrun.feature_store.steps.MLRunStep` class with a custom
+transformation. This class allows implementing engine-specific code by overriding the following methods:
+{py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey`, {py:func}`~mlrun.feature_store.steps.MLRunStep._do_pandas` 
+and {py:func}`~mlrun.feature_store.steps.MLRunStep._do_spark`. To add support for a given engine, the relevant `do` 
+method needs to be implemented. 
+
+When a graph is executed, each step is a single instance of the relevant class that gets invoked as events flow through 
+the graph. For `spark` and `pandas` engines, this only happens once per ingestion, since the entire data-frame is fed to 
+the graph. For the `storey` engine the same instance's {py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey` 
+function will be invoked per input row. As the graph is initialized, this class instance can receive global parameters 
+in its `__init__` method that determines its behavior.
+
+The following example class multiplies a feature by a value and adds it to the event. (For simplicity, data type 
+checks and validations were omitted as well as needed imports.) Note that the class also extends 
+{py:class}`~mlrun.serving.utils.StepToDict` - this class implements generic serialization of graph steps to
+a python dictionary. This functionality allows passing instances of this class to `graph.to()` and `graph.add_step()`:
+
+```python
+class MultiplyFeature(StepToDict, MLRunStep):
+    def __init__(self, feature: str, value: int, **kwargs):
+        super().__init__(**kwargs)
+        self._feature = feature
+        self._value = value
+        self._new_feature = f"{feature}_times_{value}"
+
+    def _do_storey(self, event):
+        # event is a single row represented by a dictionary
+        event[self._new_feature] = event[self._feature] * self._value  
+        return event
+
+    def _do_pandas(self, event):
+        # event is a pandas.DataFrame
+        event[self._new_feature] = event[self._feature].multiply(self._value)
+        return event
+
+    def _do_spark(self, event):
+        # event is a pyspark.sql.DataFrame
+        return event.withColumn(self._new_feature, 
+                                col(self._feature) * lit(self._value)
+                                )
+```
+
+The following example uses this step in a feature-set graph with the `pandas` engine. This example adds a feature called 
+`number1_times_4` with the value of the `number1` feature multiplied by 4. Note how the global parameters are passed
+when creating the graph step:
+
+```python
+import mlrun.feature_store as fstore
+
+feature_set = fstore.FeatureSet("fs-new", 
+                                entities=[fstore.Entity("id")], 
+                                engine="pandas",
+                                )
+# Adding multiply step, with specific parameters
+feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+df_pandas = fstore.ingest(feature_set, data)
+```
+
+
+

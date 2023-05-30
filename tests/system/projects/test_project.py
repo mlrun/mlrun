@@ -517,6 +517,12 @@ class TestProject(TestMLRunSystem):
     def test_kfp_from_local_code(self):
         name = "kfp-from-local-code"
         self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
         project = mlrun.get_or_create_project(name, user_project=True, context="./")
 
         handler_fn = project.set_function(

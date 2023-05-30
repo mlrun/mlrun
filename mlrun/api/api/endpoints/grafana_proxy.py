@@ -28,7 +28,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas
 from mlrun.api.api import deps
 
-router = APIRouter()
+router = APIRouter(prefix="/grafana-proxy/model-endpoints")
 
 NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
     "list_projects": mlrun.api.crud.model_monitoring.grafana.grafana_list_projects,
@@ -44,7 +44,7 @@ SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
 SUPPORTED_SEARCH_FUNCTIONS = set(NAME_TO_SEARCH_FUNCTION_DICTIONARY)
 
 
-@router.get("/grafana-proxy/model-endpoints", status_code=HTTPStatus.OK.value)
+@router.get("", status_code=HTTPStatus.OK.value)
 def grafana_proxy_model_endpoints_check_connection(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
@@ -57,7 +57,7 @@ def grafana_proxy_model_endpoints_check_connection(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
+@router.post("/search", response_model=List[str])
 async def grafana_proxy_model_endpoints_search(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -101,7 +101,7 @@ async def grafana_proxy_model_endpoints_search(
 
 
 @router.post(
-    "/grafana-proxy/model-endpoints/query",
+    "/query",
     response_model=List[
         Union[
             mlrun.common.schemas.GrafanaTable,

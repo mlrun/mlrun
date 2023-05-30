@@ -51,15 +51,26 @@ def is_dbfs_configured():
     reason="DBFS storage parameters not configured",
 )
 class TestDBFSStore:
-    def setup_method(self):
+    def setup_class(self):
         self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
         self._object_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
         self._object_path = f"{self._object_dir}/{self._object_file}"
         self._dbfs_url = "dbfs://" + self._databricks_workspace
         self._object_url = self._dbfs_url + self._object_path
-
+        self.secrets = {}
+        token = config["env"].get("DATABRICKS_TOKEN", None)
+        self.secrets["DATABRICKS_TOKEN"] = token
         logger.info(f"Object URL: {self._object_url}")
+
+    def teardown_class(self):
+        dir_dataitem = mlrun.run.get_dataitem(
+            self._dbfs_url + self._object_dir, secrets=self.secrets
+        )
+        test_files = dir_dataitem.listdir()
+        store = dir_dataitem.store
+        for test_file in test_files:
+            store.rm(path=f"{self._object_dir}/{test_file}")
 
     def _perform_dbfs_tests(self, secrets):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
@@ -103,10 +114,7 @@ class TestDBFSStore:
         assert source_csv.equals(response)
 
     def test_secrets_as_input(self):
-        secrets = {}
-        token = config["env"].get("DATABRICKS_TOKEN", None)
-        secrets["DATABRICKS_TOKEN"] = token
-        self._perform_dbfs_tests(secrets=secrets)
+        self._perform_dbfs_tests(secrets=self.secrets)
 
     def test_using_dbfs_env_variable(self):
         env_params = config["env"]

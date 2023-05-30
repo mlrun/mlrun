@@ -2271,10 +2271,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
             assert res_df.columns == ["val"]
         else:
-            err = mlrun.errors.MLRunInvalidArgumentError if self.run_local else mlrun.runtimes.utils.RunError
+            err = (
+                mlrun.errors.MLRunInvalidArgumentError
+                if self.run_local
+                else mlrun.runtimes.utils.RunError
+            )
             with pytest.raises(
-                    err,
-                    match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
+                err,
+                match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
             ):
                 resp = fstore.get_offline_features(
                     feature_vector=vec,
@@ -2282,7 +2286,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     end_time=test_base_time,
                     timestamp_for_filtering=timestamp_for_filtering,
                     engine="spark",
-                    run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+                    run_config=fstore.RunConfig(
+                        local=self.run_local, kind="remote-spark"
+                    ),
                     spark_service=self.spark_service,
                     target=target,
                 )

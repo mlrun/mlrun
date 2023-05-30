@@ -26,7 +26,8 @@ import urllib3
 import mlrun.errors
 from mlrun.errors import err_to_str
 from mlrun.utils import is_ipython, logger
-from .utils import select_columns_from_df, filter_df_start_end_time
+
+from .utils import filter_df_start_end_time, select_columns_from_df
 
 verify_ssl = False
 if not verify_ssl:
@@ -420,7 +421,9 @@ class DataItem:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
-        kwargs["time_column"] = kwargs.get("time_column") or kwargs.pop("time_field", None)
+        kwargs["time_column"] = kwargs.get("time_column") or kwargs.pop(
+            "time_field", None
+        )
         df = self._store.as_df(
             self._url,
             self._path,

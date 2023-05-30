@@ -37,8 +37,8 @@ from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .utils import (
     filter_df_start_end_time,
-    select_columns_from_df,
     parse_kafka_url,
+    select_columns_from_df,
     store_path_to_spark,
 )
 

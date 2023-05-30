@@ -4180,8 +4180,8 @@ class TestFeatureStore(TestMLRunSystem):
             assert res_df.columns == ["val"]
         else:
             with pytest.raises(
-                    mlrun.errors.MLRunInvalidArgumentError,
-                    match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
             ):
                 resp = fstore.get_offline_features(
                     vec,

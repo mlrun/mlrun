@@ -733,8 +733,7 @@ def code_to_function(
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
 
-    Learn more about function runtimes here:
-    https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
+    Learn more about {Kinds of function (runtimes)](../concepts/functions-overview.html).
 
     :param name:         function name, typically best to use hyphen-case
     :param project:      project used to namespace the function, defaults to 'default'

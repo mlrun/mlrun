@@ -479,8 +479,15 @@ def _handle_job_deploy_status(
         try:
             resp = get_k8s().logs(pod)
         except ApiException as exc:
-            logger.warning(f"failed to get pod logs {pod}, {exc}")
+            logger.warning(
+                f"Failed to get build logs",
+                function_name=name,
+                function_state=state,
+                pod=pod,
+                exc_info=exc,
+            )
             resp = ""
+
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:

@@ -32,7 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import helper_filter_df, helper_select_columns_from_df, store_path_to_spark
+from .utils import filter_df_start_end_time, select_columns_from_df, store_path_to_spark
 
 
 def get_source_from_dict(source):
@@ -74,31 +74,14 @@ class BaseSourceDriver(DataSource):
         return None
 
     def to_dataframe(self, **kwargs):
-        return helper_select_columns_from_df(
-            self.filter_df_start_end_time(
-                mlrun.store_manager.object(url=self.path).as_df(**kwargs), **kwargs
-            ),
-            kwargs.get("columns"),
-        )
+        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
+        return mlrun.store_manager.object(url=self.path).as_df(**kwargs)
 
-    def filter_df_start_end_time(
-        self,
-        df,
-        time_field=None,
-        start_time=None,
-        end_time=None,
-        external=False,
-        **kwargs,
-    ):
-        # give priority to source time_field over the feature set's timestamp_key
-        if not external:
-            start_time = self.start_time or start_time
-            end_time = self.end_time or end_time
-            time_field = self.time_field or time_field
-
-        return helper_filter_df(
-            df, time_field=time_field, start_time=start_time, end_time=end_time
-        )
+    def _ingest_init_time_params_to_kwargs(self, args_dict):
+        for param in ["start_time", "end_time", "time_field"]:
+            if param not in args_dict:
+                args_dict[param] = getattr(self, param)
+        return args_dict
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
@@ -230,14 +213,11 @@ class CSVSource(BaseSourceDriver):
         chunksize = self.attributes.get("chunksize")
         if chunksize:
             reader_args["chunksize"] = chunksize
-        return helper_select_columns_from_df(
-            self.filter_df_start_end_time(
-                mlrun.store_manager.object(url=self.path).as_df(
-                    parse_dates=self._parse_dates, **reader_args
-                ),
-                **kwargs,
-            ),
-            kwargs.get("columns"),
+        parse_dates = kwargs.pop("parse_dates", self._parse_dates)
+        reader_args.update(kwargs)
+        reader_args = self._ingest_init_time_params_to_kwargs(reader_args)
+        return mlrun.store_manager.object(url=self.path).as_df(
+            parse_dates=parse_dates, **reader_args
         )
 
     def is_iterator(self):
@@ -345,9 +325,11 @@ class ParquetSource(BaseSourceDriver):
         }
 
     def to_dataframe(self, **kwargs):
-        kwargs = self.attributes.get("reader_args", {})
+        reader_args = self.attributes.get("reader_args", {})
+        reader_args.update(kwargs)
+        reader_args = self._ingest_init_time_params_to_kwargs(reader_args)
         return mlrun.store_manager.object(url=self.path).as_df(
-            format="parquet", **kwargs
+            format="parquet", **reader_args
         )
 
 
@@ -466,6 +448,8 @@ class BigQuerySource(BaseSourceDriver):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
+        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
+
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
 
@@ -504,9 +488,12 @@ class BigQuerySource(BaseSourceDriver):
             )
         else:
             # TODO : filter as part of the query
-            return helper_select_columns_from_df(
-                self.filter_df_start_end_time(
-                    rows_iterator.to_dataframe(dtypes=dtypes), **kwargs
+            return select_columns_from_df(
+                filter_df_start_end_time(
+                    rows_iterator.to_dataframe(dtypes=dtypes),
+                    time_column=kwargs.get("time_field"),
+                    start_time=kwargs.get("start_time"),
+                    end_time=kwargs.get("end_time"),
                 ),
                 kwargs.get("columns"),
             )
@@ -544,7 +531,6 @@ class BigQuerySource(BaseSourceDriver):
         df = session.read.format("bigquery").load(**options)
         if named_view:
             df.createOrReplaceTempView(self.name)
-        # TODO : filter as part of the query
         return self._filter_spark_df(df, time_field, columns)
 
 
@@ -976,6 +962,7 @@ class SQLSource(BaseSourceDriver):
     def to_dataframe(self, **kwargs):
         import sqlalchemy as db
 
+        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
         query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
@@ -984,7 +971,7 @@ class SQLSource(BaseSourceDriver):
         if table_name and db_path:
             engine = db.create_engine(db_path)
             with engine.connect() as con:
-                return self.filter_df_start_end_time(
+                return filter_df_start_end_time(
                     pd.read_sql(
                         query,
                         con=con,
@@ -992,7 +979,9 @@ class SQLSource(BaseSourceDriver):
                         parse_dates=self.attributes.get("time_fields"),
                         columns=kwargs.get("columns"),
                     ),
-                    **kwargs,
+                    time_column=kwargs.get("time_field"),
+                    start_time=kwargs.get("start_time"),
+                    end_time=kwargs.get("end_time"),
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

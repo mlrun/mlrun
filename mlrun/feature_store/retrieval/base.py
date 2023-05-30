@@ -221,7 +221,7 @@ class BaseMerger(abc.ABC):
             ]:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The {name} feature_set "
-                    f"doesn't have feature named {time_column} to filter on."
+                    f"doesn't have a column named {time_column} to filter on."
                 )
 
             if (start_time or end_time) and time_column:
@@ -277,10 +277,10 @@ class BaseMerger(abc.ABC):
             self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
         # None of the feature sets was filtered as required
-        if filtered and (start_time or end_time):
+        if not filtered and (start_time or end_time):
             raise mlrun.errors.MLRunRuntimeError(
                 "start_time and end_time can only be provided in conjunction with "
-                "a timestamp column, or when the feature_sets has a timestamp_key"
+                "a timestamp column, or when the at least one feature_sets has a timestamp_key"
             )
         # convert pandas entity_rows to spark DF if needed
         if (

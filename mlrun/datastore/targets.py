@@ -36,8 +36,8 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .utils import (
-    helper_filter_df,
-    helper_select_columns_from_df,
+    filter_df_start_end_time,
+    select_columns_from_df,
     parse_kafka_url,
     store_path_to_spark,
 )
@@ -669,21 +669,13 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return helper_select_columns_from_df(
-            helper_filter_df(
-                mlrun.get_dataitem(self.get_target_path()).as_df(
-                    columns=columns,
-                    df_module=df_module,
-                    start_time=start_time,
-                    end_time=end_time,
-                    time_column=time_column,
-                    **kwargs,
-                ),
-                start_time=start_time,
-                end_time=end_time,
-                time_field=time_column,
-            ),
+        return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
+            df_module=df_module,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+            **kwargs,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1490,12 +1482,12 @@ class DFTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        return helper_select_columns_from_df(
-            helper_filter_df(
+        return select_columns_from_df(
+            filter_df_start_end_time(
                 self._df,
+                time_column=time_column,
                 start_time=start_time,
                 end_time=end_time,
-                time_field=time_column,
             ),
             columns,
         )
@@ -1669,16 +1661,16 @@ class SQLTarget(BaseStoreTarget):
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
             # TODO : filter as part of the query
-            df = helper_filter_df(
+            df = filter_df_start_end_time(
                 pd.read_sql(
                     f"SELECT * FROM {self.attributes.get('table_name')}",
                     con=conn,
                     parse_dates=self.attributes.get("time_fields"),
                     columns=columns,
                 ),
+                time_column=time_column,
                 start_time=start_time,
                 end_time=end_time,
-                time_field=time_column,
             )
             if self._primary_key_column:
                 df.set_index(self._primary_key_column, inplace=True)

@@ -26,6 +26,7 @@ import urllib3
 import mlrun.errors
 from mlrun.errors import err_to_str
 from mlrun.utils import is_ipython, logger
+from .utils import select_columns_from_df, filter_df_start_end_time
 
 verify_ssl = False
 if not verify_ssl:
@@ -419,7 +420,8 @@ class DataItem:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
-        return self._store.as_df(
+        kwargs["time_column"] = kwargs.get("time_column") or kwargs.pop("time_field")
+        df = self._store.as_df(
             self._url,
             self._path,
             columns=columns,
@@ -427,6 +429,22 @@ class DataItem:
             format=format,
             **kwargs,
         )
+        if self._url.endswith(".json") or format == "json":
+            df = filter_df_start_end_time(
+                df,
+                time_column=kwargs.get("time_field"),
+                start_time=kwargs.get("start_time"),
+                end_time=kwargs.get("end_time"),
+            )
+            df = select_columns_from_df(df, columns=columns)
+        elif self._url.endswith(".csv") or format == "csv":
+            df = filter_df_start_end_time(
+                df,
+                time_column=kwargs.get("time_column"),
+                start_time=kwargs.get("start_time"),
+                end_time=kwargs.get("end_time"),
+            )
+        return df
 
     def show(self, format=None):
         """show the data object content in Jupyter

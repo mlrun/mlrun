@@ -946,7 +946,6 @@ class FeatureSet(ModelObj):
                 start_time=start_time,
                 end_time=end_time,
                 time_field=time_column,
-                external=True,
                 **kwargs,
             )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe

@@ -84,35 +84,34 @@ def upload_tarball(source_dir, target, secrets=None):
         datastore.upload(subpath, temp_fh.name)
 
 
-def helper_filter_df(
-    df, time_field=None, start_time=None, end_time=None
+def filter_df_start_end_time(
+    df, time_column=None, start_time=None, end_time=None
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
-    if not time_field or (not start_time and not end_time):
+    if not time_column or (not start_time and not end_time):
         return df
     if isinstance(df, pd.DataFrame):
-        df[time_field] = pd.to_datetime(df[time_field])
-        if start_time:
-            df = df[df[time_field] > start_time]
-        if end_time:
-            df = df[df[time_field] <= end_time]
-        return df
+        return _execute_time_filter(df, time_column, start_time, end_time)
     else:
-        filter_df_generator(df, time_field, start_time, end_time)
+        filter_df_generator(df, time_column, start_time, end_time)
 
 
 def filter_df_generator(
     dfs, time_field, start_time, end_time
 ) -> typing.Iterator[pd.DataFrame]:
-    for df_in in dfs:
-        df_in[time_field] = pd.to_datetime(df_in[time_field])
-        if start_time:
-            df_in = df_in[df_in[time_field] > start_time]
-        if end_time:
-            df_in = df_in[df_in[time_field] <= end_time]
-        yield df_in
+    for df in dfs:
+        yield _execute_time_filter(df, time_field, start_time, end_time)
 
 
-def helper_select_columns_from_df(
+def _execute_time_filter(df, time_column, start_time, end_time):
+    df[time_column] = pd.to_datetime(df[time_column])
+    if start_time:
+        df = df[df[time_column] > start_time]
+    if end_time:
+        df = df[df[time_column] <= end_time]
+    return df
+
+
+def select_columns_from_df(
     df, columns
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
@@ -123,6 +122,6 @@ def helper_select_columns_from_df(
         return select_columns_generator(df, columns)
 
 
-def select_columns_generator(df, columns) -> typing.Iterator[pd.DataFrame]:
-    for df_in in df:
-        yield df_in[columns]
+def select_columns_generator(dfs, columns) -> typing.Iterator[pd.DataFrame]:
+    for df in dfs:
+        yield df[columns]

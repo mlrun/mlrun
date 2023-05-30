@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
 import pathlib
+
+from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
+
 import mlrun.errors
 
 from .base import DataStore, FileStats
@@ -57,6 +59,8 @@ class DatabricksFileRangeFix(DatabricksFile):
 
 
 class DatabricksFileSystemRangeFix(DatabricksFileSystem):
+    root_marker = "/"
+
     def _open(self, path, mode="rb", block_size="default", **kwargs):
         """
         Overwrite the base class method to make sure to create a DBFile.
@@ -67,6 +71,9 @@ class DatabricksFileSystemRangeFix(DatabricksFileSystem):
         return DatabricksFileRangeFix(
             self, path, mode=mode, block_size=block_size, **kwargs
         )
+
+    def _ls_from_cache(self, path):
+        pass
 
 
 class DBFSStore(DataStore):
@@ -150,7 +157,6 @@ class DBFSStore(DataStore):
             return key
         remote_path = f"{key}/*"
         files = self._filesystem.glob(remote_path)
-        key_length = len(key)
         #  Get only the files and directories under key path, without the key path itself.
         # for example for /test_mlrun_dbfs_objects/test.txt the function will return ['test.txt'].
         files = [pathlib.Path(file).name for file in files if "/" in file]

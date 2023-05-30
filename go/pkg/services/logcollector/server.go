@@ -467,7 +467,10 @@ func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogs
 			ErrorMessage: common.GetErrorStack(err, common.DefaultErrorStackDepth),
 		}, nil
 	}
-
+	s.Logger.DebugWithCtx(ctx,
+		"Sending Response for has logs",
+		"runUID", request.RunUID,
+		"projectName", request.ProjectName)
 	return &protologcollector.HasLogsResponse{
 		Success: true,
 		HasLogs: true,

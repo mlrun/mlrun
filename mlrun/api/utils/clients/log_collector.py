@@ -150,7 +150,9 @@ class LogCollectorClient(
 
         # check if this run has logs to collect
         try:
+            logger.debug("Checking if run has logs to collect", run_uid=run_uid)
             has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
+            logger.debug("Result of checking if run has logs to collect", has_logs=has_logs, run_uid=run_uid)
             if not has_logs:
                 logger.debug(
                     "Run has no logs to collect",
@@ -182,7 +184,9 @@ class LogCollectorClient(
         try_count = 0
         while True:
             try:
+                logger.debug("Getting logs", run_uid=run_uid, project=project)
                 response_stream = self._call_stream("GetLogs", request)
+                logger.debug("Got logs", run_uid=run_uid, project=project)
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"

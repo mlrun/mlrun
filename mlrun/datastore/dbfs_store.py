@@ -156,7 +156,7 @@ class DBFSStore(DataStore):
         files = [
             file.split("/", 1)[1][key_length:]
             for file in files
-            if len(file.split("/")) > 1
+            if "/" in file
         ]
         return files
 

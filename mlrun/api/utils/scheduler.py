@@ -299,14 +299,14 @@ class Scheduler:
     def store_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
         scheduled_object: Union[Dict, Callable] = None,
-        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         labels: Dict = None,
         concurrency_limit: int = None,
-        kind: schemas.ScheduleKinds = None,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
     ):
         # raise on conflict flag is to prevent raising error when the schedule not exists, so we can create a new one
         db_schedule = get_db().get_schedule(

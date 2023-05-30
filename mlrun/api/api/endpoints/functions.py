@@ -162,7 +162,7 @@ async def delete_function(
         auth_info,
     )
 
-    #  If the removed function has a schedule, we must delete it before deleting the function
+    #  If the requested function has a schedule, we must delete it before deleting the function
     schedule = await run_in_threadpool(
         get_scheduler().get_schedule,
         db_session,

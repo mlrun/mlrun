@@ -139,13 +139,11 @@ class DBFSStore(DataStore):
 
     def stat(self, key: str):
         key = self._prepare_path_and_verify_filesystem(key)
-        files = self._filesystem.stat(key)
-        if len(files) == 1 and files[0]["type"] == "file":
-            size = files[0]["size"]
-        elif len(files) == 1 and files[0]["type"] == "directory":
+        file = self._filesystem.stat(key)
+        if file["type"] == "file":
+            size = file["size"]
+        elif file["type"] == "directory":
             raise FileNotFoundError("Operation expects a file not a directory!")
-        else:
-            raise ValueError("Operation expects to receive a single file!")
         return FileStats(size, None)
 
     def listdir(self, key: str):

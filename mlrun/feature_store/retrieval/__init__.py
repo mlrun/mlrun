@@ -16,13 +16,14 @@ import mlrun.errors
 from .dask_merger import DaskFeatureMerger
 from .job import run_merge_job  # noqa
 from .local_merger import LocalFeatureMerger
-from .online import init_feature_vector_graph  # noqa
+from .online import OnlineFeatureMerger
 from .spark_merger import SparkFeatureMerger
 
 mergers = {
     "local": LocalFeatureMerger,
     "dask": DaskFeatureMerger,
     "spark": SparkFeatureMerger,
+    "online": OnlineFeatureMerger,
 }
 
 

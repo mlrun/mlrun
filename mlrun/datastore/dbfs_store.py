@@ -153,7 +153,7 @@ class DBFSStore(DataStore):
         key_length = len(key)
         #  Get only the files and directories under key path, without the key path itself.
         # for example for /test_mlrun_dbfs_objects/test.txt the function will return ['test.txt'].
-        files = [pathlib.Path(file).namefor file in files if "/" in file]
+        files = [pathlib.Path(file).name for file in files if "/" in file]
         return files
 
     def rm(self, path, recursive=False, maxdepth=None):

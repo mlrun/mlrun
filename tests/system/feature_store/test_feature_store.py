@@ -4173,12 +4173,9 @@ class TestFeatureStore(TestMLRunSystem):
             )
             res_df = resp.to_dataframe().sort_index(axis=1)
 
-            if isinstance(timestamp_for_filtering, dict):
-                timestamp_for_filtering = timestamp_for_filtering["fs1"]
-
-            if not timestamp_for_filtering:
+            if not timestamp_for_filtering_str:
                 assert res_df["val"].tolist() == [1, 2]
-            elif timestamp_for_filtering == "other_ts":
+            elif timestamp_for_filtering_str == "other_ts":
                 assert res_df["val"].tolist() == [3, 4]
             assert res_df.columns == ["val"]
         else:

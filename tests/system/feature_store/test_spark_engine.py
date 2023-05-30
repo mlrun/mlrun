@@ -75,7 +75,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     csv_source = "testdata.csv"
     run_local = False
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -2247,26 +2247,42 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
 
-        resp = fstore.get_offline_features(
-            feature_vector=vec,
-            start_time=test_base_time - pd.Timedelta(minutes=3),
-            end_time=test_base_time,
-            timestamp_for_filtering=timestamp_for_filtering,
-            engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
-            spark_service=self.spark_service,
-            target=target,
-        )
-        res_df = resp.to_dataframe().sort_index(axis=1)
-
         if isinstance(timestamp_for_filtering, dict):
-            timestamp_for_filtering = timestamp_for_filtering["fs1"]
-
-        if not timestamp_for_filtering:
-            assert res_df["val"].tolist() == [1, 2]
-        elif timestamp_for_filtering == "other_ts":
-            assert res_df["val"].tolist() == [3, 4]
+            timestamp_for_filtering_str = timestamp_for_filtering["fs1"]
         else:
-            res_df.equals(df.drop(columns=["ent", "other_ts", "ts_key"], inplace=True))
+            timestamp_for_filtering_str = timestamp_for_filtering
+        if timestamp_for_filtering_str != "bad_ts":
+            resp = fstore.get_offline_features(
+                feature_vector=vec,
+                start_time=test_base_time - pd.Timedelta(minutes=3),
+                end_time=test_base_time,
+                timestamp_for_filtering=timestamp_for_filtering,
+                engine="spark",
+                run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+                spark_service=self.spark_service,
+                target=target,
+            )
+            res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert res_df.columns == ["val"]
+            if not timestamp_for_filtering_str:
+                assert res_df["val"].tolist() == [1, 2]
+            elif timestamp_for_filtering_str == "other_ts":
+                assert res_df["val"].tolist() == [3, 4]
+
+            assert res_df.columns == ["val"]
+        else:
+            err = mlrun.errors.MLRunInvalidArgumentError if self.run_local else mlrun.runtimes.utils.RunError
+            with pytest.raises(
+                    err,
+                    match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
+            ):
+                resp = fstore.get_offline_features(
+                    feature_vector=vec,
+                    start_time=test_base_time - pd.Timedelta(minutes=3),
+                    end_time=test_base_time,
+                    timestamp_for_filtering=timestamp_for_filtering,
+                    engine="spark",
+                    run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+                    spark_service=self.spark_service,
+                    target=target,
+                )

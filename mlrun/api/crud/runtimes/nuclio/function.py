@@ -22,9 +22,9 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
-import mlrun.api.schemas
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
 import mlrun.runtimes.function
@@ -35,7 +35,7 @@ from mlrun.utils import logger
 
 def deploy_nuclio_function(
     function: mlrun.runtimes.function.RemoteRuntime,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
     client_python_version: str = None,
@@ -120,7 +120,7 @@ def get_nuclio_deploy_status(
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """
     Get nuclio function deploy status

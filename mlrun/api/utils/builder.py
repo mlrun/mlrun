@@ -348,7 +348,7 @@ def build_image(
 
         # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
         if mlrun_version:
-            requirements_list.insert(0, mlrun_version)
+            requirements_list = [mlrun_version] + requirements_list
 
     if not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")

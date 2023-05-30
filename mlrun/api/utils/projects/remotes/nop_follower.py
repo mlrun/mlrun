@@ -17,18 +17,19 @@ import typing
 import mergedeep
 import sqlalchemy.orm
 
-import mlrun.api.schemas
+import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.common.schemas
 import mlrun.errors
 
 
 class Member(mlrun.api.utils.projects.remotes.follower.Member):
     def __init__(self) -> None:
         super().__init__()
-        self._projects: typing.Dict[str, mlrun.api.schemas.Project] = {}
+        self._projects: typing.Dict[str, mlrun.common.schemas.Project] = {}
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
         if project.metadata.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
@@ -39,7 +40,7 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         # deep copy so we won't accidentally get changes from tests
         self._projects[name] = project.copy(deep=True)
@@ -49,25 +50,25 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         existing_project_dict = self._projects[name].dict()
         strategy = patch_mode.to_mergedeep_strategy()
         mergedeep.merge(existing_project_dict, project, strategy=strategy)
-        self._projects[name] = mlrun.api.schemas.Project(**existing_project_dict)
+        self._projects[name] = mlrun.common.schemas.Project(**existing_project_dict)
 
     def delete_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         if name in self._projects:
             del self._projects[name]
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         # deep copy so we won't accidentally get changes from tests
         return self._projects[name].copy(deep=True)
 
@@ -75,11 +76,11 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         if owner or labels or state:
             raise NotImplementedError(
                 "Filtering by owner, labels or state is not supported"
@@ -93,11 +94,18 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
                 for project_name, project in self._projects.items()
                 if project_name in names
             ]
-        if format_ == mlrun.api.schemas.ProjectsFormat.full:
-            return mlrun.api.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.api.schemas.ProjectsFormat.name_only:
+        if format_ == mlrun.common.schemas.ProjectsFormat.full:
+            return mlrun.common.schemas.ProjectsOutput(projects=projects)
+        elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+            return mlrun.common.schemas.ProjectsOutput(
+                projects=[
+                    mlrun.api.utils.helpers.minimize_project_schema(project)
+                    for project in projects
+                ]
+            )
+        elif format_ == mlrun.common.schemas.ProjectsFormat.name_only:
             project_names = [project.metadata.name for project in projects]
-            return mlrun.api.schemas.ProjectsOutput(projects=project_names)
+            return mlrun.common.schemas.ProjectsOutput(projects=project_names)
         else:
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
@@ -108,12 +116,12 @@ class Member(mlrun.api.utils.projects.remotes.follower.Member):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
     def get_project_summary(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")

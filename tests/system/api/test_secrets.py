@@ -18,7 +18,7 @@ from http import HTTPStatus
 import deepdiff
 import pytest
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 from tests.system.base import TestMLRunSystem
 
@@ -96,7 +96,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
     def test_k8s_project_secrets_using_httpdb(self):
         secrets = {"secret1": "value1", "secret2": "value2"}
-        expected_results = mlrun.api.schemas.SecretKeysData(
+        expected_results = mlrun.common.schemas.SecretKeysData(
             provider="kubernetes", secret_keys=list(secrets.keys())
         )
 

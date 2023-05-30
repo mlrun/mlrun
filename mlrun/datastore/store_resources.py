@@ -101,8 +101,8 @@ class ResourceCache:
         if is_store_uri(uri):
             resource = get_store_resource(uri)
             if resource.kind in [
-                mlrun.api.schemas.ObjectKind.feature_set.value,
-                mlrun.api.schemas.ObjectKind.feature_vector.value,
+                mlrun.common.schemas.ObjectKind.feature_set.value,
+                mlrun.common.schemas.ObjectKind.feature_vector.value,
             ]:
                 target = get_online_target(resource)
                 if not target:

@@ -20,8 +20,8 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.crud.secrets
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.errors import err_to_str
@@ -37,7 +37,7 @@ def get_files(
     user: str = "",
     size: int = 0,
     offset: int = 0,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -53,13 +53,13 @@ async def get_files_with_project_secrets(
     size: int = 0,
     offset: int = 0,
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
 
@@ -76,7 +76,7 @@ async def get_files_with_project_secrets(
 def get_filestat(
     schema: str = "",
     path: str = "",
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     user: str = "",
@@ -89,7 +89,7 @@ async def get_filestat_with_project_secrets(
     project: str,
     schema: str = "",
     path: str = "",
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     user: str = "",
@@ -97,7 +97,7 @@ async def get_filestat_with_project_secrets(
 ):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
 
@@ -116,7 +116,7 @@ def _get_files(
     user: str,
     size: int,
     offset: int,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     secrets: dict = None,
 ):
     _, filename = objpath.split(objpath)
@@ -162,7 +162,7 @@ def _get_filestat(
     schema: str,
     path: str,
     user: str,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     secrets: dict = None,
 ):
     _, filename = path.split(path)
@@ -197,16 +197,16 @@ def _get_filestat(
 
 async def _verify_and_get_project_secrets(project, auth_info):
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
-        mlrun.api.schemas.SecretProviderName.kubernetes,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     secrets_data = await run_in_threadpool(
         mlrun.api.crud.Secrets().list_project_secrets,
         project,
-        mlrun.api.schemas.SecretProviderName.kubernetes,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
     )
     return secrets_data.secrets or {}

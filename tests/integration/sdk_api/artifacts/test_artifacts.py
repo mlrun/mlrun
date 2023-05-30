@@ -76,7 +76,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(artifacts) == 1, "bad number of model artifacts"
 
         artifacts = db.list_artifacts(
-            project=prj, category=mlrun.api.schemas.ArtifactCategories.dataset
+            project=prj, category=mlrun.common.schemas.ArtifactCategories.dataset
         )
         assert len(artifacts) == 1, "bad number of dataset artifacts"
 

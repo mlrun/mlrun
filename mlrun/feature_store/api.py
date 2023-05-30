@@ -30,7 +30,6 @@ from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     BaseStoreTarget,
     get_default_prefix_for_source,
-    get_default_targets,
     get_target_driver,
     kind_to_driver,
     validate_target_list,
@@ -79,7 +78,7 @@ def _features_to_vector_and_check_permissions(features, update_stats):
                 "feature vector name must be specified"
             )
         verify_feature_vector_permissions(
-            vector, mlrun.api.schemas.AuthorizationAction.update
+            vector, mlrun.common.schemas.AuthorizationAction.update
         )
 
         vector.save()
@@ -431,10 +430,10 @@ def ingest(
         not mlrun_context
         and not targets
         and not (featureset.spec.targets or featureset.spec.with_default_targets)
+        and (run_config is not None and not run_config.local)
     ):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"No targets provided to feature set {featureset.metadata.name} ingest, aborting.\n"
-            "(preview can be used as an alternative to local ingest when targets are not needed)"
+            f"Feature set {featureset.metadata.name} is remote ingested with no targets defined, aborting"
         )
 
     if featureset is not None:
@@ -447,7 +446,7 @@ def ingest(
             )
         # remote job execution
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
@@ -479,7 +478,7 @@ def ingest(
 
         featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -508,10 +507,11 @@ def ingest(
                 f"Source.end_time is {str(source.end_time)}"
             )
 
-    if mlrun_context:
-        mlrun_context.logger.info(
-            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-        )
+        if mlrun_context:
+            mlrun_context.logger.info(
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+            )
+
         return_df = False
 
     if featureset.spec.passthrough:
@@ -521,7 +521,7 @@ def ingest(
     if not namespace:
         namespace = _get_namespace(run_config)
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
@@ -693,7 +693,7 @@ def preview(
         source = mlrun.store_manager.object(url=source).as_df()
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
@@ -718,7 +718,9 @@ def preview(
             )
         # reduce the size of the ingestion if we do not infer stats
         rows_limit = (
-            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+            None
+            if InferOptions.get_common_options(options, InferOptions.Stats)
+            else 1000
         )
         source = init_featureset_graph(
             source,
@@ -789,7 +791,7 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     verify_feature_set_exists(featureset)
@@ -802,7 +804,7 @@ def deploy_ingestion_service(
             name=featureset.metadata.name,
         )
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 

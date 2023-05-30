@@ -15,7 +15,7 @@
 import google.protobuf.reflection
 import grpc
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 

@@ -22,10 +22,10 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.helpers
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -41,13 +41,13 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         timeout: int = None,  # in seconds
         *args,
         **kwargs,
-    ) -> mlrun.api.schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         mlrun.api.utils.singletons.db.get_db().store_background_task(
             db_session,
             name,
             project,
-            mlrun.api.schemas.BackgroundTaskState.running,
+            mlrun.common.schemas.BackgroundTaskState.running,
             timeout,
         )
         background_tasks.add_task(
@@ -66,7 +66,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: str,
-    ) -> mlrun.api.schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         return mlrun.api.utils.singletons.db.get_db().get_background_task(
             db_session, name, project
         )
@@ -93,21 +93,21 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 db_session,
                 name,
                 project=project,
-                state=mlrun.api.schemas.BackgroundTaskState.failed,
+                state=mlrun.common.schemas.BackgroundTaskState.failed,
             )
         else:
             mlrun.api.utils.singletons.db.get_db().store_background_task(
                 db_session,
                 name,
                 project=project,
-                state=mlrun.api.schemas.BackgroundTaskState.succeeded,
+                state=mlrun.common.schemas.BackgroundTaskState.succeeded,
             )
 
 
 class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
         self._internal_background_tasks: typing.Dict[
-            str, mlrun.api.schemas.BackgroundTask
+            str, mlrun.common.schemas.BackgroundTask
         ] = {}
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
@@ -117,7 +117,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         function,
         *args,
         **kwargs,
-    ) -> mlrun.api.schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         name = str(uuid.uuid4())
         # sanity
         if name in self._internal_background_tasks:
@@ -138,7 +138,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def get_background_task(
         self,
         name: str,
-    ) -> mlrun.api.schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         """
         :return: returns the background task object and bool whether exists
         """
@@ -160,17 +160,17 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
             )
             self._update_background_task(
-                name, mlrun.api.schemas.BackgroundTaskState.failed
+                name, mlrun.common.schemas.BackgroundTaskState.failed
             )
         else:
             self._update_background_task(
-                name, mlrun.api.schemas.BackgroundTaskState.succeeded
+                name, mlrun.common.schemas.BackgroundTaskState.succeeded
             )
 
     def _update_background_task(
         self,
         name: str,
-        state: mlrun.api.schemas.BackgroundTaskState,
+        state: mlrun.common.schemas.BackgroundTaskState,
     ):
         background_task = self._internal_background_tasks[name]
         background_task.status.state = state
@@ -183,31 +183,31 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         # in order to keep things simple we don't persist the internal background tasks to the DB
         # If for some reason get is called and the background task doesn't exist, it means that probably we got
         # restarted, therefore we want to return a failed background task so the client will retry (if needed)
-        return mlrun.api.schemas.BackgroundTask(
-            metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+        return mlrun.common.schemas.BackgroundTask(
+            metadata=mlrun.common.schemas.BackgroundTaskMetadata(
                 name=name, project=project
             ),
-            spec=mlrun.api.schemas.BackgroundTaskSpec(),
-            status=mlrun.api.schemas.BackgroundTaskStatus(
-                state=mlrun.api.schemas.BackgroundTaskState.failed
+            spec=mlrun.common.schemas.BackgroundTaskSpec(),
+            status=mlrun.common.schemas.BackgroundTaskStatus(
+                state=mlrun.common.schemas.BackgroundTaskState.failed
             ),
         )
 
     @staticmethod
     def _generate_background_task(
         name: str, project: typing.Optional[str] = None
-    ) -> mlrun.api.schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
-        metadata = mlrun.api.schemas.BackgroundTaskMetadata(
+        metadata = mlrun.common.schemas.BackgroundTaskMetadata(
             name=name,
             project=project,
             created=now,
             updated=now,
         )
-        spec = mlrun.api.schemas.BackgroundTaskSpec()
-        status = mlrun.api.schemas.BackgroundTaskStatus(
-            state=mlrun.api.schemas.BackgroundTaskState.running
+        spec = mlrun.common.schemas.BackgroundTaskSpec()
+        status = mlrun.common.schemas.BackgroundTaskStatus(
+            state=mlrun.common.schemas.BackgroundTaskState.running
         )
-        return mlrun.api.schemas.BackgroundTask(
+        return mlrun.common.schemas.BackgroundTask(
             metadata=metadata, spec=spec, status=status
         )

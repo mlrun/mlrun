@@ -15,7 +15,7 @@
 import datetime
 from typing import List, Optional, Union
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
@@ -29,7 +29,6 @@ from mlrun.api.db.sqldb.session import create_session
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
-from ..api import schemas
 from .base import RunDBError, RunDBInterface
 
 
@@ -123,10 +122,12 @@ class SQLDB(RunDBInterface):
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
         last_update_time_to: datetime.datetime = None,
-        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -216,12 +217,12 @@ class SQLDB(RunDBInterface):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         import mlrun.api.crud
 
         if category and isinstance(category, str):
-            category = schemas.ArtifactCategories(category)
+            category = mlrun.common.schemas.ArtifactCategories(category)
 
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().list_artifacts,
@@ -309,7 +310,9 @@ class SQLDB(RunDBInterface):
         )
 
     def list_artifact_tags(
-        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+        self,
+        project=None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         return self._transform_db_error(
             self.db.list_artifact_tags, self.session, project
@@ -319,7 +322,7 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: mlrun.api.schemas.TagObjects,
+        tag_objects: mlrun.common.schemas.TagObjects,
         replace: bool = False,
     ):
         import mlrun.api.crud
@@ -345,7 +348,7 @@ class SQLDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: mlrun.api.schemas.TagObjects,
+        tag_objects: mlrun.common.schemas.TagObjects,
     ):
         import mlrun.api.crud
 
@@ -394,12 +397,12 @@ class SQLDB(RunDBInterface):
     def store_project(
         self,
         name: str,
-        project: mlrun.api.schemas.Project,
-    ) -> mlrun.api.schemas.Project:
+        project: mlrun.common.schemas.Project,
+    ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
         if isinstance(project, dict):
-            project = mlrun.api.schemas.Project(**project)
+            project = mlrun.common.schemas.Project(**project)
 
         return self._transform_db_error(
             mlrun.api.crud.Projects().store_project,
@@ -412,8 +415,8 @@ class SQLDB(RunDBInterface):
         self,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-    ) -> mlrun.api.schemas.Project:
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+    ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
         return self._transform_db_error(
@@ -426,8 +429,8 @@ class SQLDB(RunDBInterface):
 
     def create_project(
         self,
-        project: mlrun.api.schemas.Project,
-    ) -> mlrun.api.schemas.Project:
+        project: mlrun.common.schemas.Project,
+    ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
         return self._transform_db_error(
@@ -439,7 +442,7 @@ class SQLDB(RunDBInterface):
     def delete_project(
         self,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         import mlrun.api.crud
 
@@ -452,7 +455,7 @@ class SQLDB(RunDBInterface):
 
     def get_project(
         self, name: str = None, project_id: int = None
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         import mlrun.api.crud
 
         return self._transform_db_error(
@@ -464,10 +467,10 @@ class SQLDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+        state: mlrun.common.schemas.ProjectState = None,
+    ) -> mlrun.common.schemas.ProjectsOutput:
         import mlrun.api.crud
 
         return self._transform_db_error(
@@ -559,10 +562,10 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: mlrun.api.schemas.SortField = None,
-        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
     ):
         import mlrun.api.crud
 
@@ -584,7 +587,7 @@ class SQLDB(RunDBInterface):
 
     def store_feature_set(
         self,
-        feature_set: Union[dict, mlrun.api.schemas.FeatureSet],
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -594,7 +597,7 @@ class SQLDB(RunDBInterface):
         import mlrun.api.crud
 
         if isinstance(feature_set, dict):
-            feature_set = mlrun.api.schemas.FeatureSet(**feature_set)
+            feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
 
         name = name or feature_set.metadata.name
         project = project or feature_set.metadata.project
@@ -669,10 +672,10 @@ class SQLDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: mlrun.api.schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: mlrun.api.schemas.SortField = None,
-        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
     ):
         import mlrun.api.crud
 
@@ -754,18 +757,18 @@ class SQLDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.PipelinesFormat
-        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
-    ) -> mlrun.api.schemas.PipelinesOutput:
+    ) -> mlrun.common.schemas.PipelinesOutput:
         raise NotImplementedError()
 
     def create_project_secrets(
         self,
         project: str,
         provider: Union[
-            str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -775,28 +778,28 @@ class SQLDB(RunDBInterface):
         project: str,
         token: str,
         provider: Union[
-            str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
-    ) -> mlrun.api.schemas.SecretsData:
+    ) -> mlrun.common.schemas.SecretsData:
         raise NotImplementedError()
 
     def list_project_secret_keys(
         self,
         project: str,
         provider: Union[
-            str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         token: str = None,
-    ) -> mlrun.api.schemas.SecretKeysData:
+    ) -> mlrun.common.schemas.SecretKeysData:
         raise NotImplementedError()
 
     def delete_project_secrets(
         self,
         project: str,
         provider: Union[
-            str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()
@@ -805,8 +808,8 @@ class SQLDB(RunDBInterface):
         self,
         user: str,
         provider: Union[
-            str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -859,26 +862,28 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         raise NotImplementedError()
 
-    def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def store_hub_source(
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         raise NotImplementedError()
 
-    def list_marketplace_sources(self):
+    def list_hub_sources(self):
         raise NotImplementedError()
 
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         raise NotImplementedError()
 
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         raise NotImplementedError()
 
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         version: str = None,
@@ -887,7 +892,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,
@@ -899,7 +904,7 @@ class SQLDB(RunDBInterface):
 
     def verify_authorization(
         self,
-        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
         # done from ingest()

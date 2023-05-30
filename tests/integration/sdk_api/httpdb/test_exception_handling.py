@@ -15,7 +15,7 @@
 import pytest
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import tests.integration.sdk_api.base
 
@@ -47,8 +47,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         # This is handled in the mlrun/api/main.py::http_status_error_handler
         invalid_project_name = "some_project"
         # Not using client class cause it does validation on client side and we want to fail on server side
-        project = mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name)
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=invalid_project_name)
         )
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,

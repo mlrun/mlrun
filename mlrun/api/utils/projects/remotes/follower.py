@@ -17,13 +17,13 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 
 class Member(abc.ABC):
     @abc.abstractmethod
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
         pass
 
@@ -32,7 +32,7 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         pass
 
@@ -42,7 +42,7 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -51,14 +51,14 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         pass
 
     @abc.abstractmethod
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abc.abstractmethod
@@ -66,11 +66,11 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
     @abc.abstractmethod
@@ -79,13 +79,13 @@ class Member(abc.ABC):
         session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         pass
 
     @abc.abstractmethod
     def get_project_summary(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         pass

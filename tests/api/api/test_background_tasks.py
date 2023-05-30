@@ -25,10 +25,10 @@ import sqlalchemy.orm
 
 import mlrun.api.api.deps
 import mlrun.api.main
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.common.schemas
 
 test_router = fastapi.APIRouter()
 
@@ -37,7 +37,7 @@ test_router = fastapi.APIRouter()
 # and to get this class, we must trigger an endpoint
 @test_router.post(
     "/projects/{project}/background-tasks",
-    response_model=mlrun.api.schemas.BackgroundTask,
+    response_model=mlrun.common.schemas.BackgroundTask,
 )
 def create_project_background_task(
     project: str,
@@ -57,7 +57,7 @@ def create_project_background_task(
 
 @test_router.post(
     "/internal-background-tasks",
-    response_model=mlrun.api.schemas.BackgroundTask,
+    response_model=mlrun.common.schemas.BackgroundTask,
 )
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
@@ -174,9 +174,10 @@ def test_create_project_background_task_in_chief_success(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
     assert background_task.metadata.updated is not None
     assert call_counter == 1
@@ -194,8 +195,10 @@ def test_create_project_background_task_in_chief_failure(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
     assert background_task.metadata.updated is not None
 
 
@@ -219,7 +222,7 @@ def test_get_background_task_auth_skip(
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     response = client.get(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
     )
@@ -257,7 +260,7 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     )
     response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task == expected_background_task
 
 
@@ -284,7 +287,7 @@ def test_get_internal_background_task_in_chief_exists(
 ):
     response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.project is None
 
     response = client.get(
@@ -340,26 +343,28 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
 
 def _generate_background_task(
     background_task_name,
-    state: mlrun.api.schemas.BackgroundTaskState = mlrun.api.schemas.BackgroundTaskState.running,
-) -> mlrun.api.schemas.BackgroundTask:
+    state: mlrun.common.schemas.BackgroundTaskState = mlrun.common.schemas.BackgroundTaskState.running,
+) -> mlrun.common.schemas.BackgroundTask:
     now = datetime.datetime.utcnow()
-    return mlrun.api.schemas.BackgroundTask(
-        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+    return mlrun.common.schemas.BackgroundTask(
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(
             name=background_task_name,
             created=now,
             updated=now,
         ),
-        status=mlrun.api.schemas.BackgroundTaskStatus(state=state.value),
-        spec=mlrun.api.schemas.BackgroundTaskSpec(),
+        status=mlrun.common.schemas.BackgroundTaskStatus(state=state.value),
+        spec=mlrun.common.schemas.BackgroundTaskSpec(),
     )
 
 
 def _assert_background_task_creation(expected_project, response):
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.kind == mlrun.api.schemas.ObjectKind.background_task
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert background_task.kind == mlrun.common.schemas.ObjectKind.background_task
     assert background_task.metadata.project == expected_project
     assert background_task.metadata.created is not None
     assert background_task.metadata.updated is not None
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     return background_task

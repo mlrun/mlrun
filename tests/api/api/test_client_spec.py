@@ -23,8 +23,8 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.version
@@ -141,8 +141,8 @@ def test_client_spec_response_based_on_client_version(
     response = client.get(
         "client-spec",
         headers={
-            mlrun.api.schemas.HeaderNames.client_version: "",
-            mlrun.api.schemas.HeaderNames.python_version: "",
+            mlrun.common.schemas.HeaderNames.client_version: "",
+            mlrun.common.schemas.HeaderNames.python_version: "",
         },
     )
     assert response.status_code == http.HTTPStatus.OK.value
@@ -157,8 +157,8 @@ def test_client_spec_response_based_on_client_version(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.HeaderNames.client_version: "",
-                mlrun.api.schemas.HeaderNames.python_version: "",
+                mlrun.common.schemas.HeaderNames.client_version: "",
+                mlrun.common.schemas.HeaderNames.python_version: "",
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -170,7 +170,7 @@ def test_client_spec_response_based_on_client_version(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.HeaderNames.client_version: "1.2.0",
+                mlrun.common.schemas.HeaderNames.client_version: "1.2.0",
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -182,8 +182,8 @@ def test_client_spec_response_based_on_client_version(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.HeaderNames.client_version: "1.3.0-rc20",
-                mlrun.api.schemas.HeaderNames.python_version: "3.7.13",
+                mlrun.common.schemas.HeaderNames.client_version: "1.3.0-rc20",
+                mlrun.common.schemas.HeaderNames.python_version: "3.7.13",
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -194,8 +194,8 @@ def test_client_spec_response_based_on_client_version(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.HeaderNames.client_version: "1.3.0-rc20",
-                mlrun.api.schemas.HeaderNames.python_version: "3.9.13",
+                mlrun.common.schemas.HeaderNames.client_version: "1.3.0-rc20",
+                mlrun.common.schemas.HeaderNames.python_version: "3.9.13",
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -207,8 +207,8 @@ def test_client_spec_response_based_on_client_version(
         response = client.get(
             "client-spec",
             headers={
-                mlrun.api.schemas.HeaderNames.client_version: "test-integration",
-                mlrun.api.schemas.HeaderNames.python_version: "3.9.13",
+                mlrun.common.schemas.HeaderNames.client_version: "test-integration",
+                mlrun.common.schemas.HeaderNames.python_version: "3.9.13",
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value

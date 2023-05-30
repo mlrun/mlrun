@@ -21,7 +21,7 @@ import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 from ..datastore import parse_kafka_url
 from ..model import ObjectList
@@ -585,7 +585,7 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: mlrun.api.schemas.AuthInfo = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
         builder_env: dict = None,
     ):
         """deploy model serving function to a local/remote cluster

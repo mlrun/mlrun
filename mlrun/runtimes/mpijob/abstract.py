@@ -24,7 +24,7 @@ from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
-from mlrun.runtimes.utils import RunError
+from mlrun.runtimes.utils import RunError, get_k8s
 from mlrun.utils import get_in, logger
 
 
@@ -191,10 +191,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     def _submit_mpijob(self, job, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
 
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
+        namespace = get_k8s().resolve_namespace(namespace)
         try:
-            resp = k8s.crdapi.create_namespaced_custom_object(
+            resp = get_k8s().crdapi.create_namespaced_custom_object(
                 mpi_group,
                 mpi_version,
                 namespace=namespace,
@@ -210,7 +209,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             # delete the mpi job
@@ -225,11 +224,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
+        namespace = get_k8s().resolve_namespace(namespace)
         items = []
         try:
-            resp = k8s.crdapi.list_namespaced_custom_object(
+            resp = get_k8s().crdapi.list_namespaced_custom_object(
                 mpi_group,
                 mpi_version,
                 namespace,
@@ -249,10 +247,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def get_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
+        namespace = get_k8s().resolve_namespace(namespace)
         try:
-            resp = k8s.crdapi.get_namespaced_custom_object(
+            resp = get_k8s().crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
         except client.exceptions.ApiException as exc:
@@ -261,12 +258,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         return resp
 
     def get_pods(self, name=None, namespace=None, launcher=False):
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
+        namespace = get_k8s().resolve_namespace(namespace)
 
         selector = self._generate_pods_selector(name, launcher)
 
-        pods = k8s.list_pods(selector=selector, namespace=namespace)
+        pods = get_k8s().list_pods(selector=selector, namespace=namespace)
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
 

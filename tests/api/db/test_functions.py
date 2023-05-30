@@ -100,6 +100,36 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     assert len(functions) == 1
 
 
+def test_delete_schedule_when_deleting_function(db: DBInterface, db_session: Session):
+    project_name, func_name = "project", "function"
+    func = _generate_function()
+
+    db.store_function(db_session, func.to_dict(), func.metadata.name, versioned=True)
+
+    # creating a schedule for the created function
+    db.create_schedule(
+        db_session,
+        project=project_name,
+        name=func_name,
+        kind=mlrun.common.schemas.ScheduleKinds.local_function,
+        scheduled_object="*/15 * * * *",
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute="*/15"),
+        concurrency_limit=15,
+    )
+
+    # get the schedule and make sure it was created
+    schedule = db.get_schedule(session=db_session, project=project_name, name=func_name)
+    assert schedule.name == func_name
+
+    db.delete_function(session=db_session, project=project_name, name=func_name)
+
+    # ensure that both the function and the schedule have been removed
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_function(session=db_session, project=project_name, name=func_name)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_schedule(session=db_session, project=project_name, name=func_name)
+
+
 def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -119,6 +149,36 @@ def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     # function queried by hash shouldn't have tag
     assert function_queried_without_hash_key["metadata"]["tag"] == "latest"
     assert function_queried_with_hash_key["metadata"]["tag"] == ""
+
+
+def test_get_function_when_using_not_normalize_name(
+    db: DBInterface, db_session: Session
+):
+    # add a function with a non-normalized name to the database
+    function_name = "function_name"
+    project_name = "project"
+    _generate_and_insert_function_record(db_session, function_name, project_name)
+
+    # getting the function using the non-normalized name, and ensure that it works
+    response = db.get_function(db_session, function_name, project_name)
+    assert response["metadata"]["name"] == function_name
+
+
+def _generate_and_insert_function_record(
+    db_session: Session, function_name: str, project_name: str
+):
+    function = {
+        "metadata": {"name": function_name, "project": project_name},
+        "spec": {"asd": "test"},
+    }
+    fn = Function(
+        name=function_name, project=project_name, struct=function, uid="1", id="1"
+    )
+    tag = Function.Tag(project=project_name, name="latest", obj_name=fn.name)
+    tag.obj_id, tag.uid = fn.id, fn.uid
+    db_session.add(fn)
+    db_session.add(tag)
+    db_session.commit()
 
 
 def test_get_function_by_tag(db: DBInterface, db_session: Session):

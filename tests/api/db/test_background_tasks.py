@@ -18,8 +18,8 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.initial_data
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 
 
@@ -57,20 +57,27 @@ def test_store_project_background_task_after_status_updated(
     project = "test-project"
     db.store_background_task(db_session, "test", project=project)
     background_task = db.get_background_task(db_session, "test", project=project)
-    assert background_task.status.state == schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     db.store_background_task(
-        db_session, "test", state=schemas.BackgroundTaskState.failed, project=project
+        db_session,
+        "test",
+        state=mlrun.common.schemas.BackgroundTaskState.failed,
+        project=project,
     )
     background_task = db.get_background_task(db_session, "test", project=project)
-    assert background_task.status.state == schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
     # Expecting to fail
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         db.store_background_task(
             db_session,
             "test",
-            state=schemas.BackgroundTaskState.running,
+            state=mlrun.common.schemas.BackgroundTaskState.running,
             project=project,
         )
     # expecting to fail, because terminal state is terminal which means it is not supposed to change
@@ -78,12 +85,15 @@ def test_store_project_background_task_after_status_updated(
         db.store_background_task(
             db_session,
             "test",
-            state=schemas.BackgroundTaskState.succeeded,
+            state=mlrun.common.schemas.BackgroundTaskState.succeeded,
             project=project,
         )
 
     db.store_background_task(
-        db_session, "test", state=schemas.BackgroundTaskState.failed, project=project
+        db_session,
+        "test",
+        state=mlrun.common.schemas.BackgroundTaskState.failed,
+        project=project,
     )
 
 
@@ -102,25 +112,29 @@ def test_get_project_background_task_with_disabled_timeout(
     assert background_task.metadata.timeout is None
     # expecting created and updated time to be equal because mode disabled even if timeout exceeded
     assert background_task.metadata.created == background_task.metadata.updated
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     task_name = "test1"
     db.store_background_task(db_session, name=task_name, project=project)
     # because timeout default mode is disabled, expecting not to enrich the background task timeout
     background_task = db.get_background_task(db_session, task_name, project)
     assert background_task.metadata.timeout is None
     assert background_task.metadata.created == background_task.metadata.updated
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     db.store_background_task(
         db_session,
         name=task_name,
         project=project,
-        state=mlrun.api.schemas.BackgroundTaskState.succeeded,
+        state=mlrun.common.schemas.BackgroundTaskState.succeeded,
     )
     background_task_new = db.get_background_task(db_session, task_name, project)
     assert (
         background_task_new.status.state
-        == mlrun.api.schemas.BackgroundTaskState.succeeded
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
     assert background_task_new.metadata.updated > background_task.metadata.updated
     assert background_task_new.metadata.created == background_task.metadata.created

@@ -24,8 +24,8 @@ import mlrun.api.main
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
+import mlrun.common.schemas
 import tests.api.api.utils
-from mlrun.api import schemas
 from mlrun.api.utils.singletons.db import get_db
 from tests.common_fixtures import aioresponses_mock
 
@@ -46,14 +46,14 @@ def test_list_schedules(
     labels_1 = {
         "label1": "value1",
     }
-    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project = mlrun.mlconf.default_project
     get_db().create_schedule(
         db,
         project,
         schedule_name,
-        schemas.ScheduleKinds.local_function,
+        mlrun.common.schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
         mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,
@@ -68,7 +68,7 @@ def test_list_schedules(
         db,
         project,
         schedule_name_2,
-        schemas.ScheduleKinds.local_function,
+        mlrun.common.schemas.ScheduleKinds.local_function,
         do_nothing,
         cron_trigger,
         mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,

@@ -21,8 +21,8 @@ import pytest
 import sqlalchemy.orm.session
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector
+import mlrun.common.schemas
 
 
 class BaseLogCollectorResponse:
@@ -67,7 +67,7 @@ class HasLogsResponse:
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
-mlrun.mlconf.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
+mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
 
 class TestLogCollector:
@@ -149,6 +149,43 @@ class TestLogCollector:
         )
         async for log in log_stream:
             assert log == b""
+
+    @pytest.mark.asyncio
+    async def test_get_log_with_retryable_error(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        run_uid = "123"
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        # mock responses for HasLogs to return a retryable error
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(
+                False,
+                "readdirent /var/mlrun/logs/blabla: resource temporarily unavailable",
+                True,
+            )
+        )
+
+        log_stream = log_collector.get_logs(
+            run_uid=run_uid, project=project_name, raise_on_error=False
+        )
+        async for log in log_stream:
+            assert log == b""
+
+        # mock responses for HasLogs to return a retryable error
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(
+                False,
+                "I'm an error that should not be retried",
+                True,
+            )
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            async for log in log_collector.get_logs(
+                run_uid=run_uid, project=project_name
+            ):
+                assert log == b""  # should not get here
 
     @pytest.mark.asyncio
     async def test_stop_logs(

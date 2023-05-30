@@ -20,8 +20,8 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.api.db.base import DBInterface
@@ -39,11 +39,11 @@ def test_get_project(
     }
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=project_name, labels=project_labels
             ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
         ),
     )
 
@@ -92,12 +92,12 @@ def test_data_migration_enrich_project_state(
     projects = db.list_projects(db_session)
     for project in projects.projects:
         # getting default value from the schema
-        assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
+        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
         assert project.status.state is None
     mlrun.api.initial_data._enrich_project_state(db, db_session)
     projects = db.list_projects(db_session)
     for project in projects.projects:
-        assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
+        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
         assert project.status.state == project.spec.desired_state
     # verify not storing for no reason
     db.store_project = unittest.mock.Mock()
@@ -130,11 +130,11 @@ def test_list_project(
     for project in expected_projects:
         db.create_project(
             db_session,
-            mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
                     name=project["name"], labels=project.get("labels")
                 ),
-                spec=mlrun.api.schemas.ProjectSpec(
+                spec=mlrun.common.schemas.ProjectSpec(
                     description=project.get("description")
                 ),
             ),
@@ -153,6 +153,43 @@ def test_list_project(
         )
 
 
+def test_list_project_minimal(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+):
+    expected_projects = ["project-name-1", "project-name-2", "project-name-3"]
+    for project in expected_projects:
+        db.create_project(
+            db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
+                    name=project,
+                ),
+                spec=mlrun.common.schemas.ProjectSpec(
+                    description="some-proj",
+                    artifacts=[{"key": "value"}],
+                    workflows=[{"key": "value"}],
+                    functions=[{"key": "value"}],
+                ),
+            ),
+        )
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.common.schemas.ProjectsFormat.minimal
+    )
+    for index, project in enumerate(projects_output.projects):
+        assert project.metadata.name == expected_projects[index]
+        assert project.spec.artifacts is None
+        assert project.spec.workflows is None
+        assert project.spec.functions is None
+
+    projects_output = db.list_projects(db_session)
+    for index, project in enumerate(projects_output.projects):
+        assert project.metadata.name == expected_projects[index]
+        assert project.spec.artifacts == [{"key": "value"}]
+        assert project.spec.workflows == [{"key": "value"}]
+        assert project.spec.functions == [{"key": "value"}]
+
+
 def test_list_project_names_filter(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,
@@ -162,14 +199,14 @@ def test_list_project_names_filter(
     for project in project_names:
         db.create_project(
             db_session,
-            mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=project),
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=project),
             ),
         )
     filter_names = [project_names[0], project_names[3], project_names[4]]
     projects_output = db.list_projects(
         db_session,
-        format_=mlrun.api.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.schemas.ProjectsFormat.name_only,
         names=filter_names,
     )
 
@@ -184,7 +221,7 @@ def test_list_project_names_filter(
 
     projects_output = db.list_projects(
         db_session,
-        format_=mlrun.api.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.schemas.ProjectsFormat.name_only,
         names=[],
     )
 
@@ -229,8 +266,8 @@ def test_store_project_update(
     db.store_project(
         db_session,
         project.metadata.name,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project.metadata.name),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project.metadata.name),
         ),
     )
     project_output = db.get_project(db_session, project.metadata.name)
@@ -289,9 +326,9 @@ def test_delete_project(
     project_description = "some description"
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.common.schemas.ProjectSpec(description=project_description),
         ),
     )
     db.delete_project(db_session, project_name)
@@ -301,15 +338,15 @@ def test_delete_project(
 
 
 def _generate_project():
-    return mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
             name="project-name",
             created=datetime.datetime.utcnow() - datetime.timedelta(seconds=1),
             labels={
                 "some-label": "some-label-value",
             },
         ),
-        spec=mlrun.api.schemas.ProjectSpec(
+        spec=mlrun.common.schemas.ProjectSpec(
             description="some description", owner="owner-name"
         ),
     )
@@ -318,7 +355,7 @@ def _generate_project():
 def _assert_project(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,
-    expected_project: mlrun.api.schemas.Project,
+    expected_project: mlrun.common.schemas.Project,
 ):
     project_output = db.get_project(db_session, expected_project.metadata.name)
     assert project_output.metadata.name == expected_project.metadata.name

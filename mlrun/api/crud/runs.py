@@ -16,10 +16,10 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.lists
@@ -41,7 +41,6 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.info("Storing run", data=data)
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -59,7 +58,7 @@ class Runs(
         data: dict,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.debug("Updating run", project=project, uid=uid, iter=iter, data=data)
+        logger.debug("Updating run", project=project, uid=uid, iter=iter)
         # TODO: do some desired state for run, it doesn't make sense that API user changes the status in order to
         #  trigger abortion
         if (
@@ -120,10 +119,10 @@ class Runs(
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
-        partition_by: mlrun.api.schemas.RunPartitionByField = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: mlrun.api.schemas.SortField = None,
-        partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,

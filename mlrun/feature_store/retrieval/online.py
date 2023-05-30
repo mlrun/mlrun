@@ -57,7 +57,9 @@ class OnlineFeatureMerger(BaseMerger):
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
 
-            entity_list = node.data["right_keys"] or list(featureset.spec.entities.keys())
+            entity_list = node.data["right_keys"] or list(
+                featureset.spec.entities.keys()
+            )
             next = next.to(
                 "storey.QueryByKey",
                 f"query-{name}",
@@ -121,7 +123,10 @@ class OnlineFeatureMerger(BaseMerger):
         server.init_object(None)
 
         service = OnlineVectorService(
-            self.vector, graph, entity_rows_keys or index_columns, impute_policy=self.impute_policy
+            self.vector,
+            graph,
+            entity_rows_keys or index_columns,
+            impute_policy=self.impute_policy,
         )
         service.initialize()
 

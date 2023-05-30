@@ -362,7 +362,6 @@ class BaseMerger(abc.ABC):
 
         self._result_df = merged_df
 
-
     def _asof_join(
         self,
         entity_df,
@@ -373,7 +372,6 @@ class BaseMerger(abc.ABC):
         right_keys: list,
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
-
 
     def _join(
         self,

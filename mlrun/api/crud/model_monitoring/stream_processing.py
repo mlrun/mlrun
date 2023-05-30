@@ -607,10 +607,12 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
 
-        # Handle errors coming from stream
-        found_errors = self.handle_errors(endpoint_id, event)
-        if found_errors:
-            return None
+        # If error key has been found in the current event,
+        # increase the error counter by 1 and raise the error description
+        error = event.get("error")
+        if error:
+            self.error_count[endpoint_id] += 1
+            raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
@@ -787,13 +789,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if validation_function(field, dict_path):
             return True
         self.error_count[endpoint_id] += 1
-        return False
-
-    def handle_errors(self, endpoint_id, event) -> bool:
-        if "error" in event:
-            self.error_count[endpoint_id] += 1
-            return True
-
         return False
 
 

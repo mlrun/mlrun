@@ -15,15 +15,12 @@ import enum
 import getpass
 import http
 import traceback
-import typing
 import warnings
 from abc import ABC, abstractmethod
-from ast import literal_eval
 from base64 import b64encode
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests.exceptions
 from deprecated import deprecated
@@ -49,14 +46,7 @@ from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
 from ..kfpops import mlrun_op
 from ..lists import RunList
-from ..model import (
-    BaseMetadata,
-    HyperParamOptions,
-    ImageBuilder,
-    ModelObj,
-    RunObject,
-    RunTemplate,
-)
+from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
     dict_to_json,
     dict_to_yaml,
@@ -282,61 +272,62 @@ class BaseRuntime(ModelObj):
 
     def run(
         self,
-        runspec: RunObject = None,
-        handler=None,
-        name: str = "",
-        project: str = "",
-        params: dict = None,
-        inputs: Dict[str, str] = None,
-        out_path: str = "",
-        workdir: str = "",
-        artifact_path: str = "",
-        watch: bool = True,
-        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        hyperparams: Dict[str, list] = None,
-        hyper_param_options: HyperParamOptions = None,
-        verbose=None,
-        scrape_metrics: bool = None,
-        local=False,
-        local_code_path=None,
-        auto_build=None,
-        param_file_secrets: Dict[str, str] = None,
-        notifications: List[mlrun.model.Notification] = None,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         """
         Run a local or remote task.
 
-        :param runspec:        run template object or dict (see RunTemplate)
-        :param handler:        pointer or name of a function handler
-        :param name:           execution name
-        :param project:        project name
-        :param params:         input parameters (dict)
+        :param runspec:        The run spec to generate the RunObject from. Can be RunTemplate | RunObject | dict.
+        :param handler:        Pointer or name of a function handler.
+        :param name:           Execution name.
+        :param project:        Project name.
+        :param params:         Input parameters (dict).
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-        :param out_path:       default artifact output path
-        :param artifact_path:  default artifact output path (will replace out_path)
-        :param workdir:        default input artifacts path
-        :param watch:          watch/follow run log
+        :param out_path:       Default artifact output path.
+        :param artifact_path:  Default artifact output path (will replace out_path).
+        :param workdir:        Default input artifacts path.
+        :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
                                (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
+        :param hyperparams:    Dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
-                               and other options in the hyper_param_options parameter
-        :param hyper_param_options:  dict or :py:class:`~mlrun.model.HyperParamOptions` struct of
-                                     hyper parameter options
-        :param verbose:        add verbose prints/logs
-        :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param local:      run the function locally vs on the runtime/cluster
-        :param local_code_path: path of the code for local runs & debug
-        :param auto_build: when set to True and the function require build it will be built on the first
-                           function run, use only if you dont plan on changing the build config between runs
-        :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
-                            These secrets are only used locally and will not be stored anywhere
-        :param notifications: list of notifications to push when the run is completed
+                               and other options in the hyper_param_options parameter.
+        :param hyper_param_options: Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyperparameter options.
+        :param verbose:             Add verbose prints/logs.
+        :param scrape_metrics:      Whether to add the `mlrun/scrape-metrics` label to this run's resources.
+        :param local:               Run the function locally vs on the runtime/cluster.
+        :param local_code_path:     Path of the code for local runs & debug.
+        :param auto_build:          When set to True and the function require build it will be built on the first
+                                    function run, use only if you don't plan on changing the build config between runs.
+        :param param_file_secrets:  Dictionary of secrets to be used only for accessing the hyper-param parameter file.
+                                    These secrets are only used locally and will not be stored anywhere
+        :param notifications:       List of notifications to push when the run is completed
         :param returns: List of log hints - configurations for how to log the returning values from the handler's run
                         (as artifacts or results). The list's length must be equal to the amount of returning objects. A
                         log hint may be given as:
@@ -348,7 +339,7 @@ class BaseRuntime(ModelObj):
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
 
-        :return: run context object (RunObject) with run metadata, results and status
+        :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
             self._is_remote, local
@@ -403,25 +394,6 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
-
-    def _create_run_object(self, runspec):
-        # TODO: Once implemented the `Runtime` handlers configurations (doc strings, params type hints and returning
-        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
-        #       the `RunObject` from the `Runtime`.
-        if runspec:
-            runspec = deepcopy(runspec)
-            if isinstance(runspec, str):
-                runspec = literal_eval(runspec)
-            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
-                raise ValueError(
-                    "task/runspec is not a valid task object," f" type={type(runspec)}"
-                )
-
-        if isinstance(runspec, RunTemplate):
-            runspec = RunObject.from_template(runspec)
-        if isinstance(runspec, dict) or runspec is None:
-            runspec = RunObject.from_dict(runspec)
-        return runspec
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):
@@ -787,25 +759,19 @@ class BaseRuntime(ModelObj):
         overwrite: bool = False,
         verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
+        requirements_file: str = "",
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:                python requirements file path or list of packages
+        :param requirements:                a list of python packages
+        :param requirements_file:           a local python requirements file path
         :param overwrite:                   overwrite existing requirements
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
-        resolved_requirements = self._resolve_requirements(requirements)
-        requirements = self.spec.build.requirements or [] if not overwrite else []
-
-        # make sure we don't append the same line twice
-        for requirement in resolved_requirements:
-            if requirement not in requirements:
-                requirements.append(requirement)
-
-        self.spec.build.requirements = requirements
+        self.spec.build.with_requirements(requirements, requirements_file, overwrite)
 
         if verify_base_image or prepare_image_for_deploy:
             # TODO: remove verify_base_image in 1.6.0
@@ -836,18 +802,7 @@ class BaseRuntime(ModelObj):
 
         :return: function object
         """
-        if not isinstance(commands, list):
-            raise ValueError("commands must be a string list")
-        if not self.spec.build.commands or overwrite:
-            self.spec.build.commands = commands
-        else:
-            # add commands to existing build commands
-            for command in commands:
-                if command not in self.spec.build.commands:
-                    self.spec.build.commands.append(command)
-            # using list(set(x)) won't retain order,
-            # solution inspired from https://stackoverflow.com/a/17016257/8116661
-            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+        self.spec.build.with_commands(commands, overwrite)
 
         if verify_base_image or prepare_image_for_deploy:
             # TODO: remove verify_base_image in 1.6.0
@@ -953,37 +908,11 @@ class BaseRuntime(ModelObj):
                             line += f", default={p['default']}"
                         print("    " + line)
 
-    @staticmethod
-    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
-        # if a string, read the file then encode
-        if isinstance(requirements_to_resolve, str):
-            with open(requirements_to_resolve, "r") as fp:
-                requirements_to_resolve = fp.read().splitlines()
-
-        requirements = []
-        for requirement in requirements_to_resolve:
-            # clean redundant leading and trailing whitespaces
-            requirement = requirement.strip()
-
-            # ignore empty lines
-            # ignore comments
-            if not requirement or requirement.startswith("#"):
-                continue
-
-            # ignore inline comments as well
-            inline_comment = requirement.split(" #")
-            if len(inline_comment) > 1:
-                requirement = inline_comment[0].strip()
-
-            requirements.append(requirement)
-
-        return requirements
-
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
     kind = "base"
-    class_modes: typing.Dict[RuntimeClassMode, str] = {}
+    class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1002,7 +931,7 @@ class BaseRuntimeHandler(ABC):
         return True
 
     def _get_possible_mlrun_class_label_values(
-        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+        self, class_mode: Union[RuntimeClassMode, str] = None
     ) -> List[str]:
         """
         Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
@@ -1016,7 +945,7 @@ class BaseRuntimeHandler(ABC):
     def list_resources(
         self,
         project: str,
-        object_id: typing.Optional[str] = None,
+        object_id: Optional[str] = None,
         label_selector: str = None,
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
@@ -1273,8 +1202,8 @@ class BaseRuntimeHandler(ABC):
 
     def _add_object_label_selector_if_needed(
         self,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
+        object_id: Optional[str] = None,
+        label_selector: Optional[str] = None,
     ):
         if object_id:
             object_label_selector = self._get_object_label_selector(object_id)
@@ -1407,7 +1336,7 @@ class BaseRuntimeHandler(ABC):
         return in_terminal_state, last_container_completion_time, run_state
 
     def _get_default_label_selector(
-        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+        self, class_mode: Union[RuntimeClassMode, str] = None
     ) -> str:
         """
         Override this to add a default label selector
@@ -1485,9 +1414,9 @@ class BaseRuntimeHandler(ABC):
     def resolve_label_selector(
         self,
         project: str,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
-        class_mode: typing.Union[RuntimeClassMode, str] = None,
+        object_id: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        class_mode: Union[RuntimeClassMode, str] = None,
         with_main_runtime_resource_label_selector: bool = False,
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
@@ -1518,7 +1447,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def resolve_object_id(
         run: dict,
-    ) -> typing.Optional[str]:
+    ) -> Optional[str]:
         """
         Get the object id from the run object
         Override this if the object id is not the run uid

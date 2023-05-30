@@ -406,13 +406,10 @@ async def build_status(
     return await run_in_threadpool(
         _handle_job_deploy_status,
         db_session,
-        auth_info,
         fn,
         name,
         project,
         tag,
-        last_log_timestamp,
-        verbose,
         offset,
         logs,
     )
@@ -420,13 +417,10 @@ async def build_status(
 
 def _handle_job_deploy_status(
     db_session,
-    auth_info,
     fn,
     name,
     project,
     tag,
-    last_log_timestamp,
-    verbose,
     offset,
     logs,
 ):
@@ -481,22 +475,23 @@ def _handle_job_deploy_status(
             },
         )
 
-    logger.info(f"get pod {pod} status")
+    # TODO: change state to pod_status
     state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
         pod
     )
-    logger.info(f"pod state={state}")
+    logger.info("Resolved pod status", pod_status=state, pod_name=pod)
 
     if state == "succeeded":
-        logger.info("build completed successfully")
+        logger.info("Build completed successfully")
         state = mlrun.common.schemas.FunctionState.ready
     if state in ["failed", "error"]:
-        logger.error(f"build {state}, watch the build pod logs: {pod}")
+        logger.error("Build failed", pod_name=pod, pod_status=state)
         state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
         resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         if state in terminal_states:
+            # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
@@ -658,13 +653,17 @@ def _build_function(
                                 fn.metadata.project,
                                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
-                            if mlrun.utils.model_monitoring.get_stream_path(
+
+                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
-                            ).startswith("v3io://"):
+                            )
+
+                            if stream_path.startswith("v3io://"):
                                 # Initialize model monitoring V3IO stream
                                 _create_model_monitoring_stream(
                                     project=fn.metadata.project,
                                     function=fn,
+                                    stream_path=stream_path,
                                 )
 
                         if fn.spec.tracking_policy:
@@ -725,7 +724,7 @@ def _build_function(
                 client_python_version=client_python_version,
             )
         fn.save(versioned=True)
-        logger.info("Fn:\n %s", fn.to_yaml())
+        logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
@@ -837,12 +836,8 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         )
 
 
-def _create_model_monitoring_stream(project: str, function):
+def _create_model_monitoring_stream(project: str, function, stream_path):
     _init_serving_function_stream_args(fn=function)
-
-    stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project, kind="events"
-    )
 
     _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 

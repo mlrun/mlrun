@@ -988,7 +988,31 @@ class SQLDB(DBInterface):
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
+        """
+        In version 1.4.0 we added a normalization to the function name before storing.
+        To be backwards compatible and allow users to query old non-normalized functions,
+        we're providing a fallback to get_function:
+        normalize the requested name and try to retrieve it from the database.
+        If no answer is received, we will check to see if the original name contained underscores,
+        if so, the retrieval will be repeated and the result (if it exists) returned.
+        """
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        try:
+            return self._get_function(
+                session, normalized_function_name, project, tag, hash_key
+            )
+        except mlrun.errors.MLRunNotFoundError as exc:
+            if "_" in name:
+                logger.warning(
+                    "Failed to get underscore-named function, trying without normalization",
+                    function_name=name,
+                )
+                return self._get_function(session, name, project, tag, hash_key)
+            else:
+                raise exc
+
+    def _get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1032,6 +1056,7 @@ class SQLDB(DBInterface):
 
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
+        self._delete_function_schedules(session, project, name)
         self._delete_class_labels(
             session, Function, project=project, name=name, commit=False
         )
@@ -1115,6 +1140,16 @@ class SQLDB(DBInterface):
             session.delete(obj)
         if commit:
             session.commit()
+
+    def _delete_function_schedules(self, session, project, function_name, commit=True):
+        try:
+            self.delete_schedule(session=session, project=project, name=function_name)
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "No schedules were found for function",
+                project=project,
+                function=function_name,
+            )
 
     def _list_function_tags(self, session, project, function_id):
         query = (

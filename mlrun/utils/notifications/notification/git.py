@@ -120,7 +120,7 @@ class GitNotification(NotificationBase):
             if not resp.ok:
                 resp_text = await resp.text()
                 raise mlrun.errors.MLRunBadRequestError(
-                    f"Failed commenting on PR: {resp_text}", status=resp.status
+                    f"Failed commenting on PR: {resp_text}"
                 )
             data = await resp.json()
             return data.get("id")

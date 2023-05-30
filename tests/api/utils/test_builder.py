@@ -653,7 +653,7 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target, _ = mlrun.api.utils.builder._resolve_image_target_and_registry_secret(
+    image_target, _ = mlrun.api.utils.builder.resolve_image_target_and_registry_secret(
         image_target, registry
     )
     assert image_target == expected_dest
@@ -727,7 +727,7 @@ def test_resolve_registry_secret(
     config.httpdb.builder.docker_registry = docker_registry
     config.httpdb.builder.docker_registry_secret = default_secret_name
 
-    _, secret_name = mlrun.api.utils.builder._resolve_image_target_and_registry_secret(
+    _, secret_name = mlrun.api.utils.builder.resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
     assert secret_name == expected_secret_name

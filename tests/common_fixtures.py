@@ -212,6 +212,7 @@ class RunDBMock:
         self._functions = {}
         self._artifacts = {}
         self._project_name = None
+        self._project = None
         self._runs = {}
 
     def reset(self):
@@ -299,8 +300,13 @@ class RunDBMock:
     def get_project(self, name):
         if self._project_name and name == self._project_name:
             return self._project
-        else:
-            raise mlrun.errors.MLRunNotFoundError("Project not found")
+
+        elif name == config.default_project and not self._project:
+            project = mlrun.projects.MlrunProject(name)
+            self.store_project(name, project)
+            return project
+
+        raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
         self,

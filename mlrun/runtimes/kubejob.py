@@ -63,18 +63,17 @@ class KubejobRuntime(KubeResource):
     ):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:          valid path to git, zip, or tar file, e.g.
+        :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
                                 http://some/url/file.zip
+                                note path source must exist on the image or exist locally when run is local
+                                (it is recommended to use 'workdir' when source is a filepath instead)
         :param handler:         default function handler
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
-        if source.endswith(".zip") and not pull_at_runtime:
-            logger.warn(
-                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
-            )
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
 
         self.spec.build.source = source
         if handler:
@@ -113,6 +112,7 @@ class KubejobRuntime(KubeResource):
         overwrite=False,
         verify_base_image=False,
         prepare_image_for_deploy=True,
+        requirements_file=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -127,7 +127,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param requirements: requirements.txt file to install or list of packages to install
+        :param requirements: a list of packages to install
+        :param requirements_file: requirements file to install
         :param overwrite:  overwrite existing build configuration
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -135,31 +136,23 @@ class KubejobRuntime(KubeResource):
            * True: the existing params are replaced by the new ones
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
-        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment"""
-        if image:
-            self.spec.build.image = image
-        if base_image:
-            self.spec.build.base_image = base_image
-        if commands:
-            self.with_commands(
-                commands, overwrite=overwrite, prepare_image_for_deploy=False
-            )
-        if requirements:
-            self.with_requirements(
-                requirements, overwrite=overwrite, prepare_image_for_deploy=False
-            )
-        if extra:
-            self.spec.build.extra = extra
-        if secret is not None:
-            self.spec.build.secret = secret
-        if source:
-            self.spec.build.source = source
-        if load_source_on_run:
-            self.spec.build.load_source_on_run = load_source_on_run
-        if with_mlrun is not None:
-            self.spec.build.with_mlrun = with_mlrun
-        if auto_build:
-            self.spec.build.auto_build = auto_build
+        :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        """
+
+        self.spec.build.build_config(
+            image,
+            base_image,
+            commands,
+            secret,
+            source,
+            extra,
+            load_source_on_run,
+            with_mlrun,
+            auto_build,
+            requirements,
+            requirements_file,
+            overwrite,
+        )
 
         if verify_base_image or prepare_image_for_deploy:
             if verify_base_image:
@@ -315,7 +308,6 @@ class KubejobRuntime(KubeResource):
         )
 
     def _run(self, runobj: RunObject, execution):
-
         command, args, extra_env = self._get_cmd_args(runobj)
 
         if runobj.metadata.iteration:

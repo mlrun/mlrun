@@ -64,6 +64,10 @@ class TestProject(TestMLRunSystem):
         pass
 
     def custom_teardown(self):
+        self._logger.debug(
+            "Deleting custom projects",
+            num_projects_to_delete=len(self.custom_project_names_to_delete),
+        )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -123,7 +127,7 @@ class TestProject(TestMLRunSystem):
         )
 
     def test_run(self):
-        name = "pipe1"
+        name = "pipe0"
         self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
@@ -513,6 +517,12 @@ class TestProject(TestMLRunSystem):
     def test_kfp_from_local_code(self):
         name = "kfp-from-local-code"
         self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
         project = mlrun.get_or_create_project(name, user_project=True, context="./")
 
         handler_fn = project.set_function(
@@ -857,3 +867,73 @@ class TestProject(TestMLRunSystem):
             name=project_name,
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    def test_project_build_image(self):
+        name = "test-build-image"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.new_project(name, context=str(self.assets_path))
+
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+
+        assert project.default_image == image_name
+
+        # test with user provided function object
+        project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = project.run_function("scores", params={"text": "good morning"})
+        assert run_result.output("score")
+
+    def test_project_build_config_export_import(self):
+        # Verify that the build config is exported properly by the project, and a new project loaded from it
+        # can build default image directly without needing additional details.
+
+        name_export = "test-build-image-export"
+        name_import = "test-build-image-import"
+        self.custom_project_names_to_delete.extend([name_export, name_import])
+
+        project = mlrun.new_project(name_export, context=str(self.assets_path))
+        image_name = ".test-export-custom-image"
+
+        project.build_config(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+        assert project.default_image == image_name
+
+        project_dir = f"{projects_dir}/{name_export}"
+        proj_file_path = project_dir + "/project.yaml"
+        project.export(proj_file_path)
+
+        new_project = mlrun.load_project(project_dir, name=name_import)
+        new_project.build_image()
+
+        new_project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = new_project.run_function(
+            "scores", params={"text": "terrible evening"}
+        )
+        assert run_result.output("score")
+
+        shutil.rmtree(project_dir, ignore_errors=True)

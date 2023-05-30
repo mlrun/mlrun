@@ -166,7 +166,7 @@ class DBFSStore(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         if maxdepth:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "dbfs file system does not support maxdepth option in rm function."
+                "dbfs file system does not support maxdepth option in rm function"
             )
         self.get_filesystem().rm(path=path, recursive=recursive)
 

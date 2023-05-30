@@ -35,8 +35,6 @@ import nuclio
 import requests
 import yaml
 
-import mlrun.common.model_monitoring as model_monitoring_constants
-
 import mlrun.common.schemas.model_monitoring
 import mlrun.db
 import mlrun.errors

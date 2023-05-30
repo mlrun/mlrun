@@ -20,9 +20,18 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
+
 import mlrun.common.model_monitoring.helpers
+
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
-from .constants import EventFieldType, ModelMonitoringMode, EventKeyMetrics, EndpointType, EventLiveStats
+from .constants import (
+    EndpointType,
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
+    ModelMonitoringMode,
+)
+
 
 class ModelMonitoringStoreKinds:
     # TODO: do changes in examples & demos In 1.5.0 remove
@@ -68,9 +77,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str] = ""
     monitor_configuration: Optional[dict] = {}
     active: Optional[bool] = True
-    monitoring_mode: Optional[
-        ModelMonitoringMode
-    ] = ModelMonitoringMode.disabled.value
+    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled.value
 
     @classmethod
     def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
@@ -156,9 +163,7 @@ class ModelEndpointStatus(ObjectStatus):
     features: Optional[List[Features]] = []
     children: Optional[List[str]] = []
     children_uids: Optional[List[str]] = []
-    endpoint_type: Optional[
-        EndpointType
-    ] = EndpointType.NODE_EP.value
+    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
 

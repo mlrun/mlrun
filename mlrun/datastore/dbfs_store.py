@@ -156,9 +156,6 @@ class DBFSStore(DataStore):
         files = [file.split("/", 1)[1][key_length:] for file in files if "/" in file]
         return files
 
-    def supports_isdir(self):
-        return False
-
     def rm(self, path, recursive=False, maxdepth=None):
         if maxdepth:
             raise mlrun.errors.MLRunInvalidArgumentError(

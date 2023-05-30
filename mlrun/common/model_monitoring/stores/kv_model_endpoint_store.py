@@ -13,15 +13,16 @@
 # limitations under the License.
 #
 
+import json
 import os
 import typing
+import warnings
 
 import v3io.dataplane
 import v3io_frames
 
-
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
-import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
@@ -121,7 +122,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # For backwards compatability: replace null values for `error_count` and `metrics`
-        mlrun.utils.model_monitoring.validate_errors_and_metrics(endpoint=endpoint)
+        self._validate_errors_and_metrics(endpoint=endpoint)
 
         return endpoint
 
@@ -135,7 +136,9 @@ class KVModelEndpointStore(ModelEndpointStore):
             _,
             container,
             path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            path
+        )
         return path, container
 
     def list_model_endpoints(
@@ -193,10 +196,14 @@ class KVModelEndpointStore(ModelEndpointStore):
                 if mlrun.common.schemas.model_monitoring.EventFieldType.UID not in item:
                     # This is kept for backwards compatibility - in old versions the key column named endpoint_id
                     uids.append(
-                        item[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID]
+                        item[
+                            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
+                        ]
                     )
                 else:
-                    uids.append(item[mlrun.common.schemas.model_monitoring.EventFieldType.UID])
+                    uids.append(
+                        item[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
+                    )
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
@@ -218,7 +225,10 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
-            if mlrun.common.schemas.model_monitoring.EventFieldType.UID not in endpoint_dict:
+            if (
+                mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                not in endpoint_dict
+            ):
                 # This is kept for backwards compatibility - in old versions the key column named endpoint_id
                 endpoint_id = endpoint_dict[
                     mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
@@ -326,7 +336,9 @@ class KVModelEndpointStore(ModelEndpointStore):
             _,
             container,
             events_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(events_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            events_path
+        )
 
         # Retrieve the raw data from the time series DB based on the provided metrics and time ranges
         frames_client = mlrun.utils.v3io_clients.get_frames_client(
@@ -377,8 +389,10 @@ class KVModelEndpointStore(ModelEndpointStore):
         )
 
         # Generate the main directory with the TSDB resources
-        tsdb_path = mlrun.utils.model_monitoring.parse_model_endpoint_project_prefix(
-            full_path, self.project
+        tsdb_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
+                full_path, self.project
+            )
         )
 
         # Generate filtered path without schema and container as required by the frames object
@@ -386,7 +400,9 @@ class KVModelEndpointStore(ModelEndpointStore):
             _,
             _,
             filtered_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(full_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            full_path
+        )
         return tsdb_path, filtered_path
 
     @staticmethod
@@ -446,3 +462,49 @@ class KVModelEndpointStore(ModelEndpointStore):
             )
 
         return " AND ".join(filter_expression)
+
+    @staticmethod
+    def _validate_errors_and_metrics(endpoint: dict):
+        """
+        Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
+
+        Leaving here for backwards compatibility which related to the model endpoint schema
+
+        :param endpoint: An endpoint flattened dictionary.
+        """
+        warnings.warn(
+            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
+            FutureWarning,
+        )
+
+        # Validate default value for `error_count`
+        # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
+        if (
+            mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT in endpoint
+            and endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
+            ]
+            == "null"
+        ):
+            endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
+            ] = "0"
+
+        # Validate default value for `metrics`
+        # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
+        if (
+            mlrun.common.schemas.model_monitoring.EventFieldType.METRICS in endpoint
+            and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS]
+            == "null"
+        ):
+            endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.METRICS
+            ] = json.dumps(
+                {
+                    mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
+                        mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
+                        mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                    }
+                }
+            )

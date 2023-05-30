@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-__all__ = [
-    "create_model_endpoint_uid",
-]
 
-from .helpers import (
-    create_model_endpoint_uid,
-)
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
+from .helpers import create_model_endpoint_uid

@@ -61,7 +61,7 @@ class ModelEndpointStoreType(enum.Enum):
 
         # Assuming SQL store target if store type is not KV.
         # Update these lines once there are more than two store target types.
-        from mlrun.utils.model_monitoring import get_connection_string
+        from ..helpers import get_connection_string
 
         sql_connection_string = endpoint_store_connection or get_connection_string(
             project=project

@@ -27,12 +27,9 @@ import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun.artifacts.model
-
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.serving.routers
-
-
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
@@ -197,7 +194,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         # )
         # assert len(filter_labels) == 4
 
-    def _mock_random_endpoint(self, state: Optional[str] = None) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
+    def _mock_random_endpoint(
+        self, state: Optional[str] = None
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         def random_labels():
             return {
                 f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
@@ -215,7 +214,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
                 model_class="classifier",
                 active=True,
             ),
-            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(state=state),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+                state=state
+            ),
         )
 
 
@@ -429,7 +430,10 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Validate monitoring mode
         model_endpoint = endpoints_list[0]
-        assert model_endpoint.spec.monitoring_mode == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+        assert (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+        )
 
         # Validate tracking policy
         batch_job = db.get_schedule(
@@ -620,7 +624,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
 
         assert len(top_level_endpoints) == 1
-        assert top_level_endpoints[0].status.endpoint_type == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+        assert (
+            top_level_endpoints[0].status.endpoint_type
+            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+        )
 
         children_list = top_level_endpoints[0].status.children_uids
         assert len(children_list) == len(model_names)
@@ -630,7 +637,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
         assert len(endpoints_children_list) == len(model_names)
         for child in endpoints_children_list:
-            assert child.status.endpoint_type == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            assert (
+                child.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            )
 
         # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -645,7 +655,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             )
             assert data.empty is False
 
-            if endpoint.status.endpoint_type == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP:
+            if (
+                endpoint.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            ):
                 assert (
                     datetime.fromisoformat(endpoint.status.first_request) >= start_time
                 )

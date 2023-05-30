@@ -26,11 +26,12 @@ import pandas as pd
 import v3io.dataplane
 import v3io_frames
 
+import mlrun.common.helpers
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.model_monitoring.stores
 import mlrun.common.schemas.model_monitoring
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
-import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
@@ -555,7 +556,9 @@ class BatchProcessor:
             _,
             self.tsdb_container,
             self.tsdb_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            tsdb_path
+        )
         # stream_path = template.format(project=self.project, kind="log_stream")
         stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
@@ -565,7 +568,9 @@ class BatchProcessor:
             _,
             self.stream_container,
             self.stream_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            stream_path
+        )
 
         # Get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
@@ -642,8 +647,10 @@ class BatchProcessor:
                 serving_function_name,
                 _,
                 _,
-            ) = mlrun.utils.helpers.parse_versioned_object_uri(
-                endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION_URI]
+            ) = mlrun.common.helpers.parse_versioned_object_uri(
+                endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION_URI
+                ]
             )
 
             model_name = endpoint[
@@ -687,7 +694,9 @@ class BatchProcessor:
                 logger.warn(
                     "Parquet not found, probably due to not enough model events",
                     parquet_target=m_fs.status.targets[0].path,
-                    endpoint=endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
+                    endpoint=endpoint[
+                        mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                    ],
                     min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                 )
                 return
@@ -704,7 +713,9 @@ class BatchProcessor:
             ]
 
             # Add label names if provided
-            if endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES]:
+            if endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES
+            ]:
                 labels = endpoint[
                     mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES
                 ]
@@ -724,13 +735,15 @@ class BatchProcessor:
             m_fs.save()
 
             # Get the timestamp of the latest request:
-            timestamp = df[mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP].iloc[
-                -1
-            ]
+            timestamp = df[
+                mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP
+            ].iloc[-1]
 
             # Get the feature stats from the model endpoint for reference data
             feature_stats = json.loads(
-                endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS]
+                endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
+                ]
             )
 
             # Get the current stats:
@@ -771,7 +784,9 @@ class BatchProcessor:
             )
             logger.info(
                 "Drift status",
-                endpoint_id=endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
+                endpoint_id=endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                ],
                 drift_status=drift_status.value,
                 drift_measure=drift_measure,
             )
@@ -783,7 +798,9 @@ class BatchProcessor:
             }
 
             self.db.update_model_endpoint(
-                endpoint_id=endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
+                endpoint_id=endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                ],
                 attributes=attributes,
             )
 
@@ -814,7 +831,9 @@ class BatchProcessor:
     def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES],
+            self.batch_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
+            ],
             self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
             self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
         )

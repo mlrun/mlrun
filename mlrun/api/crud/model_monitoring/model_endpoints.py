@@ -20,11 +20,10 @@ import warnings
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
+import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.model_monitoring.helpers
-import mlrun.api.crud.model_monitoring.utils
 import mlrun.artifacts
-
-
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 from mlrun.common.model_monitoring.stores import get_model_endpoint_store
@@ -163,8 +162,8 @@ class ModelEndpoints:
 
         return model_endpoint
 
-    @staticmethod
     def patch_model_endpoint(
+        self,
         project: str,
         endpoint_id: str,
         attributes: dict,
@@ -197,9 +196,7 @@ class ModelEndpoints:
             endpoint_id=endpoint_id,
         )
 
-        return mlrun.api.crud.model_monitoring.utils.convert_into_model_endpoint_object(
-            endpoint=model_endpoint_record
-        )
+        return self._convert_into_model_endpoint_object(endpoint=model_endpoint_record)
 
     @staticmethod
     def create_monitoring_feature_set(
@@ -221,7 +218,12 @@ class ModelEndpoints:
         """
 
         # Define a new feature set
-        _, serving_function_name, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
+        (
+            _,
+            serving_function_name,
+            _,
+            _,
+        ) = mlrun.common.helpers.parse_versioned_object_uri(
             model_endpoint.spec.function_uri
         )
 
@@ -270,7 +272,7 @@ class ModelEndpoints:
 
         # Define parquet target for this feature set
         parquet_path = (
-            mlrun.api.crud.model_monitoring.utils.get_monitoring_parquet_path(
+            mlrun.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
                 db_session=db_session, project=model_endpoint.metadata.project
             )
             + f"/key={model_endpoint.metadata.uid}"
@@ -367,10 +369,8 @@ class ModelEndpoints:
         )
 
         # Convert to `ModelEndpoint` object
-        model_endpoint_object = (
-            mlrun.api.crud.model_monitoring.utils.convert_into_model_endpoint_object(
-                endpoint=model_endpoint_record, feature_analysis=feature_analysis
-            )
+        model_endpoint_object = self._convert_into_model_endpoint_object(
+            endpoint=model_endpoint_record, feature_analysis=feature_analysis
         )
 
         # If time metrics were provided, retrieve the results from the time series DB
@@ -467,7 +467,7 @@ class ModelEndpoints:
 
         for endpoint_dict in endpoint_dictionary_list:
             # Convert to `ModelEndpoint` object
-            endpoint_obj = mlrun.api.crud.model_monitoring.utils.convert_into_model_endpoint_object(
+            endpoint_obj = self._convert_into_model_endpoint_object(
                 endpoint=endpoint_dict
             )
 
@@ -633,3 +633,42 @@ class ModelEndpoints:
                 mlrun.common.schemas.model_monitoring.EventKeyMetrics.REAL_TIME
             ] = endpoint_metrics
         return model_endpoint_object
+
+    @staticmethod
+    def _convert_into_model_endpoint_object(
+        endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        """
+        Create a `ModelEndpoint` object according to a provided model endpoint dictionary.
+
+        :param endpoint:         Dictionary that represents a DB record of a model endpoint which need to be converted
+                                 into a valid `ModelEndpoint` object.
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+                                 the output of the resulting object.
+
+        :return: A `~mlrun.common.schemas.ModelEndpoint` object.
+        """
+
+        # Convert into `ModelEndpoint` object
+        endpoint_obj = mlrun.common.schemas.ModelEndpoint().from_flat_dict(endpoint)
+
+        # If feature analysis was applied, add feature stats and current stats to the model endpoint result
+        if feature_analysis and endpoint_obj.spec.feature_names:
+            endpoint_features = (
+                mlrun.api.crud.model_monitoring.deployment.get_endpoint_features(
+                    feature_names=endpoint_obj.spec.feature_names,
+                    feature_stats=endpoint_obj.status.feature_stats,
+                    current_stats=endpoint_obj.status.current_stats,
+                )
+            )
+            if endpoint_features:
+                endpoint_obj.status.features = endpoint_features
+                # Add the latest drift measures results (calculated by the model monitoring batch)
+                drift_measures = mlrun.api.crud.model_monitoring.helpers.json_loads_if_not_none(
+                    endpoint.get(
+                        mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES
+                    )
+                )
+                endpoint_obj.status.drift_measures = drift_measures
+
+        return endpoint_obj

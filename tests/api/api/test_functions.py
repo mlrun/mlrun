@@ -35,9 +35,10 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.tracking_policy
 import mlrun.errors
-import mlrun.utils.model_monitoring
 import tests.api.api.utils
 import tests.conftest
 
@@ -271,8 +272,8 @@ def test_tracking_on_serving(
     httpserver,
     monkeypatch,
 ):
-    """Validating that the `mlrun.utils.model_monitoring.TrackingPolicy` configurations are generated as expected when
-    the user applies model monitoring on a serving function"""
+    """Validating that the `mlrun.common.schemas.model_monitoring.TrackingPolicy` configurations are generated as
+    expected when the user applies model monitoring on a serving function"""
 
     # Generate a test project
     tests.api.api.utils.create_project(client, PROJECT)
@@ -296,7 +297,7 @@ def test_tracking_on_serving(
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        mlrun.utils.model_monitoring: ["get_stream_path"],
+        mlrun.common.model_monitoring.helpers: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -320,7 +321,9 @@ def test_tracking_on_serving(
 
     assert function_from_db["spec"]["track_models"]
 
-    tracking_policy_default = mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
+    tracking_policy_default = (
+        mlrun.common.schemas.model_monitoring.TrackingPolicy().to_dict()
+    )
     assert (
         deepdiff.DeepDiff(
             tracking_policy_default,
@@ -543,7 +546,6 @@ def _generate_function(
 def _generate_build_function_request(
     func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True
 ):
-
     request = {
         "function": func.to_dict(),
         "with_mlrun": "yes" if with_mlrun else "false",

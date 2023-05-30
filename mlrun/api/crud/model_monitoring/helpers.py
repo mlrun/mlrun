@@ -15,7 +15,12 @@
 import json
 import typing
 
+import sqlalchemy.orm
+
+import mlrun.api
+import mlrun.common
 import mlrun.common.schemas.schedule
+import mlrun.errors
 
 
 def get_batching_interval_param(intervals_list: typing.List):
@@ -58,3 +63,47 @@ def json_loads_if_not_none(field: typing.Any) -> typing.Any:
     return (
         json.loads(field) if field and field != "null" and field is not None else None
     )
+
+
+def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
+    """
+    Getting access key from the current data session. This method is usually used to verify that the session
+    is valid and contains an access key.
+
+    param auth_info: The auth info of the request.
+
+    :return: Access key as a string.
+    """
+    access_key = auth_info.data_session
+    if not access_key:
+        raise mlrun.errors.MLRunBadRequestError("Data session is missing")
+    return access_key
+
+
+def get_monitoring_parquet_path(
+    db_session: sqlalchemy.orm.Session, project: str
+) -> str:
+    """Getting model monitoring parquet target for the current project. The parquet target path is based on the
+    project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
+    artifact path.
+
+    :param db_session: A session that manages the current dialog with the database. Will be used in this function
+                       to get the project record from DB.
+    :param project:    Project name.
+
+    :return:           Monitoring parquet target path.
+    """
+
+    # Get the artifact path from the project record that was stored in the DB
+    project_obj = mlrun.api.crud.projects.Projects().get_project(
+        session=db_session, name=project
+    )
+    artifact_path = project_obj.spec.artifact_path
+    # Generate monitoring parquet path value
+    parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+        target="offline",
+        artifact_path=artifact_path,
+    )
+    return parquet_path

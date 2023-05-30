@@ -12,8 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-# for backwards compatibility
+def parse_versioned_object_uri(uri, default_project=""):
+    project = default_project
+    tag = ""
+    hash_key = ""
+    if "/" in uri:
+        loc = uri.find("/")
+        project = uri[:loc]
+        uri = uri[loc + 1 :]
+    if ":" in uri:
+        loc = uri.find(":")
+        tag = uri[loc + 1 :]
+        uri = uri[:loc]
+    if "@" in uri:
+        loc = uri.find("@")
+        hash_key = uri[loc + 1 :]
+        uri = uri[:loc]
 
-
-from .model_endpoint import ModelEndpoint
+    return project, uri, tag, hash_key

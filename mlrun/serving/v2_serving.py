@@ -16,14 +16,13 @@ import time
 import traceback
 from typing import Dict, Union
 
-
 import mlrun.common.model_monitoring
-
 import mlrun.common.schemas.model_monitoring
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
-from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils import logger, now_date
 
+from ..common.helpers import parse_versioned_object_uri
 from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
 

@@ -17,6 +17,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
+import mlrun.common.helpers
 import mlrun.utils
 
 
@@ -137,7 +138,7 @@ class FunctionURI:
 
     @classmethod
     def from_string(cls, function_uri):
-        project, uri, tag, hash_key = mlrun.utils.helpers.parse_versioned_object_uri(
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
             function_uri
         )
         return cls(

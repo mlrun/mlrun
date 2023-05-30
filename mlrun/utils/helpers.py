@@ -563,26 +563,6 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def parse_versioned_object_uri(uri, default_project=""):
-    project = default_project
-    tag = ""
-    hash_key = ""
-    if "/" in uri:
-        loc = uri.find("/")
-        project = uri[:loc]
-        uri = uri[loc + 1 :]
-    if ":" in uri:
-        loc = uri.find(":")
-        tag = uri[loc + 1 :]
-        uri = uri[:loc]
-    if "@" in uri:
-        loc = uri.find("@")
-        hash_key = uri[loc + 1 :]
-        uri = uri[:loc]
-
-    return project, uri, tag, hash_key
-
-
 def parse_artifact_uri(uri, default_project=""):
     uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
     match = re.match(uri_pattern, uri)
@@ -883,15 +863,12 @@ def create_step_backoff(steps=None):
     while True:
         current_step_value, current_step_remain = step
         if current_step_remain == 0:
-
             # No more in this step, moving on
             step = next(steps)
         elif current_step_remain is None:
-
             # We are in the last step, staying here forever
             yield current_step_value
         elif current_step_remain > 0:
-
             # Still more remains in this step, just reduce the remaining number
             step[1] -= 1
             yield current_step_value
@@ -906,7 +883,6 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
     """
     exponent = 1
     while True:
-
         # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
         # risking going behind max_int
         next_value = scale_factor * (base**exponent)
@@ -1290,7 +1266,6 @@ def as_number(field_name, field_value):
 def filter_warnings(action, category):
     def decorator(function):
         def wrapper(*args, **kwargs):
-
             # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
             with warnings.catch_warnings():
                 warnings.simplefilter(action, category)

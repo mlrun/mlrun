@@ -25,11 +25,10 @@ import numpy as np
 
 import mlrun
 import mlrun.common.model_monitoring
-
 import mlrun.common.schemas.model_monitoring
-import mlrun.utils.model_monitoring
-from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils import logger, now_date
 
+from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body

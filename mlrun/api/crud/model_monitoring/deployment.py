@@ -20,23 +20,23 @@ from fastapi import Depends
 
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
+import mlrun.api.crud.model_monitoring.helpers
+import mlrun.api.crud.model_monitoring.stream_processing
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
-import mlrun.api.crud.model_monitoring.stream_processing
-
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
-import mlrun.utils.model_monitoring
+import mlrun.common.schemas.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
-import mlrun.api.crud.model_monitoring.helpers
 from mlrun.utils import logger
 
-_MODEL_MONTORING_COMMON_PATH = (
-    pathlib.Path(__file__).parents[3] / "common" / "model_monitoring"
+_MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parent
+_STREAM_PROCESSING_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )
-_STREAM_PROCESSING_FUNCTION_PATH = _MODEL_MONTORING_COMMON_PATH / "stream_processing.py"
-_MONIOTINRG_BATCH_FUNCTION_PATH = (
-    _MODEL_MONTORING_COMMON_PATH / "model_monitoring_batch.py"
+_MONITORING_BATCH_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch.py"
 )
 
 
@@ -47,7 +47,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
     ):
         """
         Invoking monitoring deploying functions.
@@ -79,7 +79,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -116,8 +116,10 @@ class MonitoringDeployment:
             )
 
         # Get parquet target value for model monitoring stream function
-        parquet_target = get_monitoring_parquet_path(
-            db_session=db_session, project=project
+        parquet_target = (
+            mlrun.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                db_session=db_session, project=project
+            )
         )
 
         fn = self._initial_model_monitoring_stream_processing_function(
@@ -138,7 +140,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
@@ -193,7 +195,13 @@ class MonitoringDeployment:
             tracking_policy.default_batch_intervals.hour,
             tracking_policy.default_batch_intervals.day,
         ]
-        minutes, hours, days = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(interval_list)
+        (
+            minutes,
+            hours,
+            days,
+        ) = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(
+            interval_list
+        )
         batch_dict = {"minutes": minutes, "hours": hours, "days": days}
 
         task.spec.parameters[
@@ -202,7 +210,9 @@ class MonitoringDeployment:
 
         data = {
             "task": task.to_dict(),
-            "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(tracking_policy.default_batch_intervals),
+            "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(
+                tracking_policy.default_batch_intervals
+            ),
         }
 
         logger.info(
@@ -218,7 +228,7 @@ class MonitoringDeployment:
         self,
         project: str,
         model_monitoring_access_key: str,
-        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
         auth_info: mlrun.common.schemas.AuthInfo,
         parquet_target: str,
     ):
@@ -280,7 +290,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
     ):
         """
         Initialize model monitoring batch function.
@@ -300,7 +310,7 @@ class MonitoringDeployment:
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
             name="model-monitoring-batch",
             project=project,
-            filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
+            filename=str(_MONITORING_BATCH_FUNCTION_PATH),
             kind="job",
             image=tracking_policy.default_batch_image,
             handler="handler",
@@ -348,7 +358,9 @@ class MonitoringDeployment:
 
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
-        stream_path = mlrun.utils.model_monitoring.get_stream_path(project=project)
+        stream_path = mlrun.common.model_monitoring.helpers.get_stream_path(
+            project=project
+        )
 
         if stream_path.startswith("kafka://"):
             topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
@@ -410,48 +422,14 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
             ),
         )
+        print("[EYAL]: setting batch creds!")
         function.metadata.credentials.access_key = model_monitoring_access_key
         function.apply(mlrun.mount_v3io())
 
         # Ensure that the auth env vars are set
         mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
-
+        print("[EYAL]: setting batch creds DONE!")
         return function
-
-
-def convert_into_model_endpoint_object(
-    endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
-) -> mlrun.common.schemas.ModelEndpoint:
-    """
-    Create a `ModelEndpoint` object according to a provided model endpoint dictionary.
-
-    :param endpoint:         Dictionary that represents a DB record of a model endpoint which need to be converted
-                             into a valid `ModelEndpoint` object.
-    :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-                             the output of the resulting object.
-
-    :return: A `~mlrun.common.schemas.ModelEndpoint` object.
-    """
-
-    # Convert into `ModelEndpoint` object
-    endpoint_obj = mlrun.common.schemas.ModelEndpoint().from_flat_dict(endpoint)
-
-    # If feature analysis was applied, add feature stats and current stats to the model endpoint result
-    if feature_analysis and endpoint_obj.spec.feature_names:
-        endpoint_features = get_endpoint_features(
-            feature_names=endpoint_obj.spec.feature_names,
-            feature_stats=endpoint_obj.status.feature_stats,
-            current_stats=endpoint_obj.status.current_stats,
-        )
-        if endpoint_features:
-            endpoint_obj.status.features = endpoint_features
-            # Add the latest drift measures results (calculated by the model monitoring batch)
-            drift_measures = mlrun.api.crud.model_monitoring.helpers.json_loads_if_not_none(
-                endpoint.get(mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES)
-            )
-            endpoint_obj.status.drift_measures = drift_measures
-
-    return endpoint_obj
 
 
 def get_endpoint_features(
@@ -491,47 +469,3 @@ def get_endpoint_features(
         )
         features.append(f)
     return features
-
-
-def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
-    """
-    Getting access key from the current data session. This method is usually used to verify that the session
-    is valid and contains an access key.
-
-    param auth_info: The auth info of the request.
-
-    :return: Access key as a string.
-    """
-    access_key = auth_info.data_session
-    if not access_key:
-        raise mlrun.errors.MLRunBadRequestError("Data session is missing")
-    return access_key
-
-
-def get_monitoring_parquet_path(
-    db_session: sqlalchemy.orm.Session, project: str
-) -> str:
-    """Getting model monitoring parquet target for the current project. The parquet target path is based on the
-    project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
-    artifact path.
-
-    :param db_session: A session that manages the current dialog with the database. Will be used in this function
-                       to get the project record from DB.
-    :param project:    Project name.
-
-    :return:           Monitoring parquet target path.
-    """
-
-    # Get the artifact path from the project record that was stored in the DB
-    project_obj = mlrun.api.crud.projects.Projects().get_project(
-        session=db_session, name=project
-    )
-    artifact_path = project_obj.spec.artifact_path
-    # Generate monitoring parquet path value
-    parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
-        target="offline",
-        artifact_path=artifact_path,
-    )
-    return parquet_path

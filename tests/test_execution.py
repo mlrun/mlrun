@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
-from unittest.mock import Mock
+import unittest.mock
 
 import pytest
 
@@ -88,25 +88,27 @@ def test_context_from_dict_when_start_time_is_string():
     [True, False],
 )
 def test_context_from_run_dict(is_api):
-    mlrun.config.is_running_as_api = Mock(return_value=is_api)
-    run_dict = _generate_run_dict()
+    with unittest.mock.patch("mlrun.config.is_running_as_api", return_value=is_api):
+        run_dict = _generate_run_dict()
 
-    # create run object from dict and dict again to mock the run serialization
-    run = mlrun.run.RunObject.from_dict(run_dict)
-    context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        # create run object from dict and dict again to mock the run serialization
+        run = mlrun.run.RunObject.from_dict(run_dict)
+        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
 
-    assert context.name == run_dict["metadata"]["name"]
-    assert context._project == run_dict["metadata"]["project"]
-    assert context._labels == run_dict["metadata"]["labels"]
-    assert context._annotations == run_dict["metadata"]["annotations"]
-    assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
-    assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
-    assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
-    assert (
-        context.annotations["annotation-key"]
-        == run_dict["metadata"]["annotations"]["annotation-key"]
-    )
-    assert context.artifact_path == run_dict["spec"]["output_path"]
+        assert context.name == run_dict["metadata"]["name"]
+        assert context._project == run_dict["metadata"]["project"]
+        assert context._labels == run_dict["metadata"]["labels"]
+        assert context._annotations == run_dict["metadata"]["annotations"]
+        assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
+        assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
+        assert (
+            context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
+        )
+        assert (
+            context.annotations["annotation-key"]
+            == run_dict["metadata"]["annotations"]["annotation-key"]
+        )
+        assert context.artifact_path == run_dict["spec"]["output_path"]
 
 
 @pytest.mark.parametrize(
@@ -139,33 +141,33 @@ def test_context_set_state(rundb_mock, state, error, expected_state):
     [True, False],
 )
 def test_context_inputs(rundb_mock, is_api):
-    mlrun.config.is_running_as_api = Mock(return_value=is_api)
-    run_dict = _generate_run_dict()
+    with unittest.mock.patch("mlrun.config.is_running_as_api", return_value=is_api):
+        run_dict = _generate_run_dict()
 
-    # create run object from dict and dict again to mock the run serialization
-    run = mlrun.run.RunObject.from_dict(run_dict)
-    context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
-    assert (
-        context.get_input("input-key").artifact_url
-        == run_dict["spec"]["inputs"]["input-key"]
-    )
-    assert context._inputs["input-key"] == run_dict["spec"]["inputs"]["input-key"]
+        # create run object from dict and dict again to mock the run serialization
+        run = mlrun.run.RunObject.from_dict(run_dict)
+        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        assert (
+            context.get_input("input-key").artifact_url
+            == run_dict["spec"]["inputs"]["input-key"]
+        )
+        assert context._inputs["input-key"] == run_dict["spec"]["inputs"]["input-key"]
 
-    key = "store-input"
-    url = run_dict["spec"]["inputs"][key]
-    assert context._inputs[key] == run_dict["spec"]["inputs"][key]
+        key = "store-input"
+        url = run_dict["spec"]["inputs"][key]
+        assert context._inputs[key] == run_dict["spec"]["inputs"][key]
 
-    # 'store-input' is a store artifact, store it in the db before getting it
-    artifact = mlrun.artifacts.Artifact(key, b"123")
-    rundb_mock.store_artifact(key, artifact.to_dict(), uid="123")
-    mlrun.datastore.store_manager.object(
-        url,
-        key,
-        project=run_dict["metadata"]["project"],
-        allow_empty_resources=True,
-    )
-    context._allow_empty_resources = True
-    assert context.get_input(key).artifact_url == run_dict["spec"]["inputs"][key]
+        # 'store-input' is a store artifact, store it in the db before getting it
+        artifact = mlrun.artifacts.Artifact(key, b"123")
+        rundb_mock.store_artifact(key, artifact.to_dict(), uid="123")
+        mlrun.datastore.store_manager.object(
+            url,
+            key,
+            project=run_dict["metadata"]["project"],
+            allow_empty_resources=True,
+        )
+        context._allow_empty_resources = True
+        assert context.get_input(key).artifact_url == run_dict["spec"]["inputs"][key]
 
 
 def _generate_run_dict():

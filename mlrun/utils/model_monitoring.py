@@ -247,4 +247,3 @@ def validate_old_schema_fields(endpoint: dict):
         endpoint[model_monitoring_constants.EventFieldType.UID] = endpoint[
             model_monitoring_constants.EventFieldType.ENDPOINT_ID
         ]
-        endpoint.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID)

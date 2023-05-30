@@ -21,13 +21,13 @@ from http import HTTPStatus
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
 import mlrun.api.utils.clients.log_collector as log_collector
+import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import logger
 
@@ -85,7 +85,7 @@ class Logs(
         log_stream = None
         if (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.best_effort
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
             and source == LogSources.AUTO
         ):
             try:
@@ -112,7 +112,7 @@ class Logs(
                 )
         elif (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.sidecar
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
             and source == LogSources.AUTO
         ):
             log_stream = self._get_logs_from_logs_collector(
@@ -123,7 +123,7 @@ class Logs(
             )
         elif (
             mlrun.mlconf.log_collector.mode
-            == mlrun.api.schemas.LogsCollectorMode.legacy
+            == mlrun.common.schemas.LogsCollectorMode.legacy
             or source != LogSources.AUTO
         ):
             log_stream = self._get_logs_legacy_method_generator_wrapper(
@@ -178,10 +178,12 @@ class Logs(
                 fp.seek(offset)
                 log_contents = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
-            k8s = get_k8s()
+            k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
                 run_kind = run.get("metadata", {}).get("labels", {}).get("kind")
-                pods = get_k8s().get_logger_pods(project, uid, run_kind)
+                pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().get_logger_pods(
+                    project, uid, run_kind
+                )
                 if pods:
                     if len(pods) > 1:
 
@@ -195,7 +197,7 @@ class Logs(
                         )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
-                        resp = get_k8s().logs(pod)
+                        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper().logs(pod)
                         if resp:
                             if size == -1:
                                 log_contents = resp.encode()[offset:]
@@ -242,10 +244,7 @@ class Logs(
     def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):
         """
         Checks if the log file exists for the given project and uid
-        There could be two types of log files:
-        1. Log file which was created by the legacy logger with the following file format - project/<run-uid>)
-        2. Log file which was created by the new logger with the following file format- /project/<run-uid>-<pod-name>
-        Therefore, we check if the log file exists for both formats
+        A Run's log file path is: /mlrun/logs/{project}/{uid}
         :param project: project name
         :param uid: run uid
         :return: True if the log file exists, False otherwise, and the log file path
@@ -253,9 +252,10 @@ class Logs(
         project_logs_dir = project_logs_path(project)
         if not project_logs_dir.exists():
             return False, None
-        for file in os.listdir(str(project_logs_dir)):
-            if file.startswith(uid):
-                return True, project_logs_dir / file
+
+        log_file = log_path(project, uid)
+        if log_file.exists():
+            return True, log_file
 
         return False, None
 

@@ -28,23 +28,16 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.api.crud.runtimes.nuclio.function
+import mlrun.api.crud.runtimes.nuclio.helpers
+import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.function
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.api.endpoints.functions import _build_function
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
-from mlrun.runtimes.function import (
-    _compile_nuclio_archive_config,
-    compile_function_config,
-    deploy_nuclio_function,
-    enrich_function_with_ingress,
-    is_nuclio_version_in_range,
-    min_nuclio_versions,
-    resolve_function_ingresses,
-    validate_nuclio_version_compatibility,
-)
 from mlrun.utils import logger
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
@@ -124,7 +117,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def _execute_run(self, runtime, **kwargs):
-        deploy_nuclio_function(runtime, **kwargs)
+        # deploy_nuclio_function doesn't accept watch, so we need to remove it
+        kwargs.pop("watch", None)
+        mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+            runtime, **kwargs
+        )
 
     def _generate_runtime(
         self, kind=None, labels=None
@@ -371,7 +368,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         key, val = "test.label.com/env", "test"
         function.set_label(key, val)
-        _, _, config = compile_function_config(function)
+        _, _, config = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         assert config["metadata"]["labels"].get(key) == val
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
@@ -384,12 +383,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         # both ingress and node port
         ingress_host = "something.com"
         function.with_http(host=ingress_host, paths=["/"], port=30030)
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "NodePort"
-        enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.always, service_type
         )
-        ingresses = resolve_function_ingresses(config["spec"])
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+            config["spec"]
+        )
         assert len(ingresses) > 0, "Expected one ingress to be created"
         for ingress in ingresses:
             assert "hostTemplate" not in ingress, "No host template should be added"
@@ -400,12 +405,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         Expect ingress template to be created as the configuration templated ingress mode is "always"
         """
         function = self._generate_runtime(self.runtime_kind)
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "NodePort"
-        enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.always, service_type
         )
-        ingresses = resolve_function_ingresses(config["spec"])
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+            config["spec"]
+        )
         assert ingresses[0]["hostTemplate"] != ""
 
     def test_enrich_with_ingress_on_cluster_ip(self, db: Session, client: TestClient):
@@ -414,14 +425,20 @@ class TestNuclioRuntime(TestRuntimeBase):
         function service type is ClusterIP
         """
         function = self._generate_runtime(self.runtime_kind)
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "ClusterIP"
-        enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config,
             NuclioIngressAddTemplatedIngressModes.on_cluster_ip,
             service_type,
         )
-        ingresses = resolve_function_ingresses(config["spec"])
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+            config["spec"]
+        )
         assert ingresses[0]["hostTemplate"] != ""
 
     def test_enrich_with_ingress_never(self, db: Session, client: TestClient):
@@ -429,12 +446,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         Expect no ingress to be created automatically as the configuration templated ingress mode is "never"
         """
         function = self._generate_runtime(self.runtime_kind)
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         service_type = "DoesNotMatter"
-        enrich_function_with_ingress(
+        mlrun.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
             config, NuclioIngressAddTemplatedIngressModes.never, service_type
         )
-        ingresses = resolve_function_ingresses(config["spec"])
+        ingresses = mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+            config["spec"]
+        )
         assert ingresses == []
 
     def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
@@ -457,7 +480,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             {"name": name2, "value": value2},
         ]
 
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
         assert isinstance(function.spec.env[0], kubernetes.client.V1EnvVar)
@@ -465,7 +492,11 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         # simulating sending to API - serialization through dict
         function = function.from_dict(function.to_dict())
-        function_name, project_name, config = compile_function_config(function)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
 
@@ -492,7 +523,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
-        auth_info = mlrun.api.schemas.AuthInfo()
+        auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
@@ -519,17 +550,17 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         user_unix_id = 1000
-        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=user_unix_id)
         mlrun.mlconf.igz_version = "3.6"
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         function = self._generate_runtime(self.runtime_kind)
         _build_function(db, auth_info, function)
         self.assert_security_context({})
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         function = self._generate_runtime(self.runtime_kind)
         _build_function(db, auth_info, function)
@@ -545,7 +576,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         service_account_name = "default-sa"
         mlconf.function.spec.service_account.default = service_account_name
-        auth_info = mlrun.api.schemas.AuthInfo()
+        auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
@@ -619,24 +650,45 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
+    def test_deploy_image_with_enrich_registry_prefix(self):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.image = ".my/image:latest"
+
+        with unittest.mock.patch(
+            "mlrun.utils.get_parsed_docker_registry",
+            return_value=["some.registry", "some-repository"],
+        ):
+            self.execute_function(function)
+            self._assert_deploy_called_basic_config(
+                expected_class=self.class_name,
+                expected_build_base_image="some.registry/some-repository/my/image:latest",
+            )
+
     @pytest.mark.parametrize(
         "requirements,expected_commands",
         [
-            (["pandas", "numpy"], ["python -m pip install pandas numpy"]),
+            (["pandas", "numpy"], ["python -m pip install --upgrade pandas numpy"]),
             (
                 ["-r requirements.txt", "numpy"],
-                ["python -m pip install -r requirements.txt numpy"],
+                ["python -m pip install --upgrade -r requirements.txt numpy"],
             ),
-            (["pandas>=1.0.0, <2"], ["python -m pip install 'pandas>=1.0.0, <2'"]),
-            (["pandas>=1.0.0,<2"], ["python -m pip install 'pandas>=1.0.0,<2'"]),
+            (
+                ["pandas>=1.0.0, <2"],
+                ["python -m pip install --upgrade 'pandas>=1.0.0, <2'"],
+            ),
+            (
+                ["pandas>=1.0.0,<2"],
+                ["python -m pip install --upgrade 'pandas>=1.0.0,<2'"],
+            ),
             (
                 ["-r somewhere/requirements.txt"],
-                ["python -m pip install -r somewhere/requirements.txt"],
+                ["python -m pip install --upgrade -r somewhere/requirements.txt"],
             ),
             (
                 ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
                 [
-                    "python -m pip install 'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
+                    "python -m pip install --upgrade "
+                    "'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
                 ],
             ),
         ],
@@ -664,7 +716,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
         expected_commands = [
             "python -m pip install scikit-learn",
-            "python -m pip install pandas numpy",
+            "python -m pip install --upgrade pandas numpy",
         ]
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_build_commands=expected_commands
@@ -996,43 +1048,75 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_is_nuclio_version_in_range(self):
         mlrun.runtimes.utils.cached_nuclio_version = "1.7.2"
 
-        assert not is_nuclio_version_in_range("1.6.11", "1.7.2")
-        assert not is_nuclio_version_in_range("1.7.0", "1.3.1")
-        assert not is_nuclio_version_in_range("1.7.3", "1.8.5")
-        assert not is_nuclio_version_in_range("1.7.2", "1.7.2")
-        assert is_nuclio_version_in_range("1.7.2", "1.7.3")
-        assert is_nuclio_version_in_range("1.7.0", "1.7.3")
-        assert is_nuclio_version_in_range("1.5.5", "1.7.3")
-        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.6.11", "1.7.2"
+        )
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.0", "1.3.1"
+        )
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.3", "1.8.5"
+        )
+        assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.2", "1.7.2"
+        )
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.2", "1.7.3"
+        )
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.0", "1.7.3"
+        )
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.5.5", "1.7.3"
+        )
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.5.5", "2.3.4"
+        )
 
         # best effort - assumes compatibility
         mlrun.runtimes.utils.cached_nuclio_version = ""
-        assert is_nuclio_version_in_range("1.5.5", "2.3.4")
-        assert is_nuclio_version_in_range("1.7.2", "1.7.2")
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.5.5", "2.3.4"
+        )
+        assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.7.2", "1.7.2"
+        )
 
     def test_validate_nuclio_version_compatibility(self):
         # nuclio version we have
         mlconf.nuclio_version = "1.6.10"
 
-        # validate_nuclio_version_compatibility receives the min nuclio version required
-        assert not validate_nuclio_version_compatibility("1.6.11")
-        assert not validate_nuclio_version_compatibility("1.5.9", "1.6.11")
-        assert not validate_nuclio_version_compatibility("1.6.11", "1.5.9")
-        assert not validate_nuclio_version_compatibility("2.0.0")
-        assert validate_nuclio_version_compatibility("1.6.9")
-        assert validate_nuclio_version_compatibility("1.5.9")
+        # mlrun.runtimes.function.validate_nuclio_version_compatibility receives the min nuclio version required
+        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "1.6.11"
+        )
+        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "1.5.9", "1.6.11"
+        )
+        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "1.6.11", "1.5.9"
+        )
+        assert not mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "2.0.0"
+        )
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.9")
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.5.9")
 
         mlconf.nuclio_version = "2.0.0"
-        assert validate_nuclio_version_compatibility("1.6.11")
-        assert validate_nuclio_version_compatibility("1.5.9", "1.6.11")
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.11")
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "1.5.9", "1.6.11"
+        )
 
         # best effort - assumes compatibility
         mlconf.nuclio_version = ""
-        assert validate_nuclio_version_compatibility("1.6.11")
-        assert validate_nuclio_version_compatibility("1.5.9", "1.6.11")
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.11")
+        assert mlrun.runtimes.function.validate_nuclio_version_compatibility(
+            "1.5.9", "1.6.11"
+        )
 
         with pytest.raises(ValueError):
-            validate_nuclio_version_compatibility("")
+            mlrun.runtimes.function.validate_nuclio_version_compatibility("")
 
     def test_min_nuclio_versions_decorator_failure(self):
         mlconf.nuclio_version = "1.6.10"
@@ -1043,7 +1127,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             ["1.5.9", "1.6.11"],
         ]:
 
-            @min_nuclio_versions(*case)
+            @mlrun.runtimes.function.min_nuclio_versions(*case)
             def fail():
                 pytest.fail("Should not enter this function")
 
@@ -1060,7 +1144,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 ["1.0.0", "0.9.81", "1.4.1"],
             ]:
 
-                @min_nuclio_versions(*case)
+                @mlrun.runtimes.function.min_nuclio_versions(*case)
                 def success():
                     pass
 
@@ -1296,26 +1380,30 @@ class TestNuclioRuntime(TestRuntimeBase):
         if build_secret_name is not None:
             fn.spec.build.secret = build_secret_name
 
-        _, _, deployed_config = compile_function_config(fn)
+        (
+            _,
+            _,
+            deployed_config,
+        ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(fn)
         assert deployed_config["spec"].get("imagePullSecrets") == expected_secret_name
 
     def test_nuclio_with_preemption_mode(self):
         fn = self._generate_runtime(self.runtime_kind)
         assert fn.spec.preemption_mode == "prevent"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.constrain.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.constrain.value)
         assert fn.spec.preemption_mode == "constrain"
 
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
         mlconf.nuclio_version = "1.7.5"
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-            fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+            fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
 
         mlconf.nuclio_version = "1.8.6"
-        fn.with_preemption_mode(mlrun.api.schemas.PreemptionModes.allow.value)
+        fn.with_preemption_mode(mlrun.common.schemas.PreemptionModes.allow.value)
         assert fn.spec.preemption_mode == "allow"
 
     def test_preemption_mode_without_preemptible_configuration(
@@ -1476,11 +1564,19 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         if expected_ingress_host_template is None:
             # never
-            ingresses = resolve_function_ingresses(deploy_spec)
+            ingresses = (
+                mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+                    deploy_spec
+                )
+            )
             assert ingresses == []
 
         else:
-            ingresses = resolve_function_ingresses(deploy_spec)
+            ingresses = (
+                mlrun.api.crud.runtimes.nuclio.helpers.resolve_function_ingresses(
+                    deploy_spec
+                )
+            )
             assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
 
 
@@ -1495,6 +1591,8 @@ class TestNuclioMLRunRuntime(TestNuclioRuntime):
 def get_archive_spec(function, secrets):
     spec = nuclio.ConfigSpec()
     config = {}
-    _compile_nuclio_archive_config(spec, function, secrets)
+    mlrun.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
+        spec, function, secrets
+    )
     spec.merge(config)
     return config

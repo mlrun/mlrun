@@ -23,8 +23,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.endpoints.feature_store
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.common.schemas
 import tests.api.api.utils
 
 from .base import (
@@ -483,11 +483,11 @@ async def test_verify_feature_vector_features_permissions(
     label_feature = "some-feature-set.some-feature"
 
     def _verify_queried_resources(
-        resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
+        resource_type: mlrun.common.schemas.AuthorizationResourceTypes,
         resources: typing.List,
         project_and_resource_name_extractor: typing.Callable,
-        action: mlrun.api.schemas.AuthorizationAction,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        action: mlrun.common.schemas.AuthorizationAction,
+        auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ):
         expected_resources = [
@@ -508,7 +508,7 @@ async def test_verify_feature_vector_features_permissions(
         unittest.mock.AsyncMock(side_effect=_verify_queried_resources)
     )
     await mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
-        mlrun.api.schemas.AuthInfo(),
+        mlrun.common.schemas.AuthInfo(),
         project,
         {"spec": {"features": features, "label_feature": label_feature}},
     )

@@ -31,7 +31,6 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ...execution import MLClientCtx
-from ...k8s_utils import get_k8s_helper
 from ...model import RunObject
 from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import (
@@ -45,7 +44,7 @@ from ...utils import (
 from ..base import RunError, RuntimeClassMode
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import get_item_name
+from ..utils import get_item_name, get_k8s
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -592,7 +591,7 @@ with ctx:
         code=None,
     ):
         namespace = meta.namespace
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = client.V1ConfigMap()
@@ -636,7 +635,7 @@ with ctx:
             raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
-        k8s = self._get_k8s()
+        k8s = get_k8s()
         namespace = k8s.resolve_namespace(namespace)
         try:
             resp = k8s.crdapi.get_namespaced_custom_object(
@@ -826,26 +825,6 @@ with ctx:
             source, workdir, handler, pull_at_runtime, target_dir
         )
 
-    def get_pods(self, name=None, namespace=None, driver=False):
-        k8s = self._get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        selector = "mlrun/class=spark"
-        if name:
-            selector += f",sparkoperator.k8s.io/app-name={name}"
-        if driver:
-            selector += ",spark-role=driver"
-        pods = k8s.list_pods(selector=selector, namespace=namespace)
-        if pods:
-            return {p.metadata.name: p.status.phase for p in pods}
-
-    def _get_driver(self, name, namespace=None):
-        pods = self.get_pods(name, namespace, driver=True)
-        if not pods:
-            logger.error("no pod matches that job name")
-            return
-        _ = self._get_k8s()
-        return list(pods.items())[0]
-
     def is_deployed(self):
         if (
             not self.spec.build.source
@@ -968,15 +947,14 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        k8s_helper = get_k8s_helper()
-        config_maps = k8s_helper.v1api.list_namespaced_config_map(
+        config_maps = get_k8s().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    k8s_helper.v1api.delete_namespaced_config_map(
+                    get_k8s().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

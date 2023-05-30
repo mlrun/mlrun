@@ -107,7 +107,7 @@ def run_merge_job(
             "order_by": order_by,
             "engine_args": engine_args,
         },
-        inputs={"entity_rows": entity_rows},
+        inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)

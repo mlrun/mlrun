@@ -21,9 +21,9 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.common.schemas
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -36,7 +36,7 @@ current_migration_background_task_name = None
     "/operations/migrations",
     responses={
         http.HTTPStatus.OK.value: {},
-        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.api.schemas.BackgroundTask},
+        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},
     },
 )
 async def trigger_migrations(
@@ -47,7 +47,7 @@ async def trigger_migrations(
     # only chief can execute migrations, redirecting request to chief
     if (
         mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.common.schemas.ClusterizationRole.chief
     ):
         logger.info("Requesting to trigger migrations, re-routing to chief")
         chief_client = mlrun.api.utils.clients.chief.Client()
@@ -72,18 +72,22 @@ async def trigger_migrations(
 
 def _get_or_create_migration_background_task(
     task_name: str, background_tasks
-) -> typing.Optional[mlrun.api.schemas.BackgroundTask]:
-    if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_in_progress:
+) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    if (
+        mlrun.mlconf.httpdb.state
+        == mlrun.common.schemas.APIStates.migrations_in_progress
+    ):
         background_task = mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name
         )
         return background_task
-    elif mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_failed:
+    elif mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.migrations_failed:
         raise mlrun.errors.MLRunPreconditionFailedError(
             "Migrations were already triggered and failed. Restart the API to retry"
         )
     elif (
-        mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations
+        mlrun.mlconf.httpdb.state
+        != mlrun.common.schemas.APIStates.waiting_for_migrations
     ):
         return None
 
@@ -102,4 +106,4 @@ async def _perform_migration():
         mlrun.api.initial_data.init_data, perform_migrations_if_needed=True
     )
     await mlrun.api.main.move_api_to_online()
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online

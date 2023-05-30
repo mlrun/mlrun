@@ -19,8 +19,8 @@ import aioresponses
 import deepdiff
 import pytest
 
-import mlrun.api.schemas
 import mlrun.api.utils.auth.providers.opa
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
@@ -74,8 +74,8 @@ async def test_query_permissions_success(
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
 ):
     resource = "/projects/project-name/functions/function-name"
-    action = mlrun.api.schemas.AuthorizationAction.create
-    auth_info = mlrun.api.schemas.AuthInfo(
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
@@ -128,8 +128,8 @@ async def test_filter_by_permission(
     allowed_opa_resources = [
         resource["opa_resource"] for resource in expected_allowed_resources
     ]
-    action = mlrun.api.schemas.AuthorizationAction.create
-    auth_info = mlrun.api.schemas.AuthInfo(
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
@@ -174,8 +174,8 @@ async def test_query_permissions_failure(
     requests_mock: aioresponses.aioresponses,
 ):
     resource = "/projects/project-name/functions/function-name"
-    action = mlrun.api.schemas.AuthorizationAction.create
-    auth_info = mlrun.api.schemas.AuthInfo(
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_info = mlrun.common.schemas.AuthInfo(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
@@ -211,7 +211,7 @@ async def test_query_permissions_use_cache(
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
 ):
-    auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     project_name = "project-name"
     opa_provider.add_allowed_project_for_owner(project_name, auth_info)
 
@@ -219,7 +219,7 @@ async def test_query_permissions_use_cache(
         assert (
             await opa_provider.query_permissions(
                 f"/projects/{project_name}/resource",
-                mlrun.api.schemas.AuthorizationAction.create,
+                mlrun.common.schemas.AuthorizationAction.create,
                 auth_info,
             )
             is True
@@ -232,7 +232,7 @@ def test_allowed_project_owners_cache(
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
 ):
-    auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     project_name = "project-name"
     opa_provider.add_allowed_project_for_owner(project_name, auth_info)
     # ensure nothing is wrong with adding the same project twice
@@ -252,7 +252,7 @@ def test_allowed_project_owners_cache(
     assert (
         opa_provider._check_allowed_project_owners_cache(
             f"/projects/{project_name}/resource",
-            mlrun.api.schemas.AuthInfo(user_id="other-user-id"),
+            mlrun.common.schemas.AuthInfo(user_id="other-user-id"),
         )
         is False
     )
@@ -263,7 +263,7 @@ def test_allowed_project_owners_cache_ttl_refresh(
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
 ):
-    auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     opa_provider._allowed_project_owners_cache_ttl_seconds = 1
     project_name = "project-name"
     opa_provider.add_allowed_project_for_owner(project_name, auth_info)
@@ -291,8 +291,8 @@ def test_allowed_project_owners_cache_clean_expired(
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
 ):
-    auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
-    auth_info_2 = mlrun.api.schemas.AuthInfo(user_id="user-id-2")
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
+    auth_info_2 = mlrun.common.schemas.AuthInfo(user_id="user-id-2")
     opa_provider._allowed_project_owners_cache_ttl_seconds = 2
     project_name = "project-name"
     project_name_2 = "project-name-2"

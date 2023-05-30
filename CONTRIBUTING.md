@@ -2,6 +2,8 @@
 
 ## Creating a development environment
 
+If you are working with an ARM64 machine, please see  [Developing with ARM64 machines](#developing-with-arm64-machines).
+
 We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manage your python versions.
 Once you have pyenv installed, you can create a new environment by running:
 
@@ -37,6 +39,46 @@ source venv/bin/activate
 Install MLRun, dependencies and dev dependencies
 ```shell script
 make install-requirements
+pip install -e '.[complete]'
+```
+
+## Developing with ARM64 machines
+
+Some mlrun dependencies are not yet available for ARM64 machines via pypi, so we need to work with conda to get the packages compiled for ARM64 platform.   
+Install Anaconda from [here](https://docs.anaconda.com/free/anaconda/install/index.html) and then follow the steps below:
+
+Fork, clone and cd into the MLRun repository directory
+```shell script
+git clone git@github.com:<your username>/mlrun.git
+cd mlrun
+```
+
+Create a conda environment and activate it
+```shell script
+conda create -n mlrun python=3.9
+conda activate mlrun
+``` 
+
+Then, install the dependencies
+```shell script
+make install-conda-requirements
+```
+
+Run some unit tests to make sure everything works:
+```shell script
+python -m pytest ./tests/projects
+```
+
+If you encounter any error with 'charset_normalizer' for example:
+```shell script
+AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)
+```
+Run:
+```shell script
+pip install --force-reinstall charset-normalizer
+```
+Finally, install mlrun
+```shell script
 pip install -e '.[complete]'
 ```
 

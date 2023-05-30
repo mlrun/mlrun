@@ -22,8 +22,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.db.base
 import mlrun.api.db.session
-import mlrun.api.schemas
-import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.lists
 import mlrun.model
@@ -50,6 +49,9 @@ class NotificationPusher(object):
                 run = mlrun.model.RunObject.from_dict(run)
 
             for notification in run.spec.notifications:
+                notification.status = run.status.notifications.get(
+                    notification.name
+                ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
                 if self._should_notify(run, notification):
                     self._notification_data.append((run, notification))
 
@@ -62,6 +64,9 @@ class NotificationPusher(object):
         When running from a sync environment, the notifications will be pushed asynchronously however the function will
         wait for all notifications to be pushed before returning.
         """
+
+        if not len(self._notification_data):
+            return
 
         async def _push():
             tasks = []
@@ -103,7 +108,7 @@ class NotificationPusher(object):
         # if the notification isn't pending, don't push it
         if (
             notification.status
-            and notification.status != mlrun.api.schemas.NotificationStatus.PENDING
+            and notification.status != mlrun.common.schemas.NotificationStatus.PENDING
         ):
             return False
 
@@ -146,7 +151,8 @@ class NotificationPusher(object):
     ):
         message = self.messages.get(run.state(), "")
         severity = (
-            notification_object.severity or mlrun.api.schemas.NotificationSeverity.INFO
+            notification_object.severity
+            or mlrun.common.schemas.NotificationSeverity.INFO
         )
         logger.debug(
             "Pushing notification",
@@ -165,7 +171,7 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_object,
-                    status=mlrun.api.schemas.NotificationStatus.SENT,
+                    status=mlrun.common.schemas.NotificationStatus.SENT,
                     sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
         except Exception as exc:
@@ -175,7 +181,7 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_object,
-                    status=mlrun.api.schemas.NotificationStatus.ERROR,
+                    status=mlrun.common.schemas.NotificationStatus.ERROR,
                 )
             raise exc
 
@@ -188,6 +194,7 @@ class NotificationPusher(object):
         status: str = None,
         sent_time: datetime.datetime = None,
     ):
+        # TODO: move to api side
         db_session = mlrun.api.db.session.create_session()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
@@ -213,8 +220,8 @@ class CustomNotificationPusher(object):
         self,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -240,8 +247,8 @@ class CustomNotificationPusher(object):
         notification: NotificationBase,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):

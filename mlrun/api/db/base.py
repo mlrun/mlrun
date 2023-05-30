@@ -17,8 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import mlrun.common.schemas
 import mlrun.model
-from mlrun.api import schemas
 
 
 class DBError(Exception):
@@ -98,10 +98,10 @@ class DBInterface(ABC):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
-        partition_by: schemas.RunPartitionByField = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
@@ -122,7 +122,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactIdentifier],
+        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         pass
 
@@ -131,7 +131,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactIdentifier],
+        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         pass
 
@@ -140,7 +140,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactIdentifier],
+        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         pass
 
@@ -172,7 +172,7 @@ class DBInterface(ABC):
         since=None,
         until=None,
         kind=None,
-        category: schemas.ArtifactCategories = None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
@@ -235,9 +235,9 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        kind: schemas.ScheduleKinds,
+        kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Any,
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
         next_run_time: datetime.datetime = None,
@@ -251,7 +251,7 @@ class DBInterface(ABC):
         project: str,
         name: str,
         scheduled_object: Any = None,
-        cron_trigger: schemas.ScheduleCronTrigger = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
@@ -266,14 +266,14 @@ class DBInterface(ABC):
         project: str = None,
         name: str = None,
         labels: str = None,
-        kind: schemas.ScheduleKinds = None,
-    ) -> List[schemas.ScheduleRecord]:
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+    ) -> List[mlrun.common.schemas.ScheduleRecord]:
         pass
 
     @abstractmethod
     def get_schedule(
         self, session, project: str, name: str, raise_on_conflict: bool = True
-    ) -> schemas.ScheduleRecord:
+    ) -> mlrun.common.schemas.ScheduleRecord:
         pass
 
     @abstractmethod
@@ -287,7 +287,7 @@ class DBInterface(ABC):
     @abstractmethod
     def generate_projects_summaries(
         self, session, projects: List[str]
-    ) -> List[schemas.ProjectSummary]:
+    ) -> List[mlrun.common.schemas.ProjectSummary]:
         pass
 
     @abstractmethod
@@ -307,17 +307,17 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: Optional[List[str]] = None,
-    ) -> schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
     @abstractmethod
     def get_project(
         self, session, name: str = None, project_id: int = None
-    ) -> schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abstractmethod
@@ -334,11 +334,11 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, session, project: schemas.Project):
+    def create_project(self, session, project: mlrun.common.schemas.Project):
         pass
 
     @abstractmethod
-    def store_project(self, session, name: str, project: schemas.Project):
+    def store_project(self, session, name: str, project: mlrun.common.schemas.Project):
         pass
 
     @abstractmethod
@@ -347,7 +347,7 @@ class DBInterface(ABC):
         session,
         name: str,
         project: dict,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -356,7 +356,7 @@ class DBInterface(ABC):
         self,
         session,
         name: str,
-        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         pass
 
@@ -365,7 +365,7 @@ class DBInterface(ABC):
         self,
         session,
         project,
-        feature_set: schemas.FeatureSet,
+        feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
         pass
@@ -376,7 +376,7 @@ class DBInterface(ABC):
         session,
         project,
         name,
-        feature_set: schemas.FeatureSet,
+        feature_set: mlrun.common.schemas.FeatureSet,
         tag=None,
         uid=None,
         versioned=True,
@@ -387,7 +387,7 @@ class DBInterface(ABC):
     @abstractmethod
     def get_feature_set(
         self, session, project: str, name: str, tag: str = None, uid: str = None
-    ) -> schemas.FeatureSet:
+    ) -> mlrun.common.schemas.FeatureSet:
         pass
 
     @abstractmethod
@@ -399,7 +399,7 @@ class DBInterface(ABC):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     @abstractmethod
@@ -410,7 +410,7 @@ class DBInterface(ABC):
         name: str = None,
         tag: str = None,
         labels: List[str] = None,
-    ) -> schemas.EntitiesOutput:
+    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     @abstractmethod
@@ -424,11 +424,11 @@ class DBInterface(ABC):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
-    ) -> schemas.FeatureSetsOutput:
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+    ) -> mlrun.common.schemas.FeatureSetsOutput:
         pass
 
     @abstractmethod
@@ -451,7 +451,7 @@ class DBInterface(ABC):
         feature_set_patch: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> str:
         pass
 
@@ -464,7 +464,7 @@ class DBInterface(ABC):
         self,
         session,
         project,
-        feature_vector: schemas.FeatureVector,
+        feature_vector: mlrun.common.schemas.FeatureVector,
         versioned=True,
     ) -> str:
         pass
@@ -472,7 +472,7 @@ class DBInterface(ABC):
     @abstractmethod
     def get_feature_vector(
         self, session, project: str, name: str, tag: str = None, uid: str = None
-    ) -> schemas.FeatureVector:
+    ) -> mlrun.common.schemas.FeatureVector:
         pass
 
     @abstractmethod
@@ -484,11 +484,11 @@ class DBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: schemas.FeatureStorePartitionByField = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort_by: schemas.SortField = None,
-        partition_order: schemas.OrderType = schemas.OrderType.desc,
-    ) -> schemas.FeatureVectorsOutput:
+        partition_sort_by: mlrun.common.schemas.SortField = None,
+        partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+    ) -> mlrun.common.schemas.FeatureVectorsOutput:
         pass
 
     @abstractmethod
@@ -508,7 +508,7 @@ class DBInterface(ABC):
         session,
         project,
         name,
-        feature_vector: schemas.FeatureVector,
+        feature_vector: mlrun.common.schemas.FeatureVector,
         tag=None,
         uid=None,
         versioned=True,
@@ -525,7 +525,7 @@ class DBInterface(ABC):
         feature_vector_update: dict,
         tag=None,
         uid=None,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> str:
         pass
 
@@ -541,29 +541,33 @@ class DBInterface(ABC):
         pass
 
     def list_artifact_tags(
-        self, session, project, category: Union[str, schemas.ArtifactCategories] = None
+        self,
+        session,
+        project,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         return []
 
-    def create_marketplace_source(
-        self, session, ordered_source: schemas.IndexedMarketplaceSource
+    def create_hub_source(
+        self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
     ):
         pass
 
-    def store_marketplace_source(
-        self, session, name, ordered_source: schemas.IndexedMarketplaceSource
+    def store_hub_source(
+        self,
+        session,
+        name,
+        ordered_source: mlrun.common.schemas.IndexedHubSource,
     ):
         pass
 
-    def list_marketplace_sources(
-        self, session
-    ) -> List[schemas.IndexedMarketplaceSource]:
+    def list_hub_sources(self, session) -> List[mlrun.common.schemas.IndexedHubSource]:
         pass
 
-    def delete_marketplace_source(self, session, name):
+    def delete_hub_source(self, session, name):
         pass
 
-    def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
         pass
 
     def store_background_task(
@@ -571,14 +575,14 @@ class DBInterface(ABC):
         session,
         name: str,
         project: str,
-        state: str = schemas.BackgroundTaskState.running,
+        state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
     ):
         pass
 
     def get_background_task(
         self, session, name: str, project: str
-    ) -> schemas.BackgroundTask:
+    ) -> mlrun.common.schemas.BackgroundTask:
         pass
 
     @abstractmethod

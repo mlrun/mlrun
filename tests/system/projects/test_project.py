@@ -45,7 +45,7 @@ def exec_project(args):
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs["auto_trainer"].as_step(
+    funcs["auto-trainer"].as_step(
         name="train",
         inputs={"dataset": data_url},
         params={"model_class": model_class, "label_columns": "label"},
@@ -64,6 +64,10 @@ class TestProject(TestMLRunSystem):
         pass
 
     def custom_teardown(self):
+        self._logger.debug(
+            "Deleting custom projects",
+            num_projects_to_delete=len(self.custom_project_names_to_delete),
+        )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -86,8 +90,8 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://auto_trainer", "auto_trainer")
-        proj.set_function("hub://v2_model_server", "serving")
+        proj.set_function("hub://auto-trainer", "auto-trainer")
+        proj.set_function("hub://v2-model-server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(
@@ -123,7 +127,7 @@ class TestProject(TestMLRunSystem):
         )
 
     def test_run(self):
-        name = "pipe1"
+        name = "pipe0"
         self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
@@ -210,7 +214,6 @@ class TestProject(TestMLRunSystem):
             "main",
             artifact_path=f"v3io:///projects/{name}",
             arguments={"build": 1},
-            workflow_path=str(self.assets_path / "kflow.py"),
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
@@ -510,6 +513,38 @@ class TestProject(TestMLRunSystem):
             "main",
             watch=True,
             engine="remote",
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+
+    def test_kfp_from_local_code(self):
+        name = "kfp-from-local-code"
+        self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
+        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+
+        handler_fn = project.set_function(
+            func="./assets/handler.py",
+            handler="my_func",
+            name="my-func",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        project.build_function(handler_fn)
+
+        project.set_workflow(
+            "main", "./assets/handler_workflow.py", handler="job_pipeline"
+        )
+        project.save()
+
+        run = project.run(
+            "main",
+            watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
@@ -849,3 +884,87 @@ class TestProject(TestMLRunSystem):
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
         assert schedule.scheduled_object["schedule"] == schedule_str
+
+    def test_remote_workflow_source_with_subpath(self):
+        # Test running remote workflow when the project files are store in a relative path (the subpath)
+        project_source = "git://github.com/mlrun/system-tests.git#main"
+        project_context = "./test_subpath_remote"
+        project_name = "test-remote-workflow-source-with-subpath"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.load_project(
+            context=project_context,
+            url=project_source,
+            subpath="./test_remote_workflow_subpath",
+            name=project_name,
+        )
+        project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    def test_project_build_image(self):
+        name = "test-build-image"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.new_project(name, context=str(self.assets_path))
+
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+
+        assert project.default_image == image_name
+
+        # test with user provided function object
+        project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = project.run_function("scores", params={"text": "good morning"})
+        assert run_result.output("score")
+
+    def test_project_build_config_export_import(self):
+        # Verify that the build config is exported properly by the project, and a new project loaded from it
+        # can build default image directly without needing additional details.
+
+        name_export = "test-build-image-export"
+        name_import = "test-build-image-import"
+        self.custom_project_names_to_delete.extend([name_export, name_import])
+
+        project = mlrun.new_project(name_export, context=str(self.assets_path))
+        image_name = ".test-export-custom-image"
+
+        project.build_config(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+        assert project.default_image == image_name
+
+        project_dir = f"{projects_dir}/{name_export}"
+        proj_file_path = project_dir + "/project.yaml"
+        project.export(proj_file_path)
+
+        new_project = mlrun.load_project(project_dir, name=name_import)
+        new_project.build_image()
+
+        new_project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = new_project.run_function(
+            "scores", params={"text": "terrible evening"}
+        )
+        assert run_result.output("score")
+
+        shutil.rmtree(project_dir, ignore_errors=True)

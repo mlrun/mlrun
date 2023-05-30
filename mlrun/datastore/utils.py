@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from urllib.parse import urlparse
+import tarfile
+import tempfile
+import typing
+from urllib.parse import parse_qs, urlparse
+
+import mlrun.datastore
 
 
 def store_path_to_spark(path):
@@ -36,11 +41,43 @@ def store_path_to_spark(path):
     return path
 
 
-def parse_kafka_url(url, bootstrap_servers=None):
+def parse_kafka_url(
+    url: str, bootstrap_servers: typing.List = None
+) -> typing.Tuple[str, typing.List]:
+    """Generating Kafka topic and adjusting a list of bootstrap servers.
+
+    :param url:               URL path to parse using urllib.parse.urlparse.
+    :param bootstrap_servers: List of bootstrap servers for the kafka brokers.
+
+    :return: A tuple of:
+         [0] = Kafka topic value
+         [1] = List of bootstrap servers
+    """
     bootstrap_servers = bootstrap_servers or []
+
+    # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)
+
+    # Add the network location to the bootstrap servers list
     if url.netloc:
         bootstrap_servers = [url.netloc] + bootstrap_servers
-    topic = url.path
-    topic = topic.lstrip("/")
+
+    # Get the topic value from the parsed url
+    query_dict = parse_qs(url.query)
+    if "topic" in query_dict:
+        topic = query_dict["topic"][0]
+    else:
+        topic = url.path
+        topic = topic.lstrip("/")
     return topic, bootstrap_servers
+
+
+def upload_tarball(source_dir, target, secrets=None):
+
+    # will delete the temp file
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
+        with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
+            tar.add(source_dir, arcname="")
+        stores = mlrun.datastore.store_manager.set(secrets)
+        datastore, subpath = stores.get_or_create_store(target)
+        datastore.upload(subpath, temp_fh.name)

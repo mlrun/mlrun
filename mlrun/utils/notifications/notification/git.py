@@ -18,7 +18,7 @@ import typing
 
 import aiohttp
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.lists
 
@@ -34,8 +34,8 @@ class GitNotification(NotificationBase):
         self,
         message: str,
         severity: typing.Union[
-            mlrun.api.schemas.NotificationSeverity, str
-        ] = mlrun.api.schemas.NotificationSeverity.INFO,
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -120,7 +120,7 @@ class GitNotification(NotificationBase):
             if not resp.ok:
                 resp_text = await resp.text()
                 raise mlrun.errors.MLRunBadRequestError(
-                    f"Failed commenting on PR: {resp_text}", status=resp.status
+                    f"Failed commenting on PR: {resp_text}"
                 )
             data = await resp.json()
             return data.get("id")

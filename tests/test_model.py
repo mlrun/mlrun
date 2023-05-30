@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.runtimes
 
 
 def test_enum_yaml_dump():
     function = mlrun.new_function("function-name", kind="job")
-    function.status.state = mlrun.api.schemas.FunctionState.ready
+    function.status.state = mlrun.common.schemas.FunctionState.ready
     print(function.to_yaml())

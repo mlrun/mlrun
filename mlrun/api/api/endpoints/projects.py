@@ -21,10 +21,10 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.common.schemas
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.utils import logger
 
@@ -34,17 +34,17 @@ router = fastapi.APIRouter()
 @router.post(
     "/projects",
     responses={
-        http.HTTPStatus.CREATED.value: {"model": mlrun.api.schemas.Project},
+        http.HTTPStatus.CREATED.value: {"model": mlrun.common.schemas.Project},
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
 def create_project(
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
     response: fastapi.Response,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -67,17 +67,17 @@ def create_project(
 @router.put(
     "/projects/{name}",
     responses={
-        http.HTTPStatus.OK.value: {"model": mlrun.api.schemas.Project},
+        http.HTTPStatus.OK.value: {"model": mlrun.common.schemas.Project},
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
 def store_project(
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
     name: str,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -100,21 +100,21 @@ def store_project(
 @router.patch(
     "/projects/{name}",
     responses={
-        http.HTTPStatus.OK.value: {"model": mlrun.api.schemas.Project},
+        http.HTTPStatus.OK.value: {"model": mlrun.common.schemas.Project},
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
 def patch_project(
     project: dict,
     name: str,
-    patch_mode: mlrun.api.schemas.PatchMode = fastapi.Header(
-        mlrun.api.schemas.PatchMode.replace,
-        alias=mlrun.api.schemas.HeaderNames.patch_mode,
+    patch_mode: mlrun.common.schemas.PatchMode = fastapi.Header(
+        mlrun.common.schemas.PatchMode.replace,
+        alias=mlrun.common.schemas.HeaderNames.patch_mode,
     ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -135,13 +135,13 @@ def patch_project(
     return project
 
 
-@router.get("/projects/{name}", response_model=mlrun.api.schemas.Project)
+@router.get("/projects/{name}", response_model=mlrun.common.schemas.Project)
 async def get_project(
     name: str,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
     ),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -152,7 +152,7 @@ async def get_project(
     if not _is_request_from_leader(auth_info.projects_role):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     return project
@@ -168,14 +168,14 @@ async def get_project(
 async def delete_project(
     name: str,
     request: fastapi.Request,
-    deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
-        mlrun.api.schemas.DeletionStrategy.default(),
-        alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
+    deletion_strategy: mlrun.common.schemas.DeletionStrategy = fastapi.Header(
+        mlrun.common.schemas.DeletionStrategy.default(),
+        alias=mlrun.common.schemas.HeaderNames.deletion_strategy,
     ),
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -186,7 +186,7 @@ async def delete_project(
     # that is why we re-route requests to chief
     if (
         mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.common.schemas.ClusterizationRole.chief
     ):
         logger.info(
             "Requesting to delete project, re-routing to chief",
@@ -211,15 +211,15 @@ async def delete_project(
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)
+@router.get("/projects", response_model=mlrun.common.schemas.ProjectsOutput)
 async def list_projects(
-    format_: mlrun.api.schemas.ProjectsFormat = fastapi.Query(
-        mlrun.api.schemas.ProjectsFormat.full, alias="format"
+    format_: mlrun.common.schemas.ProjectsFormat = fastapi.Query(
+        mlrun.common.schemas.ProjectsFormat.full, alias="format"
     ),
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
-    state: mlrun.api.schemas.ProjectState = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    state: mlrun.common.schemas.ProjectState = None,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -233,7 +233,7 @@ async def list_projects(
             get_project_member().list_projects,
             db_session,
             owner,
-            mlrun.api.schemas.ProjectsFormat.name_only,
+            mlrun.common.schemas.ProjectsFormat.name_only,
             labels,
             state,
             auth_info.projects_role,
@@ -259,13 +259,13 @@ async def list_projects(
 
 
 @router.get(
-    "/project-summaries", response_model=mlrun.api.schemas.ProjectSummariesOutput
+    "/project-summaries", response_model=mlrun.common.schemas.ProjectSummariesOutput
 )
 async def list_project_summaries(
     owner: str = None,
     labels: typing.List[str] = fastapi.Query(None, alias="label"),
-    state: mlrun.api.schemas.ProjectState = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    state: mlrun.common.schemas.ProjectState = None,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -276,7 +276,7 @@ async def list_project_summaries(
         get_project_member().list_projects,
         db_session,
         owner,
-        mlrun.api.schemas.ProjectsFormat.name_only,
+        mlrun.common.schemas.ProjectsFormat.name_only,
         labels,
         state,
         auth_info.projects_role,
@@ -301,14 +301,14 @@ async def list_project_summaries(
 
 
 @router.get(
-    "/project-summaries/{name}", response_model=mlrun.api.schemas.ProjectSummary
+    "/project-summaries/{name}", response_model=mlrun.common.schemas.ProjectSummary
 )
 async def get_project_summary(
     name: str,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
     ),
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -319,18 +319,18 @@ async def get_project_summary(
     if not _is_request_from_leader(auth_info.projects_role):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     return project_summary
 
 
-@router.post("/projects/{name}/load", response_model=mlrun.api.schemas.BackgroundTask)
+@router.post("/projects/{name}/load", response_model=mlrun.common.schemas.BackgroundTask)
 async def load_project(
     name: str,
     url: str,
     background_tasks: fastapi.BackgroundTasks,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -352,9 +352,9 @@ async def load_project(
     :returns: a BackgroundTask object, with details on execution process and its status
     """
 
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=name),
-        spec=mlrun.api.schemas.ProjectSpec(source=url),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
 
     # We must create the project before we run the remote load_project function because
@@ -407,7 +407,7 @@ async def load_project(
 
 
 def _is_request_from_leader(
-    projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole],
+    projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole],
 ) -> bool:
     if projects_role and projects_role.value == mlrun.mlconf.httpdb.projects.leader:
         return True

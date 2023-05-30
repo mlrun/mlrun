@@ -25,15 +25,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
-import tests.api.api.utils
+import mlrun.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import (
-    NuclioStatus,
-    compile_function_config,
-    deploy_nuclio_function,
-)
+from mlrun.runtimes.function import NuclioStatus
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -55,7 +51,8 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
-        self._mock_vault_functionality()
+        # TODO: Vault: uncomment when vault returns to be relevant
+        # self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
         # and instead just call the deploy_nuclio_function() API which actually performs the
         # deployment in this case. This will keep the tests' code mostly client-side oriented, but validations
@@ -75,7 +72,7 @@ class TestServingRuntime(TestNuclioRuntime):
     @staticmethod
     def _mock_db_remote_deploy_functions():
         def _remote_db_mock_function(func, with_mlrun, builder_env=None):
-            deploy_nuclio_function(func)
+            mlrun.api.crud.runtimes.nuclio.function.deploy_nuclio_function(func)
             return {
                 "data": {
                     "status": NuclioStatus(
@@ -121,21 +118,22 @@ class TestServingRuntime(TestNuclioRuntime):
             args, _ = single_call_args
             deploy_spec = args[0]["spec"]
 
-            token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
             azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
                 "~", "/root"
             )
+            # TODO: Vault: uncomment when vault returns to be relevant
+            # token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
             expected_volumes = [
-                {
-                    "volume": {
-                        "name": "vault-secret",
-                        "secret": {
-                            "defaultMode": 420,
-                            "secretName": self.vault_secret_name,
-                        },
-                    },
-                    "volumeMount": {"name": "vault-secret", "mountPath": token_path},
-                },
+                # {
+                #     "volume": {
+                #         "name": "vault-secret",
+                #         "secret": {
+                #             "defaultMode": 420,
+                #             "secretName": self.vault_secret_name,
+                #         },
+                #     },
+                #     "volumeMount": {"name": "vault-secret", "mountPath": token_path},
+                # },
                 {
                     "volume": {
                         "name": "azure-vault-secret",
@@ -158,8 +156,9 @@ class TestServingRuntime(TestNuclioRuntime):
             )
 
             expected_env = {
-                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-                "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
+                # TODO: Vault: uncomment when vault returns to be relevant
+                # "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+                # "MLRUN_SECRET_STORES__VAULT__URL": mlconf.secret_stores.vault.url,
                 # For now, just checking the variable exists, later we check specific contents
                 "SERVING_SPEC_ENV": None,
             }
@@ -182,10 +181,11 @@ class TestServingRuntime(TestNuclioRuntime):
         full_inline_secrets["ENV_SECRET1"] = os.environ["ENV_SECRET1"]
         expected_secret_sources = [
             {"kind": "inline", "source": full_inline_secrets},
-            {
-                "kind": "vault",
-                "source": {"project": self.project, "secrets": self.vault_secrets},
-            },
+            # TODO: Vault: uncomment when vault returns to be relevant
+            # {
+            #     "kind": "vault",
+            #     "source": {"project": self.project, "secrets": self.vault_secrets},
+            # },
             {
                 "kind": "azure_vault",
                 "source": {
@@ -212,9 +212,10 @@ class TestServingRuntime(TestNuclioRuntime):
 
         server = function.to_mock_server()
 
+        # TODO: Vault: uncomment when vault returns to be relevant
         # Verify all secrets are in the context
-        for secret_key in self.vault_secrets:
-            assert server.context.get_secret(secret_key) == self.vault_secret_value
+        # for secret_key in self.vault_secrets:
+        #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         for secret_key in self.inline_secrets:
             assert (
                 server.context.get_secret(secret_key) == self.inline_secrets[secret_key]
@@ -226,7 +227,9 @@ class TestServingRuntime(TestNuclioRuntime):
         expected_response = [
             {"inline_secret1": self.inline_secrets["inline_secret1"]},
             {"ENV_SECRET1": os.environ["ENV_SECRET1"]},
-            {"AWS_KEY": self.vault_secret_value},
+            # TODO: Vault: uncomment when vault returns to be relevant, and replace the AWS_KEY with the current key
+            # {"AWS_KEY": self.vault_secret_value},
+            {"AWS_KEY": None},
         ]
 
         assert deepdiff.DeepDiff(resp, expected_response) == {}
@@ -244,12 +247,13 @@ class TestServingRuntime(TestNuclioRuntime):
             server.test()
 
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
-        orig_function = get_k8s()._get_project_secrets_raw_data
-        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        orig_function = get_k8s_helper()._get_project_secrets_raw_data
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
         mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
-        tests.api.api.utils.create_project(client, self.project)
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
         req = {
@@ -263,7 +267,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
-        get_k8s()._get_project_secrets_raw_data = orig_function
+        get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
@@ -315,7 +319,9 @@ class TestServingRuntime(TestNuclioRuntime):
         # test simple function (no source)
         function = new_function("serving", kind="serving", image="mlrun/mlrun")
         function.set_topology("flow")
-        _, _, config = compile_function_config(function)
+        _, _, config = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         # verify the code is filled with the mlrun serving wrapper
         assert config["spec"]["build"]["functionSourceCode"]
 
@@ -326,10 +332,14 @@ class TestServingRuntime(TestNuclioRuntime):
         function.set_topology("flow")
 
         # mock secrets for the source (so it will not fail)
-        orig_function = get_k8s()._get_project_secrets_raw_data
-        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
-        _, _, config = compile_function_config(function, builder_env={})
-        get_k8s()._get_project_secrets_raw_data = orig_function
+        orig_function = get_k8s_helper()._get_project_secrets_raw_data
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
+        _, _, config = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(
+            function, builder_env={}
+        )
+        get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
         # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")

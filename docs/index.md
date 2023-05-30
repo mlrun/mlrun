@@ -1,4 +1,4 @@
-(architecture)=
+(using-mlrun)=
 # Using MLRun 
 
 ```{div} full-width
@@ -127,7 +127,8 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 Observability is built into the different MLRun objects (data, functions, jobs, models, pipelines, etc.), eliminating the need for complex integrations and code instrumentation. With MLRun, you can observe the application/model resource usage and model behavior (drift, performance, etc.), define custom app metrics, and trigger alerts or retraining jobs.
 {bdg-link-primary-line}`more... <./monitoring/index.html>`
 
-`````{div} full-width{octicon}`mortar-board` **Docs:**
+`````{div} full-width
+{octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring & drift detection <./tutorial/05-model-monitoring.html>`

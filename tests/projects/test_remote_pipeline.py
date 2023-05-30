@@ -26,7 +26,7 @@ import yaml
 import mlrun
 import tests.projects.assets.remote_pipeline_with_overridden_resources
 import tests.projects.base_pipeline
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 
 
 @pytest.fixture()

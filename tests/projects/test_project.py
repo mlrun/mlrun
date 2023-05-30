@@ -61,7 +61,7 @@ def test_sync_functions(rundb_mock):
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -406,13 +406,55 @@ def test_set_function_requirements():
     ]
 
 
+def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
+    project = mlrun.projects.MlrunProject(
+        "project", default_requirements=["pandas>1, <3"]
+    )
+    func_name = "name_with_underscores"
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    # nuclio also normalizes the name, so we de-normalize the function name before storing it
+    func.metadata.name = func_name
+
+    # mock the normalize function response in order to insert a non-normalized function name to the db
+    with unittest.mock.patch("mlrun.utils.normalize_name", return_value=func_name):
+        project.set_function(name=func_name, func=func)
+
+    # getting the function using the original non-normalized name, and ensure that querying it works
+    enriched_function = project.get_function(key=func_name)
+    assert enriched_function.metadata.name == func_name
+
+    enriched_function = project.get_function(key=func_name, sync=True)
+    assert enriched_function.metadata.name == func_name
+
+    # override the function by sending an update request,
+    # a new function is created, and the old one is no longer accessible
+    normalized_function_name = mlrun.utils.normalize_name(func_name)
+    func.metadata.name = normalized_function_name
+    project.set_function(name=func_name, func=func)
+
+    # using both normalized and non-normalized names to query the function
+    enriched_function = project.get_function(key=normalized_function_name)
+    assert enriched_function.metadata.name == normalized_function_name
+
+    resp = project.get_function(key=func_name)
+    assert resp.metadata.name == normalized_function_name
+
+
 def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
         "project", default_requirements=["pandas>1, <3"]
     )
     func_name = "name_with_underscores"
 
-    # Create a function with a name that includes underscores
+    # create a function with a name that includes underscores
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     func = mlrun.code_to_function(
         name=func_name,
@@ -423,12 +465,12 @@ def test_set_function_underscore_name(rundb_mock):
     )
     project.set_function(name=func_name, func=func)
 
-    # Attempt to get the function using the original name (with underscores) and ensure that it fails
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        project.get_function(key=func_name)
-
-    # Get the function using a normalized name and make sure it works
+    # get the function using the original name (with underscores) and ensure that it works and returns normalized name
     normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=func_name)
+    assert enriched_function.metadata.name == normalized_name
+
+    # get the function using a normalized name and make sure it works
     enriched_function = project.get_function(key=normalized_name)
     assert enriched_function.metadata.name == normalized_name
 
@@ -849,3 +891,13 @@ def test_remove_owner_name_in_load_project_from_yaml():
     imported_project = mlrun.load_project("./", str(project_file_path), save=False)
     assert project.spec.owner == "some_owner"
     assert imported_project.spec.owner is None
+
+
+def test_set_secrets_file_not_found():
+    # Create project and generate owner name
+    project_name = "project-name"
+    file_name = ".env-test"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        project.set_secrets(file_path=file_name)
+    assert f"{file_name} does not exist" in str(excinfo.value)

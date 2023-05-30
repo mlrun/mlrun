@@ -20,8 +20,8 @@ import typing
 import requests.adapters
 import sqlalchemy.orm
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -37,7 +37,7 @@ class Client(
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(
-        self, session: sqlalchemy.orm.Session, project: mlrun.api.schemas.Project
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
         logger.debug("Creating project in Nuclio", project=project)
         body = self._generate_request_body(project)
@@ -47,7 +47,7 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
+        project: mlrun.common.schemas.Project,
     ):
         logger.debug("Storing project in Nuclio", name=name, project=project)
         body = self._generate_request_body(project)
@@ -65,7 +65,7 @@ class Client(
         session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         logger.debug(
             "Patching project in Nuclio",
@@ -93,14 +93,14 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         logger.debug(
             "Deleting project in Nuclio", name=name, deletion_strategy=deletion_strategy
         )
         body = self._generate_request_body(
-            mlrun.api.schemas.Project(
-                metadata=mlrun.api.schemas.ProjectMetadata(name=name)
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
             )
         )
         headers = {
@@ -119,7 +119,7 @@ class Client(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
         return self._transform_nuclio_project_to_schema(response_body)
@@ -128,11 +128,11 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
                 "Listing nuclio projects by owner is currently not supported"
@@ -154,10 +154,10 @@ class Client(
         projects = []
         for nuclio_project in response_body.values():
             projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if format_ == mlrun.api.schemas.ProjectsFormat.full:
-            return mlrun.api.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.api.schemas.ProjectsFormat.name_only:
-            return mlrun.api.schemas.ProjectsOutput(
+        if format_ == mlrun.common.schemas.ProjectsFormat.full:
+            return mlrun.common.schemas.ProjectsOutput(projects=projects)
+        elif format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            return mlrun.common.schemas.ProjectsOutput(
                 projects=[project.metadata.name for project in projects]
             )
         else:
@@ -170,14 +170,14 @@ class Client(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
     def get_project_summary(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
 
     def get_dashboard_version(self) -> str:
@@ -226,7 +226,7 @@ class Client(
         return response
 
     @staticmethod
-    def _generate_request_body(project: mlrun.api.schemas.Project):
+    def _generate_request_body(project: mlrun.common.schemas.Project):
         body = {
             "metadata": {"name": project.metadata.name},
         }
@@ -240,13 +240,13 @@ class Client(
 
     @staticmethod
     def _transform_nuclio_project_to_schema(nuclio_project):
-        return mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
                 name=nuclio_project["metadata"]["name"],
                 labels=nuclio_project["metadata"].get("labels"),
                 annotations=nuclio_project["metadata"].get("annotations"),
             ),
-            spec=mlrun.api.schemas.ProjectSpec(
+            spec=mlrun.common.schemas.ProjectSpec(
                 description=nuclio_project["spec"].get("description")
             ),
         )

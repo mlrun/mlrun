@@ -729,10 +729,15 @@ func (s *Server) startLogStreaming(ctx context.Context,
 				"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
 
 			// fatal error, bail out
+			// note that when function is returned, a defer function will remove the
+			// log collection from (in memory) state file.
+			// it ensures us that when log collection monitoring kicks in (it runs periodically)
+			// it will ignite the run log collection again.
 			return
 		}
 
 		// breath
+		// stream pod logs might return fast when there is nothing to read and no error occurred
 		time.Sleep(500 * time.Millisecond)
 	}
 

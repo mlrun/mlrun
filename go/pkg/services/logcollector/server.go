@@ -650,7 +650,10 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	openFlags := os.O_RDWR | os.O_APPEND
 	file, err := os.OpenFile(logFilePath, openFlags, 0644)
 	if err != nil {
-		s.Logger.ErrorWithCtx(ctx, "Failed to open file", "err", err.Error(), "logFilePath", logFilePath)
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to open file",
+			"err", err.Error(),
+			"logFilePath", logFilePath)
 		return
 	}
 	defer file.Close() // nolint: errcheck
@@ -694,13 +697,23 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
-
 		keepLogging, err = s.streamPodLogs(ctx, runUID, file, stream)
 		if err != nil {
 			s.Logger.WarnWithCtx(ctx,
 				"An error occurred while streaming pod logs",
 				"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
+
+			// fatal error, bail out
+			// note that when function is returned, a defer function will remove the
+			// log collection from (in memory) state file.
+			// it ensures us that when log collection monitoring kicks in (it runs periodically)
+			// it will ignite the run log collection again.
+			return
 		}
+
+		// breath
+		// stream pod logs might return fast when there is nothing to read and no error occurred
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	s.Logger.DebugWithCtx(ctx,
@@ -713,7 +726,10 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 
-	s.Logger.DebugWithCtx(ctx, "Finished log streaming", "runUID", runUID, "podName", podName)
+	s.Logger.DebugWithCtx(ctx,
+		"Finished log streaming",
+		"runUID", runUID,
+		"podName", podName)
 }
 
 // streamPodLogs streams logs from a pod to a file
@@ -734,7 +750,8 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 		// write to file
 		if _, err := logFile.Write(buf[:numBytesRead]); err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to write pod log to file",
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to write pod log to file",
 				"err", err.Error(),
 				"runUID", runUID)
 			return true, errors.Wrap(err, "Failed to write pod log to file")
@@ -747,16 +764,9 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		return false, nil
 	}
 
-	// log error if occurred
+	// other error occurred
 	if err != nil {
-		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-			"err", err.Error(),
-			"runUID", runUID)
-
-		// if error is not nil, and we didn't read anything - a real error occurred, so we stop logging
-		if numBytesRead != 0 {
-			return false, errors.Wrap(err, "Failed to read pod logs")
-		}
+		return false, errors.Wrap(err, "Failed to read pod logs")
 	}
 
 	// nothing happened, continue

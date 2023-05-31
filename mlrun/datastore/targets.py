@@ -1645,8 +1645,9 @@ class SQLTarget(BaseStoreTarget):
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
             df = pd.read_sql(
-                f"SELECT * FROM {self.attributes.get('table_name')}",
+                "SELECT * FROM %(table)s",
                 con=conn,
+                params={"table": self.attributes.get("table_name")},
                 parse_dates=self.attributes.get("time_fields"),
             )
             if self._primary_key_column:

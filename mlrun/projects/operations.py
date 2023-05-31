@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import warnings
 from typing import Dict, List, Optional, Union
 
 import kfp
@@ -262,6 +263,16 @@ def build_function(
     :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
      to existing parameters
     """
+
+    def _remove_image_protocol_prefix(image_name):
+        prefixes = ["https://", "https://"]
+        if any(prefix in image_name for prefix in prefixes):
+            warnings.warn(
+                "The image has an unexpected protocol prefix. The prefix was removed"
+            )
+            image_name = image_name.removeprefix("https://").removeprefix("http://")
+        return image_name
+
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -283,6 +294,7 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
+        image = _remove_image_protocol_prefix(image)
         function.build_config(
             image=image,
             base_image=base_image,
@@ -291,13 +303,22 @@ def build_function(
             requirements=requirements,
             overwrite=overwrite_build_params,
         )
-        ready = function.deploy(
-            watch=True,
-            with_mlrun=with_mlrun,
-            skip_deployed=skip_deployed,
-            mlrun_version_specifier=mlrun_version_specifier,
-            builder_env=builder_env,
-        )
+        try:
+            ready = function.deploy(
+                watch=True,
+                with_mlrun=with_mlrun,
+                skip_deployed=skip_deployed,
+                mlrun_version_specifier=mlrun_version_specifier,
+                builder_env=builder_env,
+            )
+        except mlrun.errors.MLRunRuntimeError as exc:
+            if not secret_name and not image.startswith("."):
+                warnings.warn(
+                    "There is no prefix for the image name, and no secret is provided."
+                    " Try again using a prefix or supply a Docker registry secret",
+                )
+            raise exc
+
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)
 

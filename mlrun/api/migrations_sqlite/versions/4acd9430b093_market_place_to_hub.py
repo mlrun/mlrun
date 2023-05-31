@@ -69,9 +69,7 @@ def rename_hub_marketplace_table(current_name, new_name):
         sa.Column("updated", sa.TIMESTAMP, nullable=True),
     )
     connection = op.get_bind()
-    select_previous_table_data_query = connection.execute(
-        "SELECT * FROM :table", table=current_name
-    )
+    select_previous_table_data_query = connection.execute(sa.select(current_name))
     previous_table_data = select_previous_table_data_query.fetchall()
     op.bulk_insert(hub_sources, previous_table_data)
     op.drop_table(current_name)

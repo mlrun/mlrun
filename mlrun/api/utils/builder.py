@@ -78,7 +78,7 @@ def make_dockerfile(
         dock += (
             f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
         )
-        dock += f"RUN python -m pip install --upgrade -r {requirements_path}\n"
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)

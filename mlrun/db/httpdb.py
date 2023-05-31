@@ -549,14 +549,14 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
+        name: str = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
+        project: str = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: str = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
         start_time_from: datetime = None,
         start_time_to: datetime = None,
         last_update_time_from: datetime = None,
@@ -573,7 +573,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of runs, filtered by various options.
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
             # If running in Jupyter, can use the .show() function to display the results
             db.list_runs(name='', project=project_name).show()
 
@@ -581,8 +581,8 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have a specific label assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).

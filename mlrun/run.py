@@ -733,8 +733,7 @@ def code_to_function(
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
 
-    Learn more about function runtimes here:
-    https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
+    Learn more about {Kinds of function (runtimes)](../concepts/functions-overview.html).
 
     :param name:         function name, typically best to use hyphen-case
     :param project:      project used to namespace the function, defaults to 'default'
@@ -1141,22 +1140,24 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
-        def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
-            status = resp["run"]["status"]
-            show_kfp_run(resp, clear_output=True)
-            if status not in RunStatuses.stable_statuses():
-                # TODO: think of nicer liveness indication and make it re-usable
-                # log '.' each retry as a liveness indication
-                logger.debug(".")
+        def _wait_for_pipeline_completion():
+            pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
+            pipeline_status = pipeline["run"]["status"]
+            show_kfp_run(pipeline, clear_output=True)
+            if pipeline_status not in RunStatuses.stable_statuses():
+                logger.debug(
+                    "Waiting for pipeline completion",
+                    run_id=run_id,
+                    status=pipeline_status,
+                )
                 raise RuntimeError("pipeline run has not completed yet")
 
-            return resp
+            return pipeline
 
         if mldb.kind != "http":
             raise ValueError(
-                "get pipeline require access to remote api-service"
-                ", please set the dbpath url"
+                "get pipeline requires access to remote api-service"
+                ", set the dbpath url"
             )
 
         resp = retry_until_successful(
@@ -1164,7 +1165,7 @@ def wait_for_pipeline_completion(
             timeout,
             logger,
             False,
-            get_pipeline_if_completed,
+            _wait_for_pipeline_completion,
             run_id,
             namespace=namespace,
         )

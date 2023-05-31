@@ -17,6 +17,7 @@ import pathlib
 import re
 import time
 import typing
+import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -390,6 +391,7 @@ class ImageBuilder(ModelObj):
         with_mlrun=None,
         auto_build=None,
         requirements=None,
+        requirements_file=None,
         overwrite=False,
     ):
         if image:
@@ -399,7 +401,7 @@ class ImageBuilder(ModelObj):
         if commands:
             self.with_commands(commands, overwrite=overwrite)
         if requirements:
-            self.with_requirements(requirements, overwrite=overwrite)
+            self.with_requirements(requirements, requirements_file, overwrite=overwrite)
         if extra:
             self.extra = extra
         if secret is not None:
@@ -443,15 +445,28 @@ class ImageBuilder(ModelObj):
     def with_requirements(
         self,
         requirements: Union[str, List[str]],
+        requirements_file: str = "",
         overwrite: bool = False,
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:  python requirements file path or list of packages
-        :param overwrite:     overwrite existing requirements
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
+        :param overwrite:           overwrite existing requirements,
+                                    when False (default) will append to existing requirements
         :return: function object
         """
-        resolved_requirements = self._resolve_requirements(requirements)
+        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
+            # TODO: remove in 1.6.0
+            warnings.warn(
+                "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
+                "and will be removed in 1.6.0, use 'requirements_file' instead",
+                FutureWarning,
+            )
+
+        resolved_requirements = self._resolve_requirements(
+            requirements, requirements_file
+        )
         requirements = self.requirements or [] if not overwrite else []
 
         # make sure we don't append the same line twice
@@ -462,11 +477,29 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(requirements_to_resolve: typing.Union[str, list]) -> list:
-        # if a string, read the file then encode
-        if isinstance(requirements_to_resolve, str):
-            with open(requirements_to_resolve, "r") as fp:
-                requirements_to_resolve = fp.read().splitlines()
+    def _resolve_requirements(
+        requirements: typing.Union[str, list], requirements_file: str = ""
+    ) -> list:
+        requirements_to_resolve = []
+
+        # handle the requirements_file argument
+        if requirements_file:
+            with open(requirements_file, "r") as fp:
+                requirements_to_resolve.extend(fp.read().splitlines())
+
+        # handle the requirements argument
+        # TODO: remove in 1.6.0, when requirements can only be a list
+        if isinstance(requirements, str):
+            # if it's a file path, read the file and add its content to the list
+            if mlrun.utils.is_file_path(requirements):
+                with open(requirements, "r") as fp:
+                    requirements_to_resolve.extend(fp.read().splitlines())
+            else:
+                # it's a string but not a file path, split it by lines and add it to the list
+                requirements_to_resolve.append(requirements)
+        else:
+            # it's a list, add it to the list
+            requirements_to_resolve.extend(requirements)
 
         requirements = []
         for requirement in requirements_to_resolve:

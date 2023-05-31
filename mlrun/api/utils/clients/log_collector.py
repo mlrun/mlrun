@@ -152,6 +152,11 @@ class LogCollectorClient(
         try:
             has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
             if not has_logs:
+                logger.debug(
+                    "Run has no logs to collect",
+                    run_uid=run_uid,
+                    project=project,
+                )
 
                 # run has no logs - return empty logs and exit so caller won't wait for logs or retry
                 yield b""

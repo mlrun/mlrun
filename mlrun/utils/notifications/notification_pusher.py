@@ -51,7 +51,7 @@ class NotificationPusher(object):
             for notification in run.spec.notifications:
                 notification.status = run.status.notifications.get(
                     notification.name
-                ).status
+                ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
                 if self._should_notify(run, notification):
                     self._notification_data.append((run, notification))
 
@@ -156,7 +156,7 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing notification",
-            notification=notification_object.to_dict(),
+            notification=_sanitize_notification(notification_object),
             run_uid=run.metadata.uid,
         )
         try:
@@ -346,3 +346,9 @@ class CustomNotificationPusher(object):
         if state:
             text += f", state={state}"
         self.push(text, "info", runs=runs_list)
+
+
+def _sanitize_notification(notification: mlrun.model.Notification):
+    notification_dict = notification.to_dict()
+    notification_dict.pop("params", None)
+    return notification_dict

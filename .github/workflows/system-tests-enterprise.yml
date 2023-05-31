@@ -83,6 +83,12 @@ jobs:
 
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          scp \
+          automation/system_test/dev_utilities.py \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
+
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           ssh \
           -o StrictHostKeyChecking=no \
           -o ServerAliveInterval=180 \
@@ -282,7 +288,7 @@ jobs:
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
-    name: Run System Tests Enterprise
+    name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: ubuntu-latest
@@ -319,7 +325,6 @@ jobs:
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --spark-service "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-          --password "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"

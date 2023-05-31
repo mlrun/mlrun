@@ -2047,9 +2047,9 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-            workflow_spec.cleanup_ttl = (
-                cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
-            )
+        workflow_spec.cleanup_ttl = (
+            cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+        )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
@@ -2354,20 +2354,22 @@ class MlrunProject(ModelObj):
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
-        :param function:        name of the function (in the project) or function object
-        :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have an image for the function
-        :param image:           target image name/path
-        :param base_image:      base image name/path (commands and source code will be added to it)
-        :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
-        :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param function:            name of the function (in the project) or function object
+        :param with_mlrun:          add the current mlrun package to the container build
+        :param skip_deployed:       skip the build if we already have an image for the function
+        :param image:               target image name/path
+        :param base_image:          base image name/path (commands and source code will be added to it)
+        :param commands:            list of docker build (RUN) commands e.g. ['pip install pandas']
+        :param secret_name:         k8s secret for accessing the docker registry
+        :param requirements:        list of python packages, defaults to None
+        :param requirements_file:   pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
+                                    e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
         :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
          add to existing parameters
         """
@@ -2380,6 +2382,7 @@ class MlrunProject(ModelObj):
             commands=commands,
             secret_name=secret_name,
             requirements=requirements,
+            requirements_file=requirements_file,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
@@ -2396,6 +2399,7 @@ class MlrunProject(ModelObj):
         secret_name: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2406,7 +2410,8 @@ class MlrunProject(ModelObj):
         :param base_image: base image name/path
         :param commands:   list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements: requirements.txt file to install or list of packages to install on the built image
+        :param requirements: a list of packages to install on the built image
+        :param requirements_file: requirements file to install on the built image
         :param overwrite_build_params:  overwrite existing build configuration (default False)
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -2425,6 +2430,7 @@ class MlrunProject(ModelObj):
             secret=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite=overwrite_build_params,
         )
 
@@ -2444,6 +2450,7 @@ class MlrunProject(ModelObj):
         mlrun_version_specifier: str = None,
         builder_env: dict = None,
         overwrite_build_params: bool = False,
+        requirements_file: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2456,7 +2463,8 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
-        :param requirements:    list of python packages or pip requirements file path, defaults to None
+        :param requirements:    list of python packages, defaults to None
+        :param requirements_file:  pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2475,6 +2483,7 @@ class MlrunProject(ModelObj):
             secret_name=secret_name,
             with_mlrun=with_mlrun,
             requirements=requirements,
+            requirements_file=requirements_file,
             overwrite_build_params=overwrite_build_params,
         )
 

@@ -48,6 +48,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
+from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
@@ -161,6 +162,33 @@ async def delete_function(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
+
+    #  If the requested function has a schedule, we must delete it before deleting the function
+    schedule = await run_in_threadpool(
+        get_scheduler().get_schedule,
+        db_session,
+        project,
+        name,
+    )
+    if schedule:
+        # when deleting a function, we should also delete its schedules if exists
+        # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
+        # and we are running in worker, we send the request to the chief client
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Function has a schedule, deleting",
+                function=name,
+                project=project,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            await chief_client.delete_schedule(project=project, name=name)
+        else:
+            await run_in_threadpool(
+                get_scheduler().delete_schedule, db_session, project, name
+            )
     await run_in_threadpool(
         mlrun.api.crud.Functions().delete_function, db_session, project, name
     )

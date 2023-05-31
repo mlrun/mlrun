@@ -268,7 +268,7 @@ def build_function(
         prefixes = ["https://", "https://"]
         if any(prefix in image_name for prefix in prefixes):
             warnings.warn(
-                "The image has an unexpected protocol prefix. The prefix was removed"
+                "The image has an unexpected protocol prefix, The prefix was removed."
             )
             image_name = image_name.removeprefix("https://").removeprefix("http://")
         return image_name
@@ -315,7 +315,7 @@ def build_function(
             if not secret_name and not image.startswith("."):
                 warnings.warn(
                     "There is no prefix for the image name, and no secret is provided."
-                    " Try again using a prefix or supply a Docker registry secret",
+                    " Try again using a prefix (use '.' for local registry), or supply a docker registry secret.",
                 )
             raise exc
 

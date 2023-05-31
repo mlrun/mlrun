@@ -17,6 +17,7 @@ import pathlib
 import re
 import shutil
 import sys
+import warnings
 from sys import executable
 
 import pytest
@@ -125,6 +126,40 @@ class TestProject(TestMLRunSystem):
             self.project.get_function(func_name, sync=False).spec.build.commands
             == commands
         )
+
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        with warnings.catch_warnings(record=True) as w, pytest.raises(
+            mlrun.errors.MLRunRuntimeError
+        ):
+            self.project.build_function(
+                fn, image="test/image:v1", base_image="mlrun/mlrun", commands=["echo 1"]
+            )
+            assert len(w) == 1
+            assert (
+                "There is no prefix for the image name, and no secret is provided."
+                " Try again using a prefix (use '.' for local registry), or supply a docker registry secret."
+                in str(w[-1].message)
+            )
+
+        with warnings.catch_warnings(record=True) as w:
+            self.project.build_function(
+                fn,
+                image="https://docker-registry.default-tenant.app.cust-cs-il-3-5-2.iguazio-cd2.com/test/image:v3",
+                base_image="mlrun/mlrun",
+                commands=["echo 1"],
+            )
+            assert len(w) == 1
+            assert (
+                "The image has an unexpected protocol prefix, The prefix was removed."
+                in str(w[-1].message)
+            )
 
     def test_run(self):
         name = "pipe0"

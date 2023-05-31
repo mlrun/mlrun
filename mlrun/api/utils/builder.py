@@ -663,8 +663,6 @@ def build_runtime(
 def resolve_image_target_and_registry_secret(
     image_target: str, registry: str = None, secret_name: str = None
 ) -> (str, str):
-    mlrun.utils.logger.debug("Innnnn!!!")
-    mlrun.utils.logger.info("Innnnn!!!")
     if registry:
         return "/".join([registry, image_target]), secret_name
 

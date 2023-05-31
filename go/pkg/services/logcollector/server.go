@@ -738,7 +738,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 		// breath
 		// stream pod logs might return fast when there is nothing to read and no error occurred
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	s.Logger.DebugWithCtx(ctx,

@@ -808,7 +808,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f":x: Submitting workflow {workflow_name} failed!, error: {e}\n{trace}",
+                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
                 "error",
             )
             state = mlrun.run.RunStatuses.failed
@@ -902,9 +902,9 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
-    load_only: bool = False,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
+    load_only: bool = False,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -932,10 +932,10 @@ def load_and_run(
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
-    :param load_only:           for just loading the project, inner use.
     :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
     :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                                 workflow and all its resources are deleted)
+    :param load_only:           for just loading the project, inner use.
     """
     if ttl:
         warnings.warn(

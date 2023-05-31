@@ -172,6 +172,7 @@ To set the tracking stream options, specify the following function spec attribut
 
         fn.set_tracking(stream_path, batch, sample)
 
-* **stream_path** &mdash; the v3io stream path (e.g. `v3io:///users/..`)
+* **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream 
+(e.g. kafka://kafka.default.svc.cluster.local:9092)
 * **sample** &mdash; optional, sample every N requests
 * **batch** &mdash; optional, send micro-batches every N requests

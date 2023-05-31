@@ -24,8 +24,9 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3896 | Fixed: MLRun API failed to get pod logs. |
-| ML-3897 |  |
+| ML-3896 | Fixed: MLRun API failed to get pod logs. [View in Git](https://github.com/mlrun/mlrun/pull/3649). |
+| ML-3865 | kubectl now returns logs as expected. [View in Git](https://github.com/mlrun/mlrun/pull/3660).  |
+| ML-3917 | Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674). |
 
 
 ## v1.3.1

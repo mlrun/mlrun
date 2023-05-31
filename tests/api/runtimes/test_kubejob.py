@@ -772,7 +772,7 @@ def my_func(context):
                 if with_mlrun:
                     expected_str += (
                         "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
-                        "\nRUN python -m pip install --upgrade -r /empty/requirements.txt"
+                        "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
                     kaniko_pod_requirements = (
                         mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
@@ -887,7 +887,7 @@ def my_func(context):
 
             install_requirements_commands = (
                 "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
-                "\nRUN python -m pip install --upgrade -r /empty/requirements.txt"
+                "\nRUN python -m pip install -r /empty/requirements.txt"
             )
             kaniko_pod_requirements = mlrun.api.utils.builder.make_kaniko_pod.call_args[
                 1

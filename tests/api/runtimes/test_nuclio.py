@@ -667,28 +667,21 @@ class TestNuclioRuntime(TestRuntimeBase):
     @pytest.mark.parametrize(
         "requirements,expected_commands",
         [
-            (["pandas", "numpy"], ["python -m pip install --upgrade pandas numpy"]),
+            (["pandas", "numpy"], ["python -m pip install pandas numpy"]),
             (
                 ["-r requirements.txt", "numpy"],
-                ["python -m pip install --upgrade -r requirements.txt numpy"],
+                ["python -m pip install -r requirements.txt numpy"],
             ),
-            (
-                ["pandas>=1.0.0, <2"],
-                ["python -m pip install --upgrade 'pandas>=1.0.0, <2'"],
-            ),
-            (
-                ["pandas>=1.0.0,<2"],
-                ["python -m pip install --upgrade 'pandas>=1.0.0,<2'"],
-            ),
+            (["pandas>=1.0.0, <2"], ["python -m pip install 'pandas>=1.0.0, <2'"]),
+            (["pandas>=1.0.0,<2"], ["python -m pip install 'pandas>=1.0.0,<2'"]),
             (
                 ["-r somewhere/requirements.txt"],
-                ["python -m pip install --upgrade -r somewhere/requirements.txt"],
+                ["python -m pip install -r somewhere/requirements.txt"],
             ),
             (
                 ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
                 [
-                    "python -m pip install --upgrade "
-                    "'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
+                    "python -m pip install 'something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something'"
                 ],
             ),
         ],
@@ -716,7 +709,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
         expected_commands = [
             "python -m pip install scikit-learn",
-            "python -m pip install --upgrade pandas numpy",
+            "python -m pip install pandas numpy",
         ]
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_build_commands=expected_commands

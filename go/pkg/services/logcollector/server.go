@@ -40,7 +40,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -69,9 +68,6 @@ type Server struct {
 	// interval durations
 	readLogWaitTime    time.Duration
 	monitoringInterval time.Duration
-
-	// log file cache to reduce sys calls finding the log file paths.
-	logFilesCache *cache.Expiring
 }
 
 // NewLogCollectorServer creates a new log collector server

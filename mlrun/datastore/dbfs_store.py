@@ -95,7 +95,7 @@ class DBFSStore(DataStore):
             token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint
         )
 
-    def _prepare_path_and_verify_filesystem(self, key: str):
+    def _verify_filesystem_and_key(self, key: str):
         if not self._filesystem:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Performing actions on data-item without a valid filesystem"
@@ -104,10 +104,9 @@ class DBFSStore(DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid key parameter - key must start with '/'"
             )
-        return key
 
     def get(self, key: str, size=None, offset=0) -> bytes:
-        key = self._prepare_path_and_verify_filesystem(key)
+        self._verify_filesystem_and_key(key)
         if size is not None and size <= 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "size cannot be negative or zero"
@@ -119,7 +118,7 @@ class DBFSStore(DataStore):
 
     def put(self, key, data, append=False):
 
-        key = self._prepare_path_and_verify_filesystem(key)
+        self._verify_filesystem_and_key(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Append mode not supported for Databricks file system"
@@ -134,11 +133,11 @@ class DBFSStore(DataStore):
             f.write(data)
 
     def upload(self, key: str, src_path: str):
-        key = self._prepare_path_and_verify_filesystem(key)
+        self._verify_filesystem_and_key(key)
         self._filesystem.put_file(src_path, key, overwrite=True)
 
     def stat(self, key: str):
-        key = self._prepare_path_and_verify_filesystem(key)
+        self._verify_filesystem_and_key(key)
         file = self._filesystem.stat(key)
         if file["type"] == "file":
             size = file["size"]
@@ -150,7 +149,7 @@ class DBFSStore(DataStore):
         """
         Basic ls of file/dir - without recursion.
         """
-        key = self._prepare_path_and_verify_filesystem(key)
+        self._verify_filesystem_and_key(key)
         if self._filesystem.isfile(key):
             return key
         remote_path = f"{key}/*"

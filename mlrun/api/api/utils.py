@@ -835,7 +835,7 @@ def submit_run_sync(
             # access the db version of the function, and not the remote one (which can be changed between runs)
             if "://" in task["spec"]["function"]:
                 function_uri = fn.save(versioned=True)
-                data.update({"function": fn.to_dict()})
+                data.pop("function_url", None)
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
@@ -850,7 +850,11 @@ def submit_run_sync(
                     schedule_labels,
                 )
             except mlrun.errors.MLRunNotFoundError:
-                logger.debug("No existing schedule found, creating a new one")
+                logger.debug(
+                    "No existing schedule found, creating a new one",
+                    project=task["metadata"]["project"],
+                    name=task["metadata"]["name"],
+                )
                 get_scheduler().create_schedule(
                     db_session,
                     auth_info,

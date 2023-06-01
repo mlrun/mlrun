@@ -13,6 +13,7 @@
 # limitations under the License.
 import sys
 import tempfile
+import urllib.parse
 from base64 import b64encode
 from os import path, remove
 
@@ -150,13 +151,15 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        if url.endswith(".csv") or format == "csv":
+        parsed_url = urllib.parse.urlparse(url)
+        filepath = parsed_url.path
+        if filepath.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
-                if filesystem.isdir(url):
+                if filesystem.isdir(filepath):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
@@ -178,7 +181,11 @@ class DataStore:
                             dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return pd.concat(dfs)
 
-        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
+        elif (
+            filepath.endswith(".parquet")
+            or filepath.endswith(".pq")
+            or format == "parquet"
+        ):
             if columns:
                 kwargs["columns"] = columns
 
@@ -210,7 +217,7 @@ class DataStore:
 
                 return df_module.read_parquet(*args, **kwargs)
 
-        elif url.endswith(".json") or format == "json":
+        elif filepath.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:

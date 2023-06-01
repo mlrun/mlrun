@@ -1663,8 +1663,9 @@ class SQLTarget(BaseStoreTarget):
             # TODO : filter as part of the query
             df = filter_df_start_end_time(
                 pd.read_sql(
-                    f"SELECT * FROM {self.attributes.get('table_name')}",
+                    "SELECT * FROM %(table)s",
                     con=conn,
+                    params={"table": self.attributes.get("table_name")},
                     parse_dates=self.attributes.get("time_fields"),
                     columns=columns,
                 ),

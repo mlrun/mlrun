@@ -28,10 +28,8 @@
 | ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
 | ML-3823 | Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560). |
 
-
 ###  Documentation
 New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
-
 
 ## v1.3.0
 
@@ -238,7 +236,6 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3797, ML-3798 | Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
-
 
 ## v1.2.1
 

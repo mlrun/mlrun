@@ -629,8 +629,8 @@ class Config:
         )
 
     @staticmethod
-    def get_default_marketplace_source() -> str:
-        default_source = config.marketplace.default_source
+    def get_default_hub_source() -> str:
+        default_source = config.hub.default_source
         return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
 
     @staticmethod

@@ -89,11 +89,11 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         new_source_2.index = 1
         self._assert_source_lists_match([new_source_2, default_source])
 
-    def test_import_function_from_marketplace(self):
+    def test_import_function_from_hub(self):
         hub_prefix = "hub://"
-        source_name = mlrun.mlconf.marketplace.default_source.name
+        source_name = mlrun.mlconf.hub.default_source.name
         db = mlrun.get_run_db()
-        catalog = db.get_marketplace_catalog(source_name)
+        catalog = db.get_hub_catalog(source_name)
         item = random.choice(catalog.catalog)
         tag = item.metadata.tag
         name = item.metadata.name

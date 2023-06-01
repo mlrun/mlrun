@@ -477,7 +477,7 @@ class RunDBMock:
                     name="default", description="some description"
                 ),
                 spec=mlrun.common.schemas.HubSourceSpec(
-                    path=mlrun.mlconf.marketplace.default_source.url,
+                    path=mlrun.mlconf.hub.default_source.url,
                     channel="master",
                     object_type="functions",
                 ),

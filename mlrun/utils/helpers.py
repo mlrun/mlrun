@@ -630,7 +630,7 @@ def generate_artifact_uri(project, key, tag=None, iter=None):
 
 def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     """
-    Retrieve the full uri of the item's yaml in the marketplace.
+    Retrieve the full uri of the item's yaml in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<version>]"
 
@@ -658,18 +658,18 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     function_suffix = f"{name}/{tag}/src/function.yaml"
     if not source_name:
         # Searching item in all sources
-        sources = db.list_marketplace_sources(
+        sources = db.list_hub_sources(
             item_name=normalize_name(name, verbose=False), tag=tag
         )
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Item={name}, tag={tag} not found in any marketplace source"
+                f"Item={name}, tag={tag} not found in any hub source"
             )
         # precedence to user source
         source = sources[0]
     else:
         # Specific source is given
-        source = db.get_marketplace_source(source_name)
+        source = db.get_hub_source(source_name)
     return source.source.get_full_uri(function_suffix), is_hub_uri
 
 

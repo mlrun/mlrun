@@ -2153,6 +2153,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
+        expected_df = pd.DataFrame(
+            {
+                "f1": ["a-val", "b-val"],
+                "f2": ["newest", "only-value"],
+            }
+        )
         base_path = self.test_output_subdir_path(url=False)
         left_path = f"{base_path}/df_left.parquet"
         right_path = f"{base_path}/df_right.parquet"
@@ -2194,8 +2200,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        assert spark_engine_res.shape == (2, 2)
-        assert spark_engine_res["f2"].tolist() == ["newest", "only-value"]
+        assert_frame_equal(expected_df, spark_engine_res)
 
     @pytest.mark.parametrize(
         "timestamp_for_filtering",

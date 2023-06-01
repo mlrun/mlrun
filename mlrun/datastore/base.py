@@ -150,7 +150,6 @@ class DataStore:
         time_column=None,
         **kwargs,
     ):
-        pd.read_parquet
         df_module = df_module or pd
         parsed_url = urllib.parse.urlparse(url)
         filepath = parsed_url.path
@@ -428,14 +427,14 @@ class DataItem:
     ):
         """return a dataframe object (generated from the dataitem).
 
-        :param end_time:
-        :param start_time:
-        :param time_column:
-        :param columns:   optional, list of columns to select
-        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
-        :param format:    file format, if not specified it will be deducted from the suffix
+        :param start_time:  filters out data before this time
+        :param end_time:    filters out data after this time
+        :param time_column: Store timestamp_key will be used if None.
+                            The results will be filtered by this column and start_time & end_time.
+        :param columns:     optional, list of columns to select
+        :param df_module:   optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
+        :param format:      file format, if not specified it will be deducted from the suffix
         """
-
         df = self._store.as_df(
             self._url,
             self._path,
@@ -456,9 +455,9 @@ class DataItem:
             # for parquet file the time filtering is executed in `self._store.as_df`
             df = filter_df_start_end_time(
                 df,
-                time_column=kwargs.get("time_field"),
-                start_time=kwargs.get("start_time"),
-                end_time=kwargs.get("end_time"),
+                time_column=time_column,
+                start_time=start_time,
+                end_time=end_time,
             )
         if self._url.endswith(".json") or format == "json":
             # for csv and parquet files the columns select is executed in `self._store.as_df`

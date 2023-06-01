@@ -83,6 +83,7 @@ class BaseSourceDriver(DataSource):
         time_column=None,
         **kwargs,
     ):
+        """return the source data as dataframe"""
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

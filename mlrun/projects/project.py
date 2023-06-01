@@ -16,6 +16,7 @@ import getpass
 import glob
 import http
 import json
+import os.path
 import pathlib
 import shutil
 import tempfile
@@ -34,6 +35,7 @@ import kfp
 import nuclio
 import requests
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
@@ -2135,14 +2137,43 @@ class MlrunProject(ModelObj):
             notifiers=notifiers,
         )
 
+    # TODO: remove in 1.6.0
+    @deprecated(
+        version="1.4.0",
+        reason="'clear_context' will be removed in 1.6.0, this can cause unexpected issues",
+        category=FutureWarning,
+    )
     def clear_context(self):
         """delete all files and clear the context dir"""
-        if (
-            self.spec.context
-            and path.exists(self.spec.context)
-            and path.isdir(self.spec.context)
-        ):
-            shutil.rmtree(self.spec.context)
+        warnings.warn(
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
+            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
+            " it will be deprecated in 1.6.0."
+        )
+        # clear only if the context path exists and not relative
+        if self.spec.context and os.path.isabs(self.spec.context):
+
+            # if a subpath is defined, will empty the subdir instead of the entire context
+            if self.spec.subpath:
+                path_to_clear = path.join(self.spec.context, self.spec.subpath)
+                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
+            else:
+                path_to_clear = self.spec.context
+                logger.info(
+                    f"Subpath is not defined, Clearing context: {path_to_clear}"
+                )
+            if path.exists(path_to_clear) and path.isdir(path_to_clear):
+                shutil.rmtree(path_to_clear)
+            else:
+                logger.warn(
+                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
+                    " Please ensure that your context or subdpath are properly defined."
+                )
+        else:
+            logger.warn(
+                "Your context path is a relative path;"
+                " in order to avoid unexpected results, we do not allow the deletion of relative paths."
+            )
 
     def save(self, filepath=None, store=True):
         """export project to yaml file and save project in database

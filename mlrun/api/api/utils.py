@@ -834,7 +834,7 @@ def submit_run_sync(
             # and update the task to point to the saved function, so that the scheduler will be able to
             # access the db version of the function, and not the remote one (which can be changed between runs)
             if "://" in task["spec"]["function"]:
-                function_hash = fn.save(versioned=False)
+                function_hash = fn.save(versioned=True)
                 data.update({"function": fn.to_dict()})
                 data.pop("function_url", None)
                 task["spec"]["function"] = fn._function_uri(hash_key=function_hash)

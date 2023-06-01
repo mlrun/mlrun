@@ -259,7 +259,6 @@ class KubejobRuntime(KubeResource):
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
 
-
     def _remove_image_protocol_prefix(self, image):
         prefixes = ["https://", "https://"]
         if any(prefix in image for prefix in prefixes):

@@ -1167,8 +1167,6 @@ def wait_for_pipeline_completion(
             logger,
             False,
             _wait_for_pipeline_completion,
-            run_id,
-            namespace=namespace,
         )
     else:
         client = Client(namespace=namespace)

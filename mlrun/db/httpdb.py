@@ -581,7 +581,7 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. a single or multi label filter can be
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
             applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

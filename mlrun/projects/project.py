@@ -2706,7 +2706,7 @@ class MlrunProject(ModelObj):
             runs = project.list_runs(name='download', labels='owner=admin')
             runs.compare()
 
-            # a multi label filter can also be provided
+            # multi-label filter can also be provided
             runs = project.list_runs(name='download', labels=["kind=job", "owner=admin"])
 
             # If running in Jupyter, can use the .show() function to display the results
@@ -2716,7 +2716,7 @@ class MlrunProject(ModelObj):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. a single or multi label filter can be
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
             applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

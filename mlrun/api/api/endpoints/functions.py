@@ -663,7 +663,7 @@ def _build_function(
     ready = None
     try:
         fn = new_function(runtime=function)
-        mlrun.api.launcher.ServerSideLauncher._enrich_runtime(runtime=fn)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(

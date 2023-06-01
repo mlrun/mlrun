@@ -30,6 +30,7 @@ import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.api.main
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -441,6 +442,52 @@ def test_build_function_with_mlrun_bool(
             == with_mlrun
         )
     mlrun.api.api.endpoints.functions._build_function = original_build_function
+
+
+@pytest.mark.parametrize(
+    "source, load_source_on_run",
+    [
+        ("./", False),
+        (".", False),
+        ("./", True),
+        (".", True),
+    ],
+)
+def test_build_function_with_project_repo(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    source,
+    load_source_on_run,
+):
+    git_repo = "git://github.com/mlrun/test.git"
+    tests.api.api.utils.create_project(
+        client, PROJECT, source=git_repo, load_source_on_run=load_source_on_run
+    )
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "build": {
+                "source": source,
+            },
+        },
+    }
+    original_build_runtime = mlrun.api.utils.builder.build_image
+    mlrun.api.utils.builder.build_image = unittest.mock.Mock(return_value="success")
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    function = mlrun.new_function(runtime=response.json()["data"])
+    assert function.spec.build.source == git_repo
+    assert function.spec.build.load_source_on_run == load_source_on_run
+
+    mlrun.api.utils.builder.build_image = original_build_runtime
 
 
 def test_start_function_succeeded(

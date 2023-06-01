@@ -689,6 +689,9 @@ def resolve_image_target_and_registry_secret(
 
         return "/".join(image_target_components), secret_name
 
+    if image_target.startswith("http"):
+        image_target.removeprefix("https://").removeprefix("http://")
+
     return image_target, secret_name
 
 

@@ -33,8 +33,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
+import mlrun.common.schemas
 import mlrun.utils.db
-from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 Base = declarative_base()
@@ -111,7 +111,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(TIMESTAMP)
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         labels = relationship(Label)
 
@@ -131,7 +131,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
         labels = relationship(Label)
@@ -145,7 +145,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
 
         def get_identifier_string(self) -> str:
@@ -202,7 +202,7 @@ with warnings.catch_warnings():
         )
         iteration = Column(Integer)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
         # requested logs column indicates whether logs were requested for this run
@@ -254,7 +254,7 @@ with warnings.catch_warnings():
         creation_time = Column(TIMESTAMP)
         cron_trigger_str = Column(String(255, collation=SQLCollationUtil.collation()))
         last_run_uri = Column(String(255, collation=SQLCollationUtil.collation()))
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
@@ -272,11 +272,11 @@ with warnings.catch_warnings():
             self.struct = pickle.dumps(value)
 
         @property
-        def cron_trigger(self) -> schemas.ScheduleCronTrigger:
+        def cron_trigger(self) -> mlrun.common.schemas.ScheduleCronTrigger:
             return orjson.loads(self.cron_trigger_str)
 
         @cron_trigger.setter
-        def cron_trigger(self, trigger: schemas.ScheduleCronTrigger):
+        def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
     # Define "many to many" users/projects
@@ -306,7 +306,7 @@ with warnings.catch_warnings():
         source = Column(String(255, collation=SQLCollationUtil.collation()))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
-        # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         _full_object = Column("spec", BLOB)
         created = Column(TIMESTAMP, default=datetime.utcnow)
         state = Column(String(255, collation=SQLCollationUtil.collation()))
@@ -425,9 +425,9 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
-    class MarketplaceSource(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "marketplace_sources"
-        __table_args__ = (UniqueConstraint("name", name="_marketplace_sources_uc"),)
+    class HubSource(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "hub_sources"
+        __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))

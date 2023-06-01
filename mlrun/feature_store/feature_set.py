@@ -19,7 +19,7 @@ import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -131,6 +131,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
+        self.with_default_targets = True
 
     @property
     def entities(self) -> List[Entity]:
@@ -316,7 +317,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
-    kind = mlrun.api.schemas.ObjectKind.feature_set.value
+    kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -375,6 +376,7 @@ class FeatureSet(ModelObj):
         self.status = None
         self._last_state = ""
         self._aggregations = {}
+        self.set_targets()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -473,10 +475,25 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
+            self.spec.with_default_targets = True
             targets.extend(get_default_targets())
+        else:
+            self.spec.with_default_targets = False
 
+        self.spec.targets = []
+        self.__set_targets_add_targets_helper(targets)
+
+        if default_final_step:
+            self.spec.graph.final_step = default_final_step
+
+    def __set_targets_add_targets_helper(self, targets):
+        """
+        Add the desired target list
+
+        :param targets: list of target type names ('csv', 'nosql', ..) or target objects
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), StreamTarget(), ..
+        """
         validate_target_list(targets=targets)
-
         for target in targets:
             kind = target.kind if hasattr(target, "kind") else target
             if kind not in TargetTypes.all():
@@ -488,8 +505,6 @@ class FeatureSet(ModelObj):
                     target, name=str(target), partitioned=(target == "parquet")
                 )
             self.spec.targets.update(target)
-        if default_final_step:
-            self.spec.graph.final_step = default_final_step
 
     def validate_steps(self, namespace):
         if not self.spec:
@@ -525,7 +540,7 @@ class FeatureSet(ModelObj):
         :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
-            self, mlrun.api.schemas.AuthorizationAction.delete
+            self, mlrun.common.schemas.AuthorizationAction.delete
         )
 
         purge_targets = self._reload_and_get_status_targets(
@@ -926,7 +941,11 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            return self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe()
+            # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
+            if not isinstance(df, pd.DataFrame):
+                df = pd.concat(df)
+            return df
 
         target = get_offline_target(self, name=target_name)
         if not target:

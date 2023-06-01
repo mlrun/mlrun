@@ -14,6 +14,7 @@
 #
 # This name is referenced in the release.yaml workflow, if you're changing here - change there
 name: Build
+run-name: Building ${{ inputs.version }} ${{ github.ref_name }}
 
 on:
   push:
@@ -43,6 +44,7 @@ on:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
         required: true
         default: 'true'
+
 jobs:
   matrix_prep:
     runs-on: ubuntu-latest

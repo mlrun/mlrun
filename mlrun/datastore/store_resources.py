@@ -81,7 +81,7 @@ class ResourceCache:
             endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
-                V3ioDriver(webapi=endpoint),
+                V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
             return self._tabels[uri]
@@ -101,8 +101,8 @@ class ResourceCache:
         if is_store_uri(uri):
             resource = get_store_resource(uri)
             if resource.kind in [
-                mlrun.api.schemas.ObjectKind.feature_set.value,
-                mlrun.api.schemas.ObjectKind.feature_vector.value,
+                mlrun.common.schemas.ObjectKind.feature_set.value,
+                mlrun.common.schemas.ObjectKind.feature_vector.value,
             ]:
                 target = get_online_target(resource)
                 if not target:

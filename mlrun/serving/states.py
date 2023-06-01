@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ["TaskStep", "RouterStep", "RootFlowStep"]
+__all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
 
 import os
 import pathlib
@@ -49,6 +49,7 @@ class StepKinds:
     queue = "queue"
     choice = "choice"
     root = "root"
+    error_step = "error_step"
 
 
 _task_step_fields = [
@@ -134,11 +135,82 @@ class BaseStep(ModelObj):
                 self.after.append(name)
         return self
 
-    def error_handler(self, step_name: str = None):
-        """set error handler step (on failure/raise of this step)"""
-        if not step_name:
-            raise MLRunInvalidArgumentError("Must specify step_name")
-        self.on_error = step_name
+    def error_handler(
+        self,
+        name: str = None,
+        class_name=None,
+        handler=None,
+        before=None,
+        function=None,
+        full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+        **class_args,
+    ):
+        """set error handler on a step or the entire graph (to be executed on failure/raise)
+
+        When setting the error_handler on the graph object, the graph completes after the error handler execution.
+
+        example:
+            in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
+            in case of error/raise in 'raise' step, the handle_error will be run. after that,
+            the 'echo' step will be run.
+            graph = function.set_topology('flow', engine='async')
+            graph.to(name='raise', handler='raising_step')\
+                .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
+            graph.add_step(name="echo", handler='echo', after="raise").respond()
+
+        :param name:        unique name (and path) for the error handler step, default is class name
+        :param class_name:  class name or step object to build the step from
+                            the error handler step is derived from task step (ie no router/queue functionally)
+        :param handler:     class/function handler to invoke on run/event
+        :param before:      string or list of next step(s) names that will run after this step.
+                            the `before` param must not specify upstream steps as it will cause a loop.
+                            if `before` is not specified, the graph will complete after the error handler execution.
+        :param function:    function this step should run in
+        :param full_event:  this step accepts the full event (not just the body)
+        :param input_path:  selects the key/path in the event to use as input to the step
+                            this requires that the event body will behave like a dict, for example:
+                            event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
+                            receive 7 as input
+        :param result_path: selects the key/path in the event to write the results to
+                            this requires that the event body will behave like a dict, for example:
+                            event: {"x": 5} , result_path="y" means the output of the step will be written
+                            to event["y"] resulting in {"x": 5, "y": <result>}
+        :param class_args:  class init arguments
+
+        """
+        if not (class_name or handler):
+            raise MLRunInvalidArgumentError("class_name or handler must be provided")
+        if isinstance(self, RootFlowStep) and before:
+            raise MLRunInvalidArgumentError(
+                "`before` arg can't be specified for graph error handler"
+            )
+
+        name = get_name(name, class_name)
+        step = ErrorStep(
+            class_name,
+            class_args,
+            handler,
+            name=name,
+            function=function,
+            full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
+        )
+        self.on_error = name
+        before = [before] if isinstance(before, str) else before
+        step.before = before or []
+        step.base_step = self.name
+        if hasattr(self, "_parent") and self._parent:
+            # when self is a step
+            step = self._parent._steps.update(name, step)
+            step.set_parent(self._parent)
+        else:
+            # when self is the graph
+            step = self._steps.update(name, step)
+            step.set_parent(self)
+
         return self
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
@@ -186,10 +258,11 @@ class BaseStep(ModelObj):
 
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
-        if self._on_error_handler:
-            event.error = err_to_str(err)
-            event.origin_state = self.fullname
-            return self._on_error_handler(event)
+        if not event.error:
+            event.error = {}
+        event.error[self.name] = err_to_str(err)
+        event.origin_state = self.fullname
+        return self._on_error_handler(event)
 
     def path_to_step(self, path: str):
         """return step object from step relative/fullname"""
@@ -327,6 +400,7 @@ class TaskStep(BaseStep):
             args = signature(self._handler).parameters
             if args and "context" in list(args.keys()):
                 self._inject_context = True
+            self._set_error_handler()
             return
 
         self._class_object, self.class_name = self.get_step_class_object(
@@ -464,12 +538,21 @@ class TaskStep(BaseStep):
             )
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
-            self._log_error(event, exc)
-            handled = self._call_error_handler(event, exc)
-            if not handled:
+            if self._on_error_handler:
+                self._log_error(event, exc)
+                result = self._call_error_handler(event, exc)
+                event.body = _update_result_body(self.result_path, event.body, result)
+            else:
                 raise exc
-            event.terminated = True
         return event
+
+
+class ErrorStep(TaskStep):
+    """error execution step, runs a class or handler"""
+
+    kind = "error_step"
+    _dict_fields = _task_step_fields + ["before", "base_step"]
+    _default_class = ""
 
 
 class RouterStep(TaskStep):
@@ -824,6 +907,7 @@ class FlowStep(BaseStep):
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         """initialize graph objects and classes"""
         self.context = context
+        self._insert_all_error_handlers()
         self.check_and_process_graph()
 
         for step in self._steps.values():
@@ -866,7 +950,11 @@ class FlowStep(BaseStep):
 
         responders = []
         for step in self._steps.values():
-            if hasattr(step, "responder") and step.responder:
+            if (
+                hasattr(step, "responder")
+                and step.responder
+                and step.kind != "error_step"
+            ):
                 responders.append(step.name)
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
@@ -954,10 +1042,7 @@ class FlowStep(BaseStep):
         def process_step(state, step, root):
             if not state._is_local_function(self.context) or state._visited:
                 return
-            next_steps = state.next or []
-            if state.on_error:
-                next_steps.append(state.on_error)
-            for item in next_steps:
+            for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
@@ -982,6 +1067,10 @@ class FlowStep(BaseStep):
                 # never set a step as its own error handler
                 if step != error_step:
                     step.async_object.set_recovery_step(error_step.async_object)
+                    for next_step in error_step.next or []:
+                        next_state = self[next_step]
+                        if next_state.async_object and error_step.async_object:
+                            error_step.async_object.to(next_state.async_object)
 
         self._controller = source.run()
 
@@ -1062,15 +1151,22 @@ class FlowStep(BaseStep):
             try:
                 event = next_obj.run(event, *args, **kwargs)
             except Exception as exc:
-                self._log_error(event, exc, failed_step=next_obj.name)
-                handled = self._call_error_handler(event, exc)
-                if not handled:
+                if self._on_error_handler:
+                    self._log_error(event, exc, failed_step=next_obj.name)
+                    event.body = self._call_error_handler(event, exc)
+                    event.terminated = True
+                    return event
+                else:
                     raise exc
-                event.terminated = True
-                return event
 
             if hasattr(event, "terminated") and event.terminated:
                 return event
+            if (
+                hasattr(event, "error")
+                and isinstance(event.error, dict)
+                and next_obj.name in event.error
+            ):
+                next_obj = self._steps[next_obj.on_error]
             next = next_obj.next
             if next and len(next) > 1:
                 raise GraphError(
@@ -1106,6 +1202,33 @@ class FlowStep(BaseStep):
             **kw,
         )
 
+    def _insert_all_error_handlers(self):
+        """
+        insert all error steps to the graph
+        run after deployment
+        """
+        for name, step in self._steps.items():
+            if step.kind == "error_step":
+                self._insert_error_step(name, step)
+
+    def _insert_error_step(self, name, step):
+        """
+        insert error step to the graph
+        run after deployment
+        """
+        if not step.before and not any(
+            [step.name in other_step.after for other_step in self._steps.values()]
+        ):
+            step.responder = True
+            return
+
+        for step_name in step.before:
+            if step_name not in self._steps.keys():
+                raise MLRunInvalidArgumentError(
+                    f"cant set before, there is no step named {step_name}"
+                )
+            self[step_name].after_step(name)
+
 
 class RootFlowStep(FlowStep):
     """root flow step"""
@@ -1119,6 +1242,7 @@ classes_map = {
     "router": RouterStep,
     "flow": FlowStep,
     "queue": QueueStep,
+    "error_step": ErrorStep,
 }
 
 
@@ -1158,15 +1282,8 @@ def _add_graphviz_flow(
                 _add_graphviz_router(sg, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
-        after = child.after or []
-        for item in after:
-            previous_object = step[item]
-            kw = (
-                {"ltail": "cluster_" + previous_object.fullname}
-                if previous_object.kind == StepKinds.router
-                else {}
-            )
-            graph.edge(previous_object.fullname, child.fullname, **kw)
+        _add_edges(child.after or [], step, graph, child)
+        _add_edges(getattr(child, "before", []), step, graph, child, after=False)
         if child.on_error:
             graph.edge(child.fullname, child.on_error, style="dashed")
 
@@ -1184,6 +1301,18 @@ def _add_graphviz_flow(
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)
+
+
+def _add_edges(items, step, graph, child, after=True):
+    for item in items:
+        next_or_prev_object = step[item]
+        kw = {}
+        if next_or_prev_object.kind == StepKinds.router:
+            kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+        if after:
+            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+        else:
+            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
 
 
 def _generate_graphviz(
@@ -1358,7 +1487,7 @@ def _init_async_objects(context, steps):
                             endpoint, stream_path = parse_path(step.path)
                             stream_path = stream_path.strip("/")
                         step._async_object = storey.StreamTarget(
-                            storey.V3ioDriver(endpoint),
+                            storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
                             context=context,
                             **options,

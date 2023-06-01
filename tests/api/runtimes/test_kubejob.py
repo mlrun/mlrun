@@ -23,11 +23,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
-import mlrun.builder
+import mlrun.api.api.endpoints.functions
+import mlrun.api.utils.builder
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -414,35 +415,36 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    def test_run_with_vault_secrets(self, db: Session, client: TestClient):
-        self._mock_vault_functionality()
-        runtime = self._generate_runtime()
-
-        task = self._generate_task()
-
-        task.metadata.project = self.project
-        secret_source = {
-            "kind": "vault",
-            "source": {"project": self.project, "secrets": self.vault_secrets},
-        }
-        task.with_secrets(secret_source["kind"], self.vault_secrets)
-        vault_url = "/url/for/vault"
-        mlconf.secret_stores.vault.remote_url = vault_url
-        mlconf.secret_stores.vault.token_path = vault_url
-
-        self.execute_function(runtime, runspec=task)
-
-        self._assert_pod_creation_config(
-            expected_secrets=secret_source,
-            expected_env={
-                "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
-                "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
-            },
-        )
-
-        self._assert_secret_mount(
-            "vault-secret", self.vault_secret_name, 420, vault_url
-        )
+    # TODO: Vault: uncomment when vault returns to be relevant
+    # def test_run_with_vault_secrets(self, db: Session, client: TestClient):
+    #     self._mock_vault_functionality()
+    #     runtime = self._generate_runtime()
+    #
+    #     task = self._generate_task()
+    #
+    #     task.metadata.project = self.project
+    #     secret_source = {
+    #         "kind": "vault",
+    #         "source": {"project": self.project, "secrets": self.vault_secrets},
+    #     }
+    #     task.with_secrets(secret_source["kind"], self.vault_secrets)
+    #     vault_url = "/url/for/vault"
+    #     mlconf.secret_stores.vault.remote_url = vault_url
+    #     mlconf.secret_stores.vault.token_path = vault_url
+    #
+    #     self.execute_function(runtime, runspec=task)
+    #
+    #     self._assert_pod_creation_config(
+    #         expected_secrets=secret_source,
+    #         expected_env={
+    #             "MLRUN_SECRET_STORES__VAULT__ROLE": f"project:{self.project}",
+    #             "MLRUN_SECRET_STORES__VAULT__URL": vault_url,
+    #         },
+    #     )
+    #
+    #     self._assert_secret_mount(
+    #         "vault-secret", self.vault_secret_name, 420, vault_url
+    #     )
 
     def test_run_with_code(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -749,27 +751,30 @@ def my_func(context):
         expected_to_upgrade,
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
-
-        runtime = self._generate_runtime()
-        runtime.spec.build.base_image = "some/image"
-        runtime.spec.build.commands = copy.deepcopy(commands)
-        runtime.deploy(with_mlrun=with_mlrun, watch=False)
-        dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
-        if expected_to_upgrade:
-            expected_str = ""
-            if commands:
-                expected_str += "\nRUN "
-                expected_str += "\nRUN ".join(commands)
-            expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-            if with_mlrun:
-                expected_str += '\nRUN python -m pip install "mlrun[complete]'
-            assert expected_str in dockerfile
-        else:
-            assert (
-                f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                not in dockerfile
-            )
+        with unittest.mock.patch(
+            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
+            runtime = self._generate_runtime()
+            runtime.spec.build.base_image = "some/image"
+            runtime.spec.build.commands = copy.deepcopy(commands)
+            self.deploy(db, runtime, with_mlrun=with_mlrun)
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            if expected_to_upgrade:
+                expected_str = ""
+                if commands:
+                    expected_str += "\nRUN "
+                    expected_str += "\nRUN ".join(commands)
+                expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                if with_mlrun:
+                    expected_str += '\nRUN python -m pip install "mlrun[complete]'
+                assert expected_str in dockerfile
+            else:
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
 
     @pytest.mark.parametrize(
         "workdir, source, pull_at_runtime, target_dir, expected_workdir",
@@ -797,6 +802,18 @@ def my_func(context):
         self.execute_function(runtime)
         pod = self._get_pod_creation_args()
         assert pod.spec.containers[0].working_dir == expected_workdir
+
+    def test_with_source_archive_validation(self):
+        runtime = self._generate_runtime()
+        source = "./some/relative/path"
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as e:
+            runtime.with_source_archive(source, pull_at_runtime=False)
+        assert (
+            f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+            "set 'source' to a remote URL to clone/copy the source to the base image, "
+            "or set 'pull_at_runtime' to True to pull the source at runtime."
+            in str(e.value)
+        )
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

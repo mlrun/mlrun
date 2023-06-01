@@ -16,10 +16,9 @@
 import datetime
 from typing import List, Optional, Union
 
+import mlrun.common.schemas
 import mlrun.errors
 
-from ..api import schemas
-from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..utils import logger
 from .base import RunDBInterface
@@ -87,10 +86,12 @@ class NopDB(RunDBInterface):
         start_time_to: datetime.datetime = None,
         last_update_time_from: datetime.datetime = None,
         last_update_time_to: datetime.datetime = None,
-        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
     ):
         pass
@@ -118,7 +119,7 @@ class NopDB(RunDBInterface):
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
-        category: Union[str, schemas.ArtifactCategories] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         pass
 
@@ -144,13 +145,13 @@ class NopDB(RunDBInterface):
         self,
         project: str,
         tag_name: str,
-        tag_objects: schemas.TagObjects,
+        tag_objects: mlrun.common.schemas.TagObjects,
         replace: bool = False,
     ):
         pass
 
     def delete_objects_tag(
-        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+        self, project: str, tag_name: str, tag_objects: mlrun.common.schemas.TagObjects
     ):
         pass
 
@@ -165,43 +166,52 @@ class NopDB(RunDBInterface):
     def delete_project(
         self,
         name: str,
-        deletion_strategy: schemas.DeletionStrategy = schemas.DeletionStrategy.default(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
         pass
 
-    def store_project(self, name: str, project: schemas.Project) -> schemas.Project:
+    def store_project(
+        self, name: str, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.Project:
         pass
 
     def patch_project(
         self,
         name: str,
         project: dict,
-        patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-    ) -> schemas.Project:
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+    ) -> mlrun.common.schemas.Project:
         pass
 
-    def create_project(self, project: schemas.Project) -> schemas.Project:
+    def create_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.Project:
         pass
 
     def list_projects(
         self,
         owner: str = None,
-        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: List[str] = None,
-        state: schemas.ProjectState = None,
-    ) -> schemas.ProjectsOutput:
+        state: mlrun.common.schemas.ProjectState = None,
+    ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
-    def get_project(self, name: str) -> schemas.Project:
+    def get_project(self, name: str) -> mlrun.common.schemas.Project:
         pass
 
     def list_artifact_tags(
-        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+        self,
+        project=None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
         pass
 
     def create_feature_set(
-        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+        self,
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
+        project="",
+        versioned=True,
     ) -> dict:
         pass
 
@@ -217,12 +227,12 @@ class NopDB(RunDBInterface):
         tag: str = None,
         entities: List[str] = None,
         labels: List[str] = None,
-    ) -> schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
     def list_entities(
         self, project: str, name: str = None, tag: str = None, labels: List[str] = None
-    ) -> schemas.EntitiesOutput:
+    ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     def list_feature_sets(
@@ -234,16 +244,20 @@ class NopDB(RunDBInterface):
         entities: List[str] = None,
         features: List[str] = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
     def store_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet],
+        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -259,7 +273,9 @@ class NopDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -268,7 +284,7 @@ class NopDB(RunDBInterface):
 
     def create_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
         project="",
         versioned=True,
     ) -> dict:
@@ -286,16 +302,20 @@ class NopDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: List[str] = None,
-        partition_by: Union[schemas.FeatureStorePartitionByField, str] = None,
+        partition_by: Union[
+            mlrun.common.schemas.FeatureStorePartitionByField, str
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[schemas.SortField, str] = None,
-        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> List[dict]:
         pass
 
     def store_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
         name=None,
         project="",
         tag=None,
@@ -311,7 +331,9 @@ class NopDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[str, schemas.PatchMode] = schemas.PatchMode.replace,
+        patch_mode: Union[
+            str, mlrun.common.schemas.PatchMode
+        ] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -326,18 +348,18 @@ class NopDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, schemas.PipelinesFormat
-        ] = schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.schemas.PipelinesFormat
+        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
-    ) -> schemas.PipelinesOutput:
+    ) -> mlrun.common.schemas.PipelinesOutput:
         pass
 
     def create_project_secrets(
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         pass
@@ -347,28 +369,28 @@ class NopDB(RunDBInterface):
         project: str,
         token: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
-    ) -> schemas.SecretsData:
+    ) -> mlrun.common.schemas.SecretsData:
         pass
 
     def list_project_secret_keys(
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         token: str = None,
-    ) -> schemas.SecretKeysData:
+    ) -> mlrun.common.schemas.SecretKeysData:
         pass
 
     def delete_project_secrets(
         self,
         project: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.kubernetes,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         pass
@@ -377,14 +399,17 @@ class NopDB(RunDBInterface):
         self,
         user: str,
         provider: Union[
-            str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         pass
 
     def create_model_endpoint(
-        self, project: str, endpoint_id: str, model_endpoint: ModelEndpoint
+        self,
+        project: str,
+        endpoint_id: str,
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ):
         pass
 
@@ -417,17 +442,19 @@ class NopDB(RunDBInterface):
     def patch_model_endpoint(self, project: str, endpoint_id: str, attributes: dict):
         pass
 
-    def create_marketplace_source(
-        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
         pass
 
-    def store_marketplace_source(
-        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    def store_hub_source(
+        self,
+        source_name: str,
+        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
     ):
         pass
 
-    def list_marketplace_sources(
+    def list_hub_sources(
         self,
         item_name: Optional[str] = None,
         tag: Optional[str] = None,
@@ -435,13 +462,13 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def get_marketplace_source(self, source_name: str):
+    def get_hub_source(self, source_name: str):
         pass
 
-    def delete_marketplace_source(self, source_name: str):
+    def delete_hub_source(self, source_name: str):
         pass
 
-    def get_marketplace_catalog(
+    def get_hub_catalog(
         self,
         source_name: str,
         channel: str = None,
@@ -451,7 +478,7 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def get_marketplace_item(
+    def get_hub_item(
         self,
         source_name: str,
         item_name: str,
@@ -463,6 +490,7 @@ class NopDB(RunDBInterface):
         pass
 
     def verify_authorization(
-        self, authorization_verification_input: schemas.AuthorizationVerificationInput
+        self,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass

@@ -17,6 +17,7 @@ Projects simplify how you process data, [submit jobs](../concepts/submitting-tas
 :maxdepth: 1
 
 create-project
+git-best-practices
 load-project
 run-build-deploy
 build-run-workflows-pipelines

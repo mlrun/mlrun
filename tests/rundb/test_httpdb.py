@@ -14,6 +14,8 @@
 
 import codecs
 import io
+import sys
+import time
 import unittest.mock
 from collections import namedtuple
 from os import environ
@@ -30,10 +32,10 @@ import pytest
 import requests_mock
 
 import mlrun.artifacts.base
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
-from mlrun.api import schemas
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -51,7 +53,7 @@ def free_port():
 
 def check_server_up(url):
     health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
-    timeout = 30
+    timeout = 90
     if not wait_for_server(health_url, timeout):
         raise RuntimeError(f"server did not start after {timeout} sec")
 
@@ -199,6 +201,27 @@ def test_log(create_server):
 
     state, data = db.get_log(uid, prj)
     assert data == body, "bad log data"
+
+
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="We are developing on Apple Silicon Macs,"
+    " which will most likely fail this test due to the qemu being slow,"
+    " but should pass on native architecture",
+)
+def test_api_boot_speed(create_server):
+    run_times = 5
+    expected_time = 30
+    runs = []
+    for _ in range(run_times):
+        start_time = time.perf_counter()
+        create_server()
+        end_time = time.perf_counter()
+        runs.append(end_time - start_time)
+    avg_run_time = sum(runs) / run_times
+    assert (
+        avg_run_time <= expected_time
+    ), "Seems like a performance hit on creating api server"
 
 
 def test_run(create_server):
@@ -633,7 +656,7 @@ def test_feature_vectors(create_server):
         feature_vector_update,
         project,
         tag="latest",
-        patch_mode=schemas.PatchMode.additive,
+        patch_mode=mlrun.common.schemas.PatchMode.additive,
     )
     feature_vectors = db.list_feature_vectors(project=project)
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
@@ -662,7 +685,10 @@ def test_feature_vectors(create_server):
 
     # Perform a replace (vs. additive as done earlier) - now should only have 2 features
     db.patch_feature_vector(
-        name, feature_vector_update, project, patch_mode=schemas.PatchMode.replace
+        name,
+        feature_vector_update,
+        project,
+        patch_mode=mlrun.common.schemas.PatchMode.replace,
     )
     feature_vector = db.get_feature_vector(name, project)
     assert (
@@ -677,7 +703,7 @@ def test_project_file_db_roundtrip(create_server):
     project_name = "project-name"
     description = "project description"
     goals = "project goals"
-    desired_state = mlrun.api.schemas.ProjectState.archived
+    desired_state = mlrun.common.schemas.ProjectState.archived
     params = {"param_key": "param value"}
     artifact_path = "/tmp"
     conda = "conda"

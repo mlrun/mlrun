@@ -29,12 +29,13 @@ import sqlalchemy.orm
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.api.main
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.model_monitoring
 import tests.api.api.utils
@@ -63,8 +64,8 @@ def test_build_status_pod_not_found(
     )
     assert response.status_code == HTTPStatus.OK.value
 
-    mlrun.api.utils.singletons.k8s.get_k8s().v1api = unittest.mock.Mock()
-    mlrun.api.utils.singletons.k8s.get_k8s().v1api.read_namespaced_pod = (
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_pod = (
         unittest.mock.Mock(
             side_effect=kubernetes.client.rest.ApiException(
                 status=HTTPStatus.NOT_FOUND.value
@@ -113,8 +114,7 @@ async def test_list_functions_with_hash_key_versioned(
     }
 
     post_function1_response = await async_client.post(
-        f"func/{function_project}/"
-        f"{function_name}?tag={function_tag}&versioned={True}",
+        f"projects/{function_project}/functions/{function_name}?tag={function_tag}&versioned={True}",
         json=function,
     )
 
@@ -123,19 +123,86 @@ async def test_list_functions_with_hash_key_versioned(
 
     # Store another function with the same project and name but different tag and hash key
     post_function2_response = await async_client.post(
-        f"func/{function_project}/"
+        f"projects/{function_project}/functions/"
         f"{function_name}?tag={another_tag}&versioned={True}",
         json=function2,
     )
     assert post_function2_response.status_code == HTTPStatus.OK.value
 
     list_functions_by_hash_key_response = await async_client.get(
-        f"funcs?project={function_project}&name={function_name}&hash_key={hash_key}"
+        f"projects/{function_project}/functions?name={function_name}&hash_key={hash_key}"
     )
 
     list_functions_results = list_functions_by_hash_key_response.json()["funcs"]
     assert len(list_functions_results) == 1
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
+
+
+def test_delete_function_with_schedule(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    # create project and function
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    function_tag = "function-tag"
+    function_name = "function-name"
+    project_name = "project-name"
+
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": project_name,
+            "tag": function_tag,
+        },
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    function_endpoint = f"projects/{PROJECT}/functions/{function_name}"
+    function = client.post(function_endpoint, data=mlrun.utils.dict_to_json(function))
+    hash_key = function.json()["hash_key"]
+
+    # generate schedule object that matches to the function and create it
+    scheduled_object = {
+        "task": {
+            "spec": {
+                "function": f"{PROJECT}/{function_name}@{hash_key}",
+                "handler": "handler",
+            },
+            "metadata": {"name": "my-task", "project": f"{PROJECT}"},
+        }
+    }
+    schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=1)
+
+    schedule = mlrun.common.schemas.ScheduleInput(
+        name=function_name,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object=scheduled_object,
+        cron_trigger=schedule_cron_trigger,
+    )
+
+    endpoint = f"projects/{PROJECT}/schedules"
+    response = client.post(endpoint, data=mlrun.utils.dict_to_json(schedule.dict()))
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    response = client.get(endpoint)
+    assert (
+        response.status_code == HTTPStatus.OK.value
+        and response.json()["schedules"][0]["name"] == function_name
+    )
+
+    # delete the function and assert that it has been removed, as has its schedule
+    response = client.delete(function_endpoint)
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    response = client.get(function_endpoint)
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+    response = client.get(endpoint)
+    assert (
+        response.status_code == HTTPStatus.OK.value and not response.json()["schedules"]
+    )
 
 
 @pytest.mark.asyncio
@@ -296,6 +363,7 @@ def test_tracking_on_serving(
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
+        mlrun.utils.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -399,16 +467,19 @@ def test_start_function_succeeded(
         ),
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
 
 
@@ -440,14 +511,18 @@ def test_start_function_fails(
         ),
     )
     assert response.status_code == http.HTTPStatus.OK
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     response = client.get(
         f"projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.failed
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
 
 def test_start_function(
@@ -461,26 +536,26 @@ def test_start_function(
     for test_case in [
         {
             "_start_function_mock": unittest.mock.Mock,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.succeeded,
             "background_timeout_mode": "enabled",
             "dask_timeout": 100,
         },
         {
             "_start_function_mock": failing_func,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.failed,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.failed,
             "background_timeout_mode": "enabled",
             "dask_timeout": None,
         },
         {
             "_start_function_mock": unittest.mock.Mock,
-            "expected_status_result": mlrun.api.schemas.BackgroundTaskState.succeeded,
+            "expected_status_result": mlrun.common.schemas.BackgroundTaskState.succeeded,
             "background_timeout_mode": "disabled",
             "dask_timeout": 0,
         },
     ]:
         _start_function_mock = test_case.get("_start_function_mock", unittest.mock.Mock)
         expected_status_result = test_case.get(
-            "expected_status_result", mlrun.api.schemas.BackgroundTaskState.running
+            "expected_status_result", mlrun.common.schemas.BackgroundTaskState.running
         )
         background_timeout_mode = test_case.get("background_timeout_mode", "enabled")
         dask_timeout = test_case.get("dask_timeout", None)
@@ -507,16 +582,16 @@ def test_start_function(
             ),
         )
         assert response.status_code == http.HTTPStatus.OK
-        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert (
             background_task.status.state
-            == mlrun.api.schemas.BackgroundTaskState.running
+            == mlrun.common.schemas.BackgroundTaskState.running
         )
         response = client.get(
             f"projects/{project}/background-tasks/{background_task.metadata.name}"
         )
         assert response.status_code == http.HTTPStatus.OK.value
-        background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
 
 

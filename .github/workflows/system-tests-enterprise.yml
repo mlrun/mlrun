@@ -83,6 +83,12 @@ jobs:
 
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          scp \
+          automation/system_test/dev_utilities.py \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
+
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           ssh \
           -o StrictHostKeyChecking=no \
           -o ServerAliveInterval=180 \
@@ -241,30 +247,31 @@ jobs:
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - name: Prepare System Test env.yaml and MLRun installation from current branch
+    - name: Prepare System Test Environment and Install MLRun
+      env:
+        IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
       timeout-minutes: 50
       run: |
         python automation/system_test/prepare.py run \
-          "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ steps.computed_params.outputs.iguazio_version }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
+          --mlrun-version "${{ steps.computed_params.outputs.mlrun_version }}" \
+          --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
+          --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          --app-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
+          --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
+          --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
+          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          --webapi-direct-url "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          --framesd-url "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
+          --spark-service "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          --mysql-user "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
+          --mysql-password "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
           --purge-db \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
@@ -281,7 +288,7 @@ jobs:
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
-    name: Run System Tests Enterprise
+    name: Test ${{ matrix.test_component }} [${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}]
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: ubuntu-latest
@@ -312,15 +319,15 @@ jobs:
       timeout-minutes: 5
       run: |
         python automation/system_test/prepare.py env \
-          "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
-          "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}"
+          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          --webapi-direct-url "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
+          --framesd-url "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
+          --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --spark-service "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
+          --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \

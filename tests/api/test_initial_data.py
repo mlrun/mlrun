@@ -24,8 +24,8 @@ import mlrun.api.db.init_db
 import mlrun.api.db.sqldb.db
 import mlrun.api.db.sqldb.session
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.db
+import mlrun.common.schemas
 
 
 def test_add_data_version_empty_db():
@@ -54,8 +54,8 @@ def test_add_data_version_non_empty_db():
     # fill db
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
         ),
     )
     mlrun.api.initial_data._add_initial_data(db_session)
@@ -69,25 +69,43 @@ def test_perform_data_migrations_from_zero_version():
     # set version to 0
     db.create_data_version(db_session, "0")
 
+    # keep a reference to the original functions, so we can restore them later
     original_perform_version_1_data_migrations = (
         mlrun.api.initial_data._perform_version_1_data_migrations
     )
     mlrun.api.initial_data._perform_version_1_data_migrations = unittest.mock.Mock()
+    original_perform_version_2_data_migrations = (
+        mlrun.api.initial_data._perform_version_2_data_migrations
+    )
+    mlrun.api.initial_data._perform_version_2_data_migrations = unittest.mock.Mock()
+    original_perform_version_3_data_migrations = (
+        mlrun.api.initial_data._perform_version_3_data_migrations
+    )
+    mlrun.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
 
+    # perform migrations
+    mlrun.api.initial_data._perform_data_migrations(db_session)
+
+    # calling again should not trigger migrations again, since we're already at the latest version
     mlrun.api.initial_data._perform_data_migrations(db_session)
 
     mlrun.api.initial_data._perform_version_1_data_migrations.assert_called_once()
+    mlrun.api.initial_data._perform_version_2_data_migrations.assert_called_once()
+    mlrun.api.initial_data._perform_version_3_data_migrations.assert_called_once()
 
-    # calling again should trigger migrations again
-    mlrun.api.initial_data._perform_data_migrations(db_session)
+    assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
+        mlrun.api.initial_data.latest_data_version
+    )
 
-    mlrun.api.initial_data._perform_version_1_data_migrations.assert_called_once()
-
+    # restore original functions
     mlrun.api.initial_data._perform_version_1_data_migrations = (
         original_perform_version_1_data_migrations
     )
-    assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
-        mlrun.api.initial_data.latest_data_version
+    mlrun.api.initial_data._perform_version_2_data_migrations = (
+        original_perform_version_2_data_migrations
+    )
+    mlrun.api.initial_data._perform_version_3_data_migrations = (
+        original_perform_version_3_data_migrations
     )
 
 
@@ -122,8 +140,8 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
     # fill db
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
         ),
     )
     assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 1
@@ -140,5 +158,5 @@ def _initialize_db_without_migrations() -> typing.Tuple[
     db_session = mlrun.api.db.sqldb.session.create_session(dsn=dsn)
     db = mlrun.api.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    mlrun.api.db.init_db.init_db(db_session)
+    mlrun.api.db.init_db.init_db()
     return db, db_session

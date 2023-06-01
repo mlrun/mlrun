@@ -20,7 +20,7 @@ import v3io.dataplane
 import v3io_frames
 
 import mlrun
-import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -121,7 +121,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # For backwards compatability: replace null values for `error_count` and `metrics`
-        mlrun.utils.model_monitoring.validate_errors_and_metrics(endpoint=endpoint)
+        mlrun.utils.model_monitoring.validate_old_schema_fields(endpoint=endpoint)
 
         return endpoint
 
@@ -168,7 +168,6 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
-
             cursor = self.client.kv.new_cursor(
                 container=self.container,
                 table_path=self.path,
@@ -219,8 +218,17 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
+            if model_monitoring_constants.EventFieldType.UID not in endpoint_dict:
+                # This is kept for backwards compatibility - in old versions the key column named endpoint_id
+                endpoint_id = endpoint_dict[
+                    model_monitoring_constants.EventFieldType.ENDPOINT_ID
+                ]
+            else:
+                endpoint_id = endpoint_dict[
+                    model_monitoring_constants.EventFieldType.UID
+                ]
             self.delete_model_endpoint(
-                endpoint_dict[model_monitoring_constants.EventFieldType.UID],
+                endpoint_id,
             )
 
         # Delete remain records in the KV
@@ -420,7 +428,6 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Add labels filters
         if labels:
-
             for label in labels:
                 if not label.startswith("_"):
                     label = f"_{label}"
@@ -434,8 +441,8 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(mlrun.model_monitoring.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(mlrun.model_monitoring.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(model_monitoring_constants.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(model_monitoring_constants.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)

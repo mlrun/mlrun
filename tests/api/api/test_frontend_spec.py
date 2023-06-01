@@ -20,8 +20,8 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 
@@ -43,7 +43,7 @@ def test_get_frontend_spec(
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (
         deepdiff.DeepDiff(
             frontend_spec.abortable_function_kinds,
@@ -53,19 +53,19 @@ def test_get_frontend_spec(
     )
     assert (
         frontend_spec.feature_flags.project_membership
-        == mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
+        == mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     )
     assert (
         frontend_spec.feature_flags.authentication
-        == mlrun.api.schemas.AuthenticationFeatureFlag.none
+        == mlrun.common.schemas.AuthenticationFeatureFlag.none
     )
     assert (
         frontend_spec.feature_flags.nuclio_streams
-        == mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+        == mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
     )
     assert (
         frontend_spec.feature_flags.preemption_nodes
-        == mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+        == mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled
     )
     assert frontend_spec.default_function_image_by_kind is not None
     assert frontend_spec.function_deployment_mlrun_command is not None
@@ -79,7 +79,7 @@ def test_get_frontend_spec(
         bla = f"{{{expected_template_field}}}"
         assert bla in frontend_spec.function_deployment_target_image_template
 
-    assert frontend_spec.default_function_pod_resources, mlrun.api.schemas.Resources(
+    assert frontend_spec.default_function_pod_resources, mlrun.common.schemas.Resources(
         **default_function_pod_resources
     )
     assert (
@@ -93,7 +93,7 @@ def test_get_frontend_spec(
 
     assert (
         frontend_spec.default_function_preemption_mode
-        == mlrun.api.schemas.PreemptionModes.prevent.value
+        == mlrun.common.schemas.PreemptionModes.prevent.value
     )
     assert (
         frontend_spec.allowed_artifact_path_prefixes_list
@@ -110,7 +110,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     # no cookie so no url
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_not_called()
 
@@ -119,7 +119,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
-                mlrun.api.schemas.AuthInfo(
+                mlrun.common.schemas.AuthInfo(
                     username=None,
                     session="946b0749-5c40-4837-a4ac-341d295bfaf7",
                     user_id=None,
@@ -134,7 +134,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     )
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
 
@@ -146,23 +146,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
-    assert (
-        frontend_spec.jobs_dashboard_url
-        == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
-        f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
-    )
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
-
-    # now one time with the 3.0 iguazio auth way
-    mlrun.mlconf.httpdb.authentication.mode = "none"
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
-    response = client.get(
-        "frontend-spec",
-        cookies={"session": 'j:{"sid":"946b0749-5c40-4837-a4ac-341d295bfaf7"}'},
-    )
-    assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (
         frontend_spec.jobs_dashboard_url
         == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
@@ -178,22 +162,22 @@ def test_get_frontend_spec_nuclio_streams(
         {
             "iguazio_version": "3.2.0",
             "nuclio_version": "1.6.23",
-            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+            "expected_feature_flag": mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled,
         },
         {
             "iguazio_version": None,
             "nuclio_version": "1.6.23",
-            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+            "expected_feature_flag": mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled,
         },
         {
             "iguazio_version": None,
             "nuclio_version": "1.7.8",
-            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled,
+            "expected_feature_flag": mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled,
         },
         {
             "iguazio_version": "3.4.0",
             "nuclio_version": "1.7.8",
-            "expected_feature_flag": mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled,
+            "expected_feature_flag": mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled,
         },
     ]:
         # init cached value to None in the beginning of each test case
@@ -202,7 +186,7 @@ def test_get_frontend_spec_nuclio_streams(
         mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 
         response = client.get("frontend-spec")
-        frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+        frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
         assert response.status_code == http.HTTPStatus.OK.value
         assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
             "expected_feature_flag"
@@ -219,7 +203,7 @@ def test_get_frontend_spec_ce(
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
 
     assert frontend_spec.ce["release"] == ce_release
     assert frontend_spec.ce["mode"] == frontend_spec.ce_mode == ce_mode
@@ -238,7 +222,7 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     )
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (
         frontend_spec.feature_store_data_prefixes["default"]
         == feature_store_data_prefix_default

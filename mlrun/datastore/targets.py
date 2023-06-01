@@ -1102,7 +1102,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
-            V3ioDriver(webapi=endpoint),
+            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
@@ -1257,7 +1257,7 @@ class StreamTarget(BaseStoreTarget):
             graph_shape="cylinder",
             class_name="storey.StreamTarget",
             columns=column_list,
-            storage=V3ioDriver(webapi=endpoint),
+            storage=V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
             stream_path=uri,
             **self.attributes,
         )
@@ -1645,8 +1645,9 @@ class SQLTarget(BaseStoreTarget):
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
             df = pd.read_sql(
-                f"SELECT * FROM {self.attributes.get('table_name')}",
+                "SELECT * FROM %(table)s",
                 con=conn,
+                params={"table": self.attributes.get("table_name")},
                 parse_dates=self.attributes.get("time_fields"),
             )
             if self._primary_key_column:
@@ -1763,12 +1764,12 @@ def _get_target_path(driver, resource, run_id_mode=False):
     if not suffix:
         if (
             kind == ParquetTarget.kind
-            and resource.kind == mlrun.api.schemas.ObjectKind.feature_vector
+            and resource.kind == mlrun.common.schemas.ObjectKind.feature_vector
         ):
             suffix = ".parquet"
     kind_prefix = (
         "sets"
-        if resource.kind == mlrun.api.schemas.ObjectKind.feature_set
+        if resource.kind == mlrun.common.schemas.ObjectKind.feature_set
         else "vectors"
     )
     name = resource.metadata.name

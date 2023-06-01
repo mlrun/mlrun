@@ -18,7 +18,7 @@ import deepdiff
 import pytest
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import tests.conftest
 import tests.integration.sdk_api.base
 

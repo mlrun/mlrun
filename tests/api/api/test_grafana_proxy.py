@@ -29,9 +29,9 @@ from v3io_frames import frames_pb2 as fpb2
 
 import mlrun
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
-import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.common.model_monitoring as model_monitoring_constants
+import mlrun.common.schemas
 import mlrun.model_monitoring.stores
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
@@ -62,7 +62,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
     mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
-                mlrun.api.schemas.AuthInfo(
+                mlrun.common.schemas.AuthInfo(
                     username=None,
                     session="some-session",
                     data_session="some-session",

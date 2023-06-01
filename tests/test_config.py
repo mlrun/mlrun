@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest.mock
 from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
@@ -23,7 +24,7 @@ import yaml
 
 import mlrun.errors
 from mlrun import config as mlconf
-from mlrun.api.schemas import SecurityContextEnrichmentModes
+from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.db.httpdb import HTTPRunDB
 
 namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"
@@ -98,6 +99,68 @@ def test_file(config):
         mlconf.config.reload()
 
     assert config.namespace == ns, "not populated from file"
+
+
+@pytest.mark.parametrize(
+    "mlrun_dbpath,v3io_api,v3io_framesd,expected_v3io_api,expected_v3io_framesd",
+    (
+        (
+            "http://mlrun-api:8080",
+            "",
+            "",
+            "http://v3io-webapi:8081",
+            "http://framesd:8080",
+        ),
+        (
+            "http://mlrun-api:8080",
+            "http://v3io-webapi:8081",
+            "",
+            "http://v3io-webapi:8081",
+            "http://framesd:8080",
+        ),
+        (
+            "https://mlrun-api.default-tenant.app.somedev.cluster.amzn.com",
+            "",
+            "",
+            "https://webapi.default-tenant.app.somedev.cluster.amzn.com",
+            "https://framesd.default-tenant.app.somedev.cluster.amzn.com",
+        ),
+        (
+            "https://mlrun-api.default-tenant.app.somedev.cluster.amzn.com",
+            "https://webapi.default-tenant.app.somedev.cluster.amzn.com",
+            "",
+            "https://webapi.default-tenant.app.somedev.cluster.amzn.com",
+            "https://framesd.default-tenant.app.somedev.cluster.amzn.com",
+        ),
+        (
+            "https://mlrun-api.default-tenant.app.somedev.cluster.amzn.com",
+            "",
+            "https://framesd.default-tenant.app.somedev.cluster.amzn.com",
+            "https://webapi.default-tenant.app.somedev.cluster.amzn.com",
+            "https://framesd.default-tenant.app.somedev.cluster.amzn.com",
+        ),
+    ),
+)
+def test_v3io_api_and_framesd_enrichment_from_dbpath(
+    config,
+    mlrun_dbpath,
+    v3io_api,
+    v3io_framesd,
+    expected_v3io_api,
+    expected_v3io_framesd,
+    monkeypatch,
+):
+    with unittest.mock.patch.object(mlrun.db, "get_run_db", return_value=None):
+        env = {
+            "MLRUN_DBPATH": mlrun_dbpath,
+            "V3IO_API": v3io_api,
+            "V3IO_FRAMESD": v3io_framesd,
+        }
+        with patch_env(env):
+            mlconf.config.reload()
+
+            assert config.v3io_api == expected_v3io_api
+            assert config.v3io_framesd == expected_v3io_framesd
 
 
 def test_env(config):

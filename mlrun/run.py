@@ -36,7 +36,7 @@ import yaml
 from deprecated import deprecated
 from kfp import Client
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
@@ -585,8 +585,11 @@ def new_function(
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
                      for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
-    :param source:   valid path to git, zip, or tar file, e.g. `git://github.com/mlrun/something.git`,
+    :param source:   valid absolute path or URL to git, zip, or tar file, e.g.
+                     `git://github.com/mlrun/something.git`,
                      `http://some/url/file.zip`
+                     note path source must exist on the image or exist locally when run is local
+                     (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
     :param requirements: list of python packages or pip requirements file path, defaults to None
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
@@ -652,8 +655,9 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements)
-    runner.verify_base_image()
+        runner.with_requirements(requirements, prepare_image_for_deploy=False)
+
+    runner.prepare_image_for_deploy()
     return runner
 
 
@@ -729,8 +733,7 @@ def code_to_function(
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
 
-    Learn more about function runtimes here:
-    https://docs.mlrun.org/en/latest/runtimes/functions.html#function-runtimes
+    Learn more about {Kinds of function (runtimes)](../concepts/functions-overview.html).
 
     :param name:         function name, typically best to use hyphen-case
     :param project:      project used to namespace the function, defaults to 'default'
@@ -793,6 +796,7 @@ def code_to_function(
 
     def update_common(fn, spec):
         fn.spec.image = image or get_in(spec, "spec.image", "")
+        fn.spec.filename = filename or get_in(spec, "spec.filename", "")
         fn.spec.build.base_image = get_in(spec, "spec.build.baseImage")
         fn.spec.build.commands = get_in(spec, "spec.build.commands")
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
@@ -920,7 +924,7 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.verify_base_image()
+    r.prepare_image_for_deploy()
 
     if with_doc:
         update_function_entry_points(r, code)
@@ -1136,22 +1140,24 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
-        def get_pipeline_if_completed(run_id, namespace=namespace):
-            resp = mldb.get_pipeline(run_id, namespace=namespace, project=project)
-            status = resp["run"]["status"]
-            show_kfp_run(resp, clear_output=True)
-            if status not in RunStatuses.stable_statuses():
-                # TODO: think of nicer liveness indication and make it re-usable
-                # log '.' each retry as a liveness indication
-                logger.debug(".")
+        def _wait_for_pipeline_completion():
+            pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
+            pipeline_status = pipeline["run"]["status"]
+            show_kfp_run(pipeline, clear_output=True)
+            if pipeline_status not in RunStatuses.stable_statuses():
+                logger.debug(
+                    "Waiting for pipeline completion",
+                    run_id=run_id,
+                    status=pipeline_status,
+                )
                 raise RuntimeError("pipeline run has not completed yet")
 
-            return resp
+            return pipeline
 
         if mldb.kind != "http":
             raise ValueError(
-                "get pipeline require access to remote api-service"
-                ", please set the dbpath url"
+                "get pipeline requires access to remote api-service"
+                ", set the dbpath url"
             )
 
         resp = retry_until_successful(
@@ -1159,9 +1165,7 @@ def wait_for_pipeline_completion(
             timeout,
             logger,
             False,
-            get_pipeline_if_completed,
-            run_id,
-            namespace=namespace,
+            _wait_for_pipeline_completion,
         )
     else:
         client = Client(namespace=namespace)
@@ -1194,8 +1198,8 @@ def get_pipeline(
     run_id,
     namespace=None,
     format_: Union[
-        str, mlrun.api.schemas.PipelinesFormat
-    ] = mlrun.api.schemas.PipelinesFormat.summary,
+        str, mlrun.common.schemas.PipelinesFormat
+    ] = mlrun.common.schemas.PipelinesFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1231,7 +1235,7 @@ def get_pipeline(
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.api.schemas.PipelinesFormat.summary.value
+                or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
             ):
                 resp = format_summary_from_kfp_run(resp)
 
@@ -1247,7 +1251,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
+    format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
@@ -1267,7 +1271,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.api.schemas.PipelinesFormat.full
+        format_ = mlrun.common.schemas.PipelinesFormat.full
     run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

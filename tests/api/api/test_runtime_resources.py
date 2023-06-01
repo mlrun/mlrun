@@ -22,8 +22,8 @@ import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.runtime_resources
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 
 
 def test_list_runtimes_resources_opa_filtering(
@@ -83,7 +83,7 @@ def test_list_runtimes_resources_group_by_job(
     )
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
+        params={"group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
     expected_body = {
@@ -140,9 +140,9 @@ def test_list_runtimes_resources_no_group_by(
     )
     body = response.json()
     expected_body = [
-        mlrun.api.schemas.KindRuntimeResources(
+        mlrun.common.schemas.KindRuntimeResources(
             kind=mlrun.runtimes.RuntimeKinds.job,
-            resources=mlrun.api.schemas.RuntimeResources(
+            resources=mlrun.common.schemas.RuntimeResources(
                 crd_resources=[],
                 pod_resources=grouped_by_project_runtime_resources_output[project_1][
                     mlrun.runtimes.RuntimeKinds.job
@@ -152,9 +152,9 @@ def test_list_runtimes_resources_no_group_by(
                 ].pod_resources,
             ),
         ).dict(),
-        mlrun.api.schemas.KindRuntimeResources(
+        mlrun.common.schemas.KindRuntimeResources(
             kind=mlrun.runtimes.RuntimeKinds.dask,
-            resources=mlrun.api.schemas.RuntimeResources(
+            resources=mlrun.common.schemas.RuntimeResources(
                 crd_resources=[],
                 pod_resources=grouped_by_project_runtime_resources_output[project_2][
                     mlrun.runtimes.RuntimeKinds.dask
@@ -164,9 +164,9 @@ def test_list_runtimes_resources_no_group_by(
                 ][mlrun.runtimes.RuntimeKinds.dask].service_resources,
             ),
         ).dict(),
-        mlrun.api.schemas.KindRuntimeResources(
+        mlrun.common.schemas.KindRuntimeResources(
             kind=mlrun.runtimes.RuntimeKinds.mpijob,
-            resources=mlrun.api.schemas.RuntimeResources(
+            resources=mlrun.common.schemas.RuntimeResources(
                 crd_resources=grouped_by_project_runtime_resources_output[project_3][
                     mlrun.runtimes.RuntimeKinds.mpijob
                 ].crd_resources,
@@ -201,13 +201,15 @@ def test_list_runtime_resources_no_resources(
     assert body == []
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
+        params={"group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
     assert body == {}
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
+        params={
+            "group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project
+        },
     )
     body = response.json()
     assert body == {}
@@ -251,9 +253,9 @@ def test_list_runtime_resources_filter_by_kind(
         params={"kind": mlrun.runtimes.RuntimeKinds.job},
     )
     body = response.json()
-    expected_runtime_resources = mlrun.api.schemas.KindRuntimeResources(
+    expected_runtime_resources = mlrun.common.schemas.KindRuntimeResources(
         kind=mlrun.runtimes.RuntimeKinds.job,
-        resources=mlrun.api.schemas.RuntimeResources(
+        resources=mlrun.common.schemas.RuntimeResources(
             crd_resources=[],
             pod_resources=grouped_by_project_runtime_resources_output[project_1][
                 mlrun.runtimes.RuntimeKinds.job
@@ -523,9 +525,9 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
     no_project_builder_name = "builder-name"
     grouped_by_project_runtime_resources_output = {
         project_1: {
-            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.job: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
                             "mlrun/project": project_1,
@@ -539,9 +541,9 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
             )
         },
         no_project: {
-            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.job: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=no_project_builder_name,
                         labels={
                             "mlrun/class": "build",
@@ -571,9 +573,9 @@ def _generate_grouped_by_project_runtime_resources_output():
     project_3_mpijob_name = "project-3-mpijob-name"
     grouped_by_project_runtime_resources_output = {
         project_1: {
-            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.job: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
                             "mlrun/project": project_1,
@@ -587,9 +589,9 @@ def _generate_grouped_by_project_runtime_resources_output():
             )
         },
         project_2: {
-            mlrun.runtimes.RuntimeKinds.dask: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.dask: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
                             "mlrun/project": project_2,
@@ -601,7 +603,7 @@ def _generate_grouped_by_project_runtime_resources_output():
                 ],
                 crd_resources=[],
                 service_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
                             "mlrun/project": project_2,
@@ -612,9 +614,9 @@ def _generate_grouped_by_project_runtime_resources_output():
                     )
                 ],
             ),
-            mlrun.runtimes.RuntimeKinds.job: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.job: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_2_job_name,
                         labels={
                             "mlrun/project": project_2,
@@ -628,10 +630,10 @@ def _generate_grouped_by_project_runtime_resources_output():
             ),
         },
         project_3: {
-            mlrun.runtimes.RuntimeKinds.mpijob: mlrun.api.schemas.RuntimeResources(
+            mlrun.runtimes.RuntimeKinds.mpijob: mlrun.common.schemas.RuntimeResources(
                 pod_resources=[],
                 crd_resources=[
-                    mlrun.api.schemas.RuntimeResource(
+                    mlrun.common.schemas.RuntimeResource(
                         name=project_3_mpijob_name,
                         labels={
                             "mlrun/project": project_3,
@@ -658,7 +660,7 @@ def _generate_grouped_by_project_runtime_resources_output():
 
 def _mock_opa_filter_and_assert_list_response(
     client: fastapi.testclient.TestClient,
-    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     opa_filter_response,
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
@@ -666,7 +668,9 @@ def _mock_opa_filter_and_assert_list_response(
     )
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
+        params={
+            "group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project
+        },
     )
     body = response.json()
     expected_body = (
@@ -687,7 +691,7 @@ def _mock_opa_filter_and_assert_list_response(
 def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
     allowed_projects: typing.List[str],
     filter_kind: str,
-    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):
     filtered_output = (
@@ -702,7 +706,7 @@ def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_
 
 def _filter_kind_from_grouped_by_project_runtime_resources_output(
     filter_kind: str,
-    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
 ):
     filtered_output = {}
     for (
@@ -719,7 +723,7 @@ def _filter_kind_from_grouped_by_project_runtime_resources_output(
 
 def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
     allowed_projects: typing.List[str],
-    grouped_by_project_runtime_resources_output: mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):
     filtered_output = {}

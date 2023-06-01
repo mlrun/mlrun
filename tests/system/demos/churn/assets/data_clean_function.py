@@ -63,7 +63,7 @@ def data_clean(
     TODO:
         * parallelize where possible
         * more abstraction (more parameters, chain sklearn transformers)
-        * convert to marketplace function
+        * convert to hub function
 
     :param context:          the function execution context
     :param src:              an artifact or file path

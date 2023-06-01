@@ -22,6 +22,7 @@ from deprecated import deprecated
 from pandas.io.json import build_table_schema
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
@@ -122,7 +123,7 @@ class DatasetArtifactSpec(ArtifactSpec):
 
 
 class DatasetArtifact(Artifact):
-    kind = "dataset"
+    kind = mlrun.common.schemas.ArtifactCategories.dataset
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
 

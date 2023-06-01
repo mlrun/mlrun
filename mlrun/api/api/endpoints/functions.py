@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
+import mlrun.api.launcher
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
@@ -662,6 +663,7 @@ def _build_function(
     ready = None
     try:
         fn = new_function(runtime=function)
+        mlrun.api.launcher.ServerSideLauncher._enrich_runtime(runtime=fn)
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(

@@ -4063,6 +4063,7 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
+    # ML-3900
     def test_get_online_features_after_ingest_without_inference(self):
         feature_set = fstore.FeatureSet(
             "my-fset",

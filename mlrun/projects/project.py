@@ -2681,17 +2681,17 @@ class MlrunProject(ModelObj):
 
     def list_runs(
         self,
-        name: str = None,
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
         labels: Optional[Union[str, List[str]]] = None,
-        state: str = None,
+        state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        start_time_from: Optional[datetime.datetime] = None,
+        start_time_to: Optional[datetime.datetime] = None,
+        last_update_time_from: Optional[datetime.datetime] = None,
+        last_update_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs, filtered by various options.

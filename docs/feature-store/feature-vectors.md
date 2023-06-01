@@ -87,7 +87,8 @@ Defaults to return as a return value to the caller.
 - **engine** &mdash; processing engine kind ("local", "dask", or "spark")
 - **engine_args** &mdash; kwargs for the processing engine
 - **query** &mdash; The query string used to filter rows
-- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)
+- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)   
+
 
 You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query 
 argument on all the other features as relevant.

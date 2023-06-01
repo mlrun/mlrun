@@ -138,6 +138,73 @@ async def test_list_functions_with_hash_key_versioned(
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
+def test_delete_function_with_schedule(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    # create project and function
+    tests.api.api.utils.create_project(client, PROJECT)
+
+    function_tag = "function-tag"
+    function_name = "function-name"
+    project_name = "project-name"
+
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": function_name,
+            "project": project_name,
+            "tag": function_tag,
+        },
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    function_endpoint = f"projects/{PROJECT}/functions/{function_name}"
+    function = client.post(function_endpoint, data=mlrun.utils.dict_to_json(function))
+    hash_key = function.json()["hash_key"]
+
+    # generate schedule object that matches to the function and create it
+    scheduled_object = {
+        "task": {
+            "spec": {
+                "function": f"{PROJECT}/{function_name}@{hash_key}",
+                "handler": "handler",
+            },
+            "metadata": {"name": "my-task", "project": f"{PROJECT}"},
+        }
+    }
+    schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=1)
+
+    schedule = mlrun.common.schemas.ScheduleInput(
+        name=function_name,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object=scheduled_object,
+        cron_trigger=schedule_cron_trigger,
+    )
+
+    endpoint = f"projects/{PROJECT}/schedules"
+    response = client.post(endpoint, data=mlrun.utils.dict_to_json(schedule.dict()))
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    response = client.get(endpoint)
+    assert (
+        response.status_code == HTTPStatus.OK.value
+        and response.json()["schedules"][0]["name"] == function_name
+    )
+
+    # delete the function and assert that it has been removed, as has its schedule
+    response = client.delete(function_endpoint)
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    response = client.get(function_endpoint)
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+    response = client.get(endpoint)
+    assert (
+        response.status_code == HTTPStatus.OK.value and not response.json()["schedules"]
+    )
+
+
 @pytest.mark.asyncio
 async def test_multiple_store_function_race_condition(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient

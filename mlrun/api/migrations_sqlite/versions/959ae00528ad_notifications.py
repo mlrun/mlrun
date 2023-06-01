@@ -42,6 +42,8 @@ def upgrade():
         sa.Column("when", sa.String(length=255), nullable=False),
         sa.Column("condition", sa.String(length=255), nullable=False),
         sa.Column("params", sa.JSON(), nullable=True),
+        # A generic parent_id rather than run_id since notification table is standard across objects, see the
+        # make_notification function for its definition and usage.
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("sent_time", sa.TIMESTAMP(), nullable=True),
         sa.Column("status", sa.String(length=255), nullable=False),

@@ -138,7 +138,7 @@ class KubejobRuntime(KubeResource):
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         """
-
+        image = self._remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image,
             base_image,
@@ -248,8 +248,29 @@ class KubejobRuntime(KubeResource):
                 self.status.state = state
 
         if watch and not ready:
+            if not self.spec.build.secret and not self.spec.build.image.startswith("."):
+                warnings.warn(
+                    "Failed to deploy function, unable to push image to the specified docker registry."
+                    "If you wish to use the default configured registry, place '.' before the supplied image name,"
+                    "or, if you want to upload your image to dockerhub or another remote registry,"
+                    " please include a repository in the provided image."
+                    " make sure to provide a docker registry secret in your request if necessary."
+                )
             raise mlrun.errors.MLRunRuntimeError("Deploy failed")
         return ready
+
+
+    def _remove_image_protocol_prefix(self, image):
+        prefixes = ["https://", "https://"]
+        if any(prefix in image for prefix in prefixes):
+            image = image.removeprefix("https://").removeprefix("http://")
+            warnings.warn(
+                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+                " if you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also simply use '.' instead of the full URL). "
+                f"protocol prefix was removed, trying to push the image to: {image}"
+            )
+        return image
 
     def _build_watch(self, watch=True, logs=True, show_on_failure=False):
         db = self._get_db()

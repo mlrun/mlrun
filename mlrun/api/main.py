@@ -433,6 +433,9 @@ async def _verify_log_collection_stopped_on_startup():
             only_uids=False,
             states=mlrun.runtimes.constants.RunStates.terminal_states()
             + [
+
+                # add unknown state as well, as it's possible that the run reached such state
+                # usually it happens when run pods get preempted
                 mlrun.runtimes.constants.RunStates.unknown,
             ],
         )

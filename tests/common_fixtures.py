@@ -26,12 +26,12 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
-import mlrun.api.schemas.marketplace
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
@@ -469,14 +469,14 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
-    def list_marketplace_sources(self, item_name: str = None, tag: str = None):
-        source = mlrun.api.schemas.IndexedMarketplaceSource(
+    def list_hub_sources(self, item_name: str = None, tag: str = None):
+        source = mlrun.common.schemas.IndexedHubSource(
             index=1,
-            source=mlrun.api.schemas.MarketplaceSource(
-                metadata=mlrun.api.schemas.MarketplaceObjectMetadata(
+            source=mlrun.common.schemas.HubSource(
+                metadata=mlrun.common.schemas.HubObjectMetadata(
                     name="default", description="some description"
                 ),
-                spec=mlrun.api.schemas.MarketplaceSourceSpec(
+                spec=mlrun.common.schemas.HubSourceSpec(
                     path=mlrun.mlconf.marketplace.default_source.url,
                     channel="master",
                     object_type="functions",

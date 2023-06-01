@@ -835,7 +835,7 @@ def submit_run_sync(
             # access the db version of the function, and not the remote one (which can be changed between runs)
             if "://" in task["spec"]["function"]:
                 function_uri = fn.save(versioned=True)
-                data.pop("function_url", None)
+                data.pop("function", None)
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 

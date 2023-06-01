@@ -2146,7 +2146,7 @@ class MlrunProject(ModelObj):
     def clear_context(self):
         """delete all files and clear the context dir"""
         warnings.warn(
-            "This method deletes all files and clears the context directory or subdirectory (if defined)!"
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
             "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
             " it will be deprecated in 1.6.0."
         )
@@ -2154,17 +2154,18 @@ class MlrunProject(ModelObj):
         if self.spec.context and os.path.isabs(self.spec.context):
 
             # if a subpath is defined, will empty the subdir instead of the entire context
-            path_to_clear = (
-                path.join(self.spec.context, self.spec.subpath)
-                if self.spec.subpath
-                else self.spec.context
-            )
+            if self.spec.subpath:
+                path_to_clear = path.join(self.spec.context, self.spec.subpath)
+                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
+            else:
+                path_to_clear = self.spec.context
+                logger.info(f"Subpath is not defined, Clearing context: {path_to_clear}")
             if path.exists(path_to_clear) and path.isdir(path_to_clear):
                 shutil.rmtree(path_to_clear)
             else:
                 logger.warn(
-                    f"Attempt to clear {path} failed."
-                    f" Please ensure that your context or subdir is properly defined."
+                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
+                    " Please ensure that your context or subdpath are properly defined."
                 )
         else:
             logger.warn(

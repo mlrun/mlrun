@@ -838,7 +838,7 @@ def test_clear_context():
         assert len(w) == 2
         assert issubclass(w[-2].category, FutureWarning)
         assert (
-            "This method deletes all files and clears the context directory or subdirectory (if defined)!."
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
             "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
             " it will be deprecated in 1.6.0." in str(w[-1].message)
         )

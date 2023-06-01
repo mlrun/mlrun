@@ -431,7 +431,9 @@ async def _verify_log_collection_stopped_on_startup():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.runtimes.constants.RunStates.terminal_states() + [
+                mlrun.runtimes.constants.RunStates.unknown,
+            ],
         )
 
         if len(runs) > 0:

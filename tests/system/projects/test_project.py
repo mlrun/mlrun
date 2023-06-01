@@ -143,21 +143,26 @@ class TestProject(TestMLRunSystem):
             )
             assert len(w) == 1
             assert (
-                "There is no prefix for the image name, and no secret is provided."
-                " Try again using a prefix (use '.' for local registry), or supply a docker registry secret."
+                "Failed to deploy function,  unable to push image to the specified docker registry."
+                "If you wish to use the default configured registry, place '.' before the supplied image name,"
+                "or, if you want to upload your image to dockerhub or another remote registry,"
+                " please include a repository in the provided image."
+                " make sure to provide a docker registry secret in your request if necessary."
                 in str(w[-1].message)
             )
 
         with warnings.catch_warnings(record=True) as w:
             self.project.build_function(
                 fn,
-                image="https://docker-registry.default-tenant.app.cust-cs-il-3-5-2.iguazio-cd2.com/test/image:v3",
+                image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
                 base_image="mlrun/mlrun",
                 commands=["echo 1"],
             )
             assert len(w) == 1
             assert (
-                "The image has an unexpected protocol prefix, The prefix was removed."
+                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+                " if you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also simply use '.' instead of the full URL). "
                 in str(w[-1].message)
             )
 

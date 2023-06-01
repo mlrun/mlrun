@@ -2278,9 +2278,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
             with pytest.raises(
                 err,
-                match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
+                match="Feature set `fs1` does not have a column named `bad_ts` to filter on.",
             ):
-                resp = fstore.get_offline_features(
+                fstore.get_offline_features(
                     feature_vector=vec,
                     start_time=test_base_time - pd.Timedelta(minutes=3),
                     end_time=test_base_time,

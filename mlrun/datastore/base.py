@@ -150,6 +150,7 @@ class DataStore:
         time_column=None,
         **kwargs,
     ):
+        pd.read_parquet
         df_module = df_module or pd
         parsed_url = urllib.parse.urlparse(url)
         filepath = parsed_url.path
@@ -420,41 +421,48 @@ class DataItem:
         columns=None,
         df_module=None,
         format="",
+        time_column=None,
+        start_time=None,
+        end_time=None,
         **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
+        :param end_time:
+        :param start_time:
+        :param time_column:
         :param columns:   optional, list of columns to select
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:    file format, if not specified it will be deducted from the suffix
         """
-        if "time_column" in kwargs or "time_field" in kwargs:
-            kwargs["time_column"] = kwargs.get("time_column") or kwargs.pop(
-                "time_field", None
-            )
+
         df = self._store.as_df(
             self._url,
             self._path,
             columns=columns,
             df_module=df_module,
             format=format,
+            time_column=time_column,
+            start_time=start_time,
+            end_time=end_time,
             **kwargs,
         )
-        if self._url.endswith(".json") or format == "json":
+        if (
+            self._url.endswith(".json")
+            or format == "json"
+            or self._url.endswith(".csv")
+            or format == "csv"
+        ):
+            # for parquet file the time filtering is executed in `self._store.as_df`
             df = filter_df_start_end_time(
                 df,
                 time_column=kwargs.get("time_field"),
                 start_time=kwargs.get("start_time"),
                 end_time=kwargs.get("end_time"),
             )
+        if self._url.endswith(".json") or format == "json":
+            # for csv and parquet files the columns select is executed in `self._store.as_df`
             df = select_columns_from_df(df, columns=columns)
-        elif self._url.endswith(".csv") or format == "csv":
-            df = filter_df_start_end_time(
-                df,
-                time_column=kwargs.get("time_column"),
-                start_time=kwargs.get("start_time"),
-                end_time=kwargs.get("end_time"),
-            )
         return df
 
     def show(self, format=None):

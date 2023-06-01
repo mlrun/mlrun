@@ -73,15 +73,24 @@ class BaseSourceDriver(DataSource):
         """get storey Table object"""
         return None
 
-    def to_dataframe(self, **kwargs):
-        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
-        return mlrun.store_manager.object(url=self.path).as_df(**kwargs)
-
-    def _ingest_init_time_params_to_kwargs(self, args_dict):
-        for param in ["start_time", "end_time", "time_field"]:
-            if param not in args_dict:
-                args_dict[param] = getattr(self, param)
-        return args_dict
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        return mlrun.store_manager.object(url=self.path).as_df(
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_column or self.time_field,
+            **kwargs,
+        )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
@@ -208,16 +217,29 @@ class CSVSource(BaseSourceDriver):
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         reader_args = self.attributes.get("reader_args", {})
-        chunksize = self.attributes.get("chunksize")
-        if chunksize:
-            reader_args["chunksize"] = chunksize
         parse_dates = kwargs.pop("parse_dates", self._parse_dates)
         reader_args.update(kwargs)
-        reader_args = self._ingest_init_time_params_to_kwargs(reader_args)
         return mlrun.store_manager.object(url=self.path).as_df(
-            parse_dates=parse_dates, **reader_args
+            columns=columns,
+            df_module=df_module,
+            format="csv",
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_column or self.time_field,
+            parse_dates=parse_dates,
+            chunksize=self.attributes.get("chunksize"),
+            **reader_args,
         )
 
     def is_iterator(self):
@@ -324,12 +346,26 @@ class ParquetSource(BaseSourceDriver):
             "format": "parquet",
         }
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         reader_args = self.attributes.get("reader_args", {})
         reader_args.update(kwargs)
-        reader_args = self._ingest_init_time_params_to_kwargs(reader_args)
         return mlrun.store_manager.object(url=self.path).as_df(
-            format="parquet", **reader_args
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_column or self.time_field,
+            format="parquet",
+            **reader_args,
         )
 
 
@@ -444,11 +480,18 @@ class BigQuerySource(BaseSourceDriver):
             return credentials, gcp_project or gcp_cred_dict["project_id"]
         return None, gcp_project
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
-
-        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -491,11 +534,11 @@ class BigQuerySource(BaseSourceDriver):
             return select_columns_from_df(
                 filter_df_start_end_time(
                     rows_iterator.to_dataframe(dtypes=dtypes),
-                    time_column=kwargs.get("time_field"),
-                    start_time=kwargs.get("start_time"),
-                    end_time=kwargs.get("end_time"),
+                    time_column=time_column or self.time_field,
+                    start_time=start_time or self.start_time,
+                    end_time=end_time or self.end_time,
                 ),
-                kwargs.get("columns"),
+                columns=columns,
             )
 
     def is_iterator(self):
@@ -870,7 +913,16 @@ class KafkaSource(OnlineSource):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
         )
@@ -959,10 +1011,18 @@ class SQLSource(BaseSourceDriver):
             end_time=end_time,
         )
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
         import sqlalchemy as db
 
-        kwargs = self._ingest_init_time_params_to_kwargs(kwargs)
         query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
@@ -980,11 +1040,11 @@ class SQLSource(BaseSourceDriver):
                         params=params,
                         chunksize=self.attributes.get("chunksize"),
                         parse_dates=self.attributes.get("time_fields"),
-                        columns=kwargs.get("columns"),
+                        columns=columns,
                     ),
-                    time_column=kwargs.get("time_field"),
-                    start_time=kwargs.get("start_time"),
-                    end_time=kwargs.get("end_time"),
+                    time_column=time_column or self.time_field,
+                    start_time=start_time or self.start_time,
+                    end_time=end_time or self.end_time,
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -370,14 +370,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         # with_indexes = False, entity_timestamp_column = None
         default_df = fstore.get_offline_features(vector).to_dataframe()
-        assert isinstance(
-            default_df.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
-        assert default_df.index.name is None, "index column is not of default type"
-        assert "time" not in default_df.columns, "'time' column shouldn't be present"
-        assert (
-            "ticker" not in default_df.columns
-        ), "'ticker' column shouldn't be present"
+        assert isinstance(default_df.index, pd.core.indexes.range.RangeIndex)
+        assert default_df.index.name is None
+        assert "time" not in default_df.columns
+        assert "ticker" not in default_df.columns
 
         # with_indexes = False, entity_timestamp_column = "time"
         resp = fstore.get_offline_features(vector, entity_timestamp_column="time")
@@ -393,35 +389,21 @@ class TestFeatureStore(TestMLRunSystem):
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
         assert read_back_df.equals(df_no_time)
 
-        assert isinstance(
-            df_no_time.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
-        assert df_no_time.index.name is None, "index column is not of default type"
-        assert "time" not in df_no_time.columns, "'time' column should not be present"
-        assert (
-            "ticker" not in df_no_time.columns
-        ), "'ticker' column shouldn't be present"
-        assert (
-            "another_time" in df_no_time.columns
-        ), "'another_time' column should be present"
+        assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
+        assert df_no_time.index.name is None
+        assert "time" not in df_no_time.columns
+        assert "ticker" not in df_no_time.columns
+        assert "another_time" in df_no_time.columns
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
         df_without_time_and_indexes = fstore.get_offline_features(vector).to_dataframe()
         assert isinstance(
             df_without_time_and_indexes.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default RangeIndex"
-        assert (
-            df_without_time_and_indexes.index.name is None
-        ), "index column is not of default type"
-        assert (
-            "ticker" not in df_without_time_and_indexes.columns
-        ), "'ticker' column shouldn't be present"
-        assert (
-            "time" not in df_without_time_and_indexes.columns
-        ), "'time' column shouldn't be present"
-        assert (
-            "another_time" in df_without_time_and_indexes.columns
-        ), "'another_time' column should be present"
+        )
+        assert df_without_time_and_indexes.index.name is None
+        assert "ticker" not in df_without_time_and_indexes.columns
+        assert "time" not in df_without_time_and_indexes.columns
+        assert "another_time" in df_without_time_and_indexes.columns
 
         vector.spec.with_indexes = True
         df_with_index = fstore.get_offline_features(vector).to_dataframe()
@@ -4099,6 +4081,13 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
+        expected_df = pd.DataFrame(
+            {
+                "f1": ["a-val", "b-val"],
+                "f2": ["newest", "only-value"],
+            }
+        )
+
         fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts_l")
         fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts_r")
 
@@ -4110,8 +4099,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
         res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert res_df.shape == (2, 2)
-        assert res_df["f2"].tolist() == ["newest", "only-value"]
+        assert_frame_equal(expected_df, res_df)
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize(
@@ -4181,9 +4169,9 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             with pytest.raises(
                 mlrun.errors.MLRunInvalidArgumentError,
-                match="The fs1 feature_set doesn't have a column named bad_ts to filter on.",
+                match="Feature set `fs1` does not have a column named `bad_ts` to filter on.",
             ):
-                resp = fstore.get_offline_features(
+                fstore.get_offline_features(
                     vec,
                     start_time=test_base_time - pd.Timedelta(minutes=3),
                     end_time=test_base_time,

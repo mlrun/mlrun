@@ -2159,7 +2159,9 @@ class MlrunProject(ModelObj):
                 logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
             else:
                 path_to_clear = self.spec.context
-                logger.info(f"Subpath is not defined, Clearing context: {path_to_clear}")
+                logger.info(
+                    f"Subpath is not defined, Clearing context: {path_to_clear}"
+                )
             if path.exists(path_to_clear) and path.isdir(path_to_clear):
                 shutil.rmtree(path_to_clear)
             else:

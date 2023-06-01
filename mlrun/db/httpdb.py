@@ -560,10 +560,12 @@ class HTTPRunDB(RunDBInterface):
         start_time_from: Optional[datetime] = None,
         start_time_to: Optional[datetime] = None,
         last_update_time_from: Optional[datetime] = None,
-        last_update_time_to:  Optional[datetime] = None,
-        partition_by:  Optional[Union[mlrun.common.schemas.RunPartitionByField, str]] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by:  Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,

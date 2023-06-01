@@ -830,6 +830,15 @@ def submit_run_sync(
             schedule_labels = task["metadata"].get("labels")
             created = False
 
+            # if the function the task is pointing to is a remote function, we need to save it to the db
+            # and update the task to point to the saved function, so that the scheduler will be able to
+            # access the db version of the function, and not the remote one (which can be changed between runs)
+            if "://" in task["spec"]["function"]:
+                function_hash = fn.save(versioned=False)
+                data.update({"function": fn.to_dict()})
+                data.pop("function_url", None)
+                task["spec"]["function"] = fn._function_uri(hash_key=function_hash)
+
             try:
                 get_scheduler().update_schedule(
                     db_session,

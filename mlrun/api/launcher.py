@@ -55,7 +55,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        self.enrich_runtime(runtime, project)
+        self._enrich_runtime(runtime, project)
 
         run = self._create_run_object(task)
 
@@ -146,7 +146,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
     @staticmethod
-    def enrich_runtime(
+    def _enrich_runtime(
         runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
     ):
         """

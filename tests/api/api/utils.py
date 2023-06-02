@@ -31,16 +31,8 @@ import mlrun.errors
 PROJECT = "project-name"
 
 
-def create_project(
-    client: TestClient,
-    project_name: str = PROJECT,
-    artifact_path=None,
-    source="source",
-    load_source_on_run=False,
-):
-    project = _create_project_obj(
-        project_name, artifact_path, source, load_source_on_run
-    )
+def create_project(client: TestClient, project_name: str = PROJECT, artifact_path=None):
+    project = _create_project_obj(project_name, artifact_path)
     resp = client.post("projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
@@ -77,15 +69,12 @@ async def create_project_async(
     return resp
 
 
-def _create_project_obj(
-    project_name, artifact_path, source, load_source_on_run=False
-) -> mlrun.common.schemas.Project:
+def _create_project_obj(project_name, artifact_path) -> mlrun.common.schemas.Project:
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.common.schemas.ProjectSpec(
             description="banana",
-            source=source,
-            load_source_on_run=load_source_on_run,
+            source="source",
             goals="some goals",
             artifact_path=artifact_path,
         ),

@@ -48,7 +48,6 @@ class TestKubejobRuntime(TestRuntimeBase):
     def _generate_runtime(self) -> mlrun.runtimes.KubejobRuntime:
         runtime = mlrun.runtimes.KubejobRuntime()
         runtime.spec.image = self.image_name
-        runtime.metadata.project = self.project
         return runtime
 
     def test_run_without_runspec(self, db: Session, client: TestClient):

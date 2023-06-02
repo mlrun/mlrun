@@ -403,7 +403,7 @@ def build_image(
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Load of relative source ({source}) is not supported at build time "
+                f"Load of relative source ({source}) is not supported at build time"
                 "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
                 "'mlrun.projects.project.MlrunProject.set_source' for more details"
             )

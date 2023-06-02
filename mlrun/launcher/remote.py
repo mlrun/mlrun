@@ -57,7 +57,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> "mlrun.run.RunObject":
-        self.enrich_runtime(runtime)
+        self._enrich_runtime(runtime)
         run = self._create_run_object(task)
 
         run = self._enrich_run(

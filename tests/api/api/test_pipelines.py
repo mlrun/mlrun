@@ -24,8 +24,8 @@ import kfp_server_api.models
 import sqlalchemy.orm
 
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import tests.conftest
 
 
@@ -33,7 +33,7 @@ def test_list_pipelines_not_exploding_on_no_k8s(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     response = client.get("projects/*/pipelines")
-    expected_response = mlrun.api.schemas.PipelinesOutput(
+    expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=[], total_size=0, next_page_token=None
     )
     _assert_list_pipelines_response(expected_response, response)
@@ -47,7 +47,7 @@ def test_list_pipelines_empty_list(
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get("projects/*/pipelines")
-    expected_response = mlrun.api.schemas.PipelinesOutput(
+    expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=runs, total_size=len(runs), next_page_token=None
     )
     _assert_list_pipelines_response(expected_response, response)
@@ -59,9 +59,9 @@ def test_list_pipelines_formats(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.api.schemas.PipelinesFormat.full,
-        mlrun.api.schemas.PipelinesFormat.metadata_only,
-        mlrun.api.schemas.PipelinesFormat.name_only,
+        mlrun.common.schemas.PipelinesFormat.full,
+        mlrun.common.schemas.PipelinesFormat.metadata_only,
+        mlrun.common.schemas.PipelinesFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
         expected_runs = [run.to_dict() for run in runs]
@@ -73,7 +73,7 @@ def test_list_pipelines_formats(
             "projects/*/pipelines",
             params={"format": format_},
         )
-        expected_response = mlrun.api.schemas.PipelinesOutput(
+        expected_response = mlrun.common.schemas.PipelinesOutput(
             runs=expected_runs, total_size=len(runs), next_page_token=None
         )
         _assert_list_pipelines_response(expected_response, response)
@@ -85,10 +85,10 @@ def test_get_pipeline_formats(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.api.schemas.PipelinesFormat.full,
-        mlrun.api.schemas.PipelinesFormat.metadata_only,
-        mlrun.api.schemas.PipelinesFormat.summary,
-        mlrun.api.schemas.PipelinesFormat.name_only,
+        mlrun.common.schemas.PipelinesFormat.full,
+        mlrun.common.schemas.PipelinesFormat.metadata_only,
+        mlrun.common.schemas.PipelinesFormat.summary,
+        mlrun.common.schemas.PipelinesFormat.name_only,
     ]:
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
@@ -107,7 +107,7 @@ def test_get_pipeline_no_project_opa_validation(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    format_ = (mlrun.api.schemas.PipelinesFormat.summary,)
+    format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
     project = "project-name"
     mlrun.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
@@ -138,10 +138,10 @@ def test_get_pipeline_specific_project(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.api.schemas.PipelinesFormat.full,
-        mlrun.api.schemas.PipelinesFormat.metadata_only,
-        mlrun.api.schemas.PipelinesFormat.summary,
-        mlrun.api.schemas.PipelinesFormat.name_only,
+        mlrun.common.schemas.PipelinesFormat.full,
+        mlrun.common.schemas.PipelinesFormat.metadata_only,
+        mlrun.common.schemas.PipelinesFormat.summary,
+        mlrun.common.schemas.PipelinesFormat.name_only,
     ]:
         project = "project-name"
         api_run_detail = _generate_get_run_mock()
@@ -176,9 +176,9 @@ def test_list_pipelines_specific_project(
     )
     response = client.get(
         f"projects/{project}/pipelines",
-        params={"format": mlrun.api.schemas.PipelinesFormat.name_only},
+        params={"format": mlrun.common.schemas.PipelinesFormat.name_only},
     )
-    expected_response = mlrun.api.schemas.PipelinesOutput(
+    expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
     )
     _assert_list_pipelines_response(expected_response, response)
@@ -229,6 +229,22 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
             workflow_manifest=workflow_manifest_with_status
         ),
     )
+
+
+def test_get_pipeline_nonexistent_project(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: kfp.Client,
+) -> None:
+    format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
+    project = "n0_pr0ject"
+    api_run_detail = _generate_get_run_mock()
+    _mock_get_run(kfp_client_mock, api_run_detail)
+    response = client.get(
+        f"projects/{project}/pipelines/{api_run_detail.run.id}",
+        params={"format": format_},
+    )
+    assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
 
 def _generate_list_runs_mocks():
@@ -419,7 +435,7 @@ def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):
 
     def list_runs_mock(*args, page_token=None, page_size=None, **kwargs):
         assert expected_page_tokens.pop(0) == page_token
-        assert mlrun.api.schemas.PipelinesPagination.max_page_size == page_size
+        assert mlrun.common.schemas.PipelinesPagination.max_page_size == page_size
         return kfp_server_api.models.api_list_runs_response.ApiListRunsResponse(
             [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
         )
@@ -431,7 +447,7 @@ def _mock_list_runs(
     kfp_client_mock: kfp.Client,
     runs,
     expected_page_token="",
-    expected_page_size=mlrun.api.schemas.PipelinesPagination.default_page_size,
+    expected_page_size=mlrun.common.schemas.PipelinesPagination.default_page_size,
     expected_sort_by="",
     expected_filter="",
 ):
@@ -460,7 +476,7 @@ def _mock_get_run(
 
 
 def _assert_list_pipelines_response(
-    expected_response: mlrun.api.schemas.PipelinesOutput, response
+    expected_response: mlrun.common.schemas.PipelinesOutput, response
 ):
     assert response.status_code == http.HTTPStatus.OK.value
     assert (

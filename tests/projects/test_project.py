@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 import os
+import os.path
 import pathlib
 import shutil
 import tempfile
 import unittest.mock
+import warnings
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -61,7 +63,7 @@ def test_sync_functions(rundb_mock):
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://auto-trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -381,7 +383,7 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_func_requirements():
+def test_set_function_requirements():
     project = mlrun.projects.project.MlrunProject.from_dict(
         {
             "metadata": {
@@ -393,17 +395,59 @@ def test_set_func_requirements():
         }
     )
     project.set_function("hub://describe", "desc1", requirements=["x"])
-    assert project.get_function("desc1", enrich=True).spec.build.commands == [
-        "python -m pip install x",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc1", enrich=True).spec.build.requirements == [
+        "x",
+        "pandas>1, <3",
     ]
 
     fn = mlrun.import_function("hub://describe")
     project.set_function(fn, "desc2", requirements=["y"])
-    assert project.get_function("desc2", enrich=True).spec.build.commands == [
-        "python -m pip install y",
-        "python -m pip install 'pandas>1, <3'",
+    assert project.get_function("desc2", enrich=True).spec.build.requirements == [
+        "y",
+        "pandas>1, <3",
     ]
+
+
+def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
+    project = mlrun.projects.MlrunProject(
+        "project", default_requirements=["pandas>1, <3"]
+    )
+    func_name = "name_with_underscores"
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+
+    func = mlrun.code_to_function(
+        name=func_name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        filename=func_path,
+    )
+    # nuclio also normalizes the name, so we de-normalize the function name before storing it
+    func.metadata.name = func_name
+
+    # mock the normalize function response in order to insert a non-normalized function name to the db
+    with unittest.mock.patch("mlrun.utils.normalize_name", return_value=func_name):
+        project.set_function(name=func_name, func=func)
+
+    # getting the function using the original non-normalized name, and ensure that querying it works
+    enriched_function = project.get_function(key=func_name)
+    assert enriched_function.metadata.name == func_name
+
+    enriched_function = project.get_function(key=func_name, sync=True)
+    assert enriched_function.metadata.name == func_name
+
+    # override the function by sending an update request,
+    # a new function is created, and the old one is no longer accessible
+    normalized_function_name = mlrun.utils.normalize_name(func_name)
+    func.metadata.name = normalized_function_name
+    project.set_function(name=func_name, func=func)
+
+    # using both normalized and non-normalized names to query the function
+    enriched_function = project.get_function(key=normalized_function_name)
+    assert enriched_function.metadata.name == normalized_function_name
+
+    resp = project.get_function(key=func_name)
+    assert resp.metadata.name == normalized_function_name
 
 
 def test_set_function_underscore_name(rundb_mock):
@@ -412,7 +456,7 @@ def test_set_function_underscore_name(rundb_mock):
     )
     func_name = "name_with_underscores"
 
-    # Create a function with a name that includes underscores
+    # create a function with a name that includes underscores
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     func = mlrun.code_to_function(
         name=func_name,
@@ -423,12 +467,12 @@ def test_set_function_underscore_name(rundb_mock):
     )
     project.set_function(name=func_name, func=func)
 
-    # Attempt to get the function using the original name (with underscores) and ensure that it fails
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        project.get_function(key=func_name)
-
-    # Get the function using a normalized name and make sure it works
+    # get the function using the original name (with underscores) and ensure that it works and returns normalized name
     normalized_name = mlrun.utils.normalize_name(func_name)
+    enriched_function = project.get_function(key=func_name)
+    assert enriched_function.metadata.name == normalized_name
+
+    # get the function using a normalized name and make sure it works
     enriched_function = project.get_function(key=normalized_name)
     assert enriched_function.metadata.name == normalized_name
 
@@ -773,6 +817,44 @@ def test_project_ops():
     assert run.output("y") == 4  # = x * 2
 
 
+def test_clear_context():
+    proj = mlrun.new_project("proj", save=False)
+    proj_with_subpath = mlrun.new_project(
+        "proj",
+        subpath="test",
+        context=pathlib.Path(tests.conftest.tests_root_directory),
+        save=False,
+    )
+    subdir_path = os.path.join(
+        proj_with_subpath.spec.context, proj_with_subpath.spec.subpath
+    )
+    # when the context is relative, assert no deletion called
+    with unittest.mock.patch(
+        "shutil.rmtree", return_value=True
+    ) as rmtree, warnings.catch_warnings(record=True) as w:
+        proj.clear_context()
+        rmtree.assert_not_called()
+
+        assert len(w) == 2
+        assert issubclass(w[-2].category, FutureWarning)
+        assert (
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
+            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
+            " it will be deprecated in 1.6.0." in str(w[-1].message)
+        )
+
+    # when the context is not relative and subdir specified, assert that the subdir is deleted rather than the context
+    with unittest.mock.patch(
+        "shutil.rmtree", return_value=True
+    ) as rmtree, unittest.mock.patch(
+        "os.path.exists", return_value=True
+    ), unittest.mock.patch(
+        "os.path.isdir", return_value=True
+    ):
+        proj_with_subpath.clear_context()
+        rmtree.assert_called_once_with(subdir_path)
+
+
 @pytest.mark.parametrize(
     "parameters,hyperparameters,expectation,run_saved",
     [
@@ -849,3 +931,13 @@ def test_remove_owner_name_in_load_project_from_yaml():
     imported_project = mlrun.load_project("./", str(project_file_path), save=False)
     assert project.spec.owner == "some_owner"
     assert imported_project.spec.owner is None
+
+
+def test_set_secrets_file_not_found():
+    # Create project and generate owner name
+    project_name = "project-name"
+    file_name = ".env-test"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        project.set_secrets(file_path=file_name)
+    assert f"{file_name} does not exist" in str(excinfo.value)

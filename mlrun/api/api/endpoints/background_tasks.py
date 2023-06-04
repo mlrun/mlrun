@@ -18,10 +18,10 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
+import mlrun.common.schemas
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -29,12 +29,12 @@ router = fastapi.APIRouter()
 
 @router.get(
     "/projects/{project}/background-tasks/{name}",
-    response_model=mlrun.api.schemas.BackgroundTask,
+    response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def get_project_background_task(
     project: str,
     name: str,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
@@ -44,10 +44,10 @@ async def get_project_background_task(
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.project_background_task,
+        mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
         project,
         name,
-        mlrun.api.schemas.AuthorizationAction.read,
+        mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     return await run_in_threadpool(
@@ -60,12 +60,12 @@ async def get_project_background_task(
 
 @router.get(
     "/background-tasks/{name}",
-    response_model=mlrun.api.schemas.BackgroundTask,
+    response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def get_internal_background_task(
     name: str,
     request: fastapi.Request,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
@@ -76,14 +76,14 @@ async def get_internal_background_task(
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-            mlrun.api.schemas.AuthorizationResourceTypes.background_task,
+            mlrun.common.schemas.AuthorizationResourceTypes.background_task,
             name,
-            mlrun.api.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     if (
         mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
+        != mlrun.common.schemas.ClusterizationRole.chief
     ):
         logger.info(
             "Requesting internal background task, re-routing to chief",

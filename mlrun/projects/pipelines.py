@@ -27,7 +27,7 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -79,7 +79,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         # TODO: deprecated, remove in 1.5.0
         ttl=None,
         args_schema: dict = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
     ):
         if ttl:
@@ -116,7 +116,13 @@ class WorkflowSpec(mlrun.model.ModelObj):
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
             workflow_path = self.path or ""
-            if context and not workflow_path.startswith("/"):
+            if (
+                context
+                and not workflow_path.startswith("/")
+                # since the user may provide a path the includes the context,
+                # we need to make sure we don't add it twice
+                and not workflow_path.startswith(context)
+            ):
                 workflow_path = os.path.join(context, workflow_path)
         return workflow_path
 
@@ -279,7 +285,7 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
         return
 
@@ -405,7 +411,7 @@ def enrich_function_object(
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
             f.spec.workdir = project.spec.workdir or project.spec.subpath
-            f.verify_base_image()
+            f.prepare_image_for_deploy()
 
     if project.spec.default_requirements:
         f.with_requirements(project.spec.default_requirements)
@@ -705,7 +711,7 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -755,6 +761,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str,
         workflow_handler: str,
         namespace: str,
+        subpath: str,
     ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
         """
         Helper function for creating the runspec of the load and run function.
@@ -767,6 +774,7 @@ class _RemoteRunner(_PipelineRunner):
         :param artifact_path:       path to store artifacts
         :param workflow_handler:    workflow function handler (for running workflow function directly)
         :param namespace:           kubernetes namespace if other than default
+        :param subpath:             project subpath (within the archive)
         :return:
         """
         # Creating the load project and workflow running function:
@@ -792,6 +800,7 @@ class _RemoteRunner(_PipelineRunner):
                     "engine": workflow_spec.engine,
                     "local": workflow_spec.run_local,
                     "schedule": workflow_spec.schedule,
+                    "subpath": subpath,
                 },
                 handler="mlrun.projects.load_and_run",
             ),
@@ -840,6 +849,7 @@ class _RemoteRunner(_PipelineRunner):
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
             namespace=namespace,
+            subpath=project.spec.subpath,
         )
 
         # The returned engine for this runner is the engine of the workflow.
@@ -874,7 +884,8 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                "error",
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
@@ -967,7 +978,7 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
-    schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
 ):
     """
@@ -1033,7 +1044,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.api.schemas.NotificationSeverity.ERROR,
+                    severity=mlrun.common.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:

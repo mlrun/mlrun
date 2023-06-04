@@ -12,15 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-def secret_test_function(context, secrets: list = []):
+
+
+def secret_test_function(context, secrets: list = None):
     """Validate that given secrets exists
 
     :param context: the MLRun context
     :param secrets: name of the secrets that we want to look at
     """
     context.logger.info("running function")
+    secrets = secrets or []
     for sec_name in secrets:
         sec_value = context.get_secret(sec_name)
         context.logger.info("Secret: {} ==> {}".format(sec_name, sec_value))
         context.log_result(sec_name, sec_value)
+    return True
+
+
+def log_artifact_test_function(context, body_size: int = 1000, inline: bool = True):
+    """Logs artifact given its event body
+    :param context: the MLRun context
+    :param body_size: size of the artifact body
+    :param inline: whether to log the artifact body inline or not
+    """
+    context.logger.info("running function")
+    body = b"a" * body_size
+    context.log_artifact("test", body=body, is_inline=inline)
+    context.logger.info("run complete!", body_len=len(body))
     return True

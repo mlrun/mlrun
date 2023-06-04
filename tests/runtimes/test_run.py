@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 import copy
+import pathlib
 
+import pytest
 from deepdiff import DeepDiff
 
 import mlrun
@@ -44,7 +46,7 @@ def _get_runtime():
             "volume_mounts": [],
             "env": [],
             "description": "",
-            "build": {"commands": []},
+            "build": {"commands": [], "requirements": []},
             "affinity": None,
             "disable_auto_mount": False,
             "priority_class_name": "",
@@ -312,3 +314,22 @@ def test_new_function_invalid_characters():
     invalid_function_name = "invalid_name with_spaces"
     function = mlrun.new_function(name=invalid_function_name, runtime=runtime)
     assert function.metadata.name == "invalid-name-with-spaces"
+
+
+def test_set_envs():
+    assets_path = pathlib.Path(__file__).parent.parent / "assets"
+    env_path = str(assets_path / "envfile")
+    runtime = _get_runtime()
+    function = mlrun.new_function(runtime=runtime)
+    function.set_envs(file_path=env_path)
+    assert function.get_env("ENV_ARG1") == "123"
+    assert function.get_env("ENV_ARG2") == "abc"
+
+
+def test_set_envs_file_not_find():
+    runtime = _get_runtime()
+    function = mlrun.new_function(runtime=runtime)
+    file_name = ".env-test"
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        function.set_envs(file_path=file_name)
+    assert f"{file_name} does not exist" in str(excinfo.value)

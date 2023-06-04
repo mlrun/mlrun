@@ -28,7 +28,8 @@ import v3io.dataplane
 import v3io_frames
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.model_monitoring
+import mlrun.common.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
@@ -495,8 +496,6 @@ class BatchProcessor:
         self,
         context: mlrun.run.MLClientCtx,
         project: str,
-        model_monitoring_access_key: str,
-        v3io_access_key: str,
     ):
 
         """
@@ -504,60 +503,16 @@ class BatchProcessor:
 
         :param context:                     An MLRun context.
         :param project:                     Project name.
-        :param model_monitoring_access_key: Access key to apply the model monitoring process.
-        :param v3io_access_key:             Token key for v3io.
         """
         self.context = context
         self.project = project
 
-        self.v3io_access_key = v3io_access_key
-        self.model_monitoring_access_key = (
-            model_monitoring_access_key or v3io_access_key
-        )
-
         # Initialize virtual drift object
         self.virtual_drift = VirtualDrift(inf_capping=10)
-
-        # Define the required paths for the project objects.
-        # Note that the kv table, tsdb, and the input stream paths are located at the default location
-        # while the parquet path is located at the user-space location
-        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
-        kv_path = template.format(project=self.project, kind="endpoints")
-        (
-            _,
-            self.kv_container,
-            self.kv_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
-        tsdb_path = template.format(project=project, kind="events")
-        (
-            _,
-            self.tsdb_container,
-            self.tsdb_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
-        stream_path = template.format(project=self.project, kind="log_stream")
-        (
-            _,
-            self.stream_container,
-            self.stream_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
-        self.parquet_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                project=project, kind="parquet"
-            )
-        )
 
         logger.info(
             "Initializing BatchProcessor",
             project=project,
-            model_monitoring_access_key_initalized=bool(model_monitoring_access_key),
-            v3io_access_key_initialized=bool(v3io_access_key),
-            parquet_path=self.parquet_path,
-            kv_container=self.kv_container,
-            kv_path=self.kv_path,
-            tsdb_container=self.tsdb_container,
-            tsdb_path=self.tsdb_path,
-            stream_container=self.stream_container,
-            stream_path=self.stream_path,
         )
 
         # Get drift thresholds from the model monitoring configuration
@@ -569,10 +524,55 @@ class BatchProcessor:
         )
 
         # Get a runtime database
-        # self.db = mlrun.get_run_db()
+
         self.db = mlrun.model_monitoring.stores.get_model_endpoint_store(
             project=project
         )
+
+        if not mlrun.mlconf.is_ce_mode():
+            # TODO: Once there is a time series DB alternative in a non-CE deployment, we need to update this if
+            #  statement to be applied only for V3IO TSDB
+            self._initialize_v3io_configurations()
+
+        # If an error occurs, it will be raised using the following argument
+        self.exception = None
+
+        # Get the batch interval range
+        self.batch_dict = context.parameters[
+            mlrun.common.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+        ]
+
+        # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
+        # Convert batch dict string into a dictionary
+        if isinstance(self.batch_dict, str):
+            self._parse_batch_dict_str()
+
+    def _initialize_v3io_configurations(self):
+        self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
+        self.model_monitoring_access_key = (
+            os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
+        )
+
+        # Define the required paths for the project objects
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mlrun.common.model_monitoring.FileTargetKind.EVENTS,
+        )
+        (
+            _,
+            self.tsdb_container,
+            self.tsdb_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+        # stream_path = template.format(project=self.project, kind="log_stream")
+        stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mlrun.common.model_monitoring.FileTargetKind.LOG_STREAM,
+        )
+        (
+            _,
+            self.stream_container,
+            self.stream_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
 
         # Get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
@@ -585,35 +585,26 @@ class BatchProcessor:
             token=self.v3io_access_key,
         )
 
-        # If an error occurs, it will be raised using the following argument
-        self.exception = None
-
-        # Get the batch interval range
-        self.batch_dict = context.parameters[
-            mlrun.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
-        ]
-
-        # TODO: This will be removed in 1.2.0 once the job params can be parsed with different types
-        # Convert batch dict string into a dictionary
-        if isinstance(self.batch_dict, str):
-            self._parse_batch_dict_str()
-
     def post_init(self):
         """
         Preprocess of the batch processing.
         """
 
-        # create v3io stream based on the input stream
-        response = self.v3io.create_stream(
-            container=self.stream_container,
-            path=self.stream_path,
-            shard_count=1,
-            raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=self.v3io_access_key,
-        )
+        if not mlrun.mlconf.is_ce_mode():
+            # Create v3io stream based on the input stream
+            response = self.v3io.create_stream(
+                container=self.stream_container,
+                path=self.stream_path,
+                shard_count=1,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=self.v3io_access_key,
+            )
 
-        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-            response.raise_for_status([409, 204, 403])
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204, 403])
+        pass
 
     def run(self):
         """
@@ -628,18 +619,24 @@ class BatchProcessor:
 
         for endpoint in endpoints:
             if (
-                endpoint[mlrun.model_monitoring.EventFieldType.ACTIVE]
-                and endpoint[mlrun.model_monitoring.EventFieldType.MONITORING_MODE]
-                == mlrun.model_monitoring.ModelMonitoringMode.enabled.value
+                endpoint[mlrun.common.model_monitoring.EventFieldType.ACTIVE]
+                and endpoint[
+                    mlrun.common.model_monitoring.EventFieldType.MONITORING_MODE
+                ]
+                == mlrun.common.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 # Skip router endpoint:
                 if (
-                    int(endpoint[mlrun.model_monitoring.EventFieldType.ENDPOINT_TYPE])
-                    == mlrun.model_monitoring.EndpointType.ROUTER
+                    int(
+                        endpoint[
+                            mlrun.common.model_monitoring.EventFieldType.ENDPOINT_TYPE
+                        ]
+                    )
+                    == mlrun.common.model_monitoring.EndpointType.ROUTER
                 ):
                     # Router endpoint has no feature stats
                     logger.info(
-                        f"{endpoint[mlrun.model_monitoring.EventFieldType.UID]} is router skipping"
+                        f"{endpoint[mlrun.common.model_monitoring.EventFieldType.UID]} is router skipping"
                     )
                     continue
                 self.update_drift_metrics(endpoint=endpoint)
@@ -653,32 +650,34 @@ class BatchProcessor:
                 _,
                 _,
             ) = mlrun.utils.helpers.parse_versioned_object_uri(
-                endpoint[mlrun.model_monitoring.EventFieldType.FUNCTION_URI]
+                endpoint[mlrun.common.model_monitoring.EventFieldType.FUNCTION_URI]
             )
 
-            model_name = endpoint[mlrun.model_monitoring.EventFieldType.MODEL].replace(
-                ":", "-"
-            )
+            model_name = endpoint[
+                mlrun.common.model_monitoring.EventFieldType.MODEL
+            ].replace(":", "-")
 
             m_fs = fstore.get_feature_set(
                 f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
             )
 
             # Getting batch interval start time and end time
-            start_time, end_time = self.get_interval_range()
+            start_time, end_time = self._get_interval_range()
 
             try:
                 df = m_fs.to_dataframe(
                     start_time=start_time,
                     end_time=end_time,
-                    time_column="timestamp",
+                    time_column=mlrun.common.model_monitoring.EventFieldType.TIMESTAMP,
                 )
 
                 if len(df) == 0:
                     logger.warn(
                         "Not enough model events since the beginning of the batch interval",
                         parquet_target=m_fs.status.targets[0].path,
-                        endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                        endpoint=endpoint[
+                            mlrun.common.model_monitoring.EventFieldType.UID
+                        ],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         start_time=str(
                             datetime.datetime.now() - datetime.timedelta(hours=1)
@@ -695,7 +694,7 @@ class BatchProcessor:
                 logger.warn(
                     "Parquet not found, probably due to not enough model events",
                     parquet_target=m_fs.status.targets[0].path,
-                    endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                    endpoint=endpoint[mlrun.common.model_monitoring.EventFieldType.UID],
                     min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                 )
                 return
@@ -704,18 +703,21 @@ class BatchProcessor:
             feature_names = [
                 feature_name["name"] for feature_name in m_fs.spec.features.to_dict()
             ]
+
             # Create DataFrame based on the input features
             stats_columns = [
-                "timestamp",
+                mlrun.common.model_monitoring.EventFieldType.TIMESTAMP,
                 *feature_names,
             ]
+
             # Add label names if provided
-            if endpoint[mlrun.model_monitoring.EventFieldType.LABEL_NAMES]:
-                labels = endpoint[mlrun.model_monitoring.EventFieldType.LABEL_NAMES]
+            if endpoint[mlrun.common.model_monitoring.EventFieldType.LABEL_NAMES]:
+                labels = endpoint[
+                    mlrun.common.model_monitoring.EventFieldType.LABEL_NAMES
+                ]
                 if isinstance(labels, str):
                     labels = json.loads(labels)
                 stats_columns.extend(labels)
-
             named_features_df = df[stats_columns].copy()
 
             # Infer feature set stats and schema
@@ -729,11 +731,13 @@ class BatchProcessor:
             m_fs.save()
 
             # Get the timestamp of the latest request:
-            timestamp = df["timestamp"].iloc[-1]
+            timestamp = df[mlrun.common.model_monitoring.EventFieldType.TIMESTAMP].iloc[
+                -1
+            ]
 
             # Get the feature stats from the model endpoint for reference data
             feature_stats = json.loads(
-                endpoint[mlrun.model_monitoring.EventFieldType.FEATURE_STATS]
+                endpoint[mlrun.common.model_monitoring.EventFieldType.FEATURE_STATS]
             )
 
             # Get the current stats:
@@ -754,7 +758,7 @@ class BatchProcessor:
             monitor_configuration = (
                 json.loads(
                     endpoint[
-                        mlrun.model_monitoring.EventFieldType.MONITOR_CONFIGURATION
+                        mlrun.common.model_monitoring.EventFieldType.MONITOR_CONFIGURATION
                     ]
                 )
                 or {}
@@ -774,34 +778,10 @@ class BatchProcessor:
             )
             logger.info(
                 "Drift status",
-                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                endpoint_id=endpoint[mlrun.common.model_monitoring.EventFieldType.UID],
                 drift_status=drift_status.value,
                 drift_measure=drift_measure,
             )
-
-            # If drift was detected, add the results to the input stream
-            if (
-                drift_status == DriftStatus.POSSIBLE_DRIFT
-                or drift_status == DriftStatus.DRIFT_DETECTED
-            ):
-                self.v3io.stream.put_records(
-                    container=self.stream_container,
-                    stream_path=self.stream_path,
-                    records=[
-                        {
-                            "data": json.dumps(
-                                {
-                                    "endpoint_id": endpoint[
-                                        mlrun.model_monitoring.EventFieldType.UID
-                                    ],
-                                    "drift_status": drift_status.value,
-                                    "drift_measure": drift_measure,
-                                    "drift_per_feature": {**drift_result},
-                                }
-                            )
-                        }
-                    ],
-                )
 
             attributes = {
                 "current_stats": json.dumps(current_stats),
@@ -810,55 +790,40 @@ class BatchProcessor:
             }
 
             self.db.update_model_endpoint(
-                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                endpoint_id=endpoint[mlrun.common.model_monitoring.EventFieldType.UID],
                 attributes=attributes,
             )
 
-            # Update the results in tsdb:
-            tsdb_drift_measures = {
-                "endpoint_id": endpoint[mlrun.model_monitoring.EventFieldType.UID],
-                "timestamp": pd.to_datetime(
-                    timestamp,
-                    format=mlrun.model_monitoring.EventFieldType.TIME_FORMAT,
-                ),
-                "record_type": "drift_measures",
-                "tvd_mean": drift_result["tvd_mean"],
-                "kld_mean": drift_result["kld_mean"],
-                "hellinger_mean": drift_result["hellinger_mean"],
-            }
-
-            try:
-                self.frames.write(
-                    backend="tsdb",
-                    table=self.tsdb_path,
-                    dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
-                    index_cols=["timestamp", "endpoint_id", "record_type"],
+            if not mlrun.mlconf.is_ce_mode():
+                # Update drift results in TSDB
+                self._update_drift_in_input_stream(
+                    endpoint_id=endpoint[
+                        mlrun.common.model_monitoring.EventFieldType.UID
+                    ],
+                    drift_status=drift_status,
+                    drift_measure=drift_measure,
+                    drift_result=drift_result,
+                    timestamp=timestamp,
                 )
-            except v3io_frames.errors.Error as err:
-                logger.warn(
-                    "Could not write drift measures to TSDB",
-                    err=err,
-                    tsdb_path=self.tsdb_path,
-                    endpoint=endpoint[mlrun.model_monitoring.EventFieldType.UID],
+                logger.info(
+                    "Done updating drift measures",
+                    endpoint_id=endpoint[
+                        mlrun.common.model_monitoring.EventFieldType.UID
+                    ],
                 )
-
-            logger.info(
-                "Done updating drift measures",
-                endpoint_id=endpoint[mlrun.model_monitoring.EventFieldType.UID],
-            )
 
         except Exception as e:
             logger.error(
-                f"Exception for endpoint {endpoint[mlrun.model_monitoring.EventFieldType.UID]}"
+                f"Exception for endpoint {endpoint[mlrun.common.model_monitoring.EventFieldType.UID]}"
             )
             self.exception = e
 
-    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+    def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            self.batch_dict[mlrun.model_monitoring.EventFieldType.MINUTES],
-            self.batch_dict[mlrun.model_monitoring.EventFieldType.HOURS],
-            self.batch_dict[mlrun.model_monitoring.EventFieldType.DAYS],
+            self.batch_dict[mlrun.common.model_monitoring.EventFieldType.MINUTES],
+            self.batch_dict[mlrun.common.model_monitoring.EventFieldType.HOURS],
+            self.batch_dict[mlrun.common.model_monitoring.EventFieldType.DAYS],
         )
         start_time = datetime.datetime.now() - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
@@ -878,15 +843,79 @@ class BatchProcessor:
             pair_list = pair.split(":")
             self.batch_dict[pair_list[0]] = float(pair_list[1])
 
+    def _update_drift_in_input_stream(
+        self,
+        endpoint_id: str,
+        drift_status: DriftStatus,
+        drift_measure: float,
+        drift_result: Dict[str, Dict[str, Any]],
+        timestamp: pd._libs.tslibs.timestamps.Timestamp,
+    ):
+        """Update drift results in input stream.
+
+        :param endpoint_id:   The unique id of the model endpoint.
+        :param drift_status:  Drift status result. Possible values can be found under DriftStatus enum class.
+        :param drift_measure: The drift result (float) based on the mean of the Total Variance Distance and the
+                              Hellinger distance.
+        :param drift_result:  A dictionary that includes the drift results for each feature.
+        :param timestamp:     Pandas Timestamp value.
+
+        """
+
+        if (
+            drift_status == DriftStatus.POSSIBLE_DRIFT
+            or drift_status == DriftStatus.DRIFT_DETECTED
+        ):
+            self.v3io.stream.put_records(
+                container=self.stream_container,
+                stream_path=self.stream_path,
+                records=[
+                    {
+                        "data": json.dumps(
+                            {
+                                "endpoint_id": endpoint_id,
+                                "drift_status": drift_status.value,
+                                "drift_measure": drift_measure,
+                                "drift_per_feature": {**drift_result},
+                            }
+                        )
+                    }
+                ],
+            )
+
+        # Update the results in tsdb:
+        tsdb_drift_measures = {
+            "endpoint_id": endpoint_id,
+            "timestamp": pd.to_datetime(
+                timestamp,
+                format=mlrun.common.model_monitoring.EventFieldType.TIME_FORMAT,
+            ),
+            "record_type": "drift_measures",
+            "tvd_mean": drift_result["tvd_mean"],
+            "kld_mean": drift_result["kld_mean"],
+            "hellinger_mean": drift_result["hellinger_mean"],
+        }
+
+        try:
+            self.frames.write(
+                backend="tsdb",
+                table=self.tsdb_path,
+                dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                index_cols=["timestamp", "endpoint_id", "record_type"],
+            )
+        except v3io_frames.errors.Error as err:
+            logger.warn(
+                "Could not write drift measures to TSDB",
+                err=err,
+                tsdb_path=self.tsdb_path,
+                endpoint=endpoint_id,
+            )
+
 
 def handler(context: mlrun.run.MLClientCtx):
     batch_processor = BatchProcessor(
         context=context,
         project=context.project,
-        model_monitoring_access_key=os.environ.get(
-            mlrun.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-        ),
-        v3io_access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
     batch_processor.post_init()
     batch_processor.run()

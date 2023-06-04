@@ -18,10 +18,10 @@ import warnings
 from typing import Union
 
 import mlrun
+import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.model
-import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
-from mlrun.api.schemas.schedule import ScheduleCronTrigger
+from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.config import is_running_as_api
 
 
@@ -44,7 +44,7 @@ def set_project_model_monitoring_credentials(access_key: str, project: str = Non
     """
     mlrun.get_run_db().create_project_secrets(
         project=project or mlrun.mlconf.default_project,
-        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+        provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         secrets={model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key},
     )
 
@@ -133,12 +133,12 @@ def get_connection_string(project: str = None):
     if is_running_as_api():
         # Running on API server side
         import mlrun.api.crud.secrets
-        import mlrun.api.schemas
+        import mlrun.common.schemas
 
         return (
             mlrun.api.crud.secrets.Secrets().get_project_secret(
                 project=project,
-                provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
+                provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
                 allow_secrets_from_k8s=True,
                 secret_key=model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
             )
@@ -156,11 +156,60 @@ def get_connection_string(project: str = None):
         )
 
 
-def validate_errors_and_metrics(endpoint: dict):
-    """
-    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
+def get_stream_path(project: str = None):
+    # TODO: This function (as well as other methods in this file) includes both client and server side code. We will
+    #  need to refactor and adjust this file in the future.
+    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
 
-    Leaving here for backwards compatibility which related to the model endpoint schema
+    if is_running_as_api():
+        # Running on API server side
+        import mlrun.api.crud.secrets
+        import mlrun.common.schemas
+
+        stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
+            project=project,
+            provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+            allow_secrets_from_k8s=True,
+            secret_key=model_monitoring_constants.ProjectSecretKeys.STREAM_PATH,
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    else:
+        import mlrun
+
+        stream_uri = mlrun.get_secret_or_env(
+            model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+        ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=model_monitoring_constants.FileTargetKind.STREAM,
+            target="online",
+        )
+
+    if stream_uri.startswith("kafka://"):
+        if "?topic" in stream_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Custom kafka topic is not allowed"
+            )
+        # Add topic to stream kafka uri
+        stream_uri += f"?topic=monitoring_stream_{project}"
+
+    elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
+        # V3IO is not supported in CE mode, generating a default http stream path
+        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+
+    return stream_uri
+
+
+def validate_old_schema_fields(endpoint: dict):
+    """
+    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0.
+    In addition, this function also validates that the key name of the endpoint unique id is `uid` and not
+     `endpoint_id` that has been used before 1.3.0.
+
+    Leaving here for backwards compatibility which related to the model endpoint schema.
 
     :param endpoint: An endpoint flattened dictionary.
     """
@@ -171,7 +220,11 @@ def validate_errors_and_metrics(endpoint: dict):
     )
 
     # Validate default value for `error_count`
-    if endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null":
+    # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
+    if (
+        model_monitoring_constants.EventFieldType.ERROR_COUNT in endpoint
+        and endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null"
+    ):
         endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
 
     # Validate default value for `metrics`
@@ -188,3 +241,9 @@ def validate_errors_and_metrics(endpoint: dict):
                 }
             }
         )
+    # Validate key `uid` instead of `endpoint_id`
+    # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
+    if model_monitoring_constants.EventFieldType.ENDPOINT_ID in endpoint:
+        endpoint[model_monitoring_constants.EventFieldType.UID] = endpoint[
+            model_monitoring_constants.EventFieldType.ENDPOINT_ID
+        ]

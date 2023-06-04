@@ -217,6 +217,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
+        # _is_run_local is set when the user specifies local=True in run()
+        # in this case we don't want to extract the source code and contaminate the user's local dir
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
@@ -392,6 +394,11 @@ def run_exec(cmd, args, env=None, cwd=None):
 
         stderr_consumer_thread.join()
         err = stderr.getvalue()
+
+    # if we return anything for err, the caller will assume that the process failed
+    code = process.poll()
+    err = "" if code == 0 else err
+
     return out, err
 
 
@@ -471,6 +478,18 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
     kwargs = {}
     args = inspect.signature(handler).parameters
 
+    def _get_input_value(input_key: str):
+        input_obj = context.get_input(input_key, inputs[input_key])
+        # If there is no type hint annotation but there is a default value and its type is string, point the data
+        # item to local downloaded file path (`local()` returns the downloaded temp path string):
+        if (
+                args[input_key].annotation is inspect.Parameter.empty
+                and type(args[input_key].default) is str
+        ):
+            kwargs[input_key] = input_obj.local()
+        else:
+            kwargs[input_key] = input_obj
+
     for key in args.keys():
         if key == "context":
             kwargs[key] = context
@@ -479,14 +498,23 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in params:
             kwargs[key] = copy(params[key])
         elif key in inputs:
-            obj = context.get_input(key, inputs[key])
-            # If there is no type hint annotation but there is a default value and its type is string, point the data
-            # item to local downloaded file path (`local()` returns the downloaded temp path string):
-            if (
-                args[key].annotation is inspect.Parameter.empty
-                and type(args[key].default) is str
-            ):
-                kwargs[key] = obj.local()
-            else:
-                kwargs[key] = context.get_input(key, inputs[key])
+            kwargs[key] = _get_input_value(key)
+
+    list_of_params = list(args.values())
+    if len(list_of_params) == 0:
+        return kwargs
+
+    # get the last parameter, as **kwargs can only be last in the function's parameters list
+    last_param = list_of_params[-1]
+    # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
+    # This corresponds to a **kwargs parameter in a Python function definition.
+    if last_param.kind == last_param.VAR_KEYWORD:
+        # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
+        # as part of the previous loop which handled all parameters which were explicitly defined in the handler
+        for key in params:
+            if key not in kwargs:
+                kwargs[key] = copy(params[key])
+        for key in inputs:
+            if key not in kwargs:
+                kwargs[key] = _get_input_value(key)
     return kwargs

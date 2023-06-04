@@ -16,6 +16,8 @@ from datetime import datetime
 from os import environ
 
 import numpy as np
+import pytz
+from pyspark.sql.functions import to_utc_timestamp
 from pyspark.sql.types import BooleanType, DoubleType, TimestampType
 
 from mlrun.utils import logger
@@ -143,6 +145,9 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         is_timestamp = isinstance(field.dataType, TimestampType)
         is_boolean = isinstance(field.dataType, BooleanType)
         if is_timestamp:
+            df_after_type_casts = df_after_type_casts.withColumn(
+                field.name, to_utc_timestamp(df_after_type_casts[field.name], "UTC")
+            )
             timestamp_columns.add(field.name)
         if is_boolean:
             boolean_columns.add(field.name)
@@ -210,11 +215,13 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         if col in timestamp_columns:
             for stat, val in stats.items():
                 if stat == "mean" or stat in original_type_stats:
-                    stats[stat] = datetime.fromtimestamp(val).isoformat()
+                    stats[stat] = datetime.fromtimestamp(val, tz=pytz.UTC).isoformat()
                 elif stat == "hist":
                     values = stats[stat][1]
                     for i in range(len(values)):
-                        values[i] = datetime.fromtimestamp(values[i]).isoformat()
+                        values[i] = datetime.fromtimestamp(
+                            values[i], tz=pytz.UTC
+                        ).isoformat()
         # for boolean values, keep mean and histogram values numeric (0 to 1 representation)
         if col in boolean_columns:
             for stat, val in stats.items():

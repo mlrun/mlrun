@@ -17,10 +17,10 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
@@ -37,7 +37,7 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         versioned: bool = False,
-        auth_info: mlrun.api.schemas.AuthInfo = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
         if auth_info:

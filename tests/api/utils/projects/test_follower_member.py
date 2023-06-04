@@ -22,11 +22,11 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import tests.api.conftest
@@ -63,25 +63,25 @@ def test_sync_projects(
 ):
     project_nothing_changed = _generate_project(name="project-nothing-changed")
     project_in_creation = _generate_project(
-        name="project-in-creation", state=mlrun.api.schemas.ProjectState.creating
+        name="project-in-creation", state=mlrun.common.schemas.ProjectState.creating
     )
     project_in_deletion = _generate_project(
-        name="project-in-deletion", state=mlrun.api.schemas.ProjectState.deleting
+        name="project-in-deletion", state=mlrun.common.schemas.ProjectState.deleting
     )
     project_will_be_in_deleting = _generate_project(
         name="project-will-be-in-deleting",
-        state=mlrun.api.schemas.ProjectState.creating,
+        state=mlrun.common.schemas.ProjectState.creating,
     )
     project_moved_to_deletion = _generate_project(
         name=project_will_be_in_deleting.metadata.name,
-        state=mlrun.api.schemas.ProjectState.deleting,
+        state=mlrun.common.schemas.ProjectState.deleting,
     )
     project_will_be_offline = _generate_project(
-        name="project-will-be-offline", state=mlrun.api.schemas.ProjectState.online
+        name="project-will-be-offline", state=mlrun.common.schemas.ProjectState.online
     )
     project_offline = _generate_project(
         name=project_will_be_offline.metadata.name,
-        state=mlrun.api.schemas.ProjectState.offline,
+        state=mlrun.common.schemas.ProjectState.offline,
     )
     project_only_in_db = _generate_project(name="only-in-db")
     for _project in [
@@ -197,7 +197,7 @@ def test_patch_project(
         db, project.metadata.name, {"spec": {"description": patched_description}}
     )
     expected_patched_project = _generate_project(description=patched_description)
-    expected_patched_project.status.state = mlrun.api.schemas.ProjectState.online
+    expected_patched_project.status.state = mlrun.common.schemas.ProjectState.online
     _assert_projects_equal(expected_patched_project, patched_project)
     _assert_project_in_follower(db, projects_follower, expected_patched_project)
 
@@ -274,8 +274,8 @@ def test_list_project(
     project = _generate_project(name="name-1", owner=owner)
     archived_project = _generate_project(
         name="name-2",
-        desired_state=mlrun.api.schemas.ProjectDesiredState.archived,
-        state=mlrun.api.schemas.ProjectState.archived,
+        desired_state=mlrun.common.schemas.ProjectDesiredState.archived,
+        state=mlrun.common.schemas.ProjectState.archived,
         owner=owner,
     )
     label_key = "key"
@@ -283,8 +283,8 @@ def test_list_project(
     labeled_project = _generate_project(name="name-3", labels={label_key: label_value})
     archived_and_labeled_project = _generate_project(
         name="name-4",
-        desired_state=mlrun.api.schemas.ProjectDesiredState.archived,
-        state=mlrun.api.schemas.ProjectState.archived,
+        desired_state=mlrun.common.schemas.ProjectDesiredState.archived,
+        state=mlrun.common.schemas.ProjectState.archived,
         labels={label_key: label_value},
     )
     all_projects = {
@@ -309,7 +309,7 @@ def test_list_project(
         db,
         projects_follower,
         [archived_project, archived_and_labeled_project],
-        state=mlrun.api.schemas.ProjectState.archived,
+        state=mlrun.common.schemas.ProjectState.archived,
     )
 
     # list by owner
@@ -373,7 +373,7 @@ def test_list_project(
         db,
         projects_follower,
         [archived_and_labeled_project],
-        state=mlrun.api.schemas.ProjectState.archived,
+        state=mlrun.common.schemas.ProjectState.archived,
         labels=[f"{label_key}={label_value}", label_key],
     )
 
@@ -385,7 +385,7 @@ async def test_list_project_summaries(
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project(name="name-1")
-    project_summary = mlrun.api.schemas.ProjectSummary(
+    project_summary = mlrun.common.schemas.ProjectSummary(
         name=project.metadata.name,
         files_count=4,
         feature_sets_count=5,
@@ -423,7 +423,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     project_name = "project-name"
     _generate_project(name=project_name)
     mlrun.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
-        return_value=mlrun.api.schemas.ProjectsOutput(projects=[project_name])
+        return_value=mlrun.common.schemas.ProjectsOutput(projects=[project_name])
     )
     mlrun.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunNotFoundError("not found")
@@ -446,12 +446,12 @@ def test_list_project_leader_format(
 ):
     project = _generate_project(name="name-1")
     mlrun.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
-        return_value=mlrun.api.schemas.ProjectsOutput(projects=[project])
+        return_value=mlrun.common.schemas.ProjectsOutput(projects=[project])
     )
     projects = projects_follower.list_projects(
         db,
-        format_=mlrun.api.schemas.ProjectsFormat.leader,
-        projects_role=mlrun.api.schemas.ProjectsRole.nop,
+        format_=mlrun.common.schemas.ProjectsFormat.leader,
+        projects_role=mlrun.common.schemas.ProjectsRole.nop,
     )
     assert (
         deepdiff.DeepDiff(
@@ -466,7 +466,7 @@ def test_list_project_leader_format(
 def _assert_list_projects(
     db_session: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
-    expected_projects: typing.List[mlrun.api.schemas.Project],
+    expected_projects: typing.List[mlrun.common.schemas.Project],
     **kwargs,
 ):
     projects = projects_follower.list_projects(db_session, **kwargs)
@@ -479,7 +479,7 @@ def _assert_list_projects(
 
     # assert again - with name only format
     projects = projects_follower.list_projects(
-        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only, **kwargs
+        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only, **kwargs
     )
     assert len(projects.projects) == len(expected_projects)
     assert (
@@ -495,19 +495,19 @@ def _assert_list_projects(
 def _generate_project(
     name="project-name",
     description="some description",
-    desired_state=mlrun.api.schemas.ProjectDesiredState.online,
-    state=mlrun.api.schemas.ProjectState.online,
+    desired_state=mlrun.common.schemas.ProjectDesiredState.online,
+    state=mlrun.common.schemas.ProjectState.online,
     labels: typing.Optional[dict] = None,
     owner="some-owner",
 ):
-    return mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=name, labels=labels),
-        spec=mlrun.api.schemas.ProjectSpec(
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name, labels=labels),
+        spec=mlrun.common.schemas.ProjectSpec(
             description=description,
             desired_state=desired_state,
             owner=owner,
         ),
-        status=mlrun.api.schemas.ProjectStatus(
+        status=mlrun.common.schemas.ProjectStatus(
             state=state,
         ),
     )
@@ -523,9 +523,9 @@ def _assert_projects_equal(project_1, project_2):
         )
         == {}
     )
-    assert mlrun.api.schemas.ProjectState(
+    assert mlrun.common.schemas.ProjectState(
         project_1.status.state
-    ) == mlrun.api.schemas.ProjectState(project_2.status.state)
+    ) == mlrun.common.schemas.ProjectState(project_2.status.state)
 
 
 def _assert_project_not_in_follower(
@@ -540,7 +540,7 @@ def _assert_project_not_in_follower(
 def _assert_project_in_follower(
     db_session: sqlalchemy.orm.Session,
     projects_follower: mlrun.api.utils.projects.follower.Member,
-    project: mlrun.api.schemas.Project,
+    project: mlrun.common.schemas.Project,
 ):
     follower_project = projects_follower.get_project(db_session, project.metadata.name)
     _assert_projects_equal(project, follower_project)

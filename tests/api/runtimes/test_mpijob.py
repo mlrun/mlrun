@@ -15,11 +15,14 @@
 import typing
 import unittest.mock
 
+from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
+from sqlalchemy.orm import Session
 
+import mlrun.api.utils.builder
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
-from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -31,21 +34,25 @@ class TestMpiV1Runtime(TestRuntimeBase):
         self.name = "test-mpi-v1"
         mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
 
-    def test_run_v1_sanity(self):
-        self._mock_list_pods()
-        self._mock_create_namespaced_custom_object()
-        self._mock_get_namespaced_custom_object()
-        mpijob_function = self._generate_runtime(self.runtime_kind)
-        mpijob_function.deploy()
-        run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
-            watch=False,
-        )
+    def test_run_v1_sanity(self, db: Session, client: TestClient):
+        mlconf.httpdb.builder.docker_registry = "localhost:5000"
+        with unittest.mock.patch(
+            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
+            self._mock_list_pods()
+            self._mock_create_namespaced_custom_object()
+            self._mock_get_namespaced_custom_object()
+            mpijob_function = self._generate_runtime(self.runtime_kind)
+            self.deploy(db, mpijob_function)
+            run = mpijob_function.run(
+                artifact_path="v3io:///mypath",
+                watch=False,
+            )
 
-        assert run.status.state == "running"
+            assert run.status.state == "running"
 
     def _mock_get_namespaced_custom_object(self, workers=1):
-        get_k8s().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
+        get_k8s_helper().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
             return_value={
                 "status": {
                     "replicaStatuses": {
@@ -64,7 +71,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         if pods is None:
             pods = [self._get_worker_pod(phase=phase)] * workers
             pods += [self._get_launcher_pod(phase=phase)]
-        get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
+        get_k8s_helper().list_pods = unittest.mock.Mock(return_value=pods)
 
     def _get_worker_pod(self, phase="Running"):
         return k8s_client.V1Pod(

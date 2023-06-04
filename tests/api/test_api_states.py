@@ -20,17 +20,17 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.db.alembic
 import mlrun.api.utils.db.backup
 import mlrun.api.utils.db.sqlite_migration
+import mlrun.common.schemas
 
 
 def test_offline_state(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.offline
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.offline
     response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
 
@@ -42,11 +42,17 @@ def test_offline_state(
 @pytest.mark.parametrize(
     "state, expected_healthz_status_code",
     [
-        (mlrun.api.schemas.APIStates.waiting_for_migrations, http.HTTPStatus.OK.value),
-        (mlrun.api.schemas.APIStates.migrations_in_progress, http.HTTPStatus.OK.value),
-        (mlrun.api.schemas.APIStates.migrations_failed, http.HTTPStatus.OK.value),
         (
-            mlrun.api.schemas.APIStates.waiting_for_chief,
+            mlrun.common.schemas.APIStates.waiting_for_migrations,
+            http.HTTPStatus.OK.value,
+        ),
+        (
+            mlrun.common.schemas.APIStates.migrations_in_progress,
+            http.HTTPStatus.OK.value,
+        ),
+        (mlrun.common.schemas.APIStates.migrations_failed, http.HTTPStatus.OK.value),
+        (
+            mlrun.common.schemas.APIStates.waiting_for_chief,
             http.HTTPStatus.SERVICE_UNAVAILABLE.value,
         ),
     ],
@@ -68,7 +74,7 @@ def test_api_states(
     assert response.status_code == http.HTTPStatus.OK.value
 
     response = client.get("projects")
-    expected_message = mlrun.api.schemas.APIStates.description(state)
+    expected_message = mlrun.common.schemas.APIStates.description(state)
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert (
         expected_message in response.text
@@ -189,12 +195,12 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         )
         is_latest_data_version_mock.return_value = not case.get("data_migration", False)
 
-        mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
+        mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
         mlrun.api.initial_data.init_data()
         failure_message = f"Failed in case: {case}"
         assert (
             mlrun.mlconf.httpdb.state
-            == mlrun.api.schemas.APIStates.waiting_for_migrations
+            == mlrun.common.schemas.APIStates.waiting_for_migrations
         ), failure_message
         # assert the api just changed state and no operation was done
         assert db_backup_util_mock.call_count == 0, failure_message

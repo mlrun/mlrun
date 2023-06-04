@@ -13,6 +13,7 @@
 # limitations under the License.
 import sys
 import tempfile
+import urllib.parse
 from base64 import b64encode
 from os import path, remove
 from typing import Union
@@ -151,13 +152,15 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        if url.endswith(".csv") or format == "csv":
+        parsed_url = urllib.parse.urlparse(url)
+        filepath = parsed_url.path
+        if filepath.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
-                if filesystem.isdir(url):
+                if filesystem.isdir(filepath):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
@@ -179,7 +182,11 @@ class DataStore:
                             dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return pd.concat(dfs)
 
-        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
+        elif (
+            filepath.endswith(".parquet")
+            or filepath.endswith(".pq")
+            or format == "parquet"
+        ):
             if columns:
                 kwargs["columns"] = columns
 
@@ -211,7 +218,7 @@ class DataStore:
 
                 return df_module.read_parquet(*args, **kwargs)
 
-        elif url.endswith(".json") or format == "json":
+        elif filepath.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:
@@ -539,7 +546,12 @@ def http_upload(url, file_path, headers=None, auth=None):
 class HttpStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
+        self._https_auth_token = None
+        self._schema = schema
         self.auth = None
+        self._headers = {}
+        self._enrich_https_token()
+        self._validate_https_token()
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
@@ -557,9 +569,22 @@ class HttpStore(DataStore):
         raise ValueError("unimplemented")
 
     def get(self, key, size=None, offset=0):
-        data = http_get(self.url + self._join(key), None, self.auth)
+        data = http_get(self.url + self._join(key), self._headers, self.auth)
         if offset:
             data = data[offset:]
         if size:
             data = data[:size]
         return data
+
+    def _enrich_https_token(self):
+        token = self._get_secret_or_env("HTTPS_AUTH_TOKEN")
+        if token:
+            self._https_auth_token = token
+            self._headers.setdefault("Authorization", f"token {token}")
+
+    def _validate_https_token(self):
+        if self._https_auth_token and self._schema in ["http"]:
+            logger.warn(
+                f"A AUTH TOKEN should not be provided while using {self._schema} "
+                f"schema as it is not secure and is not recommended."
+            )

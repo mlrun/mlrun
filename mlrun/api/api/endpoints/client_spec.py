@@ -17,21 +17,21 @@ import typing
 from fastapi import APIRouter, Header
 
 import mlrun.api.crud
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 router = APIRouter()
 
 
 @router.get(
     "/client-spec",
-    response_model=mlrun.api.schemas.ClientSpec,
+    response_model=mlrun.common.schemas.ClientSpec,
 )
 def get_client_spec(
     client_version: typing.Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.client_version
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
     client_python_version: typing.Optional[str] = Header(
-        None, alias=mlrun.api.schemas.HeaderNames.python_version
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
     return mlrun.api.crud.ClientSpec().get_client_spec(

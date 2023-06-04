@@ -15,12 +15,13 @@
 
 # Currently supported running against prebuilt images
 name: Security Scan
+run-name: Scanning ${{ inputs.tag }}
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'MLRun image tag to scan (unstable, 1.3.0 or any other tag)'
+        description: 'MLRun image tag to scan (unstable-cache, unstable-cache-13x, 1.3.0-wwwwwwww, 1.3.0 or any other tag)'
         required: false
         default: 'unstable'
       registry:

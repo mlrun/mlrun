@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import importlib.util
+import pathlib
+import sys
 import warnings
 from datetime import datetime
-from typing import List, Optional, Union
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -28,7 +30,6 @@ from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     BaseStoreTarget,
     get_default_prefix_for_source,
-    get_default_targets,
     get_target_driver,
     kind_to_driver,
     validate_target_list,
@@ -77,7 +78,7 @@ def _features_to_vector_and_check_permissions(features, update_stats):
                 "feature vector name must be specified"
             )
         verify_feature_vector_permissions(
-            vector, mlrun.api.schemas.AuthorizationAction.update
+            vector, mlrun.common.schemas.AuthorizationAction.update
         )
 
         vector.save()
@@ -327,6 +328,21 @@ def _rename_source_dataframe_columns(df):
     return df
 
 
+def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
+    # if running locally, we need to import the file dynamically to get its namespace
+    if run_config and run_config.local and run_config.function:
+        filename = run_config.function.spec.filename
+        if filename:
+            module_name = pathlib.Path(filename).name.rsplit(".", maxsplit=1)[0]
+            spec = importlib.util.spec_from_file_location(module_name, filename)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            return vars(__import__(module_name))
+    else:
+        return get_caller_globals()
+
+
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -372,7 +388,8 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                          histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -410,6 +427,15 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
+    if (
+        not mlrun_context
+        and not targets
+        and not (featureset.spec.targets or featureset.spec.with_default_targets)
+        and (run_config is not None and not run_config.local)
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Feature set {featureset.metadata.name} is remote ingested with no targets defined, aborting"
+        )
 
     if featureset is not None:
         featureset.validate_steps(namespace=namespace)
@@ -421,7 +447,7 @@ def ingest(
             )
         # remote job execution
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
@@ -453,7 +479,7 @@ def ingest(
 
         featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
-            featureset, mlrun.api.schemas.AuthorizationAction.update
+            featureset, mlrun.common.schemas.AuthorizationAction.update
         )
         if not source:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -482,19 +508,21 @@ def ingest(
                 f"Source.end_time is {str(source.end_time)}"
             )
 
-    if mlrun_context:
-        mlrun_context.logger.info(
-            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-        )
+        if mlrun_context:
+            mlrun_context.logger.info(
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+            )
+
         return_df = False
 
     if featureset.spec.passthrough:
         featureset.spec.source = source
         featureset.spec.validate_no_processing_for_passthrough()
 
-    namespace = namespace or get_caller_globals()
+    if not namespace:
+        namespace = _get_namespace(run_config)
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
@@ -638,7 +666,8 @@ def preview(
     :param entity_columns: list of entity (index) column names
     :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
-    :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param options:        schema (for discovery of entities, features in featureset), index, stats,
+                           histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
@@ -666,7 +695,7 @@ def preview(
         source = mlrun.store_manager.object(url=source).as_df()
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     featureset.spec.validate_no_processing_for_passthrough()
@@ -691,7 +720,9 @@ def preview(
             )
         # reduce the size of the ingestion if we do not infer stats
         rows_limit = (
-            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+            None
+            if InferOptions.get_common_options(options, InferOptions.Stats)
+            else 1000
         )
         source = init_featureset_graph(
             source,
@@ -762,7 +793,7 @@ def deploy_ingestion_service(
         featureset = get_feature_set_by_uri(featureset)
 
     verify_feature_set_permissions(
-        featureset, mlrun.api.schemas.AuthorizationAction.update
+        featureset, mlrun.common.schemas.AuthorizationAction.update
     )
 
     verify_feature_set_exists(featureset)
@@ -775,7 +806,7 @@ def deploy_ingestion_service(
             name=featureset.metadata.name,
         )
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 
@@ -837,7 +868,11 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
+            spark = (
+                pyspark.sql.SparkSession.builder.appName(session_name)
+                .config("spark.sql.session.timeZone", "UTC")
+                .getOrCreate()
+            )
             created_spark_context = True
 
         timestamp_key = featureset.spec.timestamp_key
@@ -868,14 +903,6 @@ def _ingest_with_spark(
             target.set_resource(featureset)
             if featureset.spec.passthrough and target.is_offline:
                 continue
-            if target.path and urlparse(target.path).scheme == "":
-                if mlrun_context:
-                    mlrun_context.logger.error(
-                        "Paths for spark ingest must contain schema, i.e v3io, s3, az"
-                    )
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Paths for spark ingest must contain schema, i.e v3io, s3, az"
-                )
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
             )

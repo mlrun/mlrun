@@ -137,14 +137,16 @@ def test_on_error():
     graph = fn.set_topology("flow", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
     graph.add_step(name="raiser", class_name="Raiser", after="$prev").error_handler(
-        "catch"
+        name="catch", class_name="EchoError", full_event=True
     )
     graph.add_step(name="s3", class_name="Chain", after="$prev")
-    graph.add_step(name="catch", class_name="EchoError").full_event = True
 
     server = fn.to_mock_server()
     resp = server.test(body=[])
-    assert resp["error"] and resp["origin_state"] == "raiser", "error wasnt caught"
+    if isinstance(resp, dict):
+        assert resp["error"] and resp["origin_state"] == "raiser", "error wasn't caught"
+    else:
+        assert resp.error and resp.origin_state == "raiser", "error wasn't caught"
 
 
 def return_type(event):

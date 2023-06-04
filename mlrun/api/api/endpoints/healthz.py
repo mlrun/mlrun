@@ -16,7 +16,7 @@ import http
 
 from fastapi import APIRouter
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.config import config as mlconfig
 
 router = APIRouter()
@@ -31,9 +31,14 @@ def health():
     # offline is the initial state
     # waiting for chief is set for workers waiting for chief to be ready and then clusterize against it
     if mlconfig.httpdb.state in [
-        mlrun.api.schemas.APIStates.offline,
-        mlrun.api.schemas.APIStates.waiting_for_chief,
+        mlrun.common.schemas.APIStates.offline,
+        mlrun.common.schemas.APIStates.waiting_for_chief,
     ]:
         raise mlrun.errors.MLRunServiceUnavailableError()
 
-    return {"status": "ok"}
+    return {
+        # for old `align_mlrun.sh` scripts expecting `version` in the response
+        # TODO: remove on mlrun >= 1.6.0
+        "version": mlconfig.version,
+        "status": "ok",
+    }

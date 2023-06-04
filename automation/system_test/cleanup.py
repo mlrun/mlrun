@@ -39,6 +39,22 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
     images = images.split(",")
     loop = asyncio.get_event_loop()
     try:
+        click.echo("Removing images from datanode docker")
+        _remove_image_from_datanode_docker()
+    except Exception as exc:
+        click.echo(
+            f"Unable to remove images from datanode docker: {exc}, continuing anyway"
+        )
+
+    try:
+        click.echo("Removing dangling images from datanode docker")
+        _remove_dangling_images_from_datanode_docker()
+    except Exception as exc:
+        click.echo(
+            f"Unable to remove dangling images from datanode docker: {exc}, continuing anyway"
+        )
+
+    try:
         _run_registry_garbage_collection(registry_container_name)
     except Exception as exc:
         click.echo(f"Unable to run garbage collection: {exc}, continuing anyway")
@@ -79,6 +95,39 @@ async def _collect_image_tags(
                 if data.get("tags"):
                     tags[image] = data["tags"]
     return tags
+
+
+def _remove_image_from_datanode_docker():
+    """Remove image from datanode docker"""
+    formatted_docker_images = subprocess.Popen(
+        ["docker", "images", "--format", "'{{.Repository }}:{{.Tag}}'"],
+        stdout=subprocess.PIPE,
+    )
+    grep = subprocess.Popen(
+        ["grep", "mlrun"],
+        stdin=formatted_docker_images.stdout,
+        stdout=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["xargs", "--no-run-if-empty", "docker", "rmi", "-f"],
+        stdin=grep.stdout,
+    )
+    formatted_docker_images.stdout.close()
+    grep.stdout.close()
+
+
+def _remove_dangling_images_from_datanode_docker():
+    """Remove dangling images from datanode docker"""
+
+    dangling_docker_images = subprocess.Popen(
+        ["docker", "images", "--quiet", "--filter", "dangling=true"],
+        stdout=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["xargs", "--no-run-if-empty", "docker", "rmi", "-f"],
+        stdin=dangling_docker_images.stdout,
+    )
+    dangling_docker_images.stdout.close()
 
 
 async def _delete_image_tags(

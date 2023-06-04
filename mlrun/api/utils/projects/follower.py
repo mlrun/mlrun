@@ -23,7 +23,6 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
@@ -31,6 +30,7 @@ import mlrun.api.utils.periodic
 import mlrun.api.utils.projects.member
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.projects.remotes.nop_leader
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
@@ -78,7 +78,7 @@ class Member(
             # we're doing a full_sync on every initialization
             full_sync = (
                 mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.api.schemas.ClusterizationRole.chief
+                == mlrun.common.schemas.ClusterizationRole.chief
             )
             self._sync_projects(full_sync=full_sync)
         except Exception as exc:
@@ -96,12 +96,12 @@ class Member(
     def create_project(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: mlrun.api.schemas.Project,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        project: mlrun.common.schemas.Project,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             mlrun.api.crud.Projects().create_project(db_session, project)
             return project, False
@@ -137,11 +137,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: mlrun.api.schemas.Project,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        project: mlrun.common.schemas.Project,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             mlrun.api.crud.Projects().store_project(db_session, name, project)
             return project, False
@@ -166,11 +166,11 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         project: dict,
-        patch_mode: mlrun.api.schemas.PatchMode = mlrun.api.schemas.PatchMode.replace,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
@@ -179,7 +179,7 @@ class Member(
             strategy = patch_mode.to_mergedeep_strategy()
             current_project_dict = current_project.dict(exclude_unset=True)
             mergedeep.merge(current_project_dict, project, strategy=strategy)
-            patched_project = mlrun.api.schemas.Project(**current_project_dict)
+            patched_project = mlrun.common.schemas.Project(**current_project_dict)
             return self.store_project(
                 db_session,
                 name,
@@ -193,9 +193,9 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         if self._is_request_from_leader(projects_role):
@@ -216,30 +216,30 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
-    ) -> mlrun.api.schemas.Project:
+    ) -> mlrun.common.schemas.Project:
         return mlrun.api.crud.Projects().get_project(db_session, name)
 
     def get_project_owner(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-    ) -> mlrun.api.schemas.ProjectOwner:
+    ) -> mlrun.common.schemas.ProjectOwner:
         return self._leader_client.get_project_owner(self._sync_session, name)
 
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
+        state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectsOutput:
+    ) -> mlrun.common.schemas.ProjectsOutput:
         if (
-            format_ == mlrun.api.schemas.ProjectsFormat.leader
+            format_ == mlrun.common.schemas.ProjectsFormat.leader
             and not self._is_request_from_leader(projects_role)
         ):
             raise mlrun.errors.MLRunAccessDeniedError(
@@ -249,7 +249,7 @@ class Member(
         projects_output = mlrun.api.crud.Projects().list_projects(
             db_session, owner, format_, labels, state, names
         )
-        if format_ == mlrun.api.schemas.ProjectsFormat.leader:
+        if format_ == mlrun.common.schemas.ProjectsFormat.leader:
             leader_projects = [
                 self._leader_client.format_as_leader_project(project)
                 for project in projects_output.projects
@@ -262,11 +262,11 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         labels: typing.List[str] = None,
-        state: mlrun.api.schemas.ProjectState = None,
-        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[typing.List[str]] = None,
-    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+    ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await mlrun.api.crud.Projects().list_project_summaries(
             db_session, owner, labels, state, names
         )
@@ -276,7 +276,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         name: str,
         leader_session: typing.Optional[str] = None,
-    ) -> mlrun.api.schemas.ProjectSummary:
+    ) -> mlrun.common.schemas.ProjectSummary:
         return await mlrun.api.crud.Projects().get_project_summary(db_session, name)
 
     def _start_periodic_sync(self):
@@ -316,14 +316,14 @@ class Member(
         db_session = mlrun.api.db.session.create_session()
         try:
             db_projects = mlrun.api.crud.Projects().list_projects(
-                db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
             )
             # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
             filtered_projects = []
             for leader_project in leader_projects:
                 if (
                     leader_project.status.state
-                    not in mlrun.api.schemas.ProjectState.terminal_states()
+                    not in mlrun.common.schemas.ProjectState.terminal_states()
                     and leader_project.metadata.name not in db_projects.projects
                 ):
                     continue
@@ -349,7 +349,7 @@ class Member(
                     mlrun.api.crud.Projects().delete_project(
                         db_session,
                         project_to_remove,
-                        mlrun.api.schemas.DeletionStrategy.cascading,
+                        mlrun.common.schemas.DeletionStrategy.cascading,
                     )
             if latest_updated_at:
 
@@ -363,7 +363,7 @@ class Member(
             mlrun.api.db.session.close_session(db_session)
 
     def _is_request_from_leader(
-        self, projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole]
+        self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]
     ) -> bool:
         if projects_role and projects_role.value == self._leader_name:
             return True
@@ -371,7 +371,7 @@ class Member(
 
     @staticmethod
     def _is_project_matching_labels(
-        labels: typing.List[str], project: mlrun.api.schemas.Project
+        labels: typing.List[str], project: mlrun.common.schemas.Project
     ):
         if not project.metadata.labels:
             return False

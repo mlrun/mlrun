@@ -17,7 +17,7 @@ import http
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.config
 
 
@@ -30,6 +30,6 @@ def test_health(
     assert response.status_code == http.HTTPStatus.OK.value
 
     # fail
-    mlrun.config.config.httpdb.state = mlrun.api.schemas.APIStates.offline
+    mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.offline
     response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value

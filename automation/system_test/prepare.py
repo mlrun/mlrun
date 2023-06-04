@@ -15,11 +15,14 @@
 
 import datetime
 import logging
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import typing
 import urllib.parse
 
 import boto3
@@ -27,8 +30,10 @@ import click
 import paramiko
 import yaml
 
+# TODO: remove and use local logger
 import mlrun.utils
 
+project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
 logger = mlrun.utils.create_logger(level="debug", name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
@@ -41,7 +46,9 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
+        system_tests_env_yaml = (
+            project_dir / pathlib.Path("tests") / "system" / "env.yml"
+        )
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -68,12 +75,12 @@ class SystemTestPreparer:
         access_key: str = None,
         iguazio_version: str = None,
         spark_service: str = None,
-        password: str = None,
         slack_webhook_url: str = None,
         mysql_user: str = None,
         mysql_password: str = None,
         purge_db: bool = False,
         debug: bool = False,
+        branch: str = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -107,9 +114,11 @@ class SystemTestPreparer:
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
+            "MLRUN_SYSTEM_TESTS_BRANCH": branch,
+            # Setting to MLRUN_SYSTEM_TESTS_GIT_TOKEN instead of GIT_TOKEN, to not affect tests which doesn't need it
+            # (e.g. tests which use public repos, therefor doesn't need that access token)
+            "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
-        if password:
-            self._env_config["V3IO_PASSWORD"] = password
 
     def prepare_local_env(self):
         self._prepare_env_local()
@@ -130,6 +139,11 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
+        # try:
+        #     self._install_dev_utilities()
+        # except Exception as exp:
+        #     self._logger.error("error on install dev utilities", exception=str(exp))
+
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -141,10 +155,13 @@ class SystemTestPreparer:
 
         self._override_mlrun_api_env()
 
-        self._patch_mlrun()
-
+        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
+        # that run as part of the patch would succeed even if we move from a newer version to an older one
+        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
         if self._purge_db:
             self._purge_mlrun_db()
+
+        self._patch_mlrun()
 
     def clean_up_remote_workdir(self):
         self._logger.info(
@@ -165,7 +182,7 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-    ) -> str:
+    ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
@@ -180,10 +197,10 @@ class SystemTestPreparer:
                 workdir=workdir,
             )
         if self._debug:
-            return ""
+            return b"", b""
         try:
             if local:
-                stdout, stderr, exit_status = self._run_command_locally(
+                stdout, stderr, exit_status = run_command(
                     command, args, workdir, stdin, live
                 )
             else:
@@ -199,15 +216,19 @@ class SystemTestPreparer:
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
+            err_log_kwargs = {
+                "error": str(exc),
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_status": exit_status,
+            }
             if verbose:
-                self._logger.error(
-                    f"Failed running command {log_command_location}",
-                    command=command,
-                    error=exc,
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_status=exit_status,
-                )
+                err_log_kwargs["command"] = command
+
+            self._logger.error(
+                f"Failed running command {log_command_location}",
+                **err_log_kwargs,
+            )
             raise
         else:
             if verbose:
@@ -218,7 +239,7 @@ class SystemTestPreparer:
                     stderr=stderr,
                     exit_status=exit_status,
                 )
-            return stdout
+            return stdout, stderr
 
     def _run_command_remotely(
         self,
@@ -266,45 +287,6 @@ class SystemTestPreparer:
 
         return stdout, stderr, exit_status
 
-    @staticmethod
-    def _run_command_locally(
-        command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
-        live: bool = True,
-    ) -> (str, str, int):
-        stdout, stderr, exit_status = "", "", 0
-        if workdir:
-            command = f"cd {workdir}; " + command
-        if args:
-            command += " " + " ".join(args)
-
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            shell=True,
-        )
-
-        if stdin:
-            process.stdin.write(bytes(stdin, "ascii"))
-            process.stdin.close()
-
-        if live:
-            for line in iter(process.stdout.readline, b""):
-                stdout += str(line)
-                sys.stdout.write(line.decode(sys.stdout.encoding))
-        else:
-            stdout = process.stdout.read()
-
-        stderr = process.stderr.read()
-
-        exit_status = process.wait()
-
-        return stdout, stderr, exit_status
-
     def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
@@ -313,16 +295,20 @@ class SystemTestPreparer:
         )
 
     def _prepare_env_local(self):
-        contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
+        backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
-        self._run_command(
-            "cat > ",
-            workdir=".",
-            args=[filepath],
-            stdin=contents,
-            local=True,
-        )
+
+        # if filepath exists, backup the file first (to avoid overriding it)
+        if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
+            self._logger.debug(
+                "Backing up existing env.yml", destination=backup_filepath
+            )
+            shutil.copy(filepath, backup_filepath)
+
+        serialized_env_config = self._serialize_env_config()
+        with open(filepath, "w") as f:
+            f.write(serialized_env_config)
 
     def _override_mlrun_api_env(self):
         version_specifier = (
@@ -361,11 +347,33 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
+    def _install_dev_utilities(self):
+        list_uninstall = [
+            "dev_utilities.py",
+            "uninstall",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+        ]
+        list_install = [
+            "dev_utilities.py",
+            "install",
+            "--redis",
+            "--mysql",
+            "--redisinsight",
+            "--kafka",
+            "--ipadd",
+            os.environ.get("IP_ADDR_PREFIX", "localhost"),
+        ]
+        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
+        self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/")
+        self._run_command("python3", args=list_install, workdir="/home/iguazio/")
+
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
         # s3://<bucket-name>/<object-name>
-
         parsed_url = urllib.parse.urlparse(self._provctl_download_url)
         if self._provctl_download_url.startswith("s3://"):
             object_name = parsed_url.path.lstrip("/")
@@ -373,7 +381,6 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
             self._logger.debug(
@@ -388,7 +395,6 @@ class SystemTestPreparer:
                 aws_access_key_id=self._provctl_download_s3_key_id,
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-
             # upload provctl to data node
             self._logger.debug(
                 "Uploading provctl to datanode",
@@ -398,7 +404,6 @@ class SystemTestPreparer:
             sftp_client = self._ssh_client.open_sftp()
             sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
             sftp_client.close()
-
         # make provctl executable
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
 
@@ -486,6 +491,9 @@ class SystemTestPreparer:
                 self._data_cluster_ssh_password,
                 "patch",
                 "appservice",
+                # we force because by default provctl doesn't allow downgrading between version but due to system tests
+                # running on multiple branches this might occur.
+                "--force",
                 "mlrun",
                 mlrun_archive,
             ],
@@ -501,37 +509,41 @@ class SystemTestPreparer:
         self._run_command(f"cat {provctl_patch_mlrun_log}")
 
     def _resolve_iguazio_version(self):
-
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
             self._logger.info("Resolving iguazio version")
-            self._iguazio_version = self._run_command(
+            self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
-            ).strip()
-        if isinstance(self._iguazio_version, bytes):
-            self._iguazio_version = self._iguazio_version.decode("utf-8")
+            )
+            self._iguazio_version = self._iguazio_version.strip().decode()
         self._logger.info(
             "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
 
     def _purge_mlrun_db(self):
         """
-        Purge mlrun db - exec into mlrun-db pod, delete the database and restart mlrun pods
+        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
         """
         self._delete_mlrun_db()
-        self._rollout_restart_mlrun()
-        self._wait_for_mlrun_to_be_ready()
+        self._scale_down_mlrun_deployments()
 
     def _delete_mlrun_db(self):
         self._logger.info("Deleting mlrun db")
 
-        get_mlrun_db_pod_name_cmd = self._get_pod_name_command(
+        mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
                 "app.kubernetes.io/component": "db",
                 "app.kubernetes.io/instance": "mlrun",
             },
+        )
+        if not mlrun_db_pod_name_cmd:
+            self._logger.info("No mlrun db pod found")
+            return
+
+        self._logger.info(
+            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
         )
 
         password = ""
@@ -545,56 +557,69 @@ class SystemTestPreparer:
                 "-n",
                 self.Constants.namespace,
                 "-it",
-                f"$({get_mlrun_db_pod_name_cmd})",
+                mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,
             ],
             verbose=False,
         )
 
-    def _get_pod_name_command(self, labels, namespace=None):
-        namespace = namespace or self.Constants.namespace
+    def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
-        return "kubectl get pods -n {namespace} -l {labels_selector} | tail -n 1 | awk '{{print $1}}'".format(
-            namespace=namespace, labels_selector=labels_selector
+        pod_name, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "pods",
+                "--namespace",
+                self.Constants.namespace,
+                "--selector",
+                labels_selector,
+                "|",
+                "tail",
+                "-n",
+                "1",
+                "|",
+                "awk",
+                "'{print $1}'",
+            ],
         )
+        if b"No resources found" in stderr or not pod_name:
+            return None
+        return pod_name.strip()
 
-    def _rollout_restart_mlrun(self):
-        self._logger.info("Restarting mlrun")
+    def _scale_down_mlrun_deployments(self):
+        # scaling down to avoid automatically deployments restarts and failures
+        self._logger.info("scaling down mlrun deployments")
         self._run_kubectl_command(
             args=[
-                "rollout",
-                "restart",
+                "scale",
                 "deployment",
                 "-n",
                 self.Constants.namespace,
                 "mlrun-api-chief",
                 "mlrun-api-worker",
                 "mlrun-db",
-            ]
-        )
-
-    def _wait_for_mlrun_to_be_ready(self):
-        self._logger.info("Waiting for mlrun to be ready")
-        self._run_kubectl_command(
-            args=[
-                "wait",
-                "--for=condition=available",
-                "--timeout=300s",
-                "deployment",
-                "-n",
-                self.Constants.namespace,
-                "mlrun-api-chief",
-                "mlrun-db",
+                "--replicas=0",
             ]
         )
 
     def _run_kubectl_command(self, args, verbose=True):
-        self._run_command(
+        return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,
         )
+
+    def _serialize_env_config(self, allow_none_values: bool = False):
+        env_config = self._env_config.copy()
+
+        # we sanitize None values from config to avoid "null" values in yaml
+        if not allow_none_values:
+            for key in list(env_config):
+                if env_config[key] is None:
+                    del env_config[key]
+
+        return yaml.safe_dump(env_config)
 
 
 @click.group()
@@ -603,7 +628,7 @@ def main():
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("mlrun-version", type=str, required=True)
+@click.option("--mlrun-version")
 @click.option(
     "--override-image-registry",
     "-oireg",
@@ -628,25 +653,24 @@ def main():
     default=None,
     help="The commit (in mlrun/mlrun) of the tested mlrun version.",
 )
-@click.argument("data-cluster-ip", type=str, required=True)
-@click.argument("data-cluster-ssh-username", type=str, required=True)
-@click.argument("data-cluster-ssh-password", type=str, required=True)
-@click.argument("app-cluster-ssh-password", type=str, required=True)
-@click.argument("github-access-token", type=str, required=True)
-@click.argument("provctl-download-url", type=str, required=True)
-@click.argument("provctl-download-s3-access-key", type=str, required=True)
-@click.argument("provctl-download-s3-key-id", type=str, required=True)
-@click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("webapi-direct-url", type=str, required=True)
-@click.argument("framesd-url", type=str, required=True)
-@click.argument("username", type=str, required=True)
-@click.argument("access-key", type=str, required=True)
-@click.argument("iguazio-version", type=str, default=None, required=True)
-@click.argument("spark-service", type=str, required=True)
-@click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
-@click.argument("mysql-user", type=str, default=None, required=False)
-@click.argument("mysql-password", type=str, default=None, required=False)
+@click.option("--data-cluster-ip", required=True)
+@click.option("--data-cluster-ssh-username", required=True)
+@click.option("--data-cluster-ssh-password", required=True)
+@click.option("--app-cluster-ssh-password", required=True)
+@click.option("--github-access-token", required=True)
+@click.option("--provctl-download-url", required=True)
+@click.option("--provctl-download-s3-access-key", required=True)
+@click.option("--provctl-download-s3-key-id", required=True)
+@click.option("--mlrun-dbpath", required=True)
+@click.option("--webapi-direct-url", required=True)
+@click.option("--framesd-url", required=True)
+@click.option("--username", required=True)
+@click.option("--access-key", required=True)
+@click.option("--iguazio-version", default=None)
+@click.option("--spark-service", required=True)
+@click.option("--slack-webhook-url")
+@click.option("--mysql-user")
+@click.option("--mysql-password")
 @click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
 @click.option(
     "--debug",
@@ -675,7 +699,6 @@ def run(
     access_key: str,
     iguazio_version: str,
     spark_service: str,
-    password: str,
     slack_webhook_url: str,
     mysql_user: str,
     mysql_password: str,
@@ -703,7 +726,6 @@ def run(
         access_key,
         iguazio_version,
         spark_service,
-        password,
         slack_webhook_url,
         mysql_user,
         mysql_password,
@@ -718,19 +740,25 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("mlrun-dbpath", type=str, required=True)
-@click.argument("webapi-direct-url", type=str, required=True)
-@click.argument("framesd-url", type=str, required=True)
-@click.argument("username", type=str, required=True)
-@click.argument("access-key", type=str, required=True)
-@click.argument("spark-service", type=str, required=True)
-@click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
+@click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
+@click.option("--webapi-direct-url", help="Iguazio webapi direct url")
+@click.option("--framesd-url", help="Iguazio framesd url")
+@click.option("--username", help="Iguazio running username")
+@click.option("--access-key", help="Iguazio running user access key")
+@click.option("--spark-service", help="Iguazio kubernetes spark service name")
+@click.option(
+    "--slack-webhook-url", help="Slack webhook url to send tests notifications to"
+)
 @click.option(
     "--debug",
     "-d",
     is_flag=True,
     help="Don't run the ci only show the commands that will be run",
+)
+@click.option("--branch", help="The mlrun branch to run the tests against")
+@click.option(
+    "--github-access-token",
+    help="Github access token to use for fetching private functions",
 )
 def env(
     mlrun_dbpath: str,
@@ -739,9 +767,10 @@ def env(
     username: str,
     access_key: str,
     spark_service: str,
-    password: str,
     slack_webhook_url: str,
     debug: bool,
+    branch: str,
+    github_access_token: str,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_dbpath=mlrun_dbpath,
@@ -750,15 +779,70 @@ def env(
         username=username,
         access_key=access_key,
         spark_service=spark_service,
-        password=password,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
+        branch=branch,
+        github_access_token=github_access_token,
     )
     try:
         system_test_preparer.prepare_local_env()
     except Exception as exc:
         logger.error("Failed preparing local system test environment", exc=exc)
         raise
+
+
+def run_command(
+    command: str,
+    args: list = None,
+    workdir: str = None,
+    stdin: str = None,
+    live: bool = True,
+    log_file_handler: typing.IO[str] = None,
+) -> (str, str, int):
+    if workdir:
+        command = f"cd {workdir}; " + command
+    if args:
+        command += " " + " ".join(args)
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        shell=True,
+    )
+
+    if stdin:
+        process.stdin.write(bytes(stdin, "ascii"))
+        process.stdin.close()
+
+    stdout = _handle_command_stdout(process.stdout, log_file_handler, live)
+    stderr = process.stderr.read()
+    exit_status = process.wait()
+
+    return stdout, stderr, exit_status
+
+
+def _handle_command_stdout(
+    stdout_stream: typing.IO[bytes],
+    log_file_handler: typing.IO[str] = None,
+    live: bool = True,
+) -> str:
+    def _write_to_log_file(text: bytes):
+        if log_file_handler:
+            log_file_handler.write(text.decode(sys.stdout.encoding))
+
+    stdout = ""
+    if live:
+        for line in iter(stdout_stream.readline, b""):
+            stdout += str(line)
+            sys.stdout.write(line.decode(sys.stdout.encoding))
+            _write_to_log_file(line)
+    else:
+        stdout = stdout_stream.read()
+        _write_to_log_file(stdout)
+
+    return stdout
 
 
 if __name__ == "__main__":

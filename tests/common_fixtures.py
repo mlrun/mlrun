@@ -97,7 +97,6 @@ def config_test_base():
     mlrun.api.utils.singletons.k8s._k8s = None
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
-    mlrun.k8s_utils._k8s = None
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
@@ -152,6 +151,14 @@ def db_session() -> Generator:
     finally:
         if db_session is not None:
             db_session.close()
+
+
+@pytest.fixture()
+def running_as_api():
+    old_is_running_as_api = mlrun.config.is_running_as_api
+    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+    yield
+    mlrun.config.is_running_as_api = old_is_running_as_api
 
 
 @pytest.fixture
@@ -266,6 +273,11 @@ class RunDBMock:
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
 
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        # mock API updated the run status to completed
+        self._runs[uid]["status"] = {"state": "completed"}
+        return "completed", 0
+
     def submit_pipeline(
         self,
         project,
@@ -287,7 +299,7 @@ class RunDBMock:
         if name in self._projects:
             return mlrun.projects.MlrunProject.from_dict(struct=self._projects[name])
         else:
-            raise mlrun.errors.MLRunNotFoundError("Project not found")
+            raise mlrun.errors.MLRunNotFoundError("Project '{name}' not found")
 
     def create_project(
         self,
@@ -459,7 +471,7 @@ class RunDBMock:
 
     def verify_authorization(
         self,
-        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass
 
@@ -478,7 +490,6 @@ def rundb_mock() -> RunDBMock:
     mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
     mlrun.get_run_db = unittest.mock.Mock(return_value=mock_object)
 
-    orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db
     BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
 
@@ -492,7 +503,6 @@ def rundb_mock() -> RunDBMock:
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
     mlrun.db.get_run_db = orig_get_run_db
     mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._use_remote_api = orig_use_remote_api
     BaseRuntime._get_db = orig_get_db
     config.dbpath = orig_db_path
 

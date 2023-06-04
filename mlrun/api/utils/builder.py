@@ -15,6 +15,7 @@ import os.path
 import pathlib
 import re
 import tempfile
+import typing
 from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
@@ -328,27 +329,9 @@ def build_image(
         image_target, registry, secret_name
     )
 
-    requirements_path = "/empty/requirements.txt"
-    if requirements and isinstance(requirements, list):
-        requirements_list = requirements
-    else:
-        requirements_list = []
-        requirements_path = requirements or requirements_path
-
-    commands = commands or []
-    if with_mlrun:
-        # mlrun prerequisite - upgrade pip
-        upgrade_pip_command = resolve_upgrade_pip_command(commands)
-        if upgrade_pip_command:
-            commands.append(upgrade_pip_command)
-
-        mlrun_version = resolve_mlrun_install_command_version(
-            mlrun_version_specifier, client_version, commands
-        )
-
-        # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
-        if mlrun_version:
-            requirements_list.insert(0, mlrun_version)
+    commands, requirements_list, requirements_path = _resolve_build_requirements(
+        requirements, commands, with_mlrun, mlrun_version_specifier, client_version
+    )
 
     if not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")
@@ -711,3 +694,43 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _resolve_build_requirements(
+    requirements: typing.Union[typing.List, str],
+    commands: typing.List,
+    with_mlrun: bool,
+    mlrun_version_specifier: typing.Optional[str],
+    client_version: typing.Optional[str],
+):
+    """
+    Resolve build requirements list, requirements path and commands.
+    If mlrun requirement is needed, we add a pip upgrade command to the commands list (prerequisite).
+    """
+    requirements_path = "/empty/requirements.txt"
+    if requirements and isinstance(requirements, list):
+        requirements_list = requirements
+    else:
+        requirements_list = []
+        requirements_path = requirements or requirements_path
+    commands = commands or []
+
+    if with_mlrun:
+        # mlrun prerequisite - upgrade pip
+        upgrade_pip_command = resolve_upgrade_pip_command(commands)
+        if upgrade_pip_command:
+            commands.append(upgrade_pip_command)
+
+        mlrun_version = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version, commands
+        )
+
+        # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
+        if mlrun_version:
+            requirements_list.insert(0, mlrun_version)
+
+    if not requirements_list:
+        # no requirements, we don't need a requirements file
+        requirements_path = ""
+
+    return commands, requirements_list, requirements_path

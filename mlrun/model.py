@@ -25,6 +25,7 @@ from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun
+import mlrun.common.schemas.notification
 
 from .utils import (
     dict_to_json,
@@ -545,6 +546,33 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+
+        self.validate_notification()
+
+    def validate_notification(self):
+        if self.kind:
+            try:
+                mlrun.common.schemas.notification.NotificationKind(self.kind)
+            except ValueError as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"notification kind {self.kind} is not supported"
+                ) from exc
+
+        if self.severity:
+            try:
+                mlrun.common.schemas.notification.NotificationSeverity(self.severity)
+            except ValueError as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"notification severity {self.severity} is not supported"
+                ) from exc
+
+        if self.status:
+            try:
+                mlrun.common.schemas.notification.NotificationStatus(self.status)
+            except ValueError as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"notification status {self.status} is not supported"
+                ) from exc
 
 
 class RunMetadata(ModelObj):

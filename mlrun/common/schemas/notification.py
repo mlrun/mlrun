@@ -16,6 +16,13 @@
 import mlrun.common.types
 
 
+class NotificationKind(mlrun.common.types.StrEnum):
+    console = "console"
+    git = "git"
+    ipython = "ipython"
+    slack = "slack"
+
+
 class NotificationSeverity(mlrun.common.types.StrEnum):
     INFO = "info"
     DEBUG = "debug"

@@ -15,6 +15,7 @@
 import asyncio
 import builtins
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import aiohttp
 import pytest
@@ -22,6 +23,7 @@ import tabulate
 
 import mlrun.api.api.utils
 import mlrun.api.crud
+import mlrun.common.schemas.notification
 import mlrun.utils.notifications
 
 
@@ -316,3 +318,79 @@ def test_notification_params_masking_on_run(monkeypatch):
         run["spec"]["notifications"][0]["params"]["secret"]
         == f"mlrun.notifications.{run_uid}"
     )
+
+
+NOTIFICATION_VALIDATION_PARMETRIZE = [
+    (
+        {
+            "kind": "invalid-kind",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "kind": mlrun.common.schemas.notification.NotificationKind.slack,
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "severity": "invalid-severity",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "status": "invalid-status",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "status": mlrun.common.schemas.notification.NotificationStatus.PENDING,
+        },
+        does_not_raise(),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "notification_kwargs,expectation",
+    NOTIFICATION_VALIDATION_PARMETRIZE,
+)
+def test_notification_validation_on_object(
+    monkeypatch, notification_kwargs, expectation
+):
+    with expectation:
+        mlrun.model.Notification(**notification_kwargs)
+
+
+@pytest.mark.parametrize(
+    "notification_kwargs,expectation",
+    NOTIFICATION_VALIDATION_PARMETRIZE,
+)
+def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+    for key, value in notification_kwargs.items():
+        setattr(notification, key, value)
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="job",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+    with expectation:
+        function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification],
+            local=True,
+        )

@@ -50,9 +50,9 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
+from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
-from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function

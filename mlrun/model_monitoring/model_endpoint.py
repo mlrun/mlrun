@@ -16,8 +16,12 @@
 from typing import Any, Dict, List, Optional
 
 import mlrun.model
-from mlrun.common.schemas.model_monitoring.constants import EventLiveStats, EventKeyMetrics, ModelMonitoringMode, \
-    EndpointType
+from mlrun.common.schemas.model_monitoring.constants import (
+    EndpointType,
+    EventKeyMetrics,
+    EventLiveStats,
+    ModelMonitoringMode,
+)
 
 
 class ModelEndpointSpec(mlrun.model.ModelObj):

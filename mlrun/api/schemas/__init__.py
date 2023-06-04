@@ -164,11 +164,21 @@ MostCommonObjectTypesReport = DeprecationHelper(
 ObjectTypeReport = DeprecationHelper(mlrun.common.schemas.ObjectTypeReport)
 Features = DeprecationHelper(mlrun.common.schemas.Features)
 FeatureValues = DeprecationHelper(mlrun.common.schemas.FeatureValues)
-GrafanaColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn)
-GrafanaDataPoint = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint)
-GrafanaNumberColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn)
-GrafanaStringColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaStringColumn)
-GrafanaTable = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaTable)
+GrafanaColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn
+)
+GrafanaDataPoint = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint
+)
+GrafanaNumberColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn
+)
+GrafanaStringColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaStringColumn
+)
+GrafanaTable = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaTable
+)
 GrafanaTimeSeriesTarget = DeprecationHelper(
     mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget
 )

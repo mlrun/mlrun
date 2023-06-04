@@ -17,7 +17,6 @@
 import sqlalchemy.dialects
 from sqlalchemy import Boolean, Column, Integer, String, Text
 
-
 import mlrun.common.schemas.model_monitoring
 from mlrun.utils.db import BaseModel
 
@@ -32,25 +31,37 @@ class ModelEndpointsTable(Base, BaseModel):
         String(40),
         primary_key=True,
     )
-    state = Column(mlrun.common.schemas.model_monitoring.EventFieldType.STATE, String(10))
-    project = Column(mlrun.common.schemas.model_monitoring.EventFieldType.PROJECT, String(40))
+    state = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.STATE, String(10)
+    )
+    project = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.PROJECT, String(40)
+    )
     function_uri = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION_URI,
         String(255),
     )
-    model = Column(mlrun.common.schemas.model_monitoring.EventFieldType.MODEL, String(255))
+    model = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.MODEL, String(255)
+    )
     model_class = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_CLASS,
         String(255),
     )
     labels = Column(mlrun.common.schemas.model_monitoring.EventFieldType.LABELS, Text)
-    model_uri = Column(mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_URI, String(255))
-    stream_path = Column(mlrun.common.schemas.model_monitoring.EventFieldType.STREAM_PATH, Text)
+    model_uri = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_URI, String(255)
+    )
+    stream_path = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.STREAM_PATH, Text
+    )
     algorithm = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.ALGORITHM,
         String(255),
     )
-    active = Column(mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE, Boolean)
+    active = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE, Boolean
+    )
     monitoring_mode = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE,
         String(10),
@@ -64,8 +75,12 @@ class ModelEndpointsTable(Base, BaseModel):
     feature_names = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_NAMES, Text
     )
-    children = Column(mlrun.common.schemas.model_monitoring.EventFieldType.CHILDREN, Text)
-    label_names = Column(mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES, Text)
+    children = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.CHILDREN, Text
+    )
+    label_names = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES, Text
+    )
 
     endpoint_type = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE,
@@ -97,5 +112,7 @@ class ModelEndpointsTable(Base, BaseModel):
         mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST,
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
     )
-    error_count = Column(mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT, Integer)
+    error_count = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT, Integer
+    )
     metrics = Column(mlrun.common.schemas.model_monitoring.EventFieldType.METRICS, Text)

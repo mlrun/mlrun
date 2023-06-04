@@ -442,13 +442,13 @@ class DataItem:
     ):
         """return a dataframe object (generated from the dataitem).
 
-        :param start_time:  filters out data before this time
-        :param end_time:    filters out data after this time
-        :param time_column: Store timestamp_key will be used if None.
-                            The results will be filtered by this column and start_time & end_time.
         :param columns:     optional, list of columns to select
         :param df_module:   optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param format:      file format, if not specified it will be deducted from the suffix
+                :param start_time:  filters out data before this time
+        :param end_time:    filters out data after this time
+        :param time_column: Store timestamp_key will be used if None.
+                            The results will be filtered by this column and start_time & end_time.
         """
         df = self._store.as_df(
             self._url,

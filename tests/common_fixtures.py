@@ -39,9 +39,9 @@ import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
@@ -56,7 +56,6 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
-
     # recreating the test results path on each test instead of running it on conftest since
     # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
     # in parallel and may cause errors.
@@ -107,7 +106,6 @@ def config_test_base():
 @pytest.fixture
 def aioresponses_mock():
     with aioresponses_() as aior:
-
         # handy function to get how many times requests were made using this specific mock
         aior.called_times = lambda: len(list(aior.requests.values())[0])
         yield aior

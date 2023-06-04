@@ -80,8 +80,7 @@ class BaseSourceDriver(DataSource):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         """return the source data as dataframe"""
         return mlrun.store_manager.object(url=self.path).as_df(
@@ -89,8 +88,7 @@ class BaseSourceDriver(DataSource):
             df_module=df_module,
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
-            time_column=time_column or self.time_field,
-            **kwargs,
+            time_column=time_field or self.time_field,
         )
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
@@ -225,20 +223,17 @@ class CSVSource(BaseSourceDriver):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
-        parse_dates = kwargs.pop("parse_dates", self._parse_dates)
-        reader_args.update(kwargs)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
             format="csv",
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
-            time_column=time_column or self.time_field,
-            parse_dates=parse_dates,
+            time_column=time_field or self.time_field,
+            parse_dates=self._parse_dates,
             chunksize=self.attributes.get("chunksize"),
             **reader_args,
         )
@@ -354,17 +349,15 @@ class ParquetSource(BaseSourceDriver):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
-        reader_args.update(kwargs)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
-            time_column=time_column or self.time_field,
+            time_column=time_field or self.time_field,
             format="parquet",
             **reader_args,
         )
@@ -488,8 +481,7 @@ class BigQuerySource(BaseSourceDriver):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
@@ -535,7 +527,7 @@ class BigQuerySource(BaseSourceDriver):
             return select_columns_from_df(
                 filter_df_start_end_time(
                     rows_iterator.to_dataframe(dtypes=dtypes),
-                    time_column=time_column or self.time_field,
+                    time_column=time_field or self.time_field,
                     start_time=start_time or self.start_time,
                     end_time=end_time or self.end_time,
                 ),
@@ -921,8 +913,7 @@ class KafkaSource(OnlineSource):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
@@ -1019,8 +1010,7 @@ class SQLSource(BaseSourceDriver):
         entities=None,
         start_time=None,
         end_time=None,
-        time_column=None,
-        **kwargs,
+        time_field=None,
     ):
         import sqlalchemy as db
 
@@ -1043,7 +1033,7 @@ class SQLSource(BaseSourceDriver):
                         parse_dates=self.attributes.get("time_fields"),
                         columns=columns,
                     ),
-                    time_column=time_column or self.time_field,
+                    time_column=time_field or self.time_field,
                     start_time=start_time or self.start_time,
                     end_time=end_time or self.end_time,
                 )

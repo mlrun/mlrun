@@ -153,7 +153,9 @@ class DataStore:
         df_module = df_module or pd
         parsed_url = urllib.parse.urlparse(url)
         filepath = parsed_url.path
+        is_csv, is_json = False, False
         if filepath.endswith(".csv") or format == "csv":
+            is_csv = True
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
@@ -218,6 +220,7 @@ class DataStore:
                 return df_module.read_parquet(*args, **kwargs)
 
         elif filepath.endswith(".json") or format == "json":
+            is_json = True
             reader = df_module.read_json
 
         else:
@@ -229,7 +232,7 @@ class DataStore:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
-                return reader(url, **kwargs)
+                df = reader(url, **kwargs)
             else:
 
                 file = url
@@ -239,12 +242,24 @@ class DataStore:
                     # support the storage_options parameter.
                     file = file_system.open(url)
 
-                return reader(file, **kwargs)
+                df = reader(file, **kwargs)
+        else:
+            temp_file = tempfile.NamedTemporaryFile(delete=False)
+            self.download(self._join(subpath), temp_file.name)
+            df = reader(temp_file.name, **kwargs)
+            remove(temp_file.name)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        self.download(self._join(subpath), temp_file.name)
-        df = reader(temp_file.name, **kwargs)
-        remove(temp_file.name)
+        if is_json or is_csv:
+            # for parquet file the time filtering is executed in `reader`
+            df = filter_df_start_end_time(
+                df,
+                time_column=time_column,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        if is_json:
+            # for csv and parquet files the columns select is executed in `reader`.
+            df = select_columns_from_df(df, columns=columns)
         return df
 
     def to_dict(self):
@@ -446,22 +461,6 @@ class DataItem:
             end_time=end_time,
             **kwargs,
         )
-        if (
-            self._url.endswith(".json")
-            or format == "json"
-            or self._url.endswith(".csv")
-            or format == "csv"
-        ):
-            # for parquet file the time filtering is executed in `self._store.as_df`
-            df = filter_df_start_end_time(
-                df,
-                time_column=time_column,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        if self._url.endswith(".json") or format == "json":
-            # for csv and parquet files the columns select is executed in `self._store.as_df`
-            df = select_columns_from_df(df, columns=columns)
         return df
 
     def show(self, format=None):

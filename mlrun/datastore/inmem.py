@@ -81,6 +81,7 @@ class InMemoryStore(DataStore):
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"file type unhandled {url}")
         # InMemoryStore store do not filter on time
-        [kwargs.pop(field) for field in ["time_column", "start_time", "end_time"]]
+        for field in ["time_column", "start_time", "end_time"]:
+            kwargs.pop(field, None)
 
         return reader(item, **kwargs)

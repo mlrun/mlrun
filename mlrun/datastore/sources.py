@@ -519,20 +519,22 @@ class BigQuerySource(BaseSourceDriver):
         dtypes = schema_to_dtypes(rows_iterator.schema)
         if chunksize:
             # passing bqstorage_client greatly improves performance
-            return rows_iterator.to_dataframe_iterable(
+            df = rows_iterator.to_dataframe_iterable(
                 bqstorage_client=BigQueryReadClient(), dtypes=dtypes
             )
         else:
-            # TODO : filter as part of the query
-            return select_columns_from_df(
-                filter_df_start_end_time(
-                    rows_iterator.to_dataframe(dtypes=dtypes),
-                    time_column=time_field or self.time_field,
-                    start_time=start_time or self.start_time,
-                    end_time=end_time or self.end_time,
-                ),
-                columns=columns,
-            )
+            df = rows_iterator.to_dataframe(dtypes=dtypes)
+
+        # TODO : filter as part of the query
+        return select_columns_from_df(
+            filter_df_start_end_time(
+                df,
+                time_column=time_field or self.time_field,
+                start_time=start_time or self.start_time,
+                end_time=end_time or self.end_time,
+            ),
+            columns=columns,
+        )
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))

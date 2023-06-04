@@ -483,18 +483,26 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Validate default value for `error_count`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
         if (
-                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT in endpoint
-                and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT] == "null"
+            mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT in endpoint
+            and endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
+            ]
+            == "null"
         ):
-            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT] = "0"
+            endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
+            ] = "0"
 
         # Validate default value for `metrics`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
         if (
-                mlrun.common.schemas.model_monitoring.EventFieldType.METRICS in endpoint
-                and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] == "null"
+            mlrun.common.schemas.model_monitoring.EventFieldType.METRICS in endpoint
+            and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS]
+            == "null"
         ):
-            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] = json.dumps(
+            endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.METRICS
+            ] = json.dumps(
                 {
                     mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
                         mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
@@ -505,6 +513,8 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Validate key `uid` instead of `endpoint_id`
         # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
         if mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID in endpoint:
-            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = endpoint[
+            endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.UID
+            ] = endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
             ]

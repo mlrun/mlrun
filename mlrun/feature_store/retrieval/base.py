@@ -42,6 +42,7 @@ class BaseMerger(abc.ABC):
         self._target = None
         self._alias = dict()
         self._origin_alias = dict()
+        self._entity_rows_node_name = "__mlrun__$entity_rows$"
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -187,7 +188,7 @@ class BaseMerger(abc.ABC):
 
         for node in fs_link_list:
             name = node.name
-            if name == "entity_rows" and entity_rows is not None:
+            if name == self._entity_rows_node_name and entity_rows is not None:
                 # convert pandas entity_rows to spark DF if needed
                 if not hasattr(entity_rows, "rdd") and self.engine == "spark":
                     entity_rows = self.spark.createDataFrame(entity_rows)
@@ -505,9 +506,8 @@ class BaseMerger(abc.ABC):
                         self.add_last(other_node)
                     node = other_node
 
-    @staticmethod
     def _create_linked_relation_list(
-        feature_set_objects, feature_set_fields, entity_rows=None
+        self, feature_set_objects, feature_set_fields, entity_rows=None
     ):
         feature_set_names = list(feature_set_fields.keys())
         if len(feature_set_names) == 1 and not entity_rows:
@@ -610,14 +610,15 @@ class BaseMerger(abc.ABC):
             return linked_list_relation
 
         def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-            feature_set_in_entity_list = feature_set_entity_list_dict[fs_name]
-            feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
+            feature_set_entity_list = feature_set_entity_list_dict[fs_name]
+            feature_set_entity_list_names = list(feature_set_entity_list.keys())
 
             if all(
-                [ent in entity_rows.columns for ent in feature_set_in_entity_list_names]
+                [ent in entity_rows.columns for ent in feature_set_entity_list_names]
             ):
-                # add to the link list feature set according to indexes match
-                keys = feature_set_in_entity_list_names
+                # add to the link list feature set according to indexes match,
+                # only if all entities in the feature set exist in
+                keys = feature_set_entity_list_names
                 entity_rows_relation.add_last(
                     BaseMerger._Node(
                         fs_name,
@@ -633,7 +634,9 @@ class BaseMerger(abc.ABC):
                 entity_rows_relation.head.data["save_index"] = keys
 
         if entity_rows is not None:
-            entity_rows_linked_relation = _create_relation("entity_rows", -1)
+            entity_rows_linked_relation = _create_relation(
+                self._entity_rows_node_name, -1
+            )
             relation_linked_lists.append(entity_rows_linked_relation)
             linked_list_len_goal = len(feature_set_objects) + 1
         else:

@@ -73,9 +73,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = False
+    run_local = True
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -2213,3 +2213,83 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         assert spark_engine_res.shape == (2, 2)
         assert local_engine_res.equals(spark_engine_res)
+
+    # def test_relation_join_entity_rows(self):
+    #     entity_rows = pd.DataFrame(
+    #         {
+    #             "entity_1": [i for i in range(1, 11, 2)],
+    #             "entity_2": [i for i in range(11, 21, 2)],
+    #             "val_er": ["val_er"] * 5,
+    #         }
+    #     )
+    #
+    #     fs_1_df = pd.DataFrame(
+    #         {"entity_1": [i for i in range(1, 11, 2)], "val_1": ["val_1"] * 5}
+    #     )
+    #
+    #     fs_2_df = pd.DataFrame(
+    #         {"entity_2": [i for i in range(11, 21, 2)], "val_2": ["val_2"] * 5}
+    #     )
+    #
+    #     base_path = self.test_output_subdir_path(url=False)
+    #     fs_1_df_path = f"{base_path}/df_fs_1_df.parquet"
+    #     fs_2_df_path = f"{base_path}/df_fs_2_df.parquet"
+    #
+    #     fsys = fsspec.filesystem(
+    #         "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+    #     )
+    #     fsys.makedirs(base_path, exist_ok=True)
+    #     fs_1_df.to_parquet(path=fs_1_df_path, filesystem=fsys)
+    #     fs_2_df.to_parquet(path=fs_2_df_path, filesystem=fsys)
+    #
+    #     fset1 = fstore.FeatureSet("fs1", entities=["entity_1"])
+    #     self.set_targets(fset1, also_in_remote=True)
+    #     fset2 = fstore.FeatureSet("fs2", entities=["entity_2"])
+    #     self.set_targets(fset2, also_in_remote=True)
+    #
+    #     base_url = self.test_output_subdir_path()
+    #     fs_1_df_url = f"{base_url}/df_fs_1_df.parquet"
+    #     fs_2_df_url = f"{base_url}/df_fs_2_df.parquet"
+    #
+    #     source_fs_1_df = ParquetSource("pq1", path=fs_1_df_url)
+    #     source_fs_2_df = ParquetSource("pq2", path=fs_2_df_url)
+    #
+    #     fstore.ingest(fset1, source_fs_1_df)
+    #     fstore.ingest(fset2, source_fs_2_df)
+    #
+    #     self._logger.info(
+    #         f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
+    #     )
+    #     self._logger.info(
+    #         f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
+    #     )
+    #
+    #     vec = fstore.FeatureVector("vec1", ["fs1.*", "fs2.*"])
+    #
+    #     resp = fstore.get_offline_features(vec, entity_rows=entity_rows, engine="local")
+    #     local_engine_res = resp.to_dataframe().sort_index(axis=1)
+    #
+    #     self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
+    #     self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
+    #
+    #     vec_for_spark = fstore.FeatureVector(
+    #         "vec1-spark", ["fs1.*", "fs2.*"]
+    #     )
+    #     target = ParquetTarget(
+    #         "mytarget", path=f"{self.output_dir()}-get_offline_features"
+    #     )
+    #     resp = fstore.get_offline_features(
+    #         vec_for_spark,
+    #         entity_rows=entity_rows,
+    #         engine="spark",
+    #         run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+    #         spark_service=self.spark_service,
+    #         target=target,
+    #     )
+    #     spark_engine_res = resp.to_dataframe().sort_index(axis=1)
+    #
+    #     self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
+    #     self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
+    #
+    #     assert spark_engine_res.shape == (2, 2)
+    #     assert local_engine_res.equals(spark_engine_res)

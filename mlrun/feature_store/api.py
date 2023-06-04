@@ -388,7 +388,8 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                          histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -665,7 +666,8 @@ def preview(
     :param entity_columns: list of entity (index) column names
     :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
-    :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param options:        schema (for discovery of entities, features in featureset), index, stats,
+                           histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """

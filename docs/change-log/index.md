@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
 - [v1.2.3](#v1-2-3)
@@ -17,6 +18,17 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
+## v1.3.2	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3896 | Fixed: MLRun API failed to get pod logs. [View in Git](https://github.com/mlrun/mlrun/pull/3649). |
+| ML-3865 | kubectl now returns logs as expected. [View in Git](https://github.com/mlrun/mlrun/pull/3660).  |
+| ML-3917 | Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674). |
+| ML-3934 | Logs are no longer collected for run pods in an unknown state [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
+
 ## v1.3.1
 
 ### Closed issues
@@ -28,10 +40,8 @@
 | ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
 | ML-3823 | Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560). |
 
-
 ###  Documentation
 New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
-
 
 ## v1.3.0
 
@@ -238,7 +248,6 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3797, ML-3798 | Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
-
 
 ## v1.2.1
 

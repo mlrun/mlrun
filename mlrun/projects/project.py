@@ -2712,17 +2712,17 @@ class MlrunProject(ModelObj):
 
     def list_runs(
         self,
-        name=None,
-        uid=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime.datetime] = None,
+        start_time_to: Optional[datetime.datetime] = None,
+        last_update_time_from: Optional[datetime.datetime] = None,
+        last_update_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs, filtered by various options.
@@ -2736,6 +2736,10 @@ class MlrunProject(ModelObj):
             # return a list of runs matching the name and label and compare
             runs = project.list_runs(name='download', labels='owner=admin')
             runs.compare()
+
+            # multi-label filter can also be provided
+            runs = project.list_runs(name='download', labels=["kind=job", "owner=admin"])
+
             # If running in Jupyter, can use the .show() function to display the results
             project.list_runs(name='').show()
 
@@ -2743,8 +2747,8 @@ class MlrunProject(ModelObj):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).

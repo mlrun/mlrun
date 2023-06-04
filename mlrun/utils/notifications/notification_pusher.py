@@ -149,7 +149,11 @@ class NotificationPusher(object):
         notification_object: mlrun.model.Notification,
         db: mlrun.api.db.base.DBInterface,
     ):
-        message = self.messages.get(run.state(), "")
+        custom_message = (
+            f": {notification_object.message}" if notification_object.message else ""
+        )
+        message = self.messages.get(run.state(), "") + custom_message
+
         severity = (
             notification_object.severity
             or mlrun.common.schemas.NotificationSeverity.INFO

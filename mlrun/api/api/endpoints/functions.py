@@ -663,7 +663,6 @@ def _build_function(
     ready = None
     try:
         fn = new_function(runtime=function)
-        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
@@ -673,6 +672,7 @@ def _build_function(
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(

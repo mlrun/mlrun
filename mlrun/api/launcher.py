@@ -147,7 +147,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
     @staticmethod
     def enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -156,7 +156,9 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         """
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project or runtime.metadata.project or mlrun.config.config.default_project
+            project_name
+            or runtime.metadata.project
+            or mlrun.config.config.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db

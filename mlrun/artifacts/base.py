@@ -83,7 +83,7 @@ class ArtifactSpec(ModelObj):
         "size",
         "db_key",
         "extra_data",
-        "packaging_instructions",
+        "unpackaging_instructions",
     ]
 
     _extra_fields = ["annotations", "producer", "sources", "license", "encoding"]
@@ -99,7 +99,7 @@ class ArtifactSpec(ModelObj):
         db_key=None,
         extra_data=None,
         body=None,
-        packaging_instructions: dict = None,
+        unpackaging_instructions: dict = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -109,7 +109,7 @@ class ArtifactSpec(ModelObj):
         self.size = size
         self.db_key = db_key
         self.extra_data = extra_data or {}
-        self.packaging_instructions = packaging_instructions
+        self.unpackaging_instructions = unpackaging_instructions
 
         self._body = body
         self.encoding = None

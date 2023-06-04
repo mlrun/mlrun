@@ -16,6 +16,8 @@ import importlib
 import inspect
 import os
 import shutil
+import sys
+import traceback
 from typing import Any, Dict, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
@@ -24,7 +26,7 @@ from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import StorePrefix, logger
 
 from .errors import (
-    MLRunPackagePackagerCollectionError,
+    MLRunPackageCollectionError,
     MLRunPackagePackingError,
     MLRunPackageUnpackingError,
 )
@@ -55,7 +57,7 @@ class PackagersManager:
         self._default_packager = default_packager or DefaultPackager
 
         # Initialize the packagers list (with the default packager in it):
-        self._packagers: List[Type[Packager]] = [self._default_packager]
+        self._packagers: List[Type[Packager]] = []
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
@@ -80,10 +82,13 @@ class PackagersManager:
         """
         return self._results
 
-    def collect_packagers(self, packagers: List[Union[Type, str]]):
+    def collect_packagers(
+        self, packagers: List[Union[Type, str]], default_priority: int = 5
+    ):
         """
         Collect the provided packagers. Packagers passed as module paths will be imported and validated to be of type
-        `Packager`. If needed to import all packagers from a module, use the module path with a "*" at the end.
+        `Packager`. If needed to import all packagers from a module, use the module path with a "*" at the end (packager
+        with a name that start with a '_' won't be collected).
 
         Notice: Only packagers that are declared in the module will be collected (packagers imported in the module scope
         won't be collected). For example::
@@ -96,19 +101,23 @@ class PackagersManager:
 
         Only "YPackager" will be collected as it is declared in the module, but not "XPackager" which is only imported.
 
-        :param packagers: List of packagers to add.
+        :param packagers:        List of packagers to add.
+        :param default_priority:
 
         :raise MLRunPackageCollectingError: In case the packager could not be collected.
         """
+        # Collect the packagers:
         for packager in packagers:
             # If it's a string, it's the module path of the class, so we import it:
             if isinstance(packager, str):
+                # TODO: For supporting Hub packagers, if the string is a hub url, then look in the labels for the
+                #       packagers to import and import the function as a module.
                 # Import the module:
                 module_name, class_name = self._split_module_path(module_path=packager)
                 try:
                     module = importlib.import_module(module_name)
                 except ModuleNotFoundError as module_not_found_error:
-                    raise MLRunPackagePackagerCollectionError(
+                    raise MLRunPackageCollectionError(
                         f"The packager '{class_name}' could not be collected from the module '{module_name}' as it "
                         f"cannot be imported: {module_not_found_error}"
                     ) from module_not_found_error
@@ -122,10 +131,14 @@ class PackagersManager:
                             for _, member in inspect.getmembers(
                                 module,
                                 lambda m: (
+                                    # Validate it is declared in the module:
                                     hasattr(m, "__module__")
                                     and m.__module__ == module.__name__
+                                    # Validate it is a `Packager`:
                                     and isinstance(m, type)
                                     and issubclass(m, Packager)
+                                    # Validate it is not a "protected" `Packager`:
+                                    and not m.__name__.startswith("_")
                                 ),
                             )
                         ]
@@ -136,21 +149,27 @@ class PackagersManager:
                 try:
                     packager = getattr(module, class_name)
                 except AttributeError as attribute_error:
-                    raise MLRunPackagePackagerCollectionError(
+                    raise MLRunPackageCollectionError(
                         f"The packager '{class_name}' could not be collected as it does not exist in the module "
                         f"'{module.__name__}': {attribute_error}"
                     ) from attribute_error
             # Validate the class given is a `Packager` type:
             if not issubclass(packager, Packager):
-                raise MLRunPackagePackagerCollectionError(
+                raise MLRunPackageCollectionError(
                     f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
+            # Set default priority in case it is not set in the packager's class:
+            if packager.PRIORITY is ...:
+                packager.PRIORITY = default_priority
             # Collect the packager (putting him first in the list for highest priority:
             self._packagers.insert(0, packager)
             # For debugging, we'll print the collected packager:
             logger.debug(
                 f"The packagers manager collected the packager: {str(packager)}"
             )
+
+        # Sort the packagers:
+        self._packagers.sort()
 
     def pack(
         self, obj: Any, log_hint: Dict[str, str]
@@ -245,88 +264,28 @@ class PackagersManager:
         """
         # Set variables to hold the manager notes and packager instructions:
         artifact_key = None
-        packager_name = None
-        object_type = None
-        artifact_type = None
-        instructions = {}
+        packaging_instructions = None
 
         # Try to get the notes and instructions (can be found only in artifacts but data item may be a simple path/url):
-        is_package = False
-        if (
-            data_item.artifact_url
-            and is_store_uri(url=data_item.artifact_url)
-            and parse_store_uri(data_item.artifact_url)[0]
-            in [StorePrefix.Artifact, StorePrefix.Dataset, StorePrefix.Model]
-        ):
+        if data_item.is_artifact():
             # Get the artifact object in the data item:
             artifact, _ = store_manager.get_store_artifact(url=data_item.artifact_url)
             # Get the key from the artifact's metadata and instructions from the artifact's spec:
             artifact_key = artifact.metadata.key
-            packaging_instructions = artifact.spec.packaging_instructions
-            # Extract the manager notes and packager instructions found:
-            if packaging_instructions:
-                is_package = True  # Mark that it is a package.
-                packager_name = packaging_instructions[
-                    self._InstructionsNotesKey.PACKAGER_NAME
-                ]
-                object_type = self._get_type_from_name(
-                    type_name=packaging_instructions[
-                        self._InstructionsNotesKey.OBJECT_TYPE
-                    ]
-                )
-                artifact_type = packaging_instructions[
-                    self._InstructionsNotesKey.ARTIFACT_TYPE
-                ]
-                instructions = packaging_instructions[
-                    self._InstructionsNotesKey.INSTRUCTIONS
-                ]
-
-        # Check how to unpack the data item according to the collected info (if it's a package or a simple data item):
-        # Notice: we will always prefer to unpack a package by the packager who packaged it, but the user may provide a
-        # different type hint. This is the only scenario we'll ignore the packager name noted in the package and try to
-        # unpack with a different one according to the type hint provided (`object_type` and `type_hint` are not equal).
-        if is_package:
-            # It's a package, continue according to the provided type hint:
-            if type_hint is None:
-                # User count on the type noted in the package so we unpack it as is:
-                unpack_as_package = True
-            else:
-                # A type hint is provided, check if the type hint is equal to the one noted in the package:
-                matching_object_and_type_hint = False
-                hinted_types = [type_hint]
-                while len(hinted_types) > 0:
-                    if object_type in hinted_types:
-                        matching_object_and_type_hint = True
-                        break
-                    hinted_types = TypeHintUtils.reduce_type_hint(
-                        type_hint=hinted_types
-                    )
-                if matching_object_and_type_hint:
-                    # They are equal, so we will unpack the package as is:
-                    unpack_as_package = True
-                else:
-                    # They are not equal, so we can't count on the original packager noted on the package as the user
-                    # require different type, so we unpack as data item:
-                    logger.warn(
-                        f"{artifact_key} was originally packaged as type '{object_type}' but the type hint given to "
-                        f"unpack it as is '{type_hint}'. It is recommended to not parse an object from type to type "
-                        f"using a packager as unknown behavior might happen."
-                    )
-                    unpack_as_package = False
-        else:
-            # Not a package, unpack as data item:
-            unpack_as_package = False
+            packaging_instructions = artifact.spec.unpackaging_instructions
 
         # Unpack:
         try:
-            if unpack_as_package:
+            if packaging_instructions:
+                # The data item is a package and the object type is equal or part of the type hint (part of is in case
+                # of a `typing.Union` for example):
                 return self._unpack_package(
                     data_item=data_item,
                     artifact_key=artifact_key,
-                    artifact_type=artifact_type,
-                    packager_name=packager_name,
-                    instructions=instructions,
+                    packaging_instructions=packaging_instructions,
+                    type_hint=type_hint,
                 )
+            # The data item is not a package or the object type is not equal or part of the type hint:
             return self._unpack_data_item(
                 data_item=data_item,
                 type_hint=type_hint,
@@ -383,8 +342,8 @@ class PackagersManager:
         Clear the outputs of all packagers. This method should be called at the end of the run after logging all
         artifacts as some will require uploading the files that will be deleted in this method.
         """
-        for packager in self._packagers:
-            for path in packager.get_clearing_path_list():
+        for packager in self._get_packagers_with_default_packager():
+            for path in packager.get_future_clearing_path_list():
                 if not os.path.exists(path):
                     continue
                 if os.path.isdir(path):
@@ -402,6 +361,15 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
+    def _get_packagers_with_default_packager(self) -> List[Type[Packager]]:
+        """
+        Get the full list of packagers - the collected packagers and the default packager (located at last place in the
+        list - the lowest priority).
+
+        :return: A list of the manager's packagers with the default packager.
+        """
+        return [*self._packagers, self._default_packager]
+
     def _get_packager_by_name(self, name: str) -> Union[Type[Packager], None]:
         """
         Look for a packager with the given name and return it.
@@ -413,7 +381,7 @@ class PackagersManager:
         :return: The found packager or None if it wasn't found.
         """
         # Look for a packager by exact name:
-        for packager in self._packagers:
+        for packager in self._get_packagers_with_default_packager():
             if packager.__name__ == name:
                 return packager
 
@@ -421,32 +389,52 @@ class PackagersManager:
         logger.warn(f"The packager '{name}' was not found.")
         return None
 
-    def _get_packager_by_type(
-        self, object_type: Type, artifact_type: str = None
+    def _get_packager_for_packing(
+        self,
+        obj: Any,
+        artifact_type: str = None,
     ) -> Union[Type[Packager], None]:
         """
-        Look for a packager that can handle the provided object type and can also pack it as the provided artifact type.
+        Look for a packager that can pack the provided object as the provided artifact type.
 
         If a packager was not found None will be returned.
 
-        :param object_type:   The object type the packager to get should handle.
-        :param artifact_type: The artifact type the packager to get should pack and log as.
+        :param obj:           The object to pack.
+        :param artifact_type: The artifact type the packager to get should pack / unpack as.
+
+        :return: The found packager or None if it wasn't found.
+        """
+        # Look for a packager for the combination of object nad artifact type:
+        for packager in self._packagers:
+            if packager.is_packable(obj=obj, artifact_type=artifact_type):
+                return packager
+
+        # No packager was found:
+        return None
+
+    def _get_packager_for_unpacking(
+        self,
+        data_item: Any,
+        type_hint: type,
+        artifact_type: str = None,
+    ) -> Union[Type[Packager], None]:
+        """
+        Look for a packager that can unpack the data item of the given type hint as the provided artifact type.
+
+        If a packager was not found None will be returned.
+
+        :param data_item:     The data item to unpack.
+        :param type_hint:     The type hint the packager to get should handle.
+        :param artifact_type: The artifact type the packager to get should pack / unpack as.
 
         :return: The found packager or None if it wasn't found.
         """
         # Look for a packager for the combination of object type nad artifact type:
-        possible_type_hints = [object_type]
-        while len(possible_type_hints) > 0:
-            for type_hint in possible_type_hints:
-                for packager in self._packagers:
-                    if packager.is_packable(
-                        object_type=type_hint, artifact_type=artifact_type
-                    ):
-                        return packager
-            # Reduce the type hint list and continue:
-            possible_type_hints = TypeHintUtils.reduce_type_hint(
-                type_hint=possible_type_hints
-            )
+        for packager in self._packagers:
+            if packager.is_unpackable(
+                data_item=data_item, type_hint=type_hint, artifact_type=artifact_type
+            ):
+                return packager
 
         # No packager was found:
         return None
@@ -464,25 +452,23 @@ class PackagersManager:
         artifact_type = log_hint.pop(LogHintKey.ARTIFACT_TYPE, None)
 
         # Get a packager:
-        object_type = type(obj)
-        packager = self._get_packager_by_type(
-            object_type=object_type, artifact_type=artifact_type
-        )
+        packager = self._get_packager_for_packing(obj=obj, artifact_type=artifact_type)
         if packager is None:
-            logger.warn(
-                f"No packager was found for the combination of 'object_type={self._get_type_name(typ=object_type)}' "
-                f"and 'artifact_type={artifact_type}'."
-            )
-            return None
+            if self._default_packager.is_packable(obj=obj, artifact_type=artifact_type):
+                logger.info(
+                    f"Using the default packager to pack the object '{log_hint[LogHintKey.KEY]}'"
+                )
+                packager = self._default_packager
+            else:
+                raise MLRunPackagePackingError(
+                    f"No packager was found for the combination of "
+                    f"'object_type={self._get_type_name(typ=type(obj))}' and 'artifact_type={artifact_type}'."
+                )
 
         # Use the packager to pack the object:
         packed_object = packager.pack(
             obj=obj, artifact_type=artifact_type, configurations=log_hint
         )
-
-        # Check if the packaged object is None, meaning there was an error in the process of packing it:
-        if packed_object is None:
-            return None
 
         # If the packed object is a result, return it as is:
         if isinstance(packed_object, dict):
@@ -493,18 +479,20 @@ class PackagersManager:
         # It is an artifact, continue with the packaging:
         artifact, instructions = packed_object
 
-        # Prepare the manager's labels:
-        packaging_instructions = {
+        # Prepare the manager's unpackagingg intructions notes:
+        unpackaging_instructions = {
             self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
-            self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(
-                typ=object_type
+            self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
+            self._InstructionsNotesKey.ARTIFACT_TYPE: (
+                artifact_type
+                if artifact_type
+                else packager.get_default_packing_artifact_type(obj=obj)
             ),
-            self._InstructionsNotesKey.ARTIFACT_TYPE: artifact_type,
             self._InstructionsNotesKey.INSTRUCTIONS: instructions,
         }
 
         # Set the instructions in the artifact's spec:
-        artifact.spec.packaging_instructions = packaging_instructions
+        artifact.spec.unpackaging_instructions = unpackaging_instructions
 
         # Collect the artifact and return:
         self._artifacts.append(artifact)
@@ -514,43 +502,127 @@ class PackagersManager:
         self,
         data_item: DataItem,
         artifact_key: str,
-        artifact_type: str,
-        packager_name: str,
-        instructions: dict,
+        packaging_instructions: dict,
+        type_hint: type,
     ) -> Any:
         """
         Unpack a data item as a package using the given notes.
 
-        :param data_item:     The data item to unpack.
-        :param artifact_key:  The artifact's key (used only to raise a meaningful error message in case of an error).
-        :param artifact_type: The artifact type to unpack as.
-        :param packager_name: The packager's name to use for the unpacking.
-        :param instructions:  The instructions to pass to the packager's unpack method.
+        :param data_item:              The data item to unpack.
+        :param artifact_key:           The artifact's key (used only to raise a meaningful error message in case of an
+                                       error).
+        :param packaging_instructions: The manager's noted instructions.
+        :param type_hint:              The user's type hint.
 
         :return: The unpacked object.
 
         :raise MLRunPackageUnpackingError: If there is no packager with the given name.
         """
-        # Get the packager by the given name:
+        # Extract the packaging instructions:
+        packager_name = packaging_instructions[self._InstructionsNotesKey.PACKAGER_NAME]
+        try:
+            # For validation, we'll try to get the type of the original packaged object. The original object type might
+            # not be available for 3 reasons:
+            # 1. The user is trying to parse the data item to a different type than the one it was packaged - meaning it
+            #    is ok to be missing, the method will call `unpack_data_item` down the road.
+            # 2. The interpreter does not have the required module to unpack this object meaning it will not have the
+            #    original packager as well, so it will try to use another package before raising an error.
+            # 3. An edge case where the user declared the class at the MLRun function itself. Read the long warning to
+            #    understand more.
+            self._get_type_from_name(
+                type_name=packaging_instructions[self._InstructionsNotesKey.OBJECT_TYPE]
+            )
+        except ModuleNotFoundError:
+            logger.warn(
+                f"Could not import the original type "
+                f"('{packaging_instructions[self._InstructionsNotesKey.OBJECT_TYPE]}') of the input artifact "
+                f"'{artifact_key}' due to a `ModuleNotFoundError`.\n"
+                f"Note: If you wish to parse the input to a different type (which is not recommended) you may ignore "
+                f"this warning. Otherwise, make sure the interpreter has the required module to import the type.\n"
+                f"If it does, you probably implemented the class at the same file of your MLRun function, making "
+                f"Python collect it twice: one from the object's own Packager class and another from the function "
+                f"code. When MLRun is converting code to a MLRun function, it counts on it to be able to be imported "
+                f"as a stand alone file. If other classes (like the packager who imports it) require objects declared "
+                f"in this file, it is no longer stand alone. For example:\n\n"
+                f""
+                f"Let us look at a file '/src/my_module/my_file.py':"
+                f"\tclass MyClass:\n"
+                f"\t\tpass\n\n"
+                f"\tclass MyClassPackager(Packager):\n"
+                f"\t\tPACKABLE_OBJECT_TYPE = MyClass\n\n"
+                f""
+                f"The packager of this class will have the class variable `PACKABLE_OBJECT_TYPE=MyClass` where "
+                f"`MyClass`'s module is `src.my_module.my_file.MyClass` because it is being collected from the repo "
+                f"downloaded with the project.\n"
+                f"But, if creating a MLRun function of '/src/my_module/my_file.py', then 'my_file.py' will be imported "
+                f"as a stand alone module, making the same class to be imported twice: one time as `my_file.MyClass` "
+                f"from the stand alone function, and another from the packager who has the correct full module path: "
+                f"`src.my_module.my_file.MyClass`. This will cause both classes, although the same, to be not equal "
+                f"and the first one to be not even importable outside the scope of 'my_file.py' - yielding this "
+                f"warning."
+            )
+        artifact_type = packaging_instructions[self._InstructionsNotesKey.ARTIFACT_TYPE]
+        instructions = (
+            packaging_instructions[self._InstructionsNotesKey.INSTRUCTIONS] or {}
+        )
+
+        # Get the original packager by its name:
         packager = self._get_packager_by_name(name=packager_name)
+
+        # Check if the original packager can be used (the user do not count on parsing to a different type):
+        unpack_as_package = False
         if packager is None:
-            raise MLRunPackageUnpackingError(
+            # The original packager was not found, the user either did not add the custom packager or perhaps wants
+            # to unpack the data item as a different type than the original one. We will warn and continue to unpack as
+            # a non-package data item:
+            logger.warn(
                 f"{artifact_key} was originally packaged by a packager of type '{packager_name}' but it "
                 f"was not found. Custom packagers should be added to the project running the function "
                 f"using the `add_custom_packager` method and make sure the function was set in the project "
-                f"with the attribute 'with_repo=True`."
+                f"with the attribute 'with_repo=True`.\n"
+                f"MLRun will try to unpack according to the provided type hint in code."
             )
+        elif type_hint is None:
+            # User count on the type noted in the package, so we unpack it as is:
+            unpack_as_package = True
+        else:
+            # A type hint is provided, check if the type hint is packable by the packager:
+            type_hints = {type_hint}
+            while not unpack_as_package and len(type_hints) > 0:
+                # Check for each hint (one match is enough):
+                for hint in type_hints:
+                    if packager.is_unpackable(
+                        data_item=data_item, type_hint=hint, artifact_type=artifact_type
+                    ):
+                        unpack_as_package = True
+                        break
+                if not unpack_as_package:
+                    # Reduce the hints and continue:
+                    type_hints = TypeHintUtils.reduce_type_hint(type_hint=type_hints)
+            if not unpack_as_package:
+                # They are not equal, so we can't count on the original packager noted on the package as the user
+                # require different type, so we unpack as data item:
+                logger.warn(
+                    f"{artifact_key} was originally packaged by '{packager_name}' but the type hint given to "
+                    f"unpack it as '{type_hint}' is not supported by it. MLRun will try to look for a matching "
+                    f"packager to the type hint instead. Note: it is not recommended to parse an object from type to "
+                    f"type using the unpacking mechanism of packagers as unknown behavior might happen."
+                )
 
         # Unpack:
-        return packager.unpack(
-            data_item=data_item,
-            artifact_type=artifact_type,
-            instructions=instructions,
-        )
+        if unpack_as_package:
+            return packager.unpack(
+                data_item=data_item,
+                artifact_type=artifact_type,
+                instructions=instructions,
+            )
+        return self._unpack_data_item(data_item=data_item, type_hint=type_hint)
 
     def _unpack_data_item(self, data_item: DataItem, type_hint: Type):
         """
-        Unpack a data item to the desired hinted type.
+        Unpack a data item to the desired hinted type. In case the type hint includes multiple types (like in case of
+        `typing.Union`), the manager will go over the types, reduce them while looking for the first packager that
+        successfully unpack the data item.
 
         :param data_item: The data item to unpack.
         :param type_hint: The type hint to unpack it to.
@@ -559,22 +631,71 @@ class PackagersManager:
 
         :raise MLRunPackageUnpackingError: If there is no packager that supports the provided type hint.
         """
-        # Get the packager by the given type:
-        packager = self._get_packager_by_type(object_type=type_hint)
-        if packager is None:
-            raise MLRunPackageUnpackingError(
-                f"Could not find a packager that supports the hinted type: '{type_hint}'"
-            )
-        if packager is self._default_packager:
-            logger.info(
-                f"Trying to use the default packager to unpack the data item '{data_item.key}'"
+        # Prepare a list of a packager and exception string for all the failures in case there was no fitting packager:
+        found_packagers: List[Tuple[Type[Packager], str]] = []
+
+        # Try to unpack as one of the possible types in the type hint:
+        possible_type_hints = {type_hint}
+        while len(possible_type_hints) > 0:
+            for hint in possible_type_hints:
+                # Get the packager by the given type:
+                packager = self._get_packager_for_unpacking(
+                    data_item=data_item, type_hint=hint
+                )
+                if packager is None:
+                    # No packager was found that supports this hinted type:
+                    continue
+                # Unpack:
+                try:
+                    return packager.unpack(
+                        data_item=data_item,
+                        instructions={},
+                    )
+                except Exception as exception:
+                    # Could not unpack as the reduced type hint, collect the exception and go to the next one:
+                    exception_string = "".join(
+                        traceback.format_exception(
+                            etype=type(exception),
+                            value=exception,
+                            tb=exception.__traceback__,
+                        )
+                    )
+                    found_packagers.append((packager, exception_string))
+            # Reduce the type hint list and continue:
+            possible_type_hints = TypeHintUtils.reduce_type_hint(
+                type_hint=possible_type_hints
             )
 
-        # Unpack:
-        return packager.unpack(
-            data_item=data_item,
-            artifact_type=None,
-            instructions={},
+        # Check the default packager:
+        logger.info(
+            f"Trying to use the default packager to unpack the data item '{data_item.key}'"
+        )
+        try:
+            return self._default_packager.unpack(
+                data_item=data_item,
+                artifact_type=None,
+                instructions={},
+            )
+        except Exception as exception:
+            exception_string = "".join(
+                traceback.format_exception(
+                    etype=type(exception),
+                    value=exception,
+                    tb=exception.__traceback__,
+                )
+            )
+            found_packagers.append((self._default_packager, exception_string))
+
+        # The method did not return until this point, raise an error:
+        raise MLRunPackageUnpackingError(
+            f"Could not unpack data item with the hinted type '{type_hint}'. The following packagers were tried to "
+            f"be used to unpack it but raised the exceptions joined:\n\n"
+            + "\n".join(
+                [
+                    f"Found packager: '{packager}'\nException: {exception}\n"
+                    for packager, exception in found_packagers
+                ]
+            )
         )
 
     @staticmethod
@@ -631,11 +752,12 @@ class PackagersManager:
         :return: The object's type full name.
         """
         # Get the module name:
-        module_name = typ.__module__
+        module_name = typ.__module__ if hasattr(typ, "__module__") else ""
 
         # Get the type's (class) name
         class_name = typ.__qualname__ if hasattr(typ, "__qualname__") else typ.__name__
-        return f"{module_name}.{class_name}"
+
+        return f"{module_name}.{class_name}" if module_name else class_name
 
     @staticmethod
     def _get_type_from_name(type_name: str) -> Type:

@@ -15,6 +15,7 @@ import sys
 import tempfile
 from base64 import b64encode
 from os import path, remove
+from typing import Union
 
 import dask.dataframe as dd
 import fsspec
@@ -25,7 +26,9 @@ import urllib3
 
 import mlrun.errors
 from mlrun.errors import err_to_str
-from mlrun.utils import is_ipython, logger
+from mlrun.utils import StorePrefix, is_ipython, logger
+
+from .store_resources import is_store_uri, parse_store_uri
 
 verify_ssl = False
 if not verify_ssl:
@@ -459,6 +462,19 @@ class DataItem:
             display.display(display.Markdown(self.get(encoding="utf-8")))
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
+
+    def is_artifact(self) -> Union[str, bool]:
+        """
+        Check if the data item represents an Artifact (one of Artifact, DatasetArtifact and ModelArtifact). If it does
+        it return the store uri prefix (artifacts, datasets or models), otherwise False.
+
+        :return: The store prefix of the artifact if it is an artifact data item and False if not.
+        """
+        if self.artifact_url and is_store_uri(url=self.artifact_url):
+            store_uri_prefix = parse_store_uri(self.artifact_url)[0]
+            if StorePrefix.is_artifact(prefix=store_uri_prefix):
+                return store_uri_prefix
+        return False
 
     def __str__(self):
         return self.url

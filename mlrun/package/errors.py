@@ -23,7 +23,7 @@ class MLRunPackageError(MLRunBaseError):
     pass
 
 
-class MLRunPackagePackagerCollectionError(MLRunPackageError):
+class MLRunPackageCollectionError(MLRunPackageError):
     """
     An error that may be raised during the collection of packagers the manager is assigned to do.
     """

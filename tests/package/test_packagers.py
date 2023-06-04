@@ -15,20 +15,59 @@
 import inspect
 import shutil
 import tempfile
+import typing
 from typing import List, Tuple, Type, Union
 
 import pytest
 
 import mlrun
-from mlrun.package import ArtifactType, LogHintKey
+from mlrun.package import ArtifactType, LogHintKey, PackagersManager
 from mlrun.package.utils import LogHintUtils
 from mlrun.runtimes import KubejobRuntime
 
 from .packager_tester import PackagerTester, PackTest, PackToUnpackTest, UnpackTest
 from .packagers_testers.default_packager_tester import DefaultPackagerTester
+from .packagers_testers.numpy_packagers_testers import (
+    NumPyNDArrayDictPackagerTester,
+    NumPyNDArrayListPackagerTester,
+    NumPyNDArrayPackagerTester,
+    NumPyNumberPackagerTester,
+)
+from .packagers_testers.python_standard_library_packagers_testers import (
+    BoolPackagerTester,
+    BytearrayPackagerTester,
+    BytesPackagerTester,
+    DictPackagerTester,
+    FloatPackagerTester,
+    FrozensetPackagerTester,
+    IntPackagerTester,
+    ListPackagerTester,
+    PathPackagerTester,
+    SetPackagerTester,
+    StrPackagerTester,
+    TuplePackagerTester,
+)
 
-# The list of testers to include in the tests:
-PACKAGERS_TESTERS = [DefaultPackagerTester]
+# All the testers to be included in the tests:
+_PACKAGERS_TESTERS = [
+    DefaultPackagerTester,
+    BoolPackagerTester,
+    BytearrayPackagerTester,
+    BytesPackagerTester,
+    DictPackagerTester,
+    FloatPackagerTester,
+    FrozensetPackagerTester,
+    IntPackagerTester,
+    ListPackagerTester,
+    SetPackagerTester,
+    StrPackagerTester,
+    TuplePackagerTester,
+    PathPackagerTester,
+    NumPyNDArrayPackagerTester,
+    NumPyNumberPackagerTester,
+    NumPyNDArrayDictPackagerTester,
+    NumPyNDArrayListPackagerTester,
+]
 
 
 def _get_tests_tuples(
@@ -36,13 +75,21 @@ def _get_tests_tuples(
 ) -> List[Tuple[Type[PackagerTester], PackTest]]:
     return [
         (tester, test)
-        for tester in PACKAGERS_TESTERS
+        for tester in _PACKAGERS_TESTERS
         for test in tester.TESTS
         if isinstance(test, test_type)
     ]
 
 
-def _setup_test(tester: Type[PackagerTester], test_directory: str) -> KubejobRuntime:
+def _setup_test(
+    tester: Type[PackagerTester],
+    test: Union[PackTest, UnpackTest, PackToUnpackTest],
+    test_directory: str,
+) -> KubejobRuntime:
+    # Enabled logging tuples only if the tuple test is about to be setup:
+    if isinstance(test, (PackTest, PackToUnpackTest)) and tester is TuplePackagerTester:
+        mlrun.mlconf.packagers.pack_tuples = True
+
     # Create a project for this tester:
     project = mlrun.get_or_create_project(name="default", context=test_directory)
 
@@ -64,12 +111,13 @@ def _get_key_and_artifact_type(
     # Extract the key:
     key = log_hint[LogHintKey.KEY]
 
-    # Get the artifact type (either from the log hint of from the packager - the default artifact type):
-    artifact_type = log_hint.get(
-        LogHintKey.ARTIFACT_TYPE,
-        tester.PACKAGER_IN_TEST.get_default_artifact_type(
+    # Get the artifact type (either from the log hint or from the packager - the default artifact type):
+    artifact_type = (
+        log_hint[LogHintKey.ARTIFACT_TYPE]
+        if LogHintKey.ARTIFACT_TYPE in log_hint
+        else tester.PACKAGER_IN_TEST.get_default_packing_artifact_type(
             obj=test.default_artifact_type_object
-        ),
+        )
     )
 
     return key, artifact_type
@@ -89,26 +137,35 @@ def test_packager_pack(rundb_mock, tester: Type[PackagerTester], test: PackTest)
     """
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
-
-    # Run the packing handler:
-    pack_run = mlrun_function.run(
-        name="pack",
-        handler=test.pack_handler,
-        params=test.parameters,
-        returns=[test.log_hint],
-        artifact_path=test_directory.name,
-        local=True,
+    mlrun_function = _setup_test(
+        tester=tester, test=test, test_directory=test_directory.name
     )
 
-    # Verify the packaged output:
-    key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-    if artifact_type == ArtifactType.RESULT:
-        assert key in pack_run.status.results
-        assert test.validation_function(pack_run.status.results[key])
-    else:
-        assert key in pack_run.outputs
-        assert test.validation_function(pack_run._artifact(key=key))
+    # Run the packing handler:
+    try:
+        pack_run = mlrun_function.run(
+            name="pack",
+            handler=test.pack_handler,
+            params=test.pack_parameters,
+            returns=[test.log_hint],
+            artifact_path=test_directory.name,
+            local=True,
+        )
+
+        # Verify the packaged output:
+        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
+        if artifact_type == ArtifactType.RESULT:
+            assert key in pack_run.status.results
+            assert test.validation_function(pack_run.status.results[key])
+        else:
+            assert key in pack_run.outputs
+            assert test.validation_function(pack_run._artifact(key=key))
+    except Exception as exception:
+        # An error was raised, check if the test failed or should have failed:
+        if test.exception is None:
+            raise exception
+        # Make sure the expected exception was raised:
+        assert test.exception in str(exception)
 
     # Clear the tests outputs:
     test_directory.cleanup()
@@ -127,20 +184,29 @@ def test_packager_unpack(rundb_mock, tester: Type[PackagerTester], test: UnpackT
     :param test:   The `UnpackTest` tuple with the test parameters.
     """
     # Create the input path to send for unpacking:
-    temp_directory, input_path = test.prepare_input_function()
+    input_path, temp_directory = test.prepare_input_function(**test.prepare_parameters)
 
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
+    mlrun_function = _setup_test(
+        tester=tester, test=test, test_directory=test_directory.name
+    )
 
     # Run the packing handler:
-    mlrun_function.run(
-        name="unpack",
-        handler=test.unpack_handler,
-        inputs={"obj": input_path},
-        artifact_path=test_directory.name,
-        local=True,
-    )
+    try:
+        mlrun_function.run(
+            name="unpack",
+            handler=test.unpack_handler,
+            inputs={"obj": input_path},
+            artifact_path=test_directory.name,
+            local=True,
+        )
+    except Exception as exception:
+        # An error was raised, check if the test failed or should have failed:
+        if test.exception is None:
+            raise exception
+        # Make sure the expected exception was raised:
+        assert test.exception in str(exception)
 
     # Clear the tests outputs:
     shutil.rmtree(temp_directory)
@@ -164,43 +230,68 @@ def test_packager_pack_to_unpack(
     """
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(tester=tester, test_directory=test_directory.name)
+    mlrun_function = _setup_test(
+        tester=tester, test=test, test_directory=test_directory.name
+    )
 
     # Run the packing handler:
-    pack_run = mlrun_function.run(
-        name="pack",
-        handler=test.pack_handler,
-        params=test.parameters,
-        returns=[test.log_hint],
-        artifact_path=test_directory.name,
-        local=True,
-    )
+    try:
+        pack_run = mlrun_function.run(
+            name="pack",
+            handler=test.pack_handler,
+            params=test.pack_parameters,
+            returns=[test.log_hint],
+            artifact_path=test_directory.name,
+            local=True,
+        )
 
-    # Verify the outputs are logged (artifact type as "result" will stop the test here as it cannot be unpacked):
-    key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-    if artifact_type == ArtifactType.RESULT:
-        assert key in pack_run.status.results
-        return
-    assert key in pack_run.outputs
+        # Verify the outputs are logged (artifact type as "result" will stop the test here as it cannot be unpacked):
+        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
+        if artifact_type == ArtifactType.RESULT:
+            assert key in pack_run.status.results
+            return
+        assert key in pack_run.outputs
 
-    # Validate the packager instructions noted:
-    instructions = pack_run._artifact(key=key)["spec"]["packaging_instructions"][
-        "instructions"
-    ]
-    for (
-        expected_instruction_key,
-        expected_instruction_value,
-    ) in test.expected_instructions.items():
-        assert instructions[expected_instruction_key] == expected_instruction_value
+        # Validate the packager manager notes and packager instructions:
+        unpackaging_instructions = pack_run._artifact(key=key)["spec"][
+            "unpackaging_instructions"
+        ]
+        assert (
+            unpackaging_instructions["packager_name"]
+            == tester.PACKAGER_IN_TEST.__name__
+        )
+        if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE is not ...:
+            # Check the object name noted match the packager handled type (at least subclass of it):
+            packable_object_type_name = PackagersManager._get_type_name(
+                typ=tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE
+                if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE.__module__ != "typing"
+                else typing.get_origin(tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE)
+            )
+            assert unpackaging_instructions[
+                "object_type"
+            ] == packable_object_type_name or issubclass(
+                PackagersManager._get_type_from_name(
+                    type_name=unpackaging_instructions["object_type"]
+                ),
+                tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE,
+            )
+        assert unpackaging_instructions["artifact_type"] == artifact_type
+        assert unpackaging_instructions["instructions"] == test.expected_instructions
 
-    # Run the unpacking handler:
-    mlrun_function.run(
-        name="unpack",
-        handler=test.unpack_handler,
-        inputs={"obj": pack_run.outputs[key]},
-        artifact_path=test_directory.name,
-        local=True,
-    )
+        # Run the unpacking handler:
+        mlrun_function.run(
+            name="unpack",
+            handler=test.unpack_handler,
+            inputs={"obj": pack_run.outputs[key]},
+            artifact_path=test_directory.name,
+            local=True,
+        )
+    except Exception as exception:
+        # An error was raised, check if the test failed or should have failed:
+        if test.exception is None:
+            raise exception
+        # Make sure the expected exception was raised:
+        assert test.exception in str(exception)
 
     # Clear the tests outputs:
     test_directory.cleanup()

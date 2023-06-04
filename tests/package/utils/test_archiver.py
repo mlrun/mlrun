@@ -20,12 +20,12 @@ from typing import List
 import numpy as np
 import pytest
 
-from mlrun.package.utils import ArchiveFormat
+from mlrun.package.utils import ArchiveSupportedFormat
 
 
 @pytest.mark.parametrize(
     "archive_format",
-    ArchiveFormat.get_formats(),
+    ArchiveSupportedFormat.get_all_formats(),
 )
 @pytest.mark.parametrize(
     "directory_layout",
@@ -78,7 +78,7 @@ def test_archiver(archive_format: str, directory_layout: List[str]):
     assert len(list(directory_path.rglob("*"))) == len(directory_layout)
 
     # Archive the files:
-    archiver = ArchiveFormat.get_archiver(archive_format=archive_format)
+    archiver = ArchiveSupportedFormat.get_format_handler(fmt=archive_format)
     archive_path = Path(
         archiver.create_archive(
             directory_path=str(directory_path), output_path=str(output_path)

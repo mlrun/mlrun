@@ -22,10 +22,7 @@ from mlrun.utils import logger
 
 from ..errors import MLRunPackagePackingError, MLRunPackageUnpackingError
 from ..packager import Packager
-from ..utils import ArtifactType, Pickler
-
-# The default pickle module to use for pickling objects:
-_DEFAULT_PICKLE_MODULE = "cloudpickle"
+from ..utils import DEFAULT_PICKLE_MODULE, ArtifactType, Pickler, TypeHintUtils
 
 
 class DefaultPackager(Packager):
@@ -38,8 +35,12 @@ class DefaultPackager(Packager):
 
     * The class variable ``PACKABLE_OBJECT_TYPE``: The type of object this packager can pack and unpack (used in the
       ``is_packable`` method).
-    * The class variable ``DEFAULT_ARTIFACT_TYPE``: The default artifact type to pack as or unpack from. Unique to the
-      ``DefaultPackager`` (not inherited from ``Packager``).
+    * The class variable ``PACK_SUBCLASSES``: A flag that indicates whether to pack all subclasses of the
+      ``PACKABLE_OBJECT_TYPE` (used in the ``is_packable`` method). Default is False.
+    * The class variable ``DEFAULT_PACKING_ARTIFACT_TYPE``: The default artifact type to pack as. It is being returned
+      from the method ``get_default_packing_artifact_type``
+    * The class variable ``DEFAULT_UNPACKING_ARTIFACT_TYPE``: The default artifact type to unpack from. It is being
+      returned from the method ``get_default_unpacking_artifact_type``.
     * The abstract class method ``pack``: The method is implemented to get the object and send it to the relevant
       packing method by the artifact type given using the following naming: "pack_<artifact_type>". (if artifact type
       was not provided, the default one will be used). For example: if the artifact type is "object" then the class
@@ -52,7 +53,7 @@ class DefaultPackager(Packager):
       Where 'x' is the artifact type, 'obj' is the object to pack, ... are additional custom log hint configurations and
       the returning values are the packed artifact and the instructions for unpacking it, or in case of result, the
       dictionary of the result with its key and value. The log hint configurations are sent by the user and shouldn't be
-      mandatory, meaning they should have a default value.
+      mandatory, meaning they should have a default value (otherwise, the user will have to add them to every log hint).
     * The abstract class method ``unpack``: The method is implemented to get a ``DataItem`` and send it to the relevant
       unpacking method by the artifact type using the following naming: "unpack_<artifact_type>" (if artifact type was
       not provided, the default one will be used). For example: if the artifact type stored within the ``DataItem`` is
@@ -70,16 +71,21 @@ class DefaultPackager(Packager):
     * The abstract class method ``is_packable``: The method is implemented to validate the object type and artifact type
       automatically by the following rules:
 
-      * Object type validation: Checking if the object type given is equal to the variable ``PACKABLE_OBJECT_TYPE``.
+      * Object type validation: Checking if the object type given match to the variable ``PACKABLE_OBJECT_TYPE`` with
+        respect to the ``PACK_SUBCLASSES`` class variable.
       * Artifact type validation: Checking if the artifact type given is in the list returned from
         ``get_supported_artifact_types``.
 
+    * The abstract class method ``is_unpackable``: The method is left as implemented in ``Packager``.
     * The abstract class method ``get_supported_artifact_types``: The method is implemented to look for all
       pack + unpack class methods implemented to collect the supported artifact types. If ``PackagerX`` has ``pack_y``,
       ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are 'y' and 'z'.
-    * The abstract class method ``get_default_artifact_type``: The method is implemented to return the new class
-      variable ``DEFAULT_ARTIFACT_TYPE``. You may still override the method if the default artifact type you need may
-      change according to the object that's about to be packaged.
+    * The abstract class method ``get_default_packing_artifact_type``: The method is implemented to return the new class
+      variable ``DEFAULT_PACKING_ARTIFACT_TYPE``. You may still override the method if the default artifact type you
+      need may change according to the object that's about to be packed.
+    * The abstract class method ``get_default_unpacking_artifact_type``: The method is implemented to return the new
+      class variable ``DEFAULT_UNPACKING_ARTIFACT_TYPE``. You may still override the method if the default artifact type
+      you need may change according to the data item that's about to be unpacked.
 
     Important to remember (from the ``Packager`` docstring):
 
@@ -108,19 +114,36 @@ class DefaultPackager(Packager):
 
     # The type of object this packager can pack and unpack:
     PACKABLE_OBJECT_TYPE: Type = ...
-    # The default artifact type to pack as or unpack from:
-    DEFAULT_ARTIFACT_TYPE = ArtifactType.OBJECT
+    # A flag for indicating whether to pack all subclasses of the `PACKABLE_OBJECT_TYPE` as well:
+    PACK_SUBCLASSES = False
+    # The default artifact type to pack as:
+    DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
+    # The default artifact type to unpack from:
+    DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
 
     @classmethod
-    def get_default_artifact_type(cls, obj: Any) -> str:
+    def get_default_packing_artifact_type(cls, obj: Any) -> str:
         """
-        Get the default artifact type of this packager.
+        Get the default artifact type for packing an object of this packager.
 
         :param obj: The about to be packed object.
 
         :return: The default artifact type.
         """
-        return cls.DEFAULT_ARTIFACT_TYPE
+        return cls.DEFAULT_PACKING_ARTIFACT_TYPE
+
+    @classmethod
+    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+        """
+        Get the default artifact type used for unpacking a data item holding an object of this packager. The method will
+        be used when a data item is sent for unpacking without it being a package, but a simple url or an old / manually
+        logged artifact.
+
+        :param data_item: The about to be unpacked data item.
+
+        :return: The default artifact type.
+        """
+        return cls.DEFAULT_UNPACKING_ARTIFACT_TYPE
 
     @classmethod
     def get_supported_artifact_types(cls) -> List[str]:
@@ -139,13 +162,16 @@ class DefaultPackager(Packager):
 
     @classmethod
     def pack(
-        cls, obj: Any, artifact_type: Union[str, None], configurations: dict
+        cls,
+        obj: Any,
+        artifact_type: str = None,
+        configurations: dict = None,
     ) -> Union[Tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
 
         :param obj:            The object to pack.
-        :param artifact_type:  Artifact type to log to MLRun.
+        :param artifact_type:  Artifact type to log to MLRun. If passing `None`, the default artifact type will be used.
         :param configurations: Log hints configurations to pass to the packing method.
 
         :return: If the packed object is an artifact, a tuple of the packed artifact and unpacking instructions
@@ -153,7 +179,10 @@ class DefaultPackager(Packager):
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
-            artifact_type = cls.get_default_artifact_type(obj=obj)
+            artifact_type = cls.get_default_packing_artifact_type(obj=obj)
+
+        # Set empty dictionary in case no configurations were given:
+        configurations = configurations or {}
 
         # Get the packing method according to the artifact type:
         pack_method = getattr(cls, f"pack_{artifact_type}")
@@ -172,15 +201,16 @@ class DefaultPackager(Packager):
     def unpack(
         cls,
         data_item: DataItem,
-        artifact_type: Union[str, None],
-        instructions: dict,
+        artifact_type: str = None,
+        instructions: dict = None,
     ) -> Any:
         """
         Unpack the data item's artifact by the provided type using the given instructions.
 
         :param data_item:     The data input to unpack.
-        :param artifact_type: The artifact type to unpack the data item as.
-        :param instructions:  Additional instructions to pass to the unpacking method.
+        :param artifact_type: The artifact type to unpack the data item as. If passing `None`, the default artifact type
+                              will be used.
+        :param instructions:  Additional instructions noted in the package to pass to the unpacking method.
 
         :return: The unpacked data item's object.
 
@@ -188,7 +218,10 @@ class DefaultPackager(Packager):
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
-            artifact_type = cls.get_default_artifact_type(obj=data_item)
+            artifact_type = cls.get_default_unpacking_artifact_type(data_item=data_item)
+
+        # Set empty dictionary in case no instructions were given:
+        instructions = instructions or {}
 
         # Get the unpacking method according to the artifact type:
         unpack_method = getattr(cls, f"unpack_{artifact_type}")
@@ -204,20 +237,30 @@ class DefaultPackager(Packager):
         return unpack_method(data_item, **instructions)
 
     @classmethod
-    def is_packable(cls, object_type: Type, artifact_type: str = None) -> bool:
+    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
 
-        :param object_type:   The object type to pack.
+        The method is implemented to validate the object's type and artifact type by checking if the object type given
+        match to the variable ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable. If it
+        does, it will check if the artifact type given is in the list returned from ``get_supported_artifact_types``.
+
+        :param obj:           The object to pack.
         :param artifact_type: The artifact type to log the object as.
 
         :return: True if packable and False otherwise.
         """
+        # Get the object's type:
+        object_type = type(obj)
+
         # Check type (ellipses means any type):
-        if (cls.PACKABLE_OBJECT_TYPE is not ...) and (
-            object_type is not cls.PACKABLE_OBJECT_TYPE
-        ):
-            return False
+        if cls.PACKABLE_OBJECT_TYPE is not ...:
+            if not TypeHintUtils.is_matching(
+                object_type=object_type,
+                type_hint=cls.PACKABLE_OBJECT_TYPE,
+                include_subclasses=cls.PACK_SUBCLASSES,
+            ):
+                return False
 
         # Check the artifact type:
         if (
@@ -234,7 +277,7 @@ class DefaultPackager(Packager):
         cls,
         obj: Any,
         key: str,
-        pickle_module_name: str = _DEFAULT_PICKLE_MODULE,
+        pickle_module_name: str = DEFAULT_PICKLE_MODULE,
     ) -> Tuple[Artifact, dict]:
         """
         Pack a python object, pickling it into a pkl file and store it in an artifact.
@@ -254,7 +297,7 @@ class DefaultPackager(Packager):
         artifact = Artifact(key=key, src_path=pickle_path)
 
         # Add the pickle path to the clearing list:
-        cls.future_clear(path=pickle_path)
+        cls.add_future_clearing_path(path=pickle_path)
 
         return artifact, instructions
 
@@ -274,7 +317,7 @@ class DefaultPackager(Packager):
     def unpack_object(
         cls,
         data_item: DataItem,
-        pickle_module_name: str = _DEFAULT_PICKLE_MODULE,
+        pickle_module_name: str = DEFAULT_PICKLE_MODULE,
         object_module_name: str = None,
         python_version: str = None,
         pickle_module_version: str = None,
@@ -303,7 +346,7 @@ class DefaultPackager(Packager):
         pickle_path = data_item.local()
 
         # Add the pickle path to the clearing list:
-        cls.future_clear(path=pickle_path)
+        cls.add_future_clearing_path(path=pickle_path)
 
         # Unpickle and return:
         return Pickler.unpickle(
@@ -336,7 +379,11 @@ class DefaultPackager(Packager):
         mandatory_arguments = [
             name
             for name, parameter in possible_arguments.items()
-            if parameter.default is inspect._empty
+            # If default value is `empty` it is mandatory:
+            if parameter.default is inspect.Parameter.empty
+            # Ignore the *args and **kwargs parameters:
+            and parameter.kind
+            not in [inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL]
         ]
         mandatory_arguments.remove("obj" if is_packing else "data_item")
 

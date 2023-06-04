@@ -25,7 +25,8 @@ from mlrun.artifacts import Artifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.package import (
     DefaultPackager,
-    MLRunPackagePackagerCollectionError,
+    MLRunPackageCollectionError,
+    MLRunPackageUnpackingError,
     Packager,
     PackagersManager,
 )
@@ -39,7 +40,11 @@ class PackagerA(Packager):
     PACKABLE_OBJECT_TYPE = str
 
     @classmethod
-    def get_default_artifact_type(cls, obj: Any) -> str:
+    def get_default_packing_artifact_type(cls, obj: Any) -> str:
+        return "result"
+
+    @classmethod
+    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
         return "result"
 
     @classmethod
@@ -47,12 +52,12 @@ class PackagerA(Packager):
         return ["result"]
 
     @classmethod
-    def is_packable(cls, object_type: Type, artifact_type: str = None) -> bool:
-        return object_type is cls.PACKABLE_OBJECT_TYPE and artifact_type == "result"
+    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
+        return type(obj) is cls.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     @classmethod
     def pack(
-        cls, obj: str, artifact_type: Union[str, None], configurations: dict
+        cls, obj: str, artifact_type: str = None, configurations: dict = None
     ) -> dict:
         return {f"{configurations['key']}_from_PackagerA": obj}
 
@@ -60,8 +65,8 @@ class PackagerA(Packager):
     def unpack(
         cls,
         data_item: DataItem,
-        artifact_type: Union[str, None],
-        instructions: dict,
+        artifact_type: str = None,
+        instructions: dict = None,
     ) -> str:
         pass
 
@@ -72,6 +77,8 @@ class PackagerB(DefaultPackager):
     """
 
     PACKABLE_OBJECT_TYPE = str
+    DEFAULT_PACKING_ARTIFACT_TYPE = "b1"
+    DEFAULT_UNPACKING_ARTIFACT_TYPE = "b1"
 
     @classmethod
     def pack_result(cls, obj: Any, key: str) -> dict:
@@ -93,7 +100,7 @@ class PackagerB(DefaultPackager):
             file.write(obj)
 
         # Note for clearance:
-        cls.future_clear(path=file_path)
+        cls.add_future_clearing_path(path=file_path)
 
         return Artifact(key=key, src_path=file_path), {"temp_dir": path}
 
@@ -122,7 +129,7 @@ class PackagerB(DefaultPackager):
                 zip_file.write(txt_file_path)
 
         # Note for clearance:
-        cls.future_clear(path=path)
+        cls.add_future_clearing_path(path=path)
 
         return Artifact(key=key, src_path=zip_path), {
             "temp_dir": path,
@@ -148,9 +155,18 @@ class PackagerC(PackagerA):
 
     @classmethod
     def pack(
-        cls, obj: float, artifact_type: Union[str, None], configurations: dict
+        cls, obj: float, artifact_type: str = None, configurations: dict = None
     ) -> dict:
         return {configurations["key"]: round(obj, configurations["n_round"])}
+
+    @classmethod
+    def unpack(
+        cls,
+        data_item: DataItem,
+        artifact_type: str = None,
+        instructions: dict = None,
+    ) -> float:
+        return data_item.key * 2
 
 
 class NotAPackager:
@@ -206,7 +222,7 @@ def test_collect_packagers(
     # Try to collect the packagers:
     try:
         packagers_manager.collect_packagers(packagers=packagers_to_collect)
-    except MLRunPackagePackagerCollectionError as error:
+    except MLRunPackageCollectionError as error:
         # Catch only if the validation is a string, otherwise it is a legitimate exception:
         if isinstance(validation, str):
             # Make sure the correct error was raised:
@@ -226,18 +242,33 @@ def test_collect_packagers(
         ([PackagerB, PackagerA], "_from_PackagerA"),
     ],
 )
+@pytest.mark.parametrize("set_via_default_priority", [True, False])
 def test_packagers_priority(
-    packagers_to_collect: List[Type[Packager]], result_key_suffix: str
+    packagers_to_collect: List[Type[Packager]],
+    result_key_suffix: str,
+    set_via_default_priority: bool,
 ):
     """
-    Test the priority of the collected packagers (last collected - highest priority).
+    Test the priority of the collected packagers (last collected will be set with the highest priority).
 
-    :param packagers_to_collect: The packagers to collect
-    :param result_key_suffix: The suffix the result key should have if it was collected by the right packager.
+    :param packagers_to_collect:     The packagers to collect
+    :param result_key_suffix:        The suffix the result key should have if it was collected by the right packager.
+    :param set_via_default_priority: Whether to set the priority via the class or the default priority in collection.
     """
-    # Prepare the test:
+    # Reset priorities (when performing multiple runs the class priority is remained set from previous run):
+    PackagerA.PRIORITY = ...
+    PackagerB.PRIORITY = ...
+
+    # Collect the packagers:
     packagers_manager = PackagersManager()
-    packagers_manager.collect_packagers(packagers=packagers_to_collect)
+    for packager, priority in zip(packagers_to_collect, [2, 1]):
+        if not set_via_default_priority:
+            packager.PRIORITY = priority
+        packagers_manager.collect_packagers(
+            packagers=[packager], default_priority=priority
+        )
+        if set_via_default_priority:
+            assert packager.PRIORITY == priority
 
     # Pack a string as a result:
     key = "some_key"
@@ -272,11 +303,11 @@ def test_clear_packagers_outputs():
     )
 
     # Get the created files:
-    a_temp_dir = packagers_manager.artifacts[0].spec.packaging_instructions[
+    a_temp_dir = packagers_manager.artifacts[0].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
     a_file = os.path.join(a_temp_dir, "a.txt")
-    b_temp_dir = packagers_manager.artifacts[1].spec.packaging_instructions[
+    b_temp_dir = packagers_manager.artifacts[1].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
 
@@ -362,3 +393,60 @@ def test_arbitrary_log_hint(
 
     # Validate multiple packages were packed:
     assert packagers_manager.results == expected_results
+
+
+class _DummyDataItem:
+    def __init__(self, key: str, is_artifact: bool = False):
+        self.key = key
+        self.artifact_url = ""
+        self._is_artifact = is_artifact
+
+    def is_artifact(self) -> bool:
+        return self._is_artifact
+
+
+@pytest.mark.parametrize(
+    "data, type_hint, expected_results",
+    [
+        (
+            0.5,
+            Union[int, bytes, float, int],
+            1.0,
+        ),
+        (
+            0.5,
+            Union[int, bytes, int],
+            "Could not unpack data item with the hinted type",
+        ),
+    ],
+)
+def test_plural_type_hint_unpacking(
+    data: Any,
+    type_hint: Any,
+    expected_results: Union[Any, str],
+):
+    """
+    Test unpacking when plural type hint is given (for example: a union of types).
+
+    :param data:             The data of the data item to unpack.
+    :param type_hint:        The plural type hint of ths data item.
+    :param expected_results: The expected results that should be unpacked. A string means an error should be raised.
+    """
+    # Prepare the test:
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers(packagers=[PackagerC])
+
+    # Pack an arbitrary amount of objects:
+    try:
+        value = packagers_manager.unpack(
+            data_item=_DummyDataItem(key=data), type_hint=type_hint
+        )
+    except MLRunPackageUnpackingError as error:
+        # Catch only if the expected results is a string, otherwise it is a legitimate exception:
+        if isinstance(expected_results, str):
+            assert expected_results in str(error)
+            return
+        raise error
+
+    # Validate multiple packages were packed:
+    assert value == expected_results

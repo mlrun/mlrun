@@ -29,6 +29,14 @@ class SomeClass:
     pass
 
 
+class AnotherClass(SomeClass):
+    """
+    To add a custom inheriting class for match test.
+    """
+
+    pass
+
+
 @pytest.mark.parametrize(
     "type_hint, expected_result",
     [
@@ -96,6 +104,43 @@ def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type
             assert expected_type in str(error)
         else:
             raise error
+
+
+@pytest.mark.parametrize(
+    "object_type, type_hint, include_subclasses, result",
+    [
+        (int, int, True, True),
+        (int, str, True, False),
+        (typing.Union[int, str], typing.Union[str, int], True, True),
+        (typing.Union[int, str, bool], typing.Union[str, int], True, False),
+        (int, typing.Union[int, str], True, False),
+        (AnotherClass, SomeClass, True, True),
+        (AnotherClass, SomeClass, False, False),
+        (SomeClass, AnotherClass, True, False),
+        (AnotherClass, {SomeClass, int, str}, True, True),
+        (AnotherClass, {SomeClass, int, str}, False, False),
+        (SomeClass, {AnotherClass, int, str}, True, False),
+    ],
+)
+def test_is_matching(
+    object_type: type, type_hint: type, include_subclasses: bool, result: bool
+):
+    """
+    Test the `TypeHintUtils.is_matching` function with multiple types.
+
+    :param object_type:        The type to match.
+    :param type_hint:          The options to match to (the type hint of an object).
+    :param include_subclasses: Whether subclasses considered a match.
+    :param result:             Expected test result.
+    """
+    assert (
+        TypeHintUtils.is_matching(
+            object_type=object_type,
+            type_hint=type_hint,
+            include_subclasses=include_subclasses,
+        )
+        == result
+    )
 
 
 @pytest.mark.parametrize(

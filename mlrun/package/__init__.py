@@ -20,17 +20,23 @@ import inspect
 from collections import OrderedDict
 from typing import Callable, Dict, List, Type, Union
 
+from ..config import config
 from .context_handler import ContextHandler
 from .errors import (
+    MLRunPackageCollectionError,
     MLRunPackageError,
-    MLRunPackagePackagerCollectionError,
     MLRunPackagePackingError,
     MLRunPackageUnpackingError,
 )
 from .packager import Packager
 from .packagers import DefaultPackager
 from .packagers_manager import PackagersManager
-from .utils import ArtifactType, LogHintKey
+from .utils import (
+    ArchiveSupportedFormat,
+    ArtifactType,
+    LogHintKey,
+    StructFileSupportedFormat,
+)
 
 
 def handler(
@@ -41,6 +47,9 @@ def handler(
     """
     MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using
     type hints and log returning outputs using log hints.
+
+    Notice: this decorator is now appplied automatically with the release of `mlrun.package`. It should not be used
+    manually.
 
     :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
@@ -124,11 +133,13 @@ def handler(
             # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
             if cxt_handler.is_context_available():
                 if labels:
+                    # TODO: Should deprecate this labels
                     cxt_handler.set_labels(labels=labels)
                 if outputs:
                     cxt_handler.log_outputs(
                         outputs=func_outputs
-                        if isinstance(func_outputs, tuple)
+                        if type(func_outputs) is tuple
+                        and not config.packagers.pack_tuples
                         else [func_outputs],
                         log_hints=outputs,
                     )

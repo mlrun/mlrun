@@ -430,18 +430,21 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
             # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
             # are logged only if log hints are provided by the user):
-            val = mlrun.handler(
-                inputs=(
-                    runobj.spec.inputs_type_hints
-                    if runobj.spec.inputs_type_hints
-                    else True  # True will use type hints if provided in user's code.
-                ),
-                outputs=(
-                    runobj.spec.returns
-                    if runobj.spec.returns
-                    else None  # None will turn off outputs logging.
-                ),
-            )(handler)(**kwargs)
+            if mlrun.mlconf.packagers.enabled:
+                val = mlrun.handler(
+                    inputs=(
+                        runobj.spec.inputs_type_hints
+                        if runobj.spec.inputs_type_hints
+                        else True  # True will use type hints if provided in user's code.
+                    ),
+                    outputs=(
+                        runobj.spec.returns
+                        if runobj.spec.returns
+                        else None  # None will turn off outputs logging.
+                    ),
+                )(handler)(**kwargs)
+            else:
+                val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
@@ -477,7 +480,12 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
             kwargs[key] = copy(params[key])
         elif key in inputs:
             obj = context.get_input(key, inputs[key])
-            if type(args[key].default) is str or args[key].annotation == str:
+            # If there is no type hint annotation but there is a default value and its type is string, point the data
+            # item to local downloaded file path (`local()` returns the downloaded temp path string):
+            if (
+                args[key].annotation is inspect.Parameter.empty
+                and type(args[key].default) is str
+            ):
                 kwargs[key] = obj.local()
             else:
                 kwargs[key] = context.get_input(key, inputs[key])

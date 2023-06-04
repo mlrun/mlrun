@@ -29,7 +29,7 @@ class TypeHintUtils:
     """
 
     @staticmethod
-    def is_typing_type(type_hint: typing.Type) -> bool:
+    def is_typing_type(type_hint: type) -> bool:
         """
         Check whether a given type is a type hint from one of the modules `typing` and `types`. The function will return
         True for generic type aliases also, meaning Python 3.9's new hinting feature that includes hinting like
@@ -47,7 +47,7 @@ class TypeHintUtils:
         )
 
     @staticmethod
-    def parse_type_hint(type_hint: typing.Union[typing.Type, str]) -> typing.Type:
+    def parse_type_hint(type_hint: typing.Union[type, str]) -> type:
         """
         Parse a given type hint from string to its actual hinted type class object. The string must be one of the
         following:
@@ -149,11 +149,43 @@ class TypeHintUtils:
         return type_hint
 
     @staticmethod
-    def reduce_type_hint(
-        type_hint: typing.Union[typing.Type, typing.Set[typing.Type]],
-    ) -> typing.Set[typing.Type]:
+    def is_matching(
+        object_type: type,
+        type_hint: typing.Union[type, typing.Set[type]],
+        include_subclasses: bool = True,
+    ) -> bool:
         """
-        Reduce a type hint (or a list of type hints) using the `_reduce_type_hint` function.
+        Check if the given object type match the given hint.
+
+        :param object_type:        The object type to match with the type hint.
+        :param type_hint:          The hint to match with. Can be given as a set resulted from a reduced hint.
+        :param include_subclasses: Whether to mark a subclass as valid match. Default to True.
+
+        :return: True if the object type match the type hint and False otherwise.
+        """
+        # Wrap in a set if provided a single type hint:
+        type_hint = {type_hint} if not isinstance(type_hint, set) else type_hint
+
+        # Try to match the object type to one of the hints:
+        for hint in type_hint:
+            # Subclass check can be made only on actual object types (not typing module types):
+            if (
+                not TypeHintUtils.is_typing_type(type_hint=object_type)
+                and not TypeHintUtils.is_typing_type(type_hint=hint)
+                and include_subclasses
+                and issubclass(object_type, hint)
+            ):
+                return True
+            if object_type == hint:
+                return True
+        return False
+
+    @staticmethod
+    def reduce_type_hint(
+        type_hint: typing.Union[type, typing.Set[type]],
+    ) -> typing.Set[type]:
+        """
+        Reduce a type hint (or a set of type hints) using the `_reduce_type_hint` function.
 
         :param type_hint: The type hint to reduce.
 
@@ -164,18 +196,16 @@ class TypeHintUtils:
 
         # Iterate over the type hints and reduce each one:
         return set(
-            list(
-                itertools.chain(
-                    *[
-                        TypeHintUtils._reduce_type_hint(type_hint=type_hint)
-                        for type_hint in type_hints
-                    ]
-                )
+            itertools.chain(
+                *[
+                    TypeHintUtils._reduce_type_hint(type_hint=type_hint)
+                    for type_hint in type_hints
+                ]
             )
         )
 
     @staticmethod
-    def _reduce_type_hint(type_hint: typing.Type) -> typing.List[typing.Type]:
+    def _reduce_type_hint(type_hint: type) -> typing.List[type]:
         """
         Reduce a type hint. If the type hint is a `typing` module, it will be reduced to its original hinted types. For
         example: `typing.Union[int, float, typing.List[int]]` will return `[int, float, List[int]]` and

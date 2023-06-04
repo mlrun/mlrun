@@ -22,7 +22,7 @@ from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 from mlrun.run import get_or_create_ctx
 
-from .errors import MLRunPackagePackagerCollectionError, MLRunPackagePackingError
+from .errors import MLRunPackageCollectionError, MLRunPackagePackingError
 from .packagers_manager import PackagersManager
 from .utils import ArtifactType, LogHintKey, LogHintUtils, TypeHintUtils
 
@@ -48,12 +48,14 @@ class ContextHandler:
         "python_standard_library",
         "pandas",
         "numpy",
-        "mlrun",
     ]
     # Optional packagers to be collected at initialization time:
     _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
     # Optional packagers from the `mlrun.frameworks` package:
     _MLRUN_FRAMEWORKS_PACKAGERS = []
+    # Default priority values for packagers:
+    _BUILTIN_PACKAGERS_DEFAULT_PRIORITY = 5
+    _CUSTOM_PACKAGERS_DEFAULT_PRIORITY = 3
 
     def __init__(self):
         """
@@ -112,7 +114,9 @@ class ContextHandler:
                 # Add the custom packagers taking into account the mandatory flag:
                 for custom_packager, is_mandatory in project.spec.custom_packagers:
                     self._collect_packagers(
-                        packagers=[custom_packager], is_mandatory=is_mandatory
+                        packagers=[custom_packager],
+                        is_mandatory=is_mandatory,
+                        is_custom_packagers=True,
                     )
 
     def is_context_available(self) -> bool:
@@ -151,7 +155,7 @@ class ContextHandler:
             if isinstance(argument, DataItem) and type_hints[
                 type_hints_keys[i]
             ] not in [
-                inspect._empty,
+                inspect.Parameter.empty,
                 DataItem,
             ]:
                 parsed_args.append(
@@ -167,7 +171,7 @@ class ContextHandler:
         # Parse the keyword arguments:
         for key, value in kwargs.items():
             if isinstance(value, DataItem) and type_hints[key] not in [
-                inspect._empty,
+                inspect.Parameter.empty,
                 DataItem,
             ]:
                 kwargs[key] = self._packagers_manager.unpack(
@@ -253,24 +257,38 @@ class ContextHandler:
         for key, value in labels.items():
             self._context.set_label(key=key, value=value)
 
-    def _collect_packagers(self, packagers: List[str], is_mandatory: bool):
+    def _collect_packagers(
+        self, packagers: List[str], is_mandatory: bool, is_custom_packagers: bool
+    ):
         """
         Collect packagers with the stored manager. The collection can ignore errors raised by setting the mandatory flag
         to False.
 
-        :param packagers:    The list of packagers to collect.
-        :param is_mandatory: Whether the packagers are mandatory for the context run.
+        :param packagers:           The list of packagers to collect.
+        :param is_mandatory:        Whether the packagers are mandatory for the context run.
+        :param is_custom_packagers: Whether the packagers to collect are user's custom or MLRun's builtins.
         """
         try:
-            self._packagers_manager.collect_packagers(packagers=packagers)
-        except MLRunPackagePackagerCollectionError as error:
+            self._packagers_manager.collect_packagers(
+                packagers=packagers,
+                default_priority=self._CUSTOM_PACKAGERS_DEFAULT_PRIORITY
+                if is_custom_packagers
+                else self._BUILTIN_PACKAGERS_DEFAULT_PRIORITY,
+            )
+        except MLRunPackageCollectionError as error:
             if is_mandatory:
                 raise error
             else:
-                self._context.logger.debug(
+                # If the packagers to collect were added manually by the user, the logger should write the collection
+                # issue as a warning. Otherwise - for mlrun builtin packagers, a debug message will do.
+                message = (
                     f"The given optional packagers '{packagers}' could not be imported due to the following error:\n"
                     f"'{error}'"
                 )
+                if is_custom_packagers:
+                    self._context.logger.warn(message)
+                else:
+                    self._context.logger.debug(message)
 
     def _collect_mlrun_packagers(self):
         """
@@ -289,6 +307,7 @@ class ContextHandler:
                 for module_name in self._MLRUN_REQUIREMENTS_PACKAGERS
             ],
             is_mandatory=True,
+            is_custom_packagers=False,
         )
 
         # Add extra packagers for optional libraries:
@@ -296,6 +315,7 @@ class ContextHandler:
             self._collect_packagers(
                 packagers=[f"mlrun.package.packagers.{module_name}_packagers.*"],
                 is_mandatory=False,
+                is_custom_packagers=False,
             )
 
         # Add extra packagers from `mlrun.frameworks` package:
@@ -303,4 +323,5 @@ class ContextHandler:
             self._collect_packagers(
                 packagers=[f"mlrun.frameworks.{module_name}.packagers.*"],
                 is_mandatory=False,
+                is_custom_packagers=False,
             )

@@ -17,10 +17,11 @@ import tarfile
 import zipfile
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Type
+
+from ._supported_format import SupportedFormat
 
 
-class Archiver(ABC):
+class _Archiver(ABC):
     """
     An abstract base class for an archiver - a class to manage archives of multiple files.
     """
@@ -54,7 +55,7 @@ class Archiver(ABC):
         pass
 
 
-class _ZipArchiver(Archiver):
+class _ZipArchiver(_Archiver):
     """
     A static class for managing zip archives.
     """
@@ -110,7 +111,7 @@ class _ZipArchiver(Archiver):
         return str(directory_path)
 
 
-class _TarArchiver(Archiver):
+class _TarArchiver(_Archiver):
     """
     A static class for managing tar archives.
     """
@@ -205,9 +206,9 @@ class _TarXZArchiver(_TarArchiver):
     _MODE_STRING = "xz"
 
 
-class ArchiveFormat:
+class ArchiveSupportedFormat(SupportedFormat[_Archiver]):
     """
-    Library of archive formats (archive file extensions) supported by some builtin MLRun packagers.
+    Library of archive formats (file extensions) supported by some builtin MLRun packagers.
     """
 
     ZIP = "zip"
@@ -216,35 +217,10 @@ class ArchiveFormat:
     TAR_BZ2 = "tar.bz2"
     TAR_XZ = "tar.xz"
 
-    # The map to use in the method `get_archiver`, new supported formats and archivers should be added to it:
-    _ARCHIVER_MAP = {
+    _FORMAT_HANDLERS_MAP = {
         ZIP: _ZipArchiver,
         TAR: _TarArchiver,
         TAR_GZ: _TarGZArchiver,
         TAR_BZ2: _TarBZ2Archiver,
         TAR_XZ: _TarXZArchiver,
     }
-
-    @classmethod
-    def get_formats(cls) -> List[str]:
-        """
-        Get all supported archive formats.
-
-        :return: A list of all the supported archive file extensions.
-        """
-        return [
-            value
-            for key, value in cls.__dict__.items()
-            if isinstance(value, str) and not key.startswith("_")
-        ]
-
-    @classmethod
-    def get_archiver(cls, archive_format: str) -> Type[Archiver]:
-        """
-        Get an archiver according to the provided format (file extension):
-
-        :param archive_format: The file extension to get the corresponding archiver.
-
-        :return: The archiver class.
-        """
-        return cls._ARCHIVER_MAP[archive_format]

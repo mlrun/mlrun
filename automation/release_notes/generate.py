@@ -75,6 +75,8 @@ class ReleaseNotesGenerator:
             "TomerShor": "TomerShor",
             "Assaf Ben-Amitai": "assaf758",
             "Yael Genish": "yaelgen",
+            "Eyal Danieli": "Eyal-Danieli",
+            "Yoni Shelach": "yonishelach",
         }
 
     def run(self):
@@ -196,7 +198,7 @@ class ReleaseNotesGenerator:
                     commit_id = match.groupdict()["commitId"]
                     username = match.groupdict()["username"]
                     github_username = self._resolve_github_username(commit_id, username)
-                    message_note = f"* **{scope}**: {message}, {pull_request_number}, @{github_username}\n"
+                    message_note = f"* **{scope}**: {message.capitalize()}, {pull_request_number}, @{github_username}\n"
                     if self._is_bug_fix(message_note):
                         bug_fixes_notes += message_note
                     else:

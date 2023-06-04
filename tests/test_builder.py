@@ -14,6 +14,7 @@
 #
 import base64
 import json
+import re
 import unittest.mock
 
 import deepdiff
@@ -471,13 +472,17 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
+    project = mlrun.new_project("some-project")
+    project.set_secrets(
+        secrets={
+            "AWS_ACCESS_KEY_ID": "test-a",
+            "AWS_SECRET_ACCESS_KEY": "test-b",
+        }
+    )
+    function = project.set_function(
+        "hub://describe",
+        name="some-function",
         kind="job",
-        requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -487,6 +492,19 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
         env.to_dict() for env in pod_spec.containers[0].env
     ]
+
+    # ensure both envvars are set without values so they wont interfere with the iam policy
+    for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
+        assert {"name": env_name, "value": "", "value_from": None} in [
+            env.to_dict() for env in pod_spec.containers[0].env
+        ]
+
+    # 1 for the AWS_SDK_LOAD_CONFIG=true
+    # 2 for the AWS_ACCESS_KEY_ID="" and AWS_SECRET_ACCESS_KEY=""
+    # 1 for the project secret
+    # == 4
+    assert len(pod_spec.containers[0].env) == 4, "expected 4 env items"
+
     assert len(pod_spec.init_containers) == 2
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":
@@ -807,6 +825,42 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
+
+
+@pytest.mark.parametrize(
+    "clone_target_dir,expected_workdir",
+    [
+        (None, r"WORKDIR .*\/tmp.*\/mlrun"),
+        ("", r"WORKDIR .*\/tmp.*\/mlrun"),
+        ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
+        ("rel_path", r"WORKDIR .*\/tmp.*\/mlrun\/rel_path"),
+        ("/some/workdir", r"WORKDIR \/some\/workdir"),
+    ],
+)
+def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.builder.make_kaniko_pod = unittest.mock.MagicMock()
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+    )
+    if clone_target_dir is not None:
+        function.spec.clone_target_dir = clone_target_dir
+    function.spec.build.source = "some-source.tgz"
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    dockerfile = mlrun.builder.make_kaniko_pod.call_args[1]["dockertext"]
+    dockerfile_lines = dockerfile.splitlines()
+    expected_workdir_re = re.compile(expected_workdir)
+    assert expected_workdir_re.match(dockerfile_lines[1])
 
 
 def _get_target_image_from_create_pod_mock():

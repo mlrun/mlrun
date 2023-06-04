@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import typing
 from copy import deepcopy
 from datetime import datetime
@@ -143,6 +143,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        clone_target_dir=None,
     ):
 
         super().__init__(
@@ -172,6 +173,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             tolerations=tolerations,
             preemption_mode=preemption_mode,
             security_context=security_context,
+            clone_target_dir=clone_target_dir,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -362,6 +364,15 @@ class AbstractSparkRuntime(KubejobRuntime):
 
     def _get_igz_deps(self):
         raise NotImplementedError()
+
+    def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Sparkjob does not support loading source code on run, "
+                "use func.with_source_archive(pull_at_runtime=False)"
+            )
+
+        super()._pre_run(runobj, execution)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
@@ -559,7 +570,11 @@ with ctx:
 
         if self.spec.command:
             if "://" not in self.spec.command:
-                self.spec.command = "local://" + self.spec.command
+                workdir = self._resolve_workdir()
+                self.spec.command = "local://" + os.path.join(
+                    workdir or "",
+                    self.spec.command,
+                )
             update_in(job, "spec.mainApplicationFile", self.spec.command)
 
         verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
@@ -787,6 +802,28 @@ with ctx:
             self.spec.restart_policy,
             "submission_retry_interval",
             submission_retry_interval,
+        )
+
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: not supported for spark runtime, must be False
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
+        """
+        if pull_at_runtime:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
+            )
+
+        super().with_source_archive(
+            source, workdir, handler, pull_at_runtime, target_dir
         )
 
     def get_pods(self, name=None, namespace=None, driver=False):

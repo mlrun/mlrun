@@ -98,8 +98,18 @@ def get_obj_path(schema, path, user=""):
         if not path.startswith(schema_prefix):
             path = f"{schema_prefix}{path}"
 
-    # Check if path is allowed - v3io:// is always allowed, and also the real_path parameter if specified.
-    # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
+    allowed_paths_list = get_allowed_path_prefixes_list()
+    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
+        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
+    return path
+
+
+def get_allowed_path_prefixes_list() -> typing.List[str]:
+    """
+    Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
+    We never allow local files in the allowed paths list. Allowed paths must contain a schema (://).
+    """
+    real_path = config.httpdb.real_path
     allowed_file_paths = config.httpdb.allowed_file_paths or ""
     allowed_paths_list = [
         path.strip() for path in allowed_file_paths.split(",") if "://" in path
@@ -107,10 +117,7 @@ def get_obj_path(schema, path, user=""):
     if real_path:
         allowed_paths_list.append(real_path)
     allowed_paths_list.append("v3io://")
-
-    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
-        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
-    return path
+    return allowed_paths_list
 
 
 def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):

@@ -20,6 +20,7 @@ from typing import List, Union
 
 import numpy as np
 import yaml
+from dateutil import parser
 
 import mlrun
 from mlrun.artifacts import ModelArtifact
@@ -314,6 +315,7 @@ class MLClientCtx(object):
 
         start = get_in(attrs, "status.start_time")
         if start:
+            start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
         self._state = "running"
         if store_run:

@@ -28,7 +28,6 @@ from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
     BaseStoreTarget,
     get_default_prefix_for_source,
-    get_default_targets,
     get_target_driver,
     kind_to_driver,
     validate_target_list,
@@ -103,6 +102,7 @@ def get_offline_features(
     engine_args: dict = None,
     query: str = None,
     join_type: str = "inner",
+    order_by: Union[str, List[str]] = None,
     spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
@@ -161,6 +161,8 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
+    :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
+                            or the alias of the feature you pass in the feature list.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -190,6 +192,7 @@ def get_offline_features(
             with_indexes=with_indexes,
             query=query,
             join_type=join_type,
+            order_by=order_by,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -213,6 +216,7 @@ def get_offline_features(
         update_stats=update_stats,
         query=query,
         join_type=join_type,
+        order_by=order_by,
     )
 
 
@@ -405,6 +409,15 @@ def ingest(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "feature set and source must be specified"
         )
+    if (
+        not mlrun_context
+        and not targets
+        and not (featureset.spec.targets or featureset.spec.with_default_targets)
+        and (run_config is not None and not run_config.local)
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Feature set {featureset.metadata.name} is remote ingested with no targets defined, aborting"
+        )
 
     if featureset is not None:
         featureset.validate_steps(namespace=namespace)
@@ -477,10 +490,11 @@ def ingest(
                 f"Source.end_time is {str(source.end_time)}"
             )
 
-    if mlrun_context:
-        mlrun_context.logger.info(
-            f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-        )
+        if mlrun_context:
+            mlrun_context.logger.info(
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+            )
+
         return_df = False
 
     if featureset.spec.passthrough:
@@ -489,7 +503,7 @@ def ingest(
 
     namespace = namespace or get_caller_globals()
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
@@ -686,7 +700,9 @@ def preview(
             )
         # reduce the size of the ingestion if we do not infer stats
         rows_limit = (
-            0 if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
+            None
+            if InferOptions.get_common_options(options, InferOptions.Stats)
+            else 1000
         )
         source = init_featureset_graph(
             source,
@@ -770,7 +786,7 @@ def deploy_ingestion_service(
             name=featureset.metadata.name,
         )
 
-    targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
+    targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 

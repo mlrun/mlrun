@@ -53,7 +53,7 @@ RUN python -m pip install \
     -r /tmp/requirements/requirement.txt
 
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
+RUN python -m pip install "/tmp/mlrun[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial

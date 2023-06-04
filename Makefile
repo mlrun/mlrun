@@ -175,6 +175,7 @@ update-version-file: ## Update the version file
 build: docker-images package-wheel ## Build all artifacts
 	@echo Done.
 
+# Make sure to handle modified target as well in "promote-docker-images"
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	mlrun \
@@ -187,6 +188,46 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 .PHONY: docker-images
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 	@echo Done.
+
+.PHONY: docker-images
+promote-docker-images: ## Take existing release (e.g.: RC) and promote to stable
+	$(eval JUST_RETAG=$(shell echo "base models log-collector"))
+	@echo "Promoting RC $(RC_VERSION) to stable $(STABLE_VERSION)"
+	@for target in $(DEFAULT_DOCKER_IMAGES_RULES); do \
+  		echo "Pulling $$target"; \
+		IMAGE_NAME=$$(MLRUN_VERSION=$(RC_VERSION) $(MAKE) pull-$$target | tail -1) ; \
+		IMAGE_NAME_STABLE=$$(echo $$IMAGE_NAME | sed -e "s/$(RC_VERSION)/$(STABLE_VERSION)/g") ; \
+		JUST_RETAGGED=0 ; \
+		for image_target_retag in $(JUST_RETAG); do \
+		  if [[ $$image_target_retag == $$target ]]; then \
+		    echo docker tag $$IMAGE_NAME $$IMAGE_NAME_STABLE ; \
+		    JUST_RETAGGED=1 ; \
+		    break ; \
+		  fi; \
+		done; \
+		if [[ $$JUST_RETAGGED == 0 ]]; then \
+		  MLRUN_DIR="." ; \
+		  MLRUN_DEP_OPTS="complete" ; \
+		  TARGET_VERSION_PATH="./mlrun/utils/version/version.json" ; \
+		  if [[ $$target == "jupyter" ]]; then \
+		    MLRUN_DIR="/tmp/mlrun" ; \
+		    TARGET_VERSION_PATH="/tmp/mlrun/mlrun/utils/version/version.json" ; \
+		  fi; \
+		  if [[ $$target == "api" || $$target == "jupyter" ]]; then \
+		    MLRUN_DEP_OPTS="complete-api" ; \
+		  fi; \
+		  docker build \
+		  	--build-arg IMAGE_NAME=$$IMAGE_NAME \
+		  	--build-arg MLRUN_DIR=$$MLRUN_DIR \
+		  	--build-arg TARGET_VERSION_PATH=$$TARGET_VERSION_PATH \
+		  	--build-arg MLRUN_DEP_OPTS=$$MLRUN_DEP_OPTS \
+		  	--file ./dockerfiles/Dockerfile.promote \
+		  	--tag $$IMAGE_NAME_STABLE \
+		  	. \
+		  	; \
+		fi; \
+		docker push $$IMAGE_NAME_STABLE ; \
+	done
 
 .PHONY: push-docker-images
 push-docker-images: docker-images ## Push all docker images

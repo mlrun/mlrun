@@ -272,12 +272,13 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
-        # list all the runs in the system which we didn't request logs collection for yet
+        # list all the runs in the system which we didn't request logs collection for yet, and are not in terminal state
         runs = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[False],
             only_uids=False,
+            states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
         )
         if runs:
             logger.debug(

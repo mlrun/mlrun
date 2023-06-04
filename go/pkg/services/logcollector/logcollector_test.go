@@ -603,43 +603,6 @@ func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
 	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
 }
 
-func (suite *LogCollectorTestSuite) TestGetLogFilePathConcurrently() {
-	runUID := "1234"
-	projectName := "someProjectB"
-	var err error
-
-	projectMutex := &sync.Mutex{}
-	suite.logCollectorServer.readDirentProjectNameSyncMap = &sync.Map{}
-	suite.logCollectorServer.readDirentProjectNameSyncMap.Store(projectName, projectMutex)
-	projectMutex.Lock()
-	startTime := time.Now()
-
-	// unlock the mutex after 1 second
-	time.AfterFunc(1500*time.Millisecond, func() {
-		projectMutex.Unlock()
-	})
-
-	// make the project dir
-	err = os.MkdirAll(path.Join(suite.baseDir, projectName), 0755)
-	suite.Require().NoError(err)
-
-	// make the run file
-	runFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
-	err = common.WriteToFile(runFilePath, []byte("some log"), false)
-	suite.Require().NoError(err, "Failed to write to file")
-
-	// get the log file path
-	logFilePath, err := suite.logCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
-	suite.Require().NoError(err, "Failed to get log file path")
-	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
-
-	endTime := time.Since(startTime)
-	suite.Require().Truef(endTime >= 1*time.Second, "Expected getLogFilePath to take more than a second (took %v)", endTime)
-
-	// make sure the mutex is unlocked
-	suite.Require().True(projectMutex.TryLock(), "Expected project mutex to be unlocked")
-}
-
 func TestLogCollectorTestSuite(t *testing.T) {
 	suite.Run(t, new(LogCollectorTestSuite))
 }

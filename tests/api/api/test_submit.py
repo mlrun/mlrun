@@ -63,6 +63,18 @@ username = "voldemort"
 access_key = "12345"
 
 
+def _mock_extend_hub_uri_if_needed(uri: str) -> typing.Tuple[str, bool]:
+    hub_prefix = "hub://"
+    is_hub_uri = uri.startswith(hub_prefix)
+    if not is_hub_uri:
+        return uri, is_hub_uri
+    name = uri.removeprefix(hub_prefix)
+    return (
+        f"https://raw.githubusercontent.com/mlrun/functions/master/{name}/function.yaml",
+        is_hub_uri,
+    )
+
+
 @pytest.fixture()
 def pod_create_mock():
     create_pod_orig_function = (
@@ -183,8 +195,11 @@ def test_submit_job_ensure_function_has_auth_set(
 
 
 def test_submit_schedule_job_from_hub_from_ui(
-    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock, monkeypatch
 ) -> None:
+    monkeypatch.setattr(
+        mlrun.run, "extend_hub_uri_if_needed", _mock_extend_hub_uri_if_needed
+    )
     project = "my-proj1"
     hub_function_uri = "hub://aggregate"
 

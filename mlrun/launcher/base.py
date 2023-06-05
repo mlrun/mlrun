@@ -310,6 +310,9 @@ class BaseLauncher(abc.ABC):
             )
 
         run.spec.notifications = notifications or run.spec.notifications or []
+        for notification in run.spec.notifications:
+            notification.validate_notification()
+
         return run
 
     @staticmethod

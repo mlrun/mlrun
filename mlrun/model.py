@@ -24,7 +24,10 @@ from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pydantic.error_wrappers
+
 import mlrun
+import mlrun.common.schemas.notification
 
 from .utils import (
     dict_to_json,
@@ -545,6 +548,16 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+
+        self.validate_notification()
+
+    def validate_notification(self):
+        try:
+            mlrun.common.schemas.notification.Notification(**self.to_dict())
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid notification object"
+            ) from exc
 
 
 class RunMetadata(ModelObj):

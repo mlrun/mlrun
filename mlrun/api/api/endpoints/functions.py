@@ -162,7 +162,6 @@ async def delete_function(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    function_schedule = None
     #  If the requested function has a schedule, we must delete it before deleting the function
     try:
         function_schedule = await run_in_threadpool(
@@ -172,7 +171,8 @@ async def delete_function(
             name,
         )
     except mlrun.errors.MLRunNotFoundError:
-        logger.info("Function does not have schedule, continue")
+        function_schedule = None
+
     if function_schedule:
         # when deleting a function, we should also delete its schedules if exists
         # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,

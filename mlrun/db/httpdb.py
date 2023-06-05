@@ -1473,21 +1473,17 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        try:
-            params = {}
-            if namespace:
-                params["namespace"] = namespace
-            params["format"] = format_
-            project_path = project if project else "*"
-            resp = self.api_call(
-                "GET",
-                f"projects/{project_path}/pipelines/{run_id}",
-                params=params,
-                timeout=timeout,
-            )
-        except OSError as err:
-            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+        params["format"] = format_
+        project_path = project if project else "*"
+        resp = self.api_call(
+            "GET",
+            f"projects/{project_path}/pipelines/{run_id}",
+            params=params,
+            timeout=timeout,
+        )
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")

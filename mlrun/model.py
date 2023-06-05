@@ -556,7 +556,7 @@ class Notification(ModelObj):
             mlrun.common.schemas.notification.Notification(**self.to_dict())
         except pydantic.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid notification object"
+                "Invalid notification object"
             ) from exc
 
 

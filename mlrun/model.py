@@ -559,6 +559,15 @@ class Notification(ModelObj):
                 "Invalid notification object"
             ) from exc
 
+    @staticmethod
+    def validate_notification_uniqueness(notifications: List["Notification"]):
+        """Validate that all notifications in the list are unique by name"""
+        names = [notification.name for notification in notifications]
+        if len(names) != len(set(names)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification names must be unique"
+            )
+
 
 class RunMetadata(ModelObj):
     """Run metadata"""

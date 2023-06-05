@@ -449,3 +449,34 @@ def test_notification_sent_on_dask_run(monkeypatch):
 
     run_mock.assert_called_once()
     push_mock.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "notification1_name,notification2_name,expectation",
+    [
+        ("n1", "n1", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("n1", "n2", does_not_raise()),
+    ],
+)
+def test_notification_name_uniqueness_validation(
+    notification1_name, notification2_name, expectation
+):
+    notification1 = mlrun.model.Notification(
+        name=notification1_name, when=["completed"]
+    )
+    notification2 = mlrun.model.Notification(
+        name=notification2_name, when=["completed"]
+    )
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="job",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+    with expectation:
+        function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification1, notification2],
+            local=True,
+        )

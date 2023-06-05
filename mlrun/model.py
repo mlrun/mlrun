@@ -24,6 +24,8 @@ from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pydantic.error_wrappers
+
 import mlrun
 import mlrun.common.schemas.notification
 
@@ -550,29 +552,12 @@ class Notification(ModelObj):
         self.validate_notification()
 
     def validate_notification(self):
-        if self.kind:
-            try:
-                mlrun.common.schemas.notification.NotificationKind(self.kind)
-            except ValueError as exc:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"notification kind {self.kind} is not supported"
-                ) from exc
-
-        if self.severity:
-            try:
-                mlrun.common.schemas.notification.NotificationSeverity(self.severity)
-            except ValueError as exc:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"notification severity {self.severity} is not supported"
-                ) from exc
-
-        if self.status:
-            try:
-                mlrun.common.schemas.notification.NotificationStatus(self.status)
-            except ValueError as exc:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"notification status {self.status} is not supported"
-                ) from exc
+        try:
+            mlrun.common.schemas.notification.Notification(**self.to_dict())
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid notification object"
+            ) from exc
 
 
 class RunMetadata(ModelObj):

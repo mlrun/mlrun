@@ -2,7 +2,7 @@
 
 def arc_to_parquet(
     context: MLClientCtx,
-    archive_url: Union[str, DataItem],
+    archive_url: Optional[Union[str, DataItem]],
     header: Optional[List[str]] = None,
     chunksize: int = 10_000,
     dtype=None,

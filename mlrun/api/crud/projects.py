@@ -23,6 +23,7 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
+import mlrun.api.utils.events.events_factory
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -176,9 +177,30 @@ class Projects(
 
         # delete project secrets - passing None will delete all secrets
         if mlrun.mlconf.is_api_running_on_k8s():
-            mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
-                name, None
+            secrets = None
+            (
+                secret_name,
+                _,
+            ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
+                name, secrets
             )
+            if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
+                return
+            try:
+                client = (
+                    mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
+                )
+                event = client.generate_project_secrets_deleted_event(
+                    name, secret_name, secrets
+                )
+                client.emit(event)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to emit project secrets deleted event",
+                    exc=exc,
+                    project=name,
+                    secret_names=secrets,
+                )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

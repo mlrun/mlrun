@@ -541,6 +541,9 @@ default_config = {
         # interval for stopping log collection for runs which are in a terminal state
         "stop_logs_interval": 3600,
     },
+    "events": {
+        "mode": "disabled",
+    },
 }
 
 _is_running_as_api = None

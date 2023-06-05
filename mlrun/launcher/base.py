@@ -309,9 +309,12 @@ class BaseLauncher(abc.ABC):
                 run.spec.output_path, run.metadata.project
             )
 
-        run.spec.notifications = notifications or run.spec.notifications or []
-        for notification in run.spec.notifications:
+        notifications = notifications or run.spec.notifications or []
+        mlrun.model.Notification.validate_notification_uniqueness(notifications)
+        for notification in notifications:
             notification.validate_notification()
+
+        run.spec.notifications = notifications
 
         return run
 

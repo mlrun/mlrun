@@ -182,7 +182,6 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
             )
         # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
         else:
-            # TODO: change description if secret_keys is empty (because it means the whole project secret was deleted)
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
                 kind="Software.Project.Secrets.Deleted",

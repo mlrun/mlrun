@@ -403,7 +403,7 @@ def test_notification_validation_on_run(monkeypatch, notification_kwargs, expect
         ("n1", "n2", does_not_raise()),
     ],
 )
-def test_notification_validation_on_run(
+def test_notification_name_uniqueness_validation(
     notification1_name, notification2_name, expectation
 ):
     notification1 = mlrun.model.Notification(

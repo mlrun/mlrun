@@ -920,7 +920,9 @@ def _mock_default_service_account(monkeypatch, service_account):
 
 def _mock_import_hub_function(monkeypatch):
     function_url = str(
-        pathlib.Path(__file__).absolute().parent.parent.parent / "assets" / "function.yaml"
+        pathlib.Path(__file__).absolute().parent.parent.parent
+        / "assets"
+        / "function.yaml"
     )
     monkeypatch.setattr(
         mlrun.run,

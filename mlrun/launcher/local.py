@@ -271,6 +271,6 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.
         # Only push from jupyter, not from the CLI.
-        # "handler" kind is special case of local runs which don't set local=True
-        if self._is_run_local or runtime.kind == "handler":
+        # "handler" and "dask" kinds are special cases of local runs which don't set local=True
+        if self._is_run_local or runtime.kind in ["handler", "dask"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()

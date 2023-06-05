@@ -3,9 +3,11 @@
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-- [**Quick-start Tutorial**](./01-mlrun-basics.html) ({octicon}`video` [**watch video**](https://youtu.be/xI8KVGLlj7Q))
+- [**Quick-start Tutorial**](./01-mlrun-basics.html) 
 - [**Targeted Tutorials**](#other-tutorial)
 - [**End to End Demos**](#e2e-demos)
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/xI8KVGLlj7Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><br><br>
 
 (quick-start-tutorial)=
 

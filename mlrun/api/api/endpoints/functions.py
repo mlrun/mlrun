@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
+import mlrun.api.launcher
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
@@ -671,6 +672,7 @@ def _build_function(
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(

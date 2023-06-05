@@ -49,9 +49,15 @@ class NotificationPusher(object):
                 run = mlrun.model.RunObject.from_dict(run)
 
             for notification in run.spec.notifications:
-                notification.status = run.status.notifications.get(
-                    notification.name
-                ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
+                try:
+                    notification.status = run.status.notifications.get(
+                        notification.name
+                    ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
+                except (AttributeError, KeyError):
+                    notification.status = (
+                        mlrun.common.schemas.NotificationStatus.PENDING
+                    )
+
                 if self._should_notify(run, notification):
                     self._notification_data.append((run, notification))
 

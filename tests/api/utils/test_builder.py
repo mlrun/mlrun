@@ -340,16 +340,14 @@ def test_function_build_with_default_requests(monkeypatch):
     )
 
 
-def test_resolve_mlrun_install_command():
-    pip_command = "python -m pip install"
+def test_resolve_mlrun_install_command_version():
     cases = [
         {
             "test_description": "when mlrun_version_specifier configured, expected to install mlrun_version_specifier",
             "mlrun_version_specifier": "mlrun[complete] @ git+https://github.com/mlrun/mlrun@v0.10.0",
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": None,
-            "expected_mlrun_install_command": f"{pip_command} "
-            f'"mlrun[complete] @ git+https://github.com/mlrun/mlrun@v0.10.0"',
+            "expected_mlrun_install_command_version": "mlrun[complete] @ git+https://github.com/mlrun/mlrun@v0.10.0",
         },
         {
             "test_description": "when mlrun_version_specifier is not configured and the server_mlrun_version_specifier"
@@ -358,7 +356,7 @@ def test_resolve_mlrun_install_command():
             "mlrun_version_specifier": None,
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": "mlrun[complete]==0.10.0-server-version",
-            "expected_mlrun_install_command": f'{pip_command} "mlrun[complete]==0.10.0-server-version"',
+            "expected_mlrun_install_command_version": "mlrun[complete]==0.10.0-server-version",
         },
         {
             "test_description": "when client_version is specified and stable and mlrun_version_specifier and"
@@ -367,7 +365,7 @@ def test_resolve_mlrun_install_command():
             "mlrun_version_specifier": None,
             "client_version": "0.9.3",
             "server_mlrun_version_specifier": None,
-            "expected_mlrun_install_command": f'{pip_command} "mlrun[complete]==0.9.3"',
+            "expected_mlrun_install_command_version": "mlrun[complete]==0.9.3",
         },
         {
             "test_description": "when client_version is specified and unstable and mlrun_version_specifier and"
@@ -376,8 +374,8 @@ def test_resolve_mlrun_install_command():
             "mlrun_version_specifier": None,
             "client_version": "unstable",
             "server_mlrun_version_specifier": None,
-            "expected_mlrun_install_command": f'{pip_command} "mlrun[complete] @ git+'
-            f'https://github.com/mlrun/mlrun@development"',
+            "expected_mlrun_install_command_version": "mlrun[complete] @ "
+            "git+https://github.com/mlrun/mlrun@development",
         },
         {
             "test_description": "when only the config.version is configured and unstable,"
@@ -386,8 +384,8 @@ def test_resolve_mlrun_install_command():
             "client_version": None,
             "server_mlrun_version_specifier": None,
             "version": "unstable",
-            "expected_mlrun_install_command": f'{pip_command} "mlrun[complete] @ git+'
-            f'https://github.com/mlrun/mlrun@development"',
+            "expected_mlrun_install_command_version": "mlrun[complete] @ "
+            "git+https://github.com/mlrun/mlrun@development",
         },
         {
             "test_description": "when only the config.version is configured and stable,"
@@ -396,7 +394,7 @@ def test_resolve_mlrun_install_command():
             "client_version": None,
             "server_mlrun_version_specifier": None,
             "version": "0.9.2",
-            "expected_mlrun_install_command": f'{pip_command} "mlrun[complete]==0.9.2"',
+            "expected_mlrun_install_command_version": "mlrun[complete]==0.9.2",
         },
     ]
     for case in cases:
@@ -411,9 +409,9 @@ def test_resolve_mlrun_install_command():
 
         mlrun_version_specifier = case.get("mlrun_version_specifier")
         client_version = case.get("client_version")
-        expected_result = case.get("expected_mlrun_install_command")
+        expected_result = case.get("expected_mlrun_install_command_version")
 
-        result = mlrun.api.utils.builder.resolve_mlrun_install_command(
+        result = mlrun.api.utils.builder.resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version
         )
         assert (
@@ -870,6 +868,85 @@ def test_builder_source(monkeypatch, source, expectation):
             expected_line_index = 2
 
         assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
+
+
+@pytest.mark.parametrize(
+    "requirements, commands, with_mlrun, mlrun_version_specifier, client_version, expected_commands, "
+    "expected_requirements_list, expected_requirements_path",
+    [
+        ([], [], False, None, None, [], [], ""),
+        (
+            [],
+            [],
+            True,
+            None,
+            None,
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"],
+            "/empty/requirements.txt",
+        ),
+        (
+            [],
+            ["some command"],
+            True,
+            "mlrun~=1.4",
+            None,
+            [
+                "some command",
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}",
+            ],
+            ["mlrun~=1.4"],
+            "/empty/requirements.txt",
+        ),
+        (
+            [],
+            [],
+            True,
+            "",
+            "1.4.0",
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete]==1.4.0"],
+            "/empty/requirements.txt",
+        ),
+        (
+            ["pandas"],
+            [],
+            True,
+            "",
+            "1.4.0",
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete]==1.4.0", "pandas"],
+            "/empty/requirements.txt",
+        ),
+        (["pandas"], [], False, "", "1.4.0", [], ["pandas"], "/empty/requirements.txt"),
+    ],
+)
+def test_resolve_build_requirements(
+    requirements,
+    commands,
+    with_mlrun,
+    mlrun_version_specifier,
+    client_version,
+    expected_commands,
+    expected_requirements_list,
+    expected_requirements_path,
+):
+    (
+        commands,
+        requirements_list,
+        requirements_path,
+    ) = mlrun.api.utils.builder._resolve_build_requirements(
+        requirements, commands, with_mlrun, mlrun_version_specifier, client_version
+    )
+    assert commands == expected_commands
+    assert requirements_list == expected_requirements_list
+    assert requirements_path == expected_requirements_path
 
 
 def _get_target_image_from_create_pod_mock():

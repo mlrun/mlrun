@@ -327,12 +327,13 @@ def build_image(
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
+
+    requirements_path = "/empty/requirements.txt"
     if requirements and isinstance(requirements, list):
         requirements_list = requirements
-        requirements_path = "/empty/requirements.txt"
     else:
-        requirements_list = None
-        requirements_path = requirements or ""
+        requirements_list = []
+        requirements_path = requirements or requirements_path
 
     commands = commands or []
     if with_mlrun:
@@ -341,11 +342,13 @@ def build_image(
         if upgrade_pip_command:
             commands.append(upgrade_pip_command)
 
-        mlrun_command = resolve_mlrun_install_command(
+        mlrun_version = resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version, commands
         )
-        if mlrun_command:
-            commands.append(mlrun_command)
+
+        # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
+        if mlrun_version:
+            requirements_list.insert(0, mlrun_version)
 
     if not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")
@@ -400,7 +403,7 @@ def build_image(
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Load of relative source ({source}) is not supported at build time"
+                f"Load of relative source ({source}) is not supported at build time "
                 "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
                 "'mlrun.projects.project.MlrunProject.set_source' for more details"
             )
@@ -492,7 +495,7 @@ def get_kaniko_spec_attributes_from_runtime():
     ]
 
 
-def resolve_mlrun_install_command(
+def resolve_mlrun_install_command_version(
     mlrun_version_specifier=None, client_version=None, commands=None
 ):
     commands = commands or []
@@ -522,7 +525,7 @@ def resolve_mlrun_install_command(
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'python -m pip install "{mlrun_version_specifier}"'
+    return mlrun_version_specifier
 
 
 def resolve_upgrade_pip_command(commands=None):

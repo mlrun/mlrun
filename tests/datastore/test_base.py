@@ -40,6 +40,13 @@ def test_http_fs_parquet_as_df():
     data_item.as_df()
 
 
+def test_http_fs_parquet_with_params_as_df():
+    data_item = mlrun.datastore.store_manager.object(
+        "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq?param1=1&param2=2"
+    )
+    data_item.as_df()
+
+
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
         "s3://aws-roda-hcls-datalake/gnomad/chrm/run-DataSink0-1-part-block-0-r-00009-snappy.parquet"

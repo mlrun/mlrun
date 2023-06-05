@@ -173,17 +173,18 @@ def validate_builder_source(
     if "://" not in source:
         if not path.isabs(source):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
                 "set 'source' to a remote URL to clone/copy the source to the base image, "
                 "or set 'pull_at_runtime' to True to pull the source at runtime."
             )
-    else:
-        logger.warn(
-            "Loading local source at build time requires the source to be on the base image, "
-            "in which case it is recommended to use 'workdir' instead",
-            source=source,
-            workdir=workdir,
-        )
+
+        else:
+            logger.warn(
+                "Loading local source at build time requires the source to be on the base image, "
+                "in which case it is recommended to use 'workdir' instead",
+                source=source,
+                workdir=workdir,
+            )
 
     if source.endswith(".zip"):
         logger.warn(

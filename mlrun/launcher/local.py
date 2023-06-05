@@ -261,7 +261,9 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _push_notifications(self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"):
+    def _push_notifications(
+        self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
+    ):
         if not self._run_has_valid_notifications(runobj):
             return
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the

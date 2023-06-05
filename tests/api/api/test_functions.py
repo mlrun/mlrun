@@ -204,6 +204,32 @@ def test_delete_function_with_schedule(
         response.status_code == HTTPStatus.OK.value and not response.json()["schedules"]
     )
 
+    # create a function with no schedule and make sure it has been removed
+    no_schedule_function_name = "no-schedule-function-name"
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": no_schedule_function_name,
+            "project": project_name,
+            "tag": function_tag,
+        },
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    no_schedule_function_endpoint = (
+        f"projects/{PROJECT}/functions/{no_schedule_function_name}"
+    )
+    response = client.post(
+        no_schedule_function_endpoint, data=mlrun.utils.dict_to_json(function)
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    response = client.delete(no_schedule_function_endpoint)
+    assert response.status_code == HTTPStatus.NO_CONTENT.value
+
+    response = client.get(function_endpoint)
+    assert response.status_code == HTTPStatus.NOT_FOUND.value
+
 
 @pytest.mark.asyncio
 async def test_multiple_store_function_race_condition(

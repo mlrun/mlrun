@@ -284,7 +284,7 @@ class NumPyNDArrayPackager(DefaultPackager):
 
         :return: The default artifact type.
         """
-        is_artifact = data_item.is_artifact()
+        is_artifact = data_item.get_artifact_type()
         if is_artifact and is_artifact == "datasets":
             return ArtifactType.DATASET
         return ArtifactType.FILE

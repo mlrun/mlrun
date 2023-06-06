@@ -267,7 +267,7 @@ class PackagersManager:
         packaging_instructions = None
 
         # Try to get the notes and instructions (can be found only in artifacts but data item may be a simple path/url):
-        if data_item.is_artifact():
+        if data_item.get_artifact_type():
             # Get the artifact object in the data item:
             artifact, _ = store_manager.get_store_artifact(url=data_item.artifact_url)
             # Get the key from the artifact's metadata and instructions from the artifact's spec:

@@ -127,6 +127,7 @@ class PandasSupportedFormat(SupportedFormat[_Formatter]):
 
     PARQUET = "parquet"
     CSV = "csv"
+    # TODO: Add support for all the below formats:
     # H5 = "h5"
     # XML = "xml"
     # XLSX = "xlsx"
@@ -239,7 +240,7 @@ class PandasDataFramePackager(PandasSeriesPackager):
 
         :return: The default artifact type.
         """
-        is_artifact = data_item.is_artifact()
+        is_artifact = data_item.get_artifact_type()
         if is_artifact and is_artifact == "datasets":
             return ArtifactType.DATASET
         return ArtifactType.FILE

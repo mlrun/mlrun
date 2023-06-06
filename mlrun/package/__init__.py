@@ -56,14 +56,16 @@ def handler(
                     following values:
 
                     * `str` - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it
-                      will indicate the key and the artifact type will be according to the returned value type. The
-                      artifact types can be one of: "dataset", "directory", "file", "object", "plot" and "result".
+                      will indicate the key, and the artifact type will be according to the returned value type's
+                      default artifact type. The artifact types supported are listed in the relevant type packager.
                     * `Dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
                       logged artifact key.
                     * None - Do not log the output.
 
-                    The list length must be equal to the total amount of returned values from the function. Default is
-                    None - meaning no outputs will be logged.
+                    If the list length is not equal to the total amount of returned values from the function, those
+                    without log hints will be ignored.
+
+                    Default: None - meaning no outputs will be logged.
 
     :param inputs: Type hints (parsing configurations) for the arguments passed as inputs via the `run` method of an
                    MLRun function. Can be passed as a boolean value or a dictionary:
@@ -74,17 +76,24 @@ def handler(
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
 
-                   Default: True.
+                   Default: True - meaning inputs will be parsed from `DataItem`s as long as they are type hinted.
 
     Example::
 
             import mlrun
 
-            @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
+            @mlrun.handler(
+                outputs=[
+                    "my_string",
+                    None,
+                    {"key": "my_array", "artifact_type": "file", "file_format": "npy"},
+                    "my_multiplier: reuslt"
+                ]
+            )
             def my_handler(array: np.ndarray, m: int):
-                array = array * m
                 m += 1
-                return array, "I won't be logged", m
+                array = array * m
+                return "I will be logged", "I won't be logged", array, m
 
             >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
             >>> run_object = mlrun_function.run(
@@ -93,7 +102,7 @@ def handler(
             ...     params={"m": 2}
             ... )
             >>> run_object.outputs
-            {'my_multiplier': 3, 'my_array': 'store://...'}
+            {'my_string': 'I will be logged', 'my_array': 'store://...', 'my_multiplier': 3}
     """
 
     def decorator(func: Callable):

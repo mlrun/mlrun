@@ -470,18 +470,18 @@ class DataItem:
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
 
-    def is_artifact(self) -> Union[str, bool]:
+    def get_artifact_type(self) -> Union[str, None]:
         """
         Check if the data item represents an Artifact (one of Artifact, DatasetArtifact and ModelArtifact). If it does
-        it return the store uri prefix (artifacts, datasets or models), otherwise False.
+        it return the store uri prefix (artifacts, datasets or models), otherwise None.
 
-        :return: The store prefix of the artifact if it is an artifact data item and False if not.
+        :return: The store prefix of the artifact if it is an artifact data item and None if not.
         """
         if self.artifact_url and is_store_uri(url=self.artifact_url):
             store_uri_prefix = parse_store_uri(self.artifact_url)[0]
             if StorePrefix.is_artifact(prefix=store_uri_prefix):
                 return store_uri_prefix
-        return False
+        return None
 
     def __str__(self):
         return self.url

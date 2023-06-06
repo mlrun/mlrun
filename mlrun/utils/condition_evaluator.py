@@ -52,8 +52,6 @@ def _evaluate_condition_wrapper(
 
 
 def _evaluate_condition(condition: str, context: typing.Dict[str, typing.Any]):
-    if not condition:
-        return True
 
     import jinja2.sandbox
 

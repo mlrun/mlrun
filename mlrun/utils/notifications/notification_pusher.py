@@ -29,6 +29,7 @@ import mlrun.model
 import mlrun.utils.helpers
 from mlrun.utils import logger
 
+from .condition_evaluator import evaluate_notification_condition_in_separate_process
 from .notification import NotificationBase, NotificationTypes
 
 
@@ -108,7 +109,6 @@ class NotificationPusher(object):
         notification: mlrun.model.Notification,
     ) -> bool:
         when_states = notification.when
-        condition = notification.condition
         run_state = run.state()
 
         # if the notification isn't pending, don't push it
@@ -122,7 +122,9 @@ class NotificationPusher(object):
         for when_state in when_states:
             if (
                 when_state == run_state == "completed"
-                and (not condition or ast.literal_eval(condition))
+                and evaluate_notification_condition_in_separate_process(
+                    run, notification
+                )
             ) or when_state == run_state == "error":
                 return True
 

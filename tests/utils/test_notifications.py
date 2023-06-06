@@ -34,10 +34,10 @@ import mlrun.utils.notifications
         (["completed"], "", "completed", True, False),
         (["completed"], "", "error", False, False),
         (["completed"], "", "error", True, False),
-        (["completed"], "True", "completed", False, True),
-        (["completed"], "True", "completed", True, False),
-        (["completed"], "False", "completed", False, False),
-        (["completed"], "False", "completed", True, False),
+        (["completed"], "> 4", "completed", False, True),
+        (["completed"], "> 4", "completed", True, False),
+        (["completed"], "< 4", "completed", False, False),
+        (["completed"], "< 4", "completed", True, False),
         (["error"], "", "completed", False, False),
         (["error"], "", "completed", True, False),
         (["error"], "", "error", False, True),
@@ -46,20 +46,25 @@ import mlrun.utils.notifications
         (["completed", "error"], "", "completed", True, False),
         (["completed", "error"], "", "error", False, True),
         (["completed", "error"], "", "error", True, False),
-        (["completed", "error"], "True", "completed", False, True),
-        (["completed", "error"], "True", "completed", True, False),
-        (["completed", "error"], "True", "error", False, True),
-        (["completed", "error"], "True", "error", True, False),
-        (["completed", "error"], "False", "completed", False, False),
-        (["completed", "error"], "False", "completed", True, False),
-        (["completed", "error"], "False", "error", False, True),
-        (["completed", "error"], "False", "error", True, False),
+        (["completed", "error"], "> 4", "completed", False, True),
+        (["completed", "error"], "> 4", "completed", True, False),
+        (["completed", "error"], "> 4", "error", False, True),
+        (["completed", "error"], "> 4", "error", True, False),
+        (["completed", "error"], "< 4", "completed", False, False),
+        (["completed", "error"], "< 4", "completed", True, False),
+        (["completed", "error"], "< 4", "error", False, True),
+        (["completed", "error"], "< 4", "error", True, False),
     ],
 )
 def test_notification_should_notify(
     when, condition, run_state, notification_previously_sent, expected
 ):
-    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    if condition:
+        condition = f'{{{{ run["status"]["results"]["val"] {condition} }}}}'
+
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": run_state, "results": {"val": 5}}}
+    )
     notification = mlrun.model.Notification.from_dict(
         {
             "when": when,
@@ -68,12 +73,10 @@ def test_notification_should_notify(
         }
     )
 
-    assert (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher._should_notify(
-            run, notification
-        )
-        == expected
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
     )
+    assert notification_pusher._should_notify(run, notification) == expected
 
 
 @pytest.mark.parametrize(

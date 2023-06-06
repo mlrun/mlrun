@@ -94,11 +94,7 @@ def test_condition_evaluation_timeout():
         {"status": {"state": "completed", "results": {"val": 5}}}
     )
     notification = mlrun.model.Notification.from_dict(
-        {
-            "when": ["completed"],
-            "condition": condition,
-            "status": "pending"
-        }
+        {"when": ["completed"], "condition": condition, "status": "pending"}
     )
 
     notification_pusher = (

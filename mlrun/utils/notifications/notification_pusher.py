@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ast
 import asyncio
 import datetime
 import os
@@ -28,10 +27,9 @@ import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
 from mlrun.utils import logger
+from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
-from .condition_evaluator import evaluate_notification_condition_in_separate_process
 from .notification import NotificationBase, NotificationTypes
-from .utils import sanitize_notification
 
 
 class NotificationPusher(object):
@@ -123,8 +121,12 @@ class NotificationPusher(object):
         for when_state in when_states:
             if (
                 when_state == run_state == "completed"
-                and evaluate_notification_condition_in_separate_process(
-                    run, notification
+                and evaluate_condition_in_separate_process(
+                    notification.condition,
+                    context={
+                        "run": run.to_dict(),
+                        "notification": notification.to_dict(),
+                    },
                 )
             ) or when_state == run_state == "error":
                 return True
@@ -169,7 +171,7 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing notification",
-            notification=sanitize_notification(notification_object),
+            notification=_sanitize_notification(notification_object),
             run_uid=run.metadata.uid,
         )
         try:
@@ -359,3 +361,9 @@ class CustomNotificationPusher(object):
         if state:
             text += f", state={state}"
         self.push(text, "info", runs=runs_list)
+
+
+def _sanitize_notification(notification: mlrun.model.Notification):
+    notification_dict = notification.to_dict()
+    notification_dict.pop("params", None)
+    return notification_dict

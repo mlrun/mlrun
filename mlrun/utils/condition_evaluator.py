@@ -13,20 +13,22 @@
 # limitations under the License.
 
 import multiprocessing
+import typing
 
-import mlrun.model
 from mlrun.utils import logger
 
-from .utils import sanitize_notification
 
-
-def evaluate_notification_condition_in_separate_process(
-    run: mlrun.model.RunObject, notification: mlrun.model.Notification, timeout: int = 5
+def evaluate_condition_in_separate_process(
+    condition: str, context: typing.Dict[str, typing.Any], timeout: int = 5
 ):
+
+    if not condition:
+        return True
+
     receiver, sender = multiprocessing.Pipe()
     p = multiprocessing.Process(
-        target=_evaluate_notification_condition_wrapper,
-        args=(sender, run, notification),
+        target=_evaluate_condition_wrapper,
+        args=(sender, condition, context),
     )
     p.start()
     if receiver.poll(timeout):
@@ -37,31 +39,29 @@ def evaluate_notification_condition_in_separate_process(
         p.kill()
         logger.warning(
             f"Condition evaluation timed out after {timeout} seconds. Ignoring condition",
-            notification=sanitize_notification(notification),
+            condition=condition,
         )
         return True
 
 
-def _evaluate_notification_condition_wrapper(
-    connection, run: mlrun.model.RunObject, notification: mlrun.model.Notification
+def _evaluate_condition_wrapper(
+    connection, condition: str, context: typing.Dict[str, typing.Any]
 ):
-    connection.send(_evaluate_notification_condition(run, notification))
+    connection.send(_evaluate_condition(condition, context))
     return connection.close()
 
 
-def _evaluate_notification_condition(
-    run: mlrun.model.RunObject, notification: mlrun.model.Notification
-):
-    if not notification.condition:
+def _evaluate_condition(condition: str, context: typing.Dict[str, typing.Any]):
+    if not condition:
         return True
 
     import jinja2.sandbox
 
     jinja_env = jinja2.sandbox.SandboxedEnvironment()
-    template = jinja_env.from_string(notification.condition)
-    result = template.render(run=run.to_dict(), notification=notification.to_dict())
-    if result.lower() in ["0", "no", "n", "f", "false"]:
+    template = jinja_env.from_string(condition)
+    result = template.render(**context)
+    if result.lower() in ["0", "no", "n", "f", "false", "off"]:
         return False
 
-    # if the condition is not a boolean, we assume we need to send the notification anyway
+    # if the condition is not a boolean, we ignore the condition
     return True

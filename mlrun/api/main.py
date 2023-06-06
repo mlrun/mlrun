@@ -104,6 +104,11 @@ async def generic_error_handler(request: fastapi.Request, exc: Exception):
 async def http_status_error_handler(
     request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
 ):
+    request_id = None
+
+    # request might not have request id when the error is raised before the request id is set on middleware
+    if hasattr(request.state, "request_id"):
+        request_id = request.state.request_id
     status_code = exc.response.status_code
     error_message = repr(exc)
     logger.warning(
@@ -111,6 +116,7 @@ async def http_status_error_handler(
         error_message=error_message,
         status_code=status_code,
         traceback=traceback.format_exc(),
+        request_id=request_id,
     )
     return await http_exception_handler(
         request,

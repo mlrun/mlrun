@@ -4063,6 +4063,42 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
+    # ML-3900
+    def test_get_online_features_after_ingest_without_inference(self):
+        feature_set = fstore.FeatureSet(
+            "my-fset",
+            entities=[
+                fstore.Entity("fn0"),
+                fstore.Entity(
+                    "fn1",
+                    value_type=mlrun.data_types.data_types.ValueType.STRING,
+                ),
+            ],
+        )
+
+        df = pd.DataFrame(
+            {
+                "fn0": [1, 2, 3, 4],
+                "fn1": [1, 2, 3, 4],
+                "fn2": [1, 1, 1, 1],
+                "fn3": [2, 2, 2, 2],
+            }
+        )
+
+        fstore.ingest(feature_set, df, infer_options=InferOptions.Null)
+
+        features = ["my-fset.*"]
+        vector = fstore.FeatureVector("my-vector", features)
+        vector.save()
+
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match="No features found for feature vector 'my-vector'",
+        ):
+            fstore.get_online_feature_service(
+                f"store://feature-vectors/{self.project_name}/my-vector:latest"
+            )
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

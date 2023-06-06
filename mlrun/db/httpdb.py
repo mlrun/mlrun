@@ -500,16 +500,16 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project="", iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
@@ -518,6 +518,7 @@ class HTTPRunDB(RunDBInterface):
             uid,
             project,
             iter,
+            timeout,
         )
 
     def read_run(self, uid, project="", iter=0):

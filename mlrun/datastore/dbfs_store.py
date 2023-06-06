@@ -14,6 +14,7 @@
 
 import pathlib
 
+import fsspec
 from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
 
 import mlrun.errors
@@ -23,7 +24,7 @@ from .base import DataStore, FileStats
 # dbfs objects will be represented with the following URL: dbfs://<path>
 
 
-class DatabricksFileRangeFix(DatabricksFile):
+class IguazDatabricksFile(DatabricksFile):
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""
         self.buffer.seek(0)
@@ -58,7 +59,7 @@ class DatabricksFileRangeFix(DatabricksFile):
             yield data_start, data_end
 
 
-class DatabricksFileSystemRangeFix(DatabricksFileSystem):
+class IguazDatabricksFileSystem(DatabricksFileSystem):
     root_marker = "/"
     protocol = "dbfs"
 
@@ -69,7 +70,7 @@ class DatabricksFileSystemRangeFix(DatabricksFileSystem):
 
         Only the default blocksize is allowed.
         """
-        return DatabricksFileRangeFix(
+        return IguazDatabricksFile(
             self, path, mode=mode, block_size=block_size, **kwargs
         )
 
@@ -86,10 +87,7 @@ class DBFSStore(DataStore):
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
-            #  self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
-            self._filesystem = DatabricksFileSystemRangeFix(
-                **self.get_storage_options()
-            )
+            self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

@@ -29,7 +29,6 @@ __all__ = [
     "StreamSource",
     "KafkaSource",
     "RedisStore",
-    "__version__",
     "IguazDatabricksFileSystem",
     "IguazDatabricksFile",
 ]

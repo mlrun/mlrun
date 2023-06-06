@@ -79,6 +79,34 @@ def test_notification_should_notify(
     assert notification_pusher._should_notify(run, notification) == expected
 
 
+def test_condition_evaluation_timeout():
+    condition = """
+        {% for i in range(100000) %}
+            {% for i in range(100000) %}
+                {% for i in range(100000) %}
+                    {{ i }}
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}
+    """
+
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": "completed", "results": {"val": 5}}}
+    )
+    notification = mlrun.model.Notification.from_dict(
+        {
+            "when": ["completed"],
+            "condition": condition,
+            "status": "pending"
+        }
+    )
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    assert notification_pusher._should_notify(run, notification)
+
+
 @pytest.mark.parametrize(
     "runs,expected,is_table",
     [

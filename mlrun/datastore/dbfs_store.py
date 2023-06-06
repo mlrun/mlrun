@@ -60,6 +60,7 @@ class DatabricksFileRangeFix(DatabricksFile):
 
 class DatabricksFileSystemRangeFix(DatabricksFileSystem):
     root_marker = "/"
+    protocol = "dbfs"
 
     def _open(self, path, mode="rb", block_size="default", **kwargs):
         """

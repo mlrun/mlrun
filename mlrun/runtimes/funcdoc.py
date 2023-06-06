@@ -211,14 +211,31 @@ def ast_param_dict(param: ast.arg) -> dict:
 
 def ann_type(ann):
     if hasattr(ann, "slice"):
-        name = ann.value.id
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            name = get_attr_path(ann.value)
+        else:
+            name = ann.value.id
         inner = ", ".join(ann_type(e) for e in iter_elems(ann.slice))
         return f"{name}[{inner}]"
 
     if isinstance(ann, ast.Attribute):
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            return get_attr_path(ann)
+
         return ann.attr
 
     return getattr(ann, "id", "")
+
+
+def get_attr_path(ann: ast.Attribute):
+    if isinstance(ann.value, ast.Attribute):
+        # value is an attribute, e.g. b of a.b - get the full path
+        return f"{get_attr_path(ann.value)}.{ann.attr}"
+
+    # value can be a subscript or name - get its annotation type and append the attribute
+    return f"{ann_type(ann.value)}.{ann.attr}"
 
 
 def iter_elems(ann):

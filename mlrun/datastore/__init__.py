@@ -69,7 +69,6 @@ from .utils import parse_kafka_url
 store_manager = StoreManager()
 
 if hasattr(fsspec, "register_implementation"):
-    # TODO: Not sure about clobber=True
     fsspec.register_implementation("dbfs", IguazDatabricksFileSystem, clobber=True)
 else:
     from fsspec.registry import known_implementations

@@ -79,7 +79,7 @@ class TestDBFSStore:
         test_files = dir_dataitem.listdir()
         store = dir_dataitem.store
         for test_file in test_files:
-            store.rm(path=f"{self._object_dir}/{test_file}")
+            store.rm(path=f"{self._object_dir}/{test_file}", recursive=True)
 
     def _perform_dbfs_tests(self, secrets):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)

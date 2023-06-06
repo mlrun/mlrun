@@ -15,7 +15,7 @@
 import os
 import uuid
 from pathlib import Path
-
+from databricks.sdk import WorkspaceClient
 import pandas as pd
 import pytest
 import yaml
@@ -61,6 +61,15 @@ class TestDBFSStore:
         self.secrets = {}
         token = config["env"].get("DATABRICKS_TOKEN", None)
         self.secrets["DATABRICKS_TOKEN"] = token
+        self.parquets_dir = '/parquets'
+        w = WorkspaceClient(host=self._databricks_workspace, token=token)
+        all_paths = [file_info.path for file_info in w.dbfs.list('/')]
+        if self._object_dir  not in all_paths:
+            w.dbfs.mkdirs(f'{self._object_dir}{self.parquets_dir}')
+        else:
+            w.dbfs.delete(f'{self._object_dir}', recursive=True)
+            w.dbfs.mkdirs(f'{self._object_dir}{self.parquets_dir}')
+
         logger.info(f"Object URL: {self._object_url}")
 
     def teardown_class(self):

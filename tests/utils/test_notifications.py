@@ -396,6 +396,61 @@ def test_notification_validation_on_run(monkeypatch, notification_kwargs, expect
         )
 
 
+def test_notification_sent_on_handler_run(monkeypatch):
+
+    run_many_mock = unittest.mock.Mock(return_value=[])
+    push_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(mlrun.runtimes.HandlerRuntime, "_run_many", run_many_mock)
+    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+
+    def hyper_func(context, p1, p2):
+        print(f"p1={p1}, p2={p2}, result={p1 * p2}")
+        context.log_result("multiplier", p1 * p2)
+
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+
+    grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
+    task = mlrun.new_task("grid-demo").with_hyper_params(
+        grid_params, selector="max.multiplier"
+    )
+    mlrun.new_function().run(task, handler=hyper_func, notifications=[notification])
+    run_many_mock.assert_called_once()
+    push_mock.assert_called_once()
+
+
+def test_notification_sent_on_dask_run(monkeypatch):
+
+    run_mock = unittest.mock.Mock(return_value=None)
+    push_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(mlrun.runtimes.LocalRuntime, "_run", run_mock)
+    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="dask",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+
+    function.run(
+        handler="json.dumps",
+        params={"obj": {"x": 99}},
+        notifications=[notification],
+        local=True,
+    )
+
+    run_mock.assert_called_once()
+    push_mock.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "notification1_name,notification2_name,expectation",
     [

@@ -26,7 +26,6 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.lists
 import mlrun.model
-import mlrun.runtimes.constants
 import mlrun.utils.helpers
 from mlrun.utils import logger
 
@@ -36,9 +35,9 @@ from .notification import NotificationBase, NotificationTypes
 class NotificationPusher(object):
 
     messages = {
-        mlrun.runtimes.constants.RunStates.completed: "Run completed",
-        mlrun.runtimes.constants.RunStates.error: "Run failed",
-        mlrun.runtimes.constants.RunStates.aborted: "Run aborted",
+        "completed": "Run completed",
+        "error": "Run failed",
+        "aborted": "Run aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -118,12 +117,9 @@ class NotificationPusher(object):
         for when_state in when_states:
             if when_state == run_state:
                 if (
-                    run_state == mlrun.runtimes.constants.RunStates.completed
+                    run_state == "completed"
                     and (not condition or ast.literal_eval(condition))
-                ) or run_state in [
-                    mlrun.runtimes.constants.RunStates.error,
-                    mlrun.runtimes.constants.RunStates.aborted,
-                ]:
+                ) or run_state in ["error", "aborted"]:
                     return True
 
         return False

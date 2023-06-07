@@ -135,7 +135,16 @@ def make_kaniko_pod(
     if dockertext:
         dockerfile = "/empty/Dockerfile"
 
-    args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
+    args = [
+        "--dockerfile",
+        dockerfile,
+        "--context",
+        context,
+        "--destination",
+        dest,
+        "--image-fs-extract-retry",
+        config.httpdb.builder.kaniko_image_fs_extraction_retries,
+    ]
     for value, flag in [
         (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
         (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),

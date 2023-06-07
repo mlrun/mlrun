@@ -3015,6 +3015,44 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def set_objects_notifications(
+        self,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        parents: Union[mlrun.common.schemas.NotificationParents, dict],
+    ):
+        self.api_call(
+            "PUT",
+            f"projects/{project}/notifications",
+            f"Failed to set notifications on objects {parents}",
+            body=dict_to_json(
+                {
+                    "notifications": [
+                        notification.to_dict() for notification in notifications
+                    ],
+                    "parents": parents,
+                }
+            ),
+        )
+
+    def set_runs_notifications(
+        self,
+        project: str,
+        runs: typing.List[mlrun.model.RunObject],
+        notifications: typing.List[mlrun.model.Notification],
+    ):
+        parents = mlrun.common.schemas.NotificationParents(
+            kind="run",
+            identifiers=[
+                mlrun.common.schemas.RunIdentifier(
+                    uid=run.metadata.uid,
+                    iter=run.metadata.iteration,
+                )
+                for run in runs
+            ],
+        )
+        self.set_objects_notifications(project, notifications, parents)
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
@@ -610,5 +611,13 @@ class RunDBInterface(ABC):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
+    ):
+        pass
+
+    def set_runs_notifications(
+        self,
+        project: str,
+        runs: typing.List[mlrun.model.RunObject],
+        notifications: typing.List[mlrun.model.Notification],
     ):
         pass

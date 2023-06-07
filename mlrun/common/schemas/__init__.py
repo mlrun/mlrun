@@ -107,7 +107,14 @@ from .model_endpoints import (
     ModelEndpointStatus,
     ModelMonitoringStoreKinds,
 )
-from .notification import NotificationSeverity, NotificationStatus
+from .notification import (
+    Notification,
+    NotificationKind,
+    NotificationParents,
+    NotificationSeverity,
+    NotificationStatus,
+    SetNotificationRequest,
+)
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
@@ -124,6 +131,7 @@ from .project import (
     ProjectSummariesOutput,
     ProjectSummary,
 )
+from .runs import RunIdentifier
 from .runtime_resource import (
     GroupedByJobRuntimeResourcesOutput,
     GroupedByProjectRuntimeResourcesOutput,

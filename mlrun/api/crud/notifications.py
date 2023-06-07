@@ -17,8 +17,14 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
+import mlrun.api.db.sqldb.db
 import mlrun.api.utils.singletons.db
+import mlrun.common.schemas
 import mlrun.utils.singleton
+
+kind_to_function_names = {
+    "run": mlrun.api.db.sqldb.db.SQLDB.set_runs_notifications.__name__
+}
 
 
 class Notifications(
@@ -77,4 +83,24 @@ class Notifications(
 
         mlrun.api.utils.singletons.db.get_db().delete_run_notifications(
             session, name, run_uid, project
+        )
+
+    @staticmethod
+    def set_object_notifications(
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        notifications: typing.List[mlrun.common.schemas.Notification],
+        notification_parents: mlrun.common.schemas.NotificationParents,
+    ):
+        set_func = kind_to_function_names.get(notification_parents.kind, {})
+        if not set_func:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find overwrite function for object kind: {notification_parents.kind}"
+            )
+        mlrun.model.Notification.validate_notification_uniqueness(notifications)
+        getattr(mlrun.api.utils.singletons.db.get_db(), set_func)(
+            session=db_session,
+            project=project,
+            notifications=notifications,
+            identifiers=notification_parents.identifiers,
         )

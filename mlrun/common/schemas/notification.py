@@ -19,6 +19,8 @@ import pydantic
 
 import mlrun.common.types
 
+from .runs import RunIdentifier
+
 
 class NotificationKind(mlrun.common.types.StrEnum):
     console = "console"
@@ -51,3 +53,16 @@ class Notification(pydantic.BaseModel):
     params: typing.Dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None
+
+
+class NotificationParents(pydantic.BaseModel):
+
+    kind: str
+
+    # TODO: Add more types to the list for new supported notifications
+    identifiers: typing.List[RunIdentifier]
+
+
+class SetNotificationRequest(pydantic.BaseModel):
+    notifications: typing.List[Notification] = None
+    parents: NotificationParents = None

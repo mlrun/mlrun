@@ -377,7 +377,7 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"loaded project {name} from MLRun DB")
+        logger.info(f"Loaded project {name} from MLRun DB")
         return project
 
     except mlrun.errors.MLRunNotFoundError:
@@ -395,7 +395,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url or context}"
+            message = f"Loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -411,7 +411,7 @@ def get_or_create_project(
                 subpath=subpath,
                 save=save,
             )
-            message = f"created project {name}"
+            message = f"Created project {name}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)

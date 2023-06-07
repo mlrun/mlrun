@@ -602,8 +602,10 @@ class TestProject(TestMLRunSystem):
         print("OUT:\n", out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )

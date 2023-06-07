@@ -356,12 +356,12 @@ class BaseLauncher(abc.ABC):
         if result:
             run = mlrun.run.RunObject.from_dict(result)
             logger.info(
-                f"run executed, status={run.status.state}", name=run.metadata.name
+                f"Run executed, status={run.status.state}", name=run.metadata.name
             )
             if run.status.state == "error":
                 if runtime._is_remote and not runtime.is_child:
-                    logger.error(f"runtime error: {run.status.error}")
-                raise mlrun.runtimes.utils.RunError(run.status.error)
+                    logger.error("Runtime error", status=run.status)
+                raise mlrun.runtimes.utils.RunError(run.error)
             return run
 
         return None

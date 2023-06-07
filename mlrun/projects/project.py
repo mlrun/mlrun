@@ -338,7 +338,9 @@ def get_or_create_project(
     from_template: str = None,
     save: bool = True,
 ) -> "MlrunProject":
-    """Load a project from MLRun DB, or create/import if doesnt exist
+    """
+    Load a project from MLRun DB
+    If the project doesn't exist in the DB, it will be created from the provided url or template.
 
     example::
 

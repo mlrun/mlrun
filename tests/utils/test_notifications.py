@@ -28,6 +28,41 @@ import mlrun.utils.notifications
 
 
 @pytest.mark.parametrize(
+    "notification_kind", mlrun.common.schemas.notification.NotificationKind
+)
+def test_load_notification(notification_kind):
+    run_uid = "test-run-uid"
+    notification_name = "test-notification-name"
+    notification_key = f"{run_uid}-{notification_name}"
+    when_state = "completed"
+    notification = mlrun.model.Notification.from_dict(
+        {
+            "kind": notification_kind,
+            "when": when_state,
+            "status": "pending",
+            "name": notification_name,
+        }
+    )
+    run = mlrun.model.RunObject.from_dict(
+        {
+            "metadata": {"uid": run_uid},
+            "spec": {"notifications": [notification]},
+            "status": {"state": when_state},
+        }
+    )
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    notification_pusher._load_notification(run, notification)
+    assert notification_key in notification_pusher._notifications
+    assert isinstance(
+        notification_pusher._notifications[notification_key],
+        mlrun.utils.notifications.NotificationTypes.get_notification(notification_kind),
+    )
+
+
+@pytest.mark.parametrize(
     "when,condition,run_state,notification_previously_sent,expected",
     [
         (["completed"], "", "completed", False, True),

@@ -37,6 +37,7 @@ class NotificationPusher(object):
     messages = {
         "completed": "Run completed",
         "error": "Run failed",
+        "aborted": "Run aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -119,17 +120,18 @@ class NotificationPusher(object):
 
         # if at least one condition is met, notify
         for when_state in when_states:
-            if (
-                when_state == run_state == "completed"
-                and evaluate_condition_in_separate_process(
-                    notification.condition,
-                    context={
-                        "run": run.to_dict(),
-                        "notification": notification.to_dict(),
-                    },
-                )
-            ) or when_state == run_state == "error":
-                return True
+            if when_state == run_state:
+                if (
+                    run_state == "completed"
+                    and evaluate_condition_in_separate_process(
+                        notification.condition,
+                        context={
+                            "run": run.to_dict(),
+                            "notification": notification.to_dict(),
+                        },
+                    )
+                ) or run_state in ["error", "aborted"]:
+                    return True
 
         return False
 

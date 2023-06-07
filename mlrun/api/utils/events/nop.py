@@ -1,36 +1,29 @@
-import abc
 import typing
 
 
-class BaseEventClient:
-    @abc.abstractmethod
+class NopClient:
     def emit(self, event):
-        pass
+        return
 
-    @abc.abstractmethod
     def generate_project_auth_secret_created_event(
         self, username: str, secret_name: str
     ):
-        pass
+        return
 
-    @abc.abstractmethod
     def generate_project_auth_secret_updated_event(
         self, username: str, secret_name: str
     ):
-        pass
+        return
 
-    @abc.abstractmethod
     def generate_project_secret_created_event(
         self, project: str, secret_name: str, secret_keys: typing.List[str]
     ):
-        pass
+        return
 
-    @abc.abstractmethod
     def generate_project_secret_updated_event(
         self, project: str, secret_name: str, secret_keys: typing.List[str]
     ):
-        pass
+        return
 
-    @abc.abstractmethod
     def generate_project_secret_deleted_event(self, project: str, secret_name: str):
-        pass
+        return

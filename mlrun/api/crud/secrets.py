@@ -18,7 +18,7 @@ import typing
 import uuid
 
 import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.events.events_factory
+import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
@@ -112,35 +112,23 @@ class Secrets(
                 ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_project_secrets(
                     project, secrets_to_store
                 )
-                if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
-                    return
                 secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
 
-                try:
-                    client = (
-                        mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
-                    )
-                    if created:
-                        event = client.generate_project_secret_created_event(
-                            project=project,
-                            secret_name=secret_name,
-                            secret_keys=secret_keys,
-                        )
-                    else:
-                        event = client.generate_project_secret_updated_event(
-                            project=project,
-                            secret_name=secret_name,
-                            secret_keys=secret_keys,
-                        )
-                    client.emit(event)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to emit project secret event",
-                        exc=exc,
-                        action="create" if created else "update",
+                client = events_factory.EventsFactory().get_events_client()
+                if created:
+                    event = client.generate_project_secret_created_event(
                         project=project,
                         secret_name=secret_name,
+                        secret_keys=secret_keys,
                     )
+                else:
+                    event = client.generate_project_secret_updated_event(
+                        project=project,
+                        secret_name=secret_name,
+                        secret_keys=secret_keys,
+                    )
+                client.emit(event)
+            else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
                 )
@@ -182,29 +170,17 @@ class Secrets(
         ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
             secret.username, secret.access_key
         )
-        if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
-            return auth_secret_name
-        try:
-            client = (
-                mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
+
+        client = events_factory.EventsFactory().get_events_client()
+        if created:
+            event = client.generate_project_auth_secret_created_event(
+                username=secret.username, secret_name=auth_secret_name
             )
-            if created:
-                event = client.generate_project_auth_secret_created_event(
-                    username=secret.username, secret_name=auth_secret_name
-                )
-            else:
-                event = client.generate_project_auth_secret_updated_event(
-                    username=secret.username, secret_name=auth_secret_name
-                )
-            client.emit(event)
-        except Exception as exc:
-            logger.warning(
-                "Failed to emit project auth secret event",
-                exc=exc,
-                action="create" if created else "update",
-                username=secret.username,
-                secret_name=auth_secret_name,
+        else:
+            event = client.generate_project_auth_secret_updated_event(
+                username=secret.username, secret_name=auth_secret_name
             )
+        client.emit(event)
 
         return auth_secret_name
 
@@ -260,28 +236,17 @@ class Secrets(
                 ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                     project, secrets
                 )
-                if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
-                    return
-                try:
-                    client = (
-                        mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
+
+                client = events_factory.EventsFactory().get_events_client()
+                if deleted:
+                    event = client.generate_project_secrets_deleted_event(
+                        project, secret_name
                     )
-                    if deleted:
-                        event = client.generate_project_secrets_deleted_event(
-                            project, secret_name, secrets
-                        )
-                    else:
-                        event = client.generate_project_secrets_updated_event(
-                            project, secret_name, secrets
-                        )
-                    client.emit(event)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to emit project secrets deleted event",
-                        exc=exc,
-                        project=project,
-                        secret_names=secrets,
+                else:
+                    event = client.generate_project_secrets_updated_event(
+                        project, secret_name, secrets
                     )
+                client.emit(event)
 
             else:
                 raise mlrun.errors.MLRunInternalServerError(

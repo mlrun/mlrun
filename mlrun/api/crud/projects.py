@@ -23,7 +23,7 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.utils.events.events_factory
+import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -186,21 +186,11 @@ class Projects(
             )
             if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
                 return
-            try:
-                client = (
-                    mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
-                )
-                event = client.generate_project_secrets_deleted_event(
-                    name, secret_name, secrets
-                )
-                client.emit(event)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to emit project secrets deleted event",
-                    exc=exc,
-                    project=name,
-                    secret_names=secrets,
-                )
+
+            client = events_factory.EventsFactory().get_events_client()
+            client.emit(
+                client.generate_project_secrets_deleted_event(name, secret_name)
+            )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

@@ -1187,10 +1187,14 @@ class RunObject(RunTemplate):
     def error(self) -> str:
         """error string if failed"""
         if self.status:
-            if not self.status.state == "error":
+            if self.status.state != "error":
                 return f"Run state ({self.status.state}) is not in error state"
-
-            return self.status.error or self.status.reason
+            return (
+                self.status.error
+                or self.status.reason
+                or self.status.status_text
+                or "Unknown error"
+            )
         return ""
 
     def output(self, key):

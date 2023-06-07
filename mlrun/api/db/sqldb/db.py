@@ -3786,4 +3786,5 @@ class SQLDB(DBInterface):
         ]
         self._upsert(session, [run], ignore=True)
 
-        self._store_notifications(session, Run, notifications, run.id, project)
+        self.delete_run_notifications(session, run.metadata.uid, project)
+        self.store_run_notifications(session, notifications, run.id, project)

@@ -192,6 +192,7 @@ class BaseMerger(abc.ABC):
                 # convert pandas entity_rows to spark DF if needed
                 if not hasattr(entity_rows, "rdd") and self.engine == "spark":
                     entity_rows = self.spark.createDataFrame(entity_rows)
+
                 dfs.append(entity_rows)
                 keys.append(
                     [node.data["left_keys"], node.data["right_keys"]]

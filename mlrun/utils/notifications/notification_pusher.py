@@ -37,6 +37,7 @@ class NotificationPusher(object):
     messages = {
         "completed": "Run completed",
         "error": "Run failed",
+        "aborted": "Run aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -49,9 +50,15 @@ class NotificationPusher(object):
                 run = mlrun.model.RunObject.from_dict(run)
 
             for notification in run.spec.notifications:
-                notification.status = run.status.notifications.get(
-                    notification.name
-                ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
+                try:
+                    notification.status = run.status.notifications.get(
+                        notification.name
+                    ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
+                except (AttributeError, KeyError):
+                    notification.status = (
+                        mlrun.common.schemas.NotificationStatus.PENDING
+                    )
+
                 if self._should_notify(run, notification):
                     self._notification_data.append((run, notification))
 
@@ -114,11 +121,12 @@ class NotificationPusher(object):
 
         # if at least one condition is met, notify
         for when_state in when_states:
-            if (
-                when_state == run_state == "completed"
-                and (not condition or ast.literal_eval(condition))
-            ) or when_state == run_state == "error":
-                return True
+            if when_state == run_state:
+                if (
+                    run_state == "completed"
+                    and (not condition or ast.literal_eval(condition))
+                ) or run_state in ["error", "aborted"]:
+                    return True
 
         return False
 
@@ -149,7 +157,11 @@ class NotificationPusher(object):
         notification_object: mlrun.model.Notification,
         db: mlrun.api.db.base.DBInterface,
     ):
-        message = self.messages.get(run.state(), "")
+        custom_message = (
+            f": {notification_object.message}" if notification_object.message else ""
+        )
+        message = self.messages.get(run.state(), "") + custom_message
+
         severity = (
             notification_object.severity
             or mlrun.common.schemas.NotificationSeverity.INFO

@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
+import mlrun.api.launcher
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
@@ -162,15 +163,18 @@ async def delete_function(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-
     #  If the requested function has a schedule, we must delete it before deleting the function
-    schedule = await run_in_threadpool(
-        get_scheduler().get_schedule,
-        db_session,
-        project,
-        name,
-    )
-    if schedule:
+    try:
+        function_schedule = await run_in_threadpool(
+            get_scheduler().get_schedule,
+            db_session,
+            project,
+            name,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        function_schedule = None
+
+    if function_schedule:
         # when deleting a function, we should also delete its schedules if exists
         # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
         # and we are running in worker, we send the request to the chief client
@@ -671,6 +675,7 @@ def _build_function(
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(

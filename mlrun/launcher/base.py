@@ -309,7 +309,13 @@ class BaseLauncher(abc.ABC):
                 run.spec.output_path, run.metadata.project
             )
 
-        run.spec.notifications = notifications or run.spec.notifications or []
+        notifications = notifications or run.spec.notifications or []
+        mlrun.model.Notification.validate_notification_uniqueness(notifications)
+        for notification in notifications:
+            notification.validate_notification()
+
+        run.spec.notifications = notifications
+
         return run
 
     @staticmethod
@@ -371,9 +377,9 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(
+    def enrich_runtime(
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project: Optional[str] = "",
+        project_name: Optional[str] = "",
     ):
         pass
 

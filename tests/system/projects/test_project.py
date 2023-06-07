@@ -25,7 +25,6 @@ from kfp import dsl
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
-from mlrun.utils import logger
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -190,7 +189,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
 
         # run project, load source into container at runtime
         project2.spec.load_source_on_run = True
@@ -208,7 +207,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
         run = project2.run(
             "main",
@@ -245,7 +244,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
@@ -253,7 +252,7 @@ class TestProject(TestMLRunSystem):
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
-        print(project2.to_yaml())
+        self._logger.debug("saved project", project2=project2.to_yaml())
 
         # exec the workflow
         args = [
@@ -285,7 +284,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # exec the workflow
         args = [
@@ -429,7 +428,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        print(project.to_yaml())
+        self._logger.debug("set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -505,7 +504,7 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
@@ -558,7 +557,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
         )
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
 
         # exec the workflow
         args = [
@@ -574,7 +573,7 @@ class TestProject(TestMLRunSystem):
             str(self.assets_path),
         ]
         out = exec_project(args)
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find("pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
@@ -599,11 +598,13 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
 
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )

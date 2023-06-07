@@ -3765,26 +3765,25 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def set_runs_notifications(
+    def set_run_notifications(
         self,
         session: Session,
         project: str,
         notifications: typing.List[mlrun.common.schemas.Notification],
-        identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
+        identifier: mlrun.common.schemas.RunIdentifier,
     ):
-        for identifier in identifiers:
-            run = self._get_run(session, identifier.uid, project, identifier.iter)
-            if not run:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "Could not find run",
-                    project=project,
-                    uid=identifier.uid,
-                    iter=identifier.iter,
-                )
+        run = self._get_run(session, identifier.uid, project, identifier.iter)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                "Could not find run",
+                project=project,
+                uid=identifier.uid,
+                iter=identifier.iter,
+            )
 
-            run.struct.setdefault("spec", {})["notifications"] = [
-                notification.dict() for notification in notifications
-            ]
-            self._upsert(session, [run], ignore=True)
+        run.struct.setdefault("spec", {})["notifications"] = [
+            notification.dict() for notification in notifications
+        ]
+        self._upsert(session, [run], ignore=True)
 
-            self._store_notifications(session, Run, notifications, run.id, project)
+        self._store_notifications(session, Run, notifications, run.id, project)

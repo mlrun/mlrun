@@ -614,7 +614,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def set_runs_notifications(
+    def set_run_notifications(
         self,
         session,
         project: str,

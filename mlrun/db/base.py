@@ -614,7 +614,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
-    def set_runs_notifications(
+    def set_run_notifications(
         self,
         project: str,
         runs: typing.List[mlrun.model.RunObject],

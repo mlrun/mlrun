@@ -23,7 +23,11 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 
 kind_to_function_names = {
-    "run": mlrun.api.db.sqldb.db.SQLDB.set_runs_notifications.__name__
+    "run": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__
+}
+
+kind_to_indentifier_key = {
+    "run": "uid",
 }
 
 
@@ -90,17 +94,33 @@ class Notifications(
         db_session: sqlalchemy.orm.Session,
         project: str,
         notifications: typing.List[mlrun.common.schemas.Notification],
-        notification_parents: mlrun.common.schemas.NotificationParents,
+        notification_parent: mlrun.common.schemas.NotificationParent,
     ):
-        set_func = kind_to_function_names.get(notification_parents.kind, {})
+        set_func = kind_to_function_names.get(notification_parent.kind, {})
         if not set_func:
             raise mlrun.errors.MLRunNotFoundError(
-                f"couldn't find overwrite function for object kind: {notification_parents.kind}"
+                f"couldn't find set notification function for object kind: {notification_parent.kind}"
+            )
+        identifier_key = kind_to_indentifier_key.get(notification_parent.kind, {})
+        if not identifier_key:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find identifier key for object kind: {notification_parent.kind}"
             )
         mlrun.model.Notification.validate_notification_uniqueness(notifications)
+
+        notification_objects_to_set = []
+        for notification_object in notifications:
+            notification_objects_to_set.append(
+                mlrun.api.api.utils.mask_notification_params_with_secret(
+                    project,
+                    getattr(notification_parent.identifier, identifier_key),
+                    notification_object,
+                )
+            )
+
         getattr(mlrun.api.utils.singletons.db.get_db(), set_func)(
             session=db_session,
             project=project,
-            notifications=notifications,
-            identifiers=notification_parents.identifiers,
+            notifications=notification_objects_to_set,
+            identifier=notification_parent.identifier,
         )

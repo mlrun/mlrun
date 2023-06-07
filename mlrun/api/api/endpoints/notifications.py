@@ -51,7 +51,7 @@ async def set_object_notifications(
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         getattr(
             mlrun.common.schemas.AuthorizationResourceTypes,
-            set_notifications_request.parents.kind,
+            set_notifications_request.parent.kind,
         ),
         project,
         resource_name="notifications",
@@ -64,6 +64,6 @@ async def set_object_notifications(
         db_session,
         project,
         set_notifications_request.notifications,
-        set_notifications_request.parents,
+        set_notifications_request.parent,
     )
     return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)

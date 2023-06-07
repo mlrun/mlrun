@@ -110,7 +110,7 @@ from .model_endpoints import (
 from .notification import (
     Notification,
     NotificationKind,
-    NotificationParents,
+    NotificationParent,
     NotificationSeverity,
     NotificationStatus,
     SetNotificationRequest,

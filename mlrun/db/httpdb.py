@@ -3015,43 +3015,43 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def set_objects_notifications(
+    def set_object_notifications(
         self,
         project: str,
         notifications: typing.List[mlrun.model.Notification],
-        parents: Union[mlrun.common.schemas.NotificationParents, dict],
+        parent: Union[mlrun.common.schemas.NotificationParent, dict],
     ):
         self.api_call(
             "PUT",
             f"projects/{project}/notifications",
-            f"Failed to set notifications on objects {parents}",
+            f"Failed to set notifications on object {parent}",
             body=dict_to_json(
                 {
                     "notifications": [
                         notification.to_dict() for notification in notifications
                     ],
-                    "parents": parents,
+                    "parent": parent,
                 }
             ),
         )
 
-    def set_runs_notifications(
+    def set_run_notifications(
         self,
         project: str,
-        runs: typing.List[mlrun.model.RunObject],
+        run: Union[mlrun.model.RunObject, dict],
         notifications: typing.List[mlrun.model.Notification],
     ):
-        parents = mlrun.common.schemas.NotificationParents(
+        if isinstance(run, dict):
+            run = mlrun.model.RunObject.from_dict(run)
+
+        parent = mlrun.common.schemas.NotificationParent(
             kind="run",
-            identifiers=[
-                mlrun.common.schemas.RunIdentifier(
-                    uid=run.metadata.uid,
-                    iter=run.metadata.iteration,
-                )
-                for run in runs
-            ],
+            identifier=mlrun.common.schemas.RunIdentifier(
+                uid=run.metadata.uid,
+                iter=run.metadata.iteration,
+            ),
         )
-        self.set_objects_notifications(project, notifications, parents)
+        self.set_object_notifications(project, notifications, parent)
 
 
 def _as_json(obj):

@@ -38,7 +38,6 @@ def run_merge_job(
     drop_columns=None,
     with_indexes=None,
     query=None,
-    join_type="inner",
     order_by=None,
 ):
     name = vector.metadata.name
@@ -103,7 +102,6 @@ def run_merge_job(
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
-            "join_type": join_type,
             "order_by": order_by,
             "engine_args": engine_args,
         },
@@ -174,7 +172,7 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', 
+                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, 
                   engine_args=None, order_by=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
@@ -185,7 +183,7 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
-                 query=query, join_type=join_type, order_by=order_by)
+                 query=query, order_by=order_by)
 
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)

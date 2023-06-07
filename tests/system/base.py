@@ -23,11 +23,9 @@ from deepdiff import DeepDiff
 
 import mlrun.common.schemas
 from mlrun import get_run_db, mlconf, set_environment
-from mlrun.utils import FormatterKinds, create_logger
+from mlrun.utils import create_logger
 
-logger = create_logger(
-    level="debug", name="test-system", formatter_kind=FormatterKinds.HUMAN_EXTENDED.name
-)
+logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:

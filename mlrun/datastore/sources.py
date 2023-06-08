@@ -938,22 +938,25 @@ class SQLSource(BaseSourceDriver):
         )
 
     def to_dataframe(self):
-        import sqlalchemy as db
+        import sqlalchemy
 
         query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
-        params = None
-        if not query:
-            query = "SELECT * FROM %(table)s"
-            params = {"table": table_name}
         if table_name and db_path:
-            engine = db.create_engine(db_path)
+            engine = sqlalchemy.create_engine(db_path)
+            table = sqlalchemy.Table(
+                table_name,
+                sqlalchemy.MetaData(),
+                autoload=True,
+                autoload_with=engine,
+            )
+            if not query:
+                query = sqlalchemy.select(table)
             with engine.connect() as con:
                 return pd.read_sql(
                     query,
                     con=con,
-                    params=params,
                     chunksize=self.attributes.get("chunksize"),
                     parse_dates=self.attributes.get("time_fields"),
                 )

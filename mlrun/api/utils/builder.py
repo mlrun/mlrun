@@ -29,6 +29,7 @@ import mlrun.errors
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.utils.helpers import remove_image_protocol_prefix
 
 
 def make_dockerfile(
@@ -683,6 +684,8 @@ def resolve_image_target_and_registry_secret(
             image_target_components = [registry, repository, image_target]
 
         return "/".join(image_target_components), secret_name
+
+    image_target = remove_image_protocol_prefix(image_target)
 
     return image_target, secret_name
 

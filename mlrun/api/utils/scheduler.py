@@ -283,7 +283,7 @@ class Scheduler:
         name: str,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_scheduler_resources(project, name)
+        self._remove_schedule_scheduler_resources(db_session, project, name)
         get_db().delete_schedule(db_session, project, name)
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
@@ -904,12 +904,22 @@ class Scheduler:
     def _remove_schedule_notification_secrets(
         db_session: Session, project: str, schedule_name: str
     ):
-        db_schedule = get_db().get_schedule(
-            db_session,
-            project,
-            schedule_name,
-        )
-        if db_schedule:
+        try:
+            db_schedule = get_db().get_schedule(
+                db_session,
+                project,
+                schedule_name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # we allow deleting a schedule even if it does not exist in the DB
+            logger.debug(
+                "Failed to find schedule. Continuing",
+                project=project,
+                schedule_name=schedule_name,
+            )
+            return
+
+        if db_schedule and isinstance(db_schedule.scheduled_object, dict):
             notifications = (
                 db_schedule.scheduled_object.get("task", {})
                 .get("spec", {})

@@ -65,6 +65,11 @@ class DataStore:
         return True
 
     @staticmethod
+    def get_parsed_url(url):
+        parsed_url = urllib.parse.urlparse(url)
+        return f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+
+    @staticmethod
     def uri_to_kfp(endpoint, subpath):
         raise ValueError("data store doesnt support KFP URLs")
 
@@ -149,8 +154,7 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        parsed_url = urllib.parse.urlparse(url)
-        filepath = parsed_url.path
+        filepath = self.get_parsed_url(url)
         if filepath.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
@@ -223,7 +227,7 @@ class DataStore:
 
         file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(filepath) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

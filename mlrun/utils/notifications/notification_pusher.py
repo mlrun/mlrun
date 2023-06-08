@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ast
 import asyncio
 import datetime
 import os
@@ -28,6 +27,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
 from mlrun.utils import logger
+from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
 from .notification import NotificationBase, NotificationTypes
 
@@ -109,7 +109,6 @@ class NotificationPusher(object):
         notification: mlrun.model.Notification,
     ) -> bool:
         when_states = notification.when
-        condition = notification.condition
         run_state = run.state()
 
         # if the notification isn't pending, don't push it
@@ -124,7 +123,13 @@ class NotificationPusher(object):
             if when_state == run_state:
                 if (
                     run_state == "completed"
-                    and (not condition or ast.literal_eval(condition))
+                    and evaluate_condition_in_separate_process(
+                        notification.condition,
+                        context={
+                            "run": run.to_dict(),
+                            "notification": notification.to_dict(),
+                        },
+                    )
                 ) or run_state in ["error", "aborted"]:
                     return True
 

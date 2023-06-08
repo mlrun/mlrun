@@ -58,4 +58,4 @@ python-dotenv~=0.17.0
 setuptools~=65.5
 deprecated~=1.2
 # TODO add igz-mgmt 0.0.6 once it's released
-igz-mgmt~=0.0.6-rc6
+igz-mgmt~=0.0.5

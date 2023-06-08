@@ -20,6 +20,7 @@ import pydantic
 import mlrun.common.types
 
 from .runs import RunIdentifier
+from .schedule import ScheduleIdentifier
 
 
 class NotificationKind(mlrun.common.types.StrEnum):
@@ -60,7 +61,7 @@ class NotificationParent(pydantic.BaseModel):
     kind: str
 
     # TODO: Add more types to the list for new supported notifications
-    identifier: RunIdentifier
+    identifier: typing.Union[RunIdentifier, ScheduleIdentifier]
 
 
 class SetNotificationRequest(pydantic.BaseModel):

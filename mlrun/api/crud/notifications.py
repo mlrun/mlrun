@@ -102,18 +102,18 @@ class Notifications(
         notifications: typing.List[mlrun.common.schemas.Notification],
         notification_parent: mlrun.common.schemas.NotificationParent,
     ):
-        set_schedule_method = set_schedule_methods.get(notification_parent.kind, {})
-        factory = set_schedule_method.get("factory")
+        set_notification_method = set_schedule_methods.get(notification_parent.kind, {})
+        factory = set_notification_method.get("factory")
         if not factory:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find factory for object kind: {notification_parent.kind}"
             )
-        set_func = set_schedule_method.get("method_name")
+        set_func = set_notification_method.get("method_name")
         if not set_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find set notification function for object kind: {notification_parent.kind}"
             )
-        identifier_key = set_schedule_method.get("identifier_key")
+        identifier_key = set_notification_method.get("identifier_key")
         if not identifier_key:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find identifier key for object kind: {notification_parent.kind}"

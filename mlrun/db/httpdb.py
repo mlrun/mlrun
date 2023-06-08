@@ -3053,6 +3053,21 @@ class HTTPRunDB(RunDBInterface):
         )
         self.set_object_notifications(project, notifications, parent)
 
+    def set_schedule_notifications(
+        self,
+        project: str,
+        schedule_name: str,
+        notifications: typing.List[mlrun.model.Notification],
+    ):
+
+        parent = mlrun.common.schemas.NotificationParent(
+            kind="schedule",
+            identifier=mlrun.common.schemas.ScheduleIdentifier(
+                name=schedule_name,
+            ),
+        )
+        self.set_object_notifications(project, notifications, parent)
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

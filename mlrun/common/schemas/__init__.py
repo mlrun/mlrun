@@ -143,6 +143,7 @@ from .runtime_resource import (
 )
 from .schedule import (
     ScheduleCronTrigger,
+    ScheduleIdentifier,
     ScheduleInput,
     ScheduleKinds,
     ScheduleOutput,

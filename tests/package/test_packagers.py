@@ -33,6 +33,10 @@ from .packagers_testers.numpy_packagers_testers import (
     NumPyNDArrayPackagerTester,
     NumPyNumberPackagerTester,
 )
+from .packagers_testers.pandas_packagers_testers import (
+    PandasDataFramePackagerTester,
+    PandasSeriesPackagerTester,
+)
 from .packagers_testers.python_standard_library_packagers_testers import (
     BoolPackagerTester,
     BytearrayPackagerTester,
@@ -67,6 +71,8 @@ _PACKAGERS_TESTERS = [
     NumPyNumberPackagerTester,
     NumPyNDArrayDictPackagerTester,
     NumPyNDArrayListPackagerTester,
+    PandasDataFramePackagerTester,
+    PandasSeriesPackagerTester,
 ]
 
 
@@ -156,10 +162,14 @@ def test_packager_pack(rundb_mock, tester: Type[PackagerTester], test: PackTest)
         key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
         if artifact_type == ArtifactType.RESULT:
             assert key in pack_run.status.results
-            assert test.validation_function(pack_run.status.results[key])
+            assert test.validation_function(
+                pack_run.status.results[key], **test.validation_parameters
+            )
         else:
             assert key in pack_run.outputs
-            assert test.validation_function(pack_run._artifact(key=key))
+            assert test.validation_function(
+                pack_run._artifact(key=key), **test.validation_parameters
+            )
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
         if test.exception is None:
@@ -198,6 +208,7 @@ def test_packager_unpack(rundb_mock, tester: Type[PackagerTester], test: UnpackT
             name="unpack",
             handler=test.unpack_handler,
             inputs={"obj": input_path},
+            params=test.unpack_parameters,
             artifact_path=test_directory.name,
             local=True,
         )
@@ -283,6 +294,7 @@ def test_packager_pack_to_unpack(
             name="unpack",
             handler=test.unpack_handler,
             inputs={"obj": pack_run.outputs[key]},
+            params=test.unpack_parameters,
             artifact_path=test_directory.name,
             local=True,
         )

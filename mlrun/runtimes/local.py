@@ -483,12 +483,12 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
         if (
-                args[input_key].annotation is inspect.Parameter.empty
-                and type(args[input_key].default) is str
+            args[input_key].annotation is inspect.Parameter.empty
+            and type(args[input_key].default) is str
         ):
-            kwargs[input_key] = input_obj.local()
+            return input_obj.local()
         else:
-            kwargs[input_key] = input_obj
+            return input_obj
 
     for key in args.keys():
         if key == "context":

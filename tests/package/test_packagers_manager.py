@@ -401,7 +401,7 @@ class _DummyDataItem:
         self.artifact_url = ""
         self._is_artifact = is_artifact
 
-    def is_artifact(self) -> bool:
+    def get_artifact_type(self) -> bool:
         return self._is_artifact
 
 

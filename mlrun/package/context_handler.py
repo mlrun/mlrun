@@ -50,9 +50,9 @@ class ContextHandler:
         "numpy",
     ]
     # Optional packagers to be collected at initialization time:
-    _EXTENDED_PACKAGERS = ["matplotlib", "plotly", "bokeh"]
+    _EXTENDED_PACKAGERS = []  # TODO: Create "matplotlib", "plotly", "bokeh" packagers.
     # Optional packagers from the `mlrun.frameworks` package:
-    _MLRUN_FRAMEWORKS_PACKAGERS = []
+    _MLRUN_FRAMEWORKS_PACKAGERS = []  # TODO: Create frameworks packagers.
     # Default priority values for packagers:
     _BUILTIN_PACKAGERS_DEFAULT_PRIORITY = 5
     _CUSTOM_PACKAGERS_DEFAULT_PRIORITY = 3

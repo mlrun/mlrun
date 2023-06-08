@@ -47,7 +47,7 @@ class DefaultPackager(Packager):
       method ``pack_object`` must be implemented. The signature of each pack class method must be::
 
           @classmethod
-          def pack_x(cls, obj: Any, ...) -> Union[Tuple[Artifact, dict], dict, None]:
+          def pack_x(cls, obj: Any, ...) -> Union[Tuple[Artifact, dict], dict]:
               pass
 
       Where 'x' is the artifact type, 'obj' is the object to pack, ... are additional custom log hint configurations and

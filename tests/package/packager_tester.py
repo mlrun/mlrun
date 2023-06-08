@@ -37,6 +37,7 @@ class PackTest(NamedTuple):
     :param validation_function:          Function to assert a success packing. Will run without MLRun. It expects to
                                          receive the logged result / Artifact object.
     :param pack_parameters:              The parameters to pass to the pack handler.
+    :param validation_parameters:        Additional parameters to pass to the validation function.
     :param default_artifact_type_object: Optional field to hold a dummy object to test the default artifact type method
                                          of the packager. Make sure to not pass an artifact type in the log hint, so it
                                          will be tested.
@@ -46,8 +47,9 @@ class PackTest(NamedTuple):
 
     pack_handler: str
     log_hint: Union[str, dict]
-    validation_function: Callable[[Any], bool]
+    validation_function: Callable[[Any, ...], bool]
     pack_parameters: dict = {}
+    validation_parameters: dict = {}
     default_artifact_type_object: Any = None
     exception: str = None
 
@@ -62,6 +64,7 @@ class UnpackTest(NamedTuple):
     :param unpack_handler:         The handler to run as a MLRun function for unpacking. Must accept "obj" as the
                                    argument to unpack.
     :param prepare_parameters:     The parameters to pass to the prepare function.
+    :param unpack_parameters:      The parameters to pass to the unpack handler.
     :param exception:              If an exception should be raised during the test, this should be part of the expected
                                    exception message. Default is None (the test should succeed).
     """
@@ -69,6 +72,7 @@ class UnpackTest(NamedTuple):
     prepare_input_function: Callable[[...], Tuple[str, str]]
     unpack_handler: str
     prepare_parameters: dict = {}
+    unpack_parameters: dict = {}
     exception: str = None
 
 
@@ -84,6 +88,7 @@ class PackToUnpackTest(NamedTuple):
     :param expected_instructions:        The expected instructions the packed artifact should have.
     :param unpack_handler:               The handler to run as a MLRun function for unpacking. Must accept "obj" as the
                                          argument to unpack.
+    :param unpack_parameters:            The parameters to pass to the unpack handler.
     :param default_artifact_type_object: Optional field to hold a dummy object to test the default artifact type method
                                          of the packager. Make sure to not pass an artifact type in the log hint, so it
                                          will be tested.
@@ -96,6 +101,7 @@ class PackToUnpackTest(NamedTuple):
     pack_parameters: dict = {}
     expected_instructions: dict = {}
     unpack_handler: str = None
+    unpack_parameters: dict = {}
     default_artifact_type_object: Any = None
     exception: str = None
 

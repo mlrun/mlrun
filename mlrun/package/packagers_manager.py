@@ -16,14 +16,13 @@ import importlib
 import inspect
 import os
 import shutil
-import sys
 import traceback
 from typing import Any, Dict, List, Tuple, Type, Union
 
 from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem, is_store_uri, parse_store_uri, store_manager
+from mlrun.datastore import DataItem, store_manager
 from mlrun.errors import MLRunInvalidArgumentError
-from mlrun.utils import StorePrefix, logger
+from mlrun.utils import logger
 
 from .errors import (
     MLRunPackageCollectionError,

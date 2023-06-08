@@ -36,7 +36,7 @@ from tests.package.packager_tester import (
 # Common instructions for "object" artifacts of numpy objects:
 _COMMON_OBJECT_INSTRUCTIONS = {
     **COMMON_OBJECT_INSTRUCTIONS,
-    "object_module_name": np.ndarray.__module__,
+    "object_module_name": "numpy",
     "object_module_version": np.__version__,
 }
 

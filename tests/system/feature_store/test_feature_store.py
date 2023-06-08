@@ -3372,8 +3372,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join(self, engine, join_type, with_indexes):
+    def test_relation_join(self, engine, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         engine_args = {}
         if engine == "dask":
@@ -3431,7 +3430,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id"],
             right_on=["d_id"],
             suffixes=("_employees", "_departments"),
@@ -3440,7 +3438,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            how=join_type,
             left_on=["manager_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
@@ -3449,7 +3446,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_sets = pd.merge(
             employees_with_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_employees", "_e_mini"),
@@ -3458,7 +3454,6 @@ class TestFeatureStore(TestMLRunSystem):
         _merge_step = pd.merge(
             join_employee_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_", "_e_mini"),
@@ -3467,7 +3462,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_all = pd.merge(
             _merge_step,
             classes,
-            how=join_type,
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
@@ -3583,7 +3577,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="name",
         )
         if with_indexes:
@@ -3608,7 +3601,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
@@ -3629,7 +3621,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by=["n"],
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
@@ -3646,7 +3637,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
@@ -3668,15 +3658,13 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join_multi_entities(self, engine, join_type, with_indexes):
+    def test_relation_join_multi_entities(self, engine, with_indexes):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
@@ -3712,7 +3700,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id", "department_name"],
             right_on=["d_id", "name"],
             suffixes=("_employees", "_departments"),
@@ -3765,7 +3752,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())

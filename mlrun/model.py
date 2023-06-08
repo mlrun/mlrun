@@ -1183,6 +1183,20 @@ class RunObject(RunTemplate):
     def status(self, status):
         self._status = self._verify_dict(status, "status", RunStatus)
 
+    @property
+    def error(self) -> str:
+        """error string if failed"""
+        if self.status:
+            if self.status.state != "error":
+                return f"Run state ({self.status.state}) is not in error state"
+            return (
+                self.status.error
+                or self.status.reason
+                or self.status.status_text
+                or "Unknown error"
+            )
+        return ""
+
     def output(self, key):
         """return the value of a specific result or artifact by key"""
         self._outputs_wait_for_completion()

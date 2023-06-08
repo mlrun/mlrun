@@ -520,6 +520,15 @@ class TestProject(TestMLRunSystem):
                 local=True,
             )
 
+    def test_non_existent_run_id_in_pipeline(self):
+        project_name = "default"
+        db = mlrun.get_run_db()
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_pipeline(
+                "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
+            )
+
     def test_remote_from_archive(self):
         name = "pipe6"
         self.custom_project_names_to_delete.append(name)

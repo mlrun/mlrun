@@ -238,6 +238,19 @@ def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
 
 
+def remove_image_protocol_prefix(image):
+    prefixes = ["https://", "https://"]
+    if any(prefix in image for prefix in prefixes):
+        image = image.removeprefix("https://").removeprefix("http://")
+        warnings.warn(
+            "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+            " if you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also simply use '.' instead of the full URL). "
+            f"protocol prefix was removed, trying to push the image to: {image}"
+        )
+    return image
+
+
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):

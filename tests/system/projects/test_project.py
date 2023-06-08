@@ -17,6 +17,7 @@ import pathlib
 import re
 import shutil
 import sys
+import warnings
 from sys import executable
 
 import pytest
@@ -124,6 +125,29 @@ class TestProject(TestMLRunSystem):
             self.project.get_function(func_name, sync=False).spec.build.commands
             == commands
         )
+
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        with warnings.catch_warnings(record=True) as w:
+            self.project.build_function(
+                fn,
+                image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+                base_image="mlrun/mlrun",
+                commands=["echo 1"],
+            )
+            assert len(w) == 2
+            assert (
+                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+                " if you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also simply use '.' instead of the full URL). "
+                in str(w[-1].message)
+            )
 
     def test_run(self):
         name = "pipe0"

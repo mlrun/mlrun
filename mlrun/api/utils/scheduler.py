@@ -904,8 +904,7 @@ class Scheduler:
     def _remove_schedule_notification_secrets(
         db_session: Session, project: str, schedule_name: str
     ):
-        db_schedule = await fastapi.concurrency.run_in_threadpool(
-            get_db().get_schedule,
+        db_schedule = get_db().get_schedule(
             db_session,
             project,
             schedule_name,

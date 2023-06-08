@@ -26,7 +26,6 @@ import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
 import mlrun.utils.vault
-from mlrun.utils import logger
 
 
 class SecretsClientType(str, enum.Enum):

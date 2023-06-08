@@ -15,9 +15,9 @@
 import os
 import pathlib
 import re
-import warnings
 import shutil
 import sys
+import warnings
 from sys import executable
 
 import pytest
@@ -143,11 +143,12 @@ class TestProject(TestMLRunSystem):
             )
             assert len(w) == 2
             assert (
-                    "The image has an unexpected protocol prefix ('http://' or 'https://'),"
-                    " if you wish to use the default configured registry, no protocol prefix is required "
-                    "(note that you can also simply use '.' instead of the full URL). "
-                    in str(w[-1].message)
+                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+                " if you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also simply use '.' instead of the full URL). "
+                in str(w[-1].message)
             )
+
     def test_run(self):
         name = "pipe0"
         self.custom_project_names_to_delete.append(name)

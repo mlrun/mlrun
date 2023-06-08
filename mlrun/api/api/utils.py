@@ -337,9 +337,7 @@ def validate_and_mask_notification_list(
     mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
 
     return [
-        mask_notification_params_with_secret(
-            project, parent, notification_object
-        ).to_dict()
+        mask_notification_params_with_secret(project, parent, notification_object)
         for notification_object in notification_objects
     ]
 

@@ -618,7 +618,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        notifications: typing.List[mlrun.common.schemas.Notification],
+        notifications: typing.List[mlrun.model.Notification],
         identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
         **kwargs,
     ):

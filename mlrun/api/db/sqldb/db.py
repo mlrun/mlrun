@@ -3769,7 +3769,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str,
-        notifications: typing.List[mlrun.common.schemas.Notification],
+        notifications: typing.List[mlrun.model.Notification],
         identifier: mlrun.common.schemas.RunIdentifier,
         **kwargs,
     ):
@@ -3783,7 +3783,7 @@ class SQLDB(DBInterface):
             )
 
         run.struct.setdefault("spec", {})["notifications"] = [
-            notification.dict() for notification in notifications
+            notification.to_dict() for notification in notifications
         ]
         self._upsert(session, [run], ignore=True)
 

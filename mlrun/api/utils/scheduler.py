@@ -352,7 +352,7 @@ class Scheduler:
         db_session: Session,
         project: str,
         name: str,
-        notifications: List[mlrun.common.schemas.Notification],
+        notifications: List[mlrun.model.Notification],
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
         logger.debug("Setting schedule notifications", project=project, name=name)
@@ -360,7 +360,7 @@ class Scheduler:
         scheduled_object = db_schedule.scheduled_object
         if scheduled_object:
             scheduled_object.get("task", {}).get("spec", {})["notifications"] = [
-                notification.dict() for notification in notifications
+                notification.to_dict() for notification in notifications
             ]
         self.update_schedule(db_session, auth_info, project, name, scheduled_object)
 
@@ -893,11 +893,12 @@ class Scheduler:
             scheduled_object.get("task", {}).get("spec", {}).get("notifications")
         )
         if schedule_notifications:
-            scheduled_object["task"]["spec"][
-                "notifications"
-            ] = mlrun.api.api.utils.validate_and_mask_notification_list(
-                schedule_notifications, schedule_name, project
-            )
+            scheduled_object["task"]["spec"]["notifications"] = [
+                notification.to_dict()
+                for notification in mlrun.api.api.utils.validate_and_mask_notification_list(
+                    schedule_notifications, schedule_name, project
+                )
+            ]
 
     @staticmethod
     def _remove_schedule_notification_secrets(

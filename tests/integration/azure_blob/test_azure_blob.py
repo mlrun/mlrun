@@ -178,7 +178,7 @@ def test_as_df(auth_method):
     print(f"\nBlob URL: {blob_url}")
 
     upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
-    upload_data_item.upload(test_filename)
+    upload_data_item.upload(test_csv_filename)
 
     result_df = upload_data_item.as_df()
     assert result_df.equals(source_df)

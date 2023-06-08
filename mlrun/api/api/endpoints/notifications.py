@@ -21,15 +21,23 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.crud.notifications
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
+from mlrun.utils import logger
 
 router = fastapi.APIRouter(prefix="/project/{project}/notifications")
+
+
+CHIEF_REDIRECTED_NOTIFICATIONS = [
+    "schedule",
+]
 
 
 @router.put("", status_code=http.HTTPStatus.ACCEPTED.value)
 async def set_object_notifications(
     project: str,
+    request: fastapi.Request,
     set_notifications_request: mlrun.common.schemas.SetNotificationRequest = fastapi.Body(
         ...
     ),
@@ -59,9 +67,27 @@ async def set_object_notifications(
         auth_info=auth_info,
     )
 
+    if (
+        set_notifications_request.parent.kind in CHIEF_REDIRECTED_NOTIFICATIONS
+        and mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to set schedule notifications, re-routing to chief",
+            project=project,
+            schedule=set_notifications_request.dict(),
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return await chief_client.set_object_notifications(
+            project=project,
+            request=request,
+            json=set_notifications_request.dict(),
+        )
+
     await fastapi.concurrency.run_in_threadpool(
         mlrun.api.crud.Notifications().set_object_notifications,
         db_session,
+        auth_info,
         project,
         set_notifications_request.notifications,
         set_notifications_request.parent,

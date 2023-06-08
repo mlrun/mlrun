@@ -136,3 +136,7 @@ class ScheduleOutput(ScheduleRecord):
 
 class SchedulesOutput(BaseModel):
     schedules: List[ScheduleOutput]
+
+
+class ScheduleIdentifier(BaseModel):
+    name: str

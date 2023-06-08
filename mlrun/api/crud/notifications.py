@@ -18,16 +18,23 @@ import sqlalchemy.orm
 
 import mlrun.api.api.utils
 import mlrun.api.db.sqldb.db
+import mlrun.api.utils.scheduler
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 import mlrun.utils.singleton
 
-kind_to_function_names = {
-    "run": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__
-}
-
-kind_to_indentifier_key = {
-    "run": "uid",
+set_schedule_methods = {
+    "run": {
+        "factory": mlrun.api.utils.singletons.db.get_db,
+        "method_name": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
+        "identifier_key": "uid",
+    },
+    "schedule": {
+        "factory": mlrun.api.utils.singletons.scheduler.get_scheduler,
+        "method_name": mlrun.api.utils.scheduler.Scheduler.set_schedule_notifications.__name__,
+        "identifier_key": "name",
+    },
 }
 
 
@@ -42,13 +49,11 @@ class Notifications(
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
-        notification_objects_to_store = []
-        for notification_object in notification_objects:
-            notification_objects_to_store.append(
-                mlrun.api.api.utils.mask_notification_params_with_secret(
-                    project, run_uid, notification_object
-                )
+        notification_objects_to_store = (
+            mlrun.api.api.utils.validate_and_mask_notification_list(
+                notification_objects, run_uid, project
             )
+        )
 
         mlrun.api.utils.singletons.db.get_db().store_run_notifications(
             session, notification_objects_to_store, run_uid, project
@@ -92,35 +97,40 @@ class Notifications(
     @staticmethod
     def set_object_notifications(
         db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         notifications: typing.List[mlrun.common.schemas.Notification],
         notification_parent: mlrun.common.schemas.NotificationParent,
     ):
-        set_func = kind_to_function_names.get(notification_parent.kind, {})
+        set_schedule_method = set_schedule_methods.get(notification_parent.kind, {})
+        factory = set_schedule_method.get("factory")
+        if not factory:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find factory for object kind: {notification_parent.kind}"
+            )
+        set_func = set_schedule_method.get("method_name")
         if not set_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find set notification function for object kind: {notification_parent.kind}"
             )
-        identifier_key = kind_to_indentifier_key.get(notification_parent.kind, {})
+        identifier_key = set_schedule_method.get("identifier_key")
         if not identifier_key:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find identifier key for object kind: {notification_parent.kind}"
             )
-        mlrun.model.Notification.validate_notification_uniqueness(notifications)
 
-        notification_objects_to_set = []
-        for notification_object in notifications:
-            notification_objects_to_set.append(
-                mlrun.api.api.utils.mask_notification_params_with_secret(
-                    project,
-                    getattr(notification_parent.identifier, identifier_key),
-                    notification_object,
-                )
+        notification_objects_to_set = (
+            mlrun.api.api.utils.validate_and_mask_notification_list(
+                notifications,
+                getattr(notification_parent.identifier, identifier_key),
+                project,
             )
+        )
 
-        getattr(mlrun.api.utils.singletons.db.get_db(), set_func)(
+        getattr(factory(), set_func)(
             session=db_session,
             project=project,
             notifications=notification_objects_to_set,
             identifier=notification_parent.identifier,
+            auth_info=auth_info,
         )

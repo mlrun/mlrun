@@ -620,5 +620,6 @@ class DBInterface(ABC):
         project: str,
         notifications: typing.List[mlrun.common.schemas.Notification],
         identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
+        **kwargs,
     ):
         pass

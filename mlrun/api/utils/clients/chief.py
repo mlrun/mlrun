@@ -176,6 +176,16 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def set_object_notifications(
+        self, project: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"/project/{project}/notifications", request, json
+        )
+
     async def _proxy_request_to_chief(
         self,
         method,

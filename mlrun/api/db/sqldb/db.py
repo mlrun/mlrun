@@ -3771,6 +3771,7 @@ class SQLDB(DBInterface):
         project: str,
         notifications: typing.List[mlrun.common.schemas.Notification],
         identifier: mlrun.common.schemas.RunIdentifier,
+        **kwargs,
     ):
         run = self._get_run(session, identifier.uid, project, identifier.iter)
         if not run:

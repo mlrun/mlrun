@@ -44,10 +44,11 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 WORKDIR /mlrun
 
 COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dockerfiles/mlrun-api/igz-requirements.txt ./igz-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 
-RUN python -m pip install \
+RUN python -m pip install --extra-index-url https://test.pypi.org/simple/ \
     -r requirements.txt \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt
@@ -58,7 +59,7 @@ ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 COPY . .
 
-RUN python -m pip install .[complete-api]
+RUN python -m pip install --extra-index-url https://test.pypi.org/simple/ .[complete-api]
 VOLUME /mlrun/db
 
 CMD ["python",  "-m",  "mlrun",  "db"]

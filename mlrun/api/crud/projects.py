@@ -188,9 +188,7 @@ class Projects(
                 return
 
             client = events_factory.EventsFactory().get_events_client()
-            client.emit(
-                client.generate_project_secrets_deleted_event(name, secret_name)
-            )
+            client.emit(client.generate_project_secret_deleted_event(name, secret_name))
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

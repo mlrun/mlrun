@@ -543,6 +543,8 @@ default_config = {
     },
     "events": {
         "mode": "disabled",
+        "verbose": False,
+        "access_key": "",
     },
 }
 

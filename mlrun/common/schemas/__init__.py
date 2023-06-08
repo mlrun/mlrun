@@ -47,7 +47,7 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
-from .events import EventsMode
+from .events import EventClientsTypes, EventsMode
 from .feature_store import (
     EntitiesOutput,
     Entity,

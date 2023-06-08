@@ -1,7 +1,9 @@
 import typing
 
+import mlrun.api.utils.events.base
 
-class NopClient:
+
+class NopClient(mlrun.api.utils.events.base.BaseEventClient):
     def emit(self, event):
         return
 

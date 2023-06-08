@@ -238,7 +238,7 @@ class Secrets(
 
                 client = events_factory.EventsFactory().get_events_client()
                 if deleted:
-                    event = client.generate_project_secrets_deleted_event(
+                    event = client.generate_project_secret_deleted_event(
                         project, secret_name
                     )
                 else:

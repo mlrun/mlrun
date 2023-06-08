@@ -16,7 +16,11 @@ PROJECT_SECRET_DELETED = "Software.Project.Secret.Deleted"
 
 class Client(mlrun.api.utils.events.base.BaseEventClient):
     def __init__(self, access_key: str = None, verbose: bool = None):
-        self.access_key = access_key or mlrun.mlconf.get_v3io_access_key()
+        self.access_key = (
+            access_key
+            or mlrun.mlconf.events.access_key
+            or mlrun.mlconf.get_v3io_access_key()
+        )
         self.verbose = verbose if verbose is not None else mlrun.mlconf.events.verbose
         self.source = "mlrun-api"
 
@@ -39,7 +43,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
         # specify a more detailed event
         if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.3-b1"
+            "3.5.4-b1"
         ):
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -53,7 +57,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                     ),
                 ],
             )
-        # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
+        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
         else:
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -71,7 +75,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
         # specify a more detailed event
         if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.3-b1"
+            "3.5.4-b1"
         ):
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -85,7 +89,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                     ),
                 ],
             )
-        # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
+        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
         else:
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -102,8 +106,9 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
     ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
         # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
         # specify a more detailed event
+        normalized_secret_keys = self._list_to_string(secret_keys)
         if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.3-b1"
+            "3.5.4-b1"
         ):
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -116,16 +121,16 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                         name="secret_name", value=secret_name
                     ),
                     igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_keys", value=", ".join(secret_keys)
+                        name="secret_keys", value=normalized_secret_keys
                     ),
                 ],
             )
-        # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
+        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
         else:
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
                 kind=PROJECT_SECRET_CREATED,
-                description=f"Created project secret {secret_name} with secret keys {secret_keys}"
+                description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
                 f" for project {project}",
                 severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
                 classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
@@ -143,8 +148,9 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
         # specify a more detailed event
         action = "Updated" if updated else "Deleted"
+        normalized_secret_keys = self._list_to_string(secret_keys)
         if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.3-b1"
+            "3.5.4-b1"
         ):
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -157,30 +163,31 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                         name="secret_name", value=secret_name
                     ),
                     igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_keys", value=", ".join(secret_keys)
+                        name="secret_keys", value=normalized_secret_keys
                     ),
                     igz_mgmt.schemas.manual_events.ParametersText(
                         name="action", value=action
                     ),
                 ],
             )
-        # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
+        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
         else:
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
                 kind=PROJECT_SECRET_UPDATED,
-                description=f"{action} secret keys {secret_keys} of project secret {secret_name} for project {project}",
+                description=f"{action} secret keys {normalized_secret_keys} of project secret {secret_name} "
+                f"for project {project}",
                 severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
                 classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
                 system_event=False,
                 visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
             )
 
-    def generate_project_secrets_deleted_event(self, project: str, secret_name: str):
+    def generate_project_secret_deleted_event(self, project: str, secret_name: str):
         # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
         # specify a more detailed event
         if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.3-b1"
+            "3.5.4-b1"
         ):
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -194,7 +201,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                     ),
                 ],
             )
-        # TODO: remove this else when we drop support for iguazio < 3.5.3-b1
+        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
         else:
             return igz_mgmt.schemas.manual_events.ManualEventSchema(
                 source=self.source,
@@ -205,3 +212,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 system_event=False,
                 visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
             )
+
+    @staticmethod
+    def _list_to_string(list_to_convert: typing.List[str]) -> str:
+        return ", ".join(list_to_convert)

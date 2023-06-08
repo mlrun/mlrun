@@ -24,10 +24,10 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
-import mlrun.builder
+import mlrun.api.utils.builder
+import mlrun.common.constants
 import mlrun.utils.regex
 from mlrun.api.utils.clients import nuclio
-from mlrun.db import get_run_db
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -74,6 +74,7 @@ def resolve_mpijob_crd_version():
     if not cached_mpijob_crd_version:
 
         # config override everything
+        # on client side, expecting it to get enriched from the API through the client-spec
         mpijob_crd_version = config.mpijob_crd_version
 
         if not mpijob_crd_version:
@@ -94,13 +95,8 @@ def resolve_mpijob_crd_version():
                     mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
                         "crd-version"
                     )
-            elif not in_k8s_cluster:
-                # connect will populate the config from the server config
-                # TODO: something nicer
-                get_run_db()
-                mpijob_crd_version = config.mpijob_crd_version
 
-            # If resolution failed simply use default
+            # backoff to use default if wasn't resolved in API
             if not mpijob_crd_version:
                 mpijob_crd_version = MPIJobCRDVersions.default()
 
@@ -346,7 +342,11 @@ def generate_function_image_name(project: str, name: str, tag: str) -> str:
     _, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return fill_function_image_name_template(
-        mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX, repository, project, name, tag
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
+        repository,
+        project,
+        name,
+        tag,
     )
 
 
@@ -371,7 +371,7 @@ def resolve_function_target_image_registries_to_enforce_prefix():
     registry, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return [
-        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
+        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
         f"{registry}/{repository}/",
     ]
 

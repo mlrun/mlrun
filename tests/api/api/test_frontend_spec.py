@@ -20,6 +20,7 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun.api.crud
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.errors
@@ -99,6 +100,10 @@ def test_get_frontend_spec(
         frontend_spec.allowed_artifact_path_prefixes_list
         == mlrun.api.api.utils.get_allowed_path_prefixes_list()
     )
+    assert (
+        frontend_spec.function_deployment_mlrun_command
+        == f'python -m pip install "{mlrun.api.utils.builder.resolve_mlrun_install_command_version()}"'
+    )
 
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
@@ -145,22 +150,6 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     )
 
     response = client.get("frontend-spec")
-    assert response.status_code == http.HTTPStatus.OK.value
-    frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
-    assert (
-        frontend_spec.jobs_dashboard_url
-        == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
-        f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
-    )
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
-
-    # now one time with the 3.0 iguazio auth way
-    mlrun.mlconf.httpdb.authentication.mode = "none"
-    mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
-    response = client.get(
-        "frontend-spec",
-        cookies={"session": 'j:{"sid":"946b0749-5c40-4837-a4ac-341d295bfaf7"}'},
-    )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (

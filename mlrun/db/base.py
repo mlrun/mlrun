@@ -49,7 +49,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         pass
 
     @abstractmethod
@@ -600,5 +600,15 @@ class RunDBInterface(ABC):
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         pass

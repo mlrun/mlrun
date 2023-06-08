@@ -1099,37 +1099,33 @@ class TestFeatureStore(TestMLRunSystem):
         assert res.shape[0] == left.shape[0]
 
     def test_read_csv(self):
-        from storey import CSVSource, ReduceToDataFrame, build_flow
-
-        csv_path = str(self.results_path / _generate_random_name() / ".csv")
-        targets = [CSVTarget("mycsv", path=csv_path)]
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata_short.csv")),
+            parse_dates=["date_of_birth"],
+        )
         stocks_set = fstore.FeatureSet(
-            "tests", entities=[Entity("ticker", ValueType.STRING)]
+            "tests", entities=[Entity("id", ValueType.INT64)]
         )
-        fstore.ingest(
+        result = fstore.ingest(
             stocks_set,
-            stocks,
+            source=source,
             infer_options=fstore.InferOptions.default(),
-            targets=targets,
         )
-
-        # reading csv file
-        final_path = stocks_set.get_target_path("mycsv")
-        controller = build_flow([CSVSource(final_path), ReduceToDataFrame()]).run()
-        termination_result = controller.await_termination()
-
         expected = pd.DataFrame(
             {
-                0: ["ticker", "MSFT", "GOOG", "AAPL"],
-                1: ["name", "Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
-                2: ["exchange", "NASDAQ", "NASDAQ", "NASDAQ"],
-            }
+                "name": ["John", "Jane", "Bob"],
+                "number": [10, 20, 30],
+                "float_number": [1.5, 2.5, 3.5],
+                "date_of_birth": [
+                    datetime(1990, 1, 1),
+                    datetime(1995, 5, 10),
+                    datetime(1985, 12, 15),
+                ],
+            },
+            index=pd.Index([1, 2, 3], name="id"),
         )
-
-        assert termination_result.equals(
-            expected
-        ), f"{termination_result}\n!=\n{expected}"
-        os.remove(final_path)
+        assert result.equals(expected)
 
     def test_multiple_entities(self):
         name = f"measurements_{uuid.uuid4()}"
@@ -1853,7 +1849,7 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
 
         reference_df = pd.read_csv(csv_file)
-        reference_df = reference_df[0:chunksize].set_index("patient_id")
+        reference_df = reference_df.set_index("patient_id")
 
         # patient_id (index) and timestamp (timestamp_key) are not in features list
         assert features + ["timestamp"] == list(reference_df.columns)
@@ -2384,7 +2380,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.preview(
+        df = fstore.ingest(
             fset,
             df,
         )
@@ -2429,7 +2425,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fstore.preview(fset, df)
+        df = fstore.ingest(fset, df)
         assert df.to_dict() == {
             "foreignkey1": {
                 "mykey1_1": "AB",
@@ -2749,7 +2745,7 @@ class TestFeatureStore(TestMLRunSystem):
             group_by_key=True,
             _fn="map_with_state_test_function",
         )
-        df = fstore.preview(fset, df)
+        df = fstore.ingest(fset, df)
         assert df.to_dict() == {
             "name": {"a": "a", "b": "b"},
             "sum": {"a": 16, "b": 26},
@@ -3396,8 +3392,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join(self, engine, join_type, with_indexes):
+    def test_relation_join(self, engine, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         engine_args = {}
         if engine == "dask":
@@ -3455,7 +3450,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id"],
             right_on=["d_id"],
             suffixes=("_employees", "_departments"),
@@ -3464,7 +3458,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            how=join_type,
             left_on=["manager_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
@@ -3473,7 +3466,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_sets = pd.merge(
             employees_with_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_employees", "_e_mini"),
@@ -3482,7 +3474,6 @@ class TestFeatureStore(TestMLRunSystem):
         _merge_step = pd.merge(
             join_employee_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_", "_e_mini"),
@@ -3491,7 +3482,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_all = pd.merge(
             _merge_step,
             classes,
-            how=join_type,
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
@@ -3607,7 +3597,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="name",
         )
         if with_indexes:
@@ -3632,7 +3621,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
@@ -3653,7 +3641,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by=["n"],
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
@@ -3670,7 +3657,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
@@ -3692,15 +3678,13 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join_multi_entities(self, engine, join_type, with_indexes):
+    def test_relation_join_multi_entities(self, engine, with_indexes):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
@@ -3736,7 +3720,6 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id", "department_name"],
             right_on=["d_id", "name"],
             suffixes=("_employees", "_departments"),
@@ -3789,7 +3772,6 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
@@ -4066,6 +4048,42 @@ class TestFeatureStore(TestMLRunSystem):
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
             fstore.ingest(measurements, source)
+
+    # ML-3900
+    def test_get_online_features_after_ingest_without_inference(self):
+        feature_set = fstore.FeatureSet(
+            "my-fset",
+            entities=[
+                fstore.Entity("fn0"),
+                fstore.Entity(
+                    "fn1",
+                    value_type=mlrun.data_types.data_types.ValueType.STRING,
+                ),
+            ],
+        )
+
+        df = pd.DataFrame(
+            {
+                "fn0": [1, 2, 3, 4],
+                "fn1": [1, 2, 3, 4],
+                "fn2": [1, 1, 1, 1],
+                "fn3": [2, 2, 2, 2],
+            }
+        )
+
+        fstore.ingest(feature_set, df, infer_options=InferOptions.Null)
+
+        features = ["my-fset.*"]
+        vector = fstore.FeatureVector("my-vector", features)
+        vector.save()
+
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match="No features found for feature vector 'my-vector'",
+        ):
+            fstore.get_online_feature_service(
+                f"store://feature-vectors/{self.project_name}/my-vector:latest"
+            )
 
 
 def verify_purge(fset, targets):

@@ -48,9 +48,9 @@ class SecretTypes:
 
 
 class K8sHelper:
-    def __init__(self, namespace=None, config_file=None, silent=False, log=True):
+    def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.config.namespace
-        self.config_file = config_file
+        self.config_file = mlconfig.config.kubernetes.kubeconfig_path or None
         self.running_inside_kubernetes_cluster = False
         try:
             self._init_k8s_config(log)

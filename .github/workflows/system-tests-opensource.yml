@@ -185,11 +185,25 @@ jobs:
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
             --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG"
 
     - name: Prepare system tests env
       run: |
-        echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "http://$(minikube ip):${MLRUN_API_NODE_PORT}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+
+    # Enable tmate debugging of manually-triggered workflows if the input option was provided
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+      with:
+
+        # run in detach mode to allow the workflow to continue running while session is active
+        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
+        # it will wait until the user disconnects before finishing up the job.
+        detached: true
 
     - name: Run system tests
       timeout-minutes: 180
@@ -216,8 +230,3 @@ jobs:
         minikube kubectl -- --namespace ${NAMESPACE} get pvc
         minikube kubectl -- --namespace ${NAMESPACE} get pv
         set +x
-
-    # Enable tmate debugging of manually-triggered workflows if the input option was provided
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}

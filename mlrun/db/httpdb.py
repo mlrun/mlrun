@@ -500,16 +500,16 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project="", iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
@@ -518,6 +518,7 @@ class HTTPRunDB(RunDBInterface):
             uid,
             project,
             iter,
+            timeout,
         )
 
     def read_run(self, uid, project="", iter=0):
@@ -549,21 +550,23 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from: datetime = None,
-        start_time_to: datetime = None,
-        last_update_time_from: datetime = None,
-        last_update_time_to: datetime = None,
-        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -573,7 +576,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of runs, filtered by various options.
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
             # If running in Jupyter, can use the .show() function to display the results
             db.list_runs(name='', project=project_name).show()
 
@@ -581,8 +584,8 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -826,7 +829,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "versioned": versioned}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
 
         error = f"store function {project}/{name}"
         resp = self.api_call(
@@ -841,7 +844,7 @@ class HTTPRunDB(RunDBInterface):
 
         params = {"tag": tag, "hash_key": hash_key}
         project = project or config.default_project
-        path = self._path_of("func", project, name)
+        path = f"projects/{project}/functions/{name}"
         error = f"get function {project}/{name}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
@@ -863,15 +866,15 @@ class HTTPRunDB(RunDBInterface):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects (as dictionary).
         """
-
+        project = project or config.default_project
         params = {
-            "project": project or config.default_project,
             "name": name,
             "tag": tag,
             "label": labels or [],
         }
         error = "list functions"
-        resp = self.api_call("GET", "funcs", error, params=params)
+        path = f"projects/{project}/functions"
+        resp = self.api_call("GET", path, error, params=params)
         return resp.json()["funcs"]
 
     def list_runtime_resources(
@@ -1143,19 +1146,20 @@ class HTTPRunDB(RunDBInterface):
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
     ):
         """Retrieve the status of a build operation currently in progress.
 
-        :param func: Function object that is being built.
-        :param offset: Offset into the build logs to retrieve logs from.
-        :param logs: Should build logs be retrieved.
-        :param last_log_timestamp: Last timestamp of logs that were already retrieved. Function will return only logs
-            later than this parameter.
-        :param verbose: Add verbose logs into the output.
+        :param func:                Function object that is being built.
+        :param offset:              Offset into the build logs to retrieve logs from.
+        :param logs:                Should build logs be retrieved.
+        :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
+                                    later than this parameter.
+        :param verbose:             Add verbose logs into the output.
+
         :returns: The following parameters:
 
             - Text of builder logs.
@@ -2140,19 +2144,16 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+
+            # projects is just a list of strings
             return response.json()["projects"]
-        elif format_ in [
-            mlrun.common.schemas.ProjectsFormat.full,
-            mlrun.common.schemas.ProjectsFormat.minimal,
-        ]:
-            return [
-                mlrun.projects.MlrunProject.from_dict(project_dict)
-                for project_dict in response.json()["projects"]
-            ]
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+
+        # forwards compatibility - we want to be able to handle new formats that might be added in the future
+        # if format is not known to the api, it is up to the server to return either an error or a default format
+        return [
+            mlrun.projects.MlrunProject.from_dict(project_dict)
+            for project_dict in response.json()["projects"]
+        ]
 
     def get_project(self, name: str) -> mlrun.projects.MlrunProject:
         """Get details for a specific project."""
@@ -2308,7 +2309,7 @@ class HTTPRunDB(RunDBInterface):
                 format_=mlrun.common.schemas.ProjectsFormat.name_only
             )
             if project_name in projects:
-                raise Exception("Project still exists")
+                raise Exception(f"Project {project_name} still exists")
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_deletion_interval,

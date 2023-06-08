@@ -31,11 +31,13 @@ from fastapi import (
     Response,
 )
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
+import mlrun.api.launcher
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
@@ -46,7 +48,8 @@ import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
-from mlrun.builder import build_runtime
+from mlrun.api.utils.builder import build_runtime
+from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
@@ -58,7 +61,13 @@ from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 router = APIRouter()
 
 
-@router.post("/func/{project}/{name}")
+@router.post(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.post("/projects/{project}/functions/{name}")
 async def store_function(
     request: Request,
     project: str,
@@ -87,7 +96,7 @@ async def store_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Storing function", project=project, name=name, tag=tag, data=data)
+    logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
         mlrun.api.crud.Functions().store_function,
         db_session,
@@ -103,7 +112,13 @@ async def store_function(
     }
 
 
-@router.get("/func/{project}/{name}")
+@router.get(
+    "/func/{project}/{name}",
+    deprecated=True,
+    description="/func/{project}/{name} is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions/{name} instead",
+)
+@router.get("/projects/{project}/functions/{name}")
 async def get_function(
     project: str,
     name: str,
@@ -148,13 +163,49 @@ async def delete_function(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
+    #  If the requested function has a schedule, we must delete it before deleting the function
+    try:
+        function_schedule = await run_in_threadpool(
+            get_scheduler().get_schedule,
+            db_session,
+            project,
+            name,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        function_schedule = None
+
+    if function_schedule:
+        # when deleting a function, we should also delete its schedules if exists
+        # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
+        # and we are running in worker, we send the request to the chief client
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Function has a schedule, deleting",
+                function=name,
+                project=project,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            await chief_client.delete_schedule(project=project, name=name)
+        else:
+            await run_in_threadpool(
+                get_scheduler().delete_schedule, db_session, project, name
+            )
     await run_in_threadpool(
         mlrun.api.crud.Functions().delete_function, db_session, project, name
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/funcs")
+@router.get(
+    "/funcs",
+    deprecated=True,
+    description="/funcs is deprecated in 1.4.0 and will be removed in 1.6.0, "
+    "use /projects/{project}/functions instead",
+)
+@router.get("/projects/{project}/functions")
 async def list_functions(
     project: str = None,
     name: str = None,
@@ -387,13 +438,10 @@ async def build_status(
     return await run_in_threadpool(
         _handle_job_deploy_status,
         db_session,
-        auth_info,
         fn,
         name,
         project,
         tag,
-        last_log_timestamp,
-        verbose,
         offset,
         logs,
     )
@@ -401,13 +449,10 @@ async def build_status(
 
 def _handle_job_deploy_status(
     db_session,
-    auth_info,
     fn,
     name,
     project,
     tag,
-    last_log_timestamp,
-    verbose,
     offset,
     logs,
 ):
@@ -439,7 +484,6 @@ def _handle_job_deploy_status(
     terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
     if state in terminal_states and log_file.exists():
-
         if state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
@@ -463,22 +507,34 @@ def _handle_job_deploy_status(
             },
         )
 
-    logger.info(f"get pod {pod} status")
+    # TODO: change state to pod_status
     state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
         pod
     )
-    logger.info(f"pod state={state}")
+    logger.info("Resolved pod status", pod_status=state, pod_name=pod)
 
     if state == "succeeded":
-        logger.info("build completed successfully")
+        logger.info("Build completed successfully")
         state = mlrun.common.schemas.FunctionState.ready
     if state in ["failed", "error"]:
-        logger.error(f"build {state}, watch the build pod logs: {pod}")
+        logger.error("Build failed", pod_name=pod, pod_status=state)
         state = mlrun.common.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
+        try:
+            resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
+        except ApiException as exc:
+            logger.warning(
+                "Failed to get build logs",
+                function_name=name,
+                function_state=state,
+                pod=pod,
+                exc_info=exc,
+            )
+            resp = ""
+
         if state in terminal_states:
+            # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
@@ -619,9 +675,9 @@ def _build_function(
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                 fn,
                 auth_info,
@@ -641,13 +697,17 @@ def _build_function(
                                 fn.metadata.project,
                                 mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
-                            if mlrun.utils.model_monitoring.get_stream_path(
+
+                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
                                 project=fn.metadata.project
-                            ).startswith("v3io://"):
+                            )
+
+                            if stream_path.startswith("v3io://"):
                                 # Initialize model monitoring V3IO stream
                                 _create_model_monitoring_stream(
                                     project=fn.metadata.project,
                                     function=fn,
+                                    stream_path=stream_path,
                                 )
 
                         if fn.spec.tracking_policy:
@@ -708,7 +768,7 @@ def _build_function(
                 client_python_version=client_python_version,
             )
         fn.save(versioned=True)
-        logger.info("Fn:\n %s", fn.to_yaml())
+        logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
@@ -820,13 +880,8 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         )
 
 
-def _create_model_monitoring_stream(project: str, function):
-
+def _create_model_monitoring_stream(project: str, function, stream_path):
     _init_serving_function_stream_args(fn=function)
-
-    stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project, kind="events"
-    )
 
     _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
@@ -908,8 +963,6 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
             allow_internal_secrets=True,
         )
         if not secret_value:
-            import mlrun.api.utils.singletons.project_member
-
             project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
                 db_session, project_name
             )

@@ -15,6 +15,7 @@
 import ast
 import inspect
 import re
+import sys
 
 from mlrun.model import FunctionEntrypoint
 
@@ -49,13 +50,23 @@ def param_dict(name="", type="", doc="", default=""):
     }
 
 
-def func_dict(name, doc, params, returns, lineno):
+def func_dict(
+    name,
+    doc,
+    params,
+    returns,
+    lineno,
+    has_varargs: bool = False,
+    has_kwargs: bool = False,
+):
     return {
         "name": name,
         "doc": doc,
         "params": params,
         "return": returns,
         "lineno": lineno,
+        "has_varargs": has_varargs,
+        "has_kwargs": has_kwargs,
     }
 
 
@@ -165,6 +176,9 @@ def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ""
     rtype = getattr(func.returns, "id", "")
     params = [ast_param_dict(p) for p in func.args.args]
+    # adds info about *args and **kwargs to the function doc
+    has_varargs = func.args.vararg is not None
+    has_kwargs = func.args.kwarg is not None
     defaults = func.args.defaults
     if defaults:
         for param, default in zip(params[-len(defaults) :], defaults):
@@ -176,6 +190,8 @@ def ast_func_info(func: ast.FunctionDef):
         params=params,
         returns=param_dict(type=rtype),
         lineno=func.lineno,
+        has_varargs=has_varargs,
+        has_kwargs=has_kwargs,
     )
 
     if not doc.strip():
@@ -195,14 +211,31 @@ def ast_param_dict(param: ast.arg) -> dict:
 
 def ann_type(ann):
     if hasattr(ann, "slice"):
-        name = ann.value.id
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            name = get_attr_path(ann.value)
+        else:
+            name = ann.value.id
         inner = ", ".join(ann_type(e) for e in iter_elems(ann.slice))
         return f"{name}[{inner}]"
 
     if isinstance(ann, ast.Attribute):
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            return get_attr_path(ann)
+
         return ann.attr
 
     return getattr(ann, "id", "")
+
+
+def get_attr_path(ann: ast.Attribute):
+    if isinstance(ann.value, ast.Attribute):
+        # value is an attribute, e.g. b of a.b - get the full path
+        return f"{get_attr_path(ann.value)}.{ann.attr}"
+
+    # value can be a subscript or name - get its annotation type and append the attribute
+    return f"{ann_type(ann.value)}.{ann.attr}"
 
 
 def iter_elems(ann):
@@ -219,10 +252,13 @@ def iter_elems(ann):
         return [ann.value]
 
     # From python 3.9, slice is an expr and we should evaluate it recursively. Left this for backward compatibility.
-    elif hasattr(ann.slice, "elts"):
-        return ann.slice.elts
-    elif hasattr(ann.slice, "value"):
-        return [ann.slice.value]
+    # TODO: Remove this in 1.5.0 when we drop support for python 3.7
+    if sys.version_info < (3, 9):
+        if hasattr(ann.slice, "elts"):
+            return ann.slice.elts
+        elif hasattr(ann.slice, "value"):
+            return [ann.slice.value]
+
     return [ann]
 
 

@@ -28,10 +28,10 @@ from mlrun.api.api import deps
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.utils import logger
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}/schedules")
 
 
-@router.post("/projects/{project}/schedules")
+@router.post("")
 async def create_schedule(
     project: str,
     schedule: mlrun.common.schemas.ScheduleInput,
@@ -86,7 +86,7 @@ async def create_schedule(
     return Response(status_code=HTTPStatus.CREATED.value)
 
 
-@router.put("/projects/{project}/schedules/{name}")
+@router.put("/{name}")
 async def update_schedule(
     project: str,
     name: str,
@@ -136,9 +136,7 @@ async def update_schedule(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.get(
-    "/projects/{project}/schedules", response_model=mlrun.common.schemas.SchedulesOutput
-)
+@router.get("", response_model=mlrun.common.schemas.SchedulesOutput)
 async def list_schedules(
     project: str,
     name: str = None,
@@ -178,7 +176,7 @@ async def list_schedules(
 
 
 @router.get(
-    "/projects/{project}/schedules/{name}",
+    "/{name}",
     response_model=mlrun.common.schemas.ScheduleOutput,
 )
 async def get_schedule(
@@ -207,7 +205,7 @@ async def get_schedule(
     return schedule
 
 
-@router.post("/projects/{project}/schedules/{name}/invoke")
+@router.post("/{name}/invoke")
 async def invoke_schedule(
     project: str,
     name: str,
@@ -240,9 +238,7 @@ async def invoke_schedule(
     return await get_scheduler().invoke_schedule(db_session, auth_info, project, name)
 
 
-@router.delete(
-    "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
-)
+@router.delete("/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 async def delete_schedule(
     project: str,
     name: str,
@@ -276,7 +272,7 @@ async def delete_schedule(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.delete("/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value)
+@router.delete("", status_code=HTTPStatus.NO_CONTENT.value)
 async def delete_schedules(
     project: str,
     request: fastapi.Request,

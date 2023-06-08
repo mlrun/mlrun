@@ -41,13 +41,27 @@ To install a specific version, use the command: `pip install mlrun==<version>`. 
       
    - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
      
-2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
+3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
     pip install -U mlrun==<version>
     ```
 
-3. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+4. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+5. When installing other python packages on top of MLRun, make sure to install them with mlrun in the same command/requirement file to avoid version conflicts. For example:
+    ```sh
+    pip install mlrun <other-package>
+    ```
+    or
+    ```sh
+    pip install -r requirements.txt
+    ```
+    where `requirements.txt` contains:
+    ```
+    mlrun
+    <other-package>
+    ```
+    Do so even if you already have MLRun installed so that pip will take MLRun requirements into consideration when installing the other package.
 
 ## Configure remote environment
 You have a few options to configure your remote environment:

@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+import typing
+
+import pydantic
 
 import mlrun.common.types
+
+
+class NotificationKind(mlrun.common.types.StrEnum):
+    console = "console"
+    git = "git"
+    ipython = "ipython"
+    slack = "slack"
 
 
 class NotificationSeverity(mlrun.common.types.StrEnum):
@@ -28,3 +39,15 @@ class NotificationStatus(mlrun.common.types.StrEnum):
     PENDING = "pending"
     SENT = "sent"
     ERROR = "error"
+
+
+class Notification(pydantic.BaseModel):
+    kind: NotificationKind = None
+    name: str = None
+    message: str = None
+    severity: NotificationSeverity = None
+    when: typing.List[str] = None
+    condition: str = None
+    params: typing.Dict[str, typing.Any] = None
+    status: NotificationStatus = None
+    sent_time: typing.Union[str, datetime.datetime] = None

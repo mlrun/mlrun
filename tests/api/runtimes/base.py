@@ -30,9 +30,12 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
+import mlrun.api.api.endpoints.functions
+import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import tests.api.api.utils
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -97,6 +100,7 @@ class TestRuntimeBase:
         get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
             return_value=True
         )
+        self._create_project(client)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
 
@@ -141,6 +145,11 @@ class TestRuntimeBase:
 
     def custom_teardown(self):
         pass
+
+    def _create_project(
+        self, client: fastapi.testclient.TestClient, project_name: str = None
+    ):
+        tests.api.api.utils.create_project(client, project_name or self.project)
 
     def _generate_task(self):
         return new_task(
@@ -389,6 +398,13 @@ class TestRuntimeBase:
         # set watch to False, to mimic the API behavior (API doesn't watch on the job)
         kwargs.update({"watch": False})
         self._execute_run(runtime, **kwargs)
+
+    @staticmethod
+    def deploy(db_session, runtime, with_mlrun=True):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.api.api.endpoints.functions._build_function(
+            db_session, auth_info, runtime, with_mlrun=with_mlrun
+        )
 
     def _reset_mocks(self):
         get_k8s_helper().v1api.create_namespaced_pod.reset_mock()

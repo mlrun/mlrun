@@ -81,16 +81,11 @@ def pod_create_mock():
     update_run_state_orig_function = (
         mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
     )
-    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.Mock()
+    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.MagicMock()
 
     mock_run_object = mlrun.RunObject()
     mock_run_object.metadata.uid = "1234567890"
     mock_run_object.metadata.project = "project-name"
-
-    wrap_run_result_orig_function = mlrun.runtimes.base.BaseRuntime._wrap_run_result
-    mlrun.runtimes.base.BaseRuntime._wrap_run_result = unittest.mock.Mock(
-        return_value=mock_run_object
-    )
 
     auth_info_mock = AuthInfo(
         username=username, session="some-session", data_session=access_key
@@ -115,7 +110,6 @@ def pod_create_mock():
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )
-    mlrun.runtimes.base.BaseRuntime._wrap_run_result = wrap_run_result_orig_function
     mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )
@@ -186,6 +180,34 @@ def test_submit_job_ensure_function_has_auth_set(
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
+
+
+def test_submit_schedule_job_from_hub_from_ui(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
+) -> None:
+    project = "my-proj1"
+    hub_function_uri = "hub://aggregate"
+
+    tests.api.api.utils.create_project(client, project)
+
+    function = mlrun.import_function(hub_function_uri)
+    submit_job_body = _create_submit_job_body(function, project)
+
+    # replicate UI behavior
+    submit_job_body["task"]["spec"]["function"] = hub_function_uri
+    submit_job_body["schedule"] = "*/15 * * * *"
+
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    resp = client.get(f"projects/{project}/schedules")
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    schedules = resp.json().get("schedules", [])
+    assert len(schedules) == 1
+
+    schedule = schedules[0]
+    assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
 
 
 def test_submit_job_with_output_path_enrichment(

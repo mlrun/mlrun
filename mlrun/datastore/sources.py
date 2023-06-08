@@ -171,7 +171,6 @@ class CSVSource(BaseSourceDriver):
 
         return storey.CSVSource(
             paths=self.path,
-            header=True,
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=self._get_store().get_storage_options(),
@@ -251,7 +250,6 @@ class ParquetSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
-
         super().__init__(
             name,
             path,
@@ -738,9 +736,6 @@ class OnlineSource(BaseSourceDriver):
 class HttpSource(OnlineSource):
     kind = "http"
 
-    def __init__(self, path: str = None):
-        super().__init__(path=path)
-
     def add_nuclio_trigger(self, function):
         trigger_args = self.attributes.get("trigger_args")
         if trigger_args:
@@ -948,14 +943,17 @@ class SQLSource(BaseSourceDriver):
         query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
+        params = None
         if not query:
-            query = f"SELECT * FROM {table_name}"
+            query = "SELECT * FROM %(table)s"
+            params = {"table": table_name}
         if table_name and db_path:
             engine = db.create_engine(db_path)
             with engine.connect() as con:
                 return pd.read_sql(
                     query,
                     con=con,
+                    params=params,
                     chunksize=self.attributes.get("chunksize"),
                     parse_dates=self.attributes.get("time_fields"),
                 )

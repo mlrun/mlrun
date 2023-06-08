@@ -47,7 +47,7 @@ def _get_workflow_by_name(
     :param project:     MLRun project
     :param name:        workflow name
 
-    :return: workflow as a dict if project has the workflow, otherwise None
+    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
     """
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
@@ -101,13 +101,15 @@ def is_requested_schedule(
     """
     Checks if the workflow needs to be scheduled, which can be decided either the request itself
     contains schedule information or the workflow which was predefined in the project contains schedule.
+
     :param name:            workflow name
     :param workflow_spec:   workflow spec input
     :param project:         MLRun project that contains the workflow
+
     :return: True if the workflow need to be scheduled and False if not.
     """
     project_workflow = _get_workflow_by_name(project, name)
-    return project_workflow.get("schedule") or workflow_spec.schedule
+    return any((project_workflow.get("schedule"), workflow_spec.schedule))
 
 
 @router.post(
@@ -202,7 +204,9 @@ async def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=workflow_spec.image or mlrun.mlconf.default_base_image,
+        image=workflow_spec.image
+        or project.spec.default_image
+        or mlrun.mlconf.default_base_image,
     )
 
     logger.debug(

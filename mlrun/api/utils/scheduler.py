@@ -310,7 +310,7 @@ class Scheduler:
     ):
         # raise on conflict flag is to prevent raising error when the schedule not exists, so we can create a new one
         db_schedule = get_db().get_schedule(
-            db_session, project, name, raise_on_conflict=False
+            db_session, project, name, raise_on_not_found=False
         )
         if db_schedule:
             self.update_schedule(

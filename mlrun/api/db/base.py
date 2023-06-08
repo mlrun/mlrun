@@ -272,7 +272,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_schedule(
-        self, session, project: str, name: str, raise_on_conflict: bool = True
+        self, session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         pass
 

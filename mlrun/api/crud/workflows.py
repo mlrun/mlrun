@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import uuid
-from typing import List, Tuple
+from typing import Dict
 
 from sqlalchemy.orm import Session
 
@@ -89,10 +89,10 @@ class WorkflowRunners(
         :param db_session:          session that manages the current dialog with the database
         :param auth_info:           auth info of the request
         """
-        labels = [
-            ("job-type", "workflow-runner"),
-            ("workflow", workflow_request.spec.name),
-        ]
+        labels = {
+            "job-type": "workflow-runner",
+            "workflow": workflow_request.spec.name,
+        }
 
         run_spec = self._prepare_run_object_for_scheduling(
             project=project,
@@ -156,16 +156,12 @@ class WorkflowRunners(
 
         :returns: run context object (RunObject) with run metadata, results and status
         """
+        labels = {"project": project.metadata.name}
         if load_only:
-            labels = [
-                ("job-type", "project-loader"),
-                ("project", project.metadata.name),
-            ]
+            labels["job-type"] = "project-loader"
         else:
-            labels = [
-                ("job-type", "workflow-runner"),
-                ("workflow", runner.metadata.name),
-            ]
+            labels["job-type"] = "workflow-runner"
+            labels["workflow"] = runner.metadata.name
 
         run_spec = self._prepare_run_object_for_single_run(
             project=project,
@@ -215,7 +211,7 @@ class WorkflowRunners(
                 workflow_id = ""
             else:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {uid}:{project} not found"
+                    f"workflow id of run {project}:{uid} not found"
                 )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
@@ -223,17 +219,17 @@ class WorkflowRunners(
     @staticmethod
     def _label_run_object(
         run_object: mlrun.run.RunObject,
-        labels: List[Tuple[str, str]],
+        labels: Dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Setting labels to the task
 
         :param run_object:  run object to set labels on
-        :param labels:      list that contains pairs of label keys and label values
+        :param labels:      dict of labels
 
         :returns: labeled RunObject
         """
-        for key, value in labels:
+        for key, value in labels.items():
             run_object = run_object.set_label(key, value)
         return run_object
 
@@ -269,14 +265,14 @@ class WorkflowRunners(
         self,
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        labels: List[Tuple[str, str]],
+        labels: Dict[str, str],
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
 
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec and extra data for the run object
-        :param labels:              pairs of label keys and label values for the task
+        :param labels:              dict of the task labels
 
         :returns: RunObject ready for schedule.
         """
@@ -317,7 +313,7 @@ class WorkflowRunners(
     def _prepare_run_object_for_single_run(
         self,
         project: mlrun.common.schemas.Project,
-        labels: List,
+        labels: Dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
         load_only: bool = False,
@@ -326,7 +322,7 @@ class WorkflowRunners(
         Preparing all the necessary metadata and specifications for running workflow from server-side.
 
         :param project:             MLRun project
-        :param labels:              pairs of label keys and label values for the task
+        :param labels:              dict of the task labels
         :param workflow_request:    contains the workflow spec and extra data for the run object
         :param run_name:            workflow-runner function name
         :param load_only:           if True, will only load the project remotely (without running workflow)

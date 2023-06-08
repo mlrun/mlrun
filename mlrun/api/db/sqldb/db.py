@@ -1298,11 +1298,11 @@ class SQLDB(DBInterface):
         return schedules
 
     def get_schedule(
-        self, session: Session, project: str, name: str, raise_on_conflict: bool = True
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
     ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(
-            session, project, name, raise_on_conflict
+            session, project, name, raise_on_not_found
         )
         if not schedule_record:
             return
@@ -1310,11 +1310,11 @@ class SQLDB(DBInterface):
         return schedule
 
     def _get_schedule_record(
-        self, session: Session, project: str, name: str, raise_on_conflict: bool = True
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
-        if not schedule_record and raise_on_conflict:
+        if not schedule_record and raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
             )

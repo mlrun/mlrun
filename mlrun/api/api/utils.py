@@ -211,10 +211,16 @@ def mask_notification_params_on_task(task):
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
+    masked_notifications = []
     if notifications:
         for notification in notifications:
             notification_object = mlrun.model.Notification.from_dict(notification)
-            mask_notification_params_with_secret(project, run_uid, notification_object)
+            masked_notifications.append(
+                mask_notification_params_with_secret(
+                    project, run_uid, notification_object
+                ).to_dict()
+            )
+    task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
 def mask_notification_params_with_secret(
@@ -824,6 +830,15 @@ def submit_run_sync(
             schedule_labels = task["metadata"].get("labels")
             created = False
 
+            # if the task is pointing to a remote function (hub://), we need to save it to the db
+            # and update the task to point to the saved function, so that the scheduler will be able to
+            # access the db version of the function, and not the remote one (which can be changed between runs)
+            if "://" in task["spec"]["function"]:
+                function_uri = fn.save(versioned=True)
+                data.pop("function", None)
+                data.pop("function_url", None)
+                task["spec"]["function"] = function_uri.replace("db://", "")
+
             try:
                 get_scheduler().update_schedule(
                     db_session,
@@ -835,7 +850,11 @@ def submit_run_sync(
                     schedule_labels,
                 )
             except mlrun.errors.MLRunNotFoundError:
-                logger.debug("No existing schedule found, creating a new one")
+                logger.debug(
+                    "No existing schedule found, creating a new one",
+                    project=task["metadata"]["project"],
+                    name=task["metadata"]["name"],
+                )
                 get_scheduler().create_schedule(
                     db_session,
                     auth_info,

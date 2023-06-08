@@ -104,6 +104,11 @@ async def generic_error_handler(request: fastapi.Request, exc: Exception):
 async def http_status_error_handler(
     request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
 ):
+    request_id = None
+
+    # request might not have request id when the error is raised before the request id is set on middleware
+    if hasattr(request.state, "request_id"):
+        request_id = request.state.request_id
     status_code = exc.response.status_code
     error_message = repr(exc)
     logger.warning(
@@ -111,6 +116,7 @@ async def http_status_error_handler(
         error_message=error_message,
         status_code=status_code,
         traceback=traceback.format_exc(),
+        request_id=request_id,
     )
     return await http_exception_handler(
         request,
@@ -272,12 +278,17 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
+        # we don't want initiate logs collection for aborted runs
+        run_states = mlrun.runtimes.constants.RunStates.all()
+        run_states.remove(mlrun.runtimes.constants.RunStates.aborted)
+
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[False],
             only_uids=False,
+            states=run_states,
         )
         if runs:
             logger.debug(
@@ -445,7 +456,12 @@ async def _verify_log_collection_stopped_on_startup():
             db_session,
             requested_logs_modes=[True],
             only_uids=False,
-            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.runtimes.constants.RunStates.terminal_states()
+            + [
+                # add unknown state as well, as it's possible that the run reached such state
+                # usually it happens when run pods get preempted
+                mlrun.runtimes.constants.RunStates.unknown,
+            ],
         )
 
         if len(runs) > 0:
@@ -566,7 +582,6 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
     """
-
     # Import here to avoid circular import
     import mlrun.api.api.utils
 
@@ -575,6 +590,8 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
     global _last_notification_push_time
+
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
@@ -599,7 +616,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
-    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
+    _last_notification_push_time = now
 
 
 async def _stop_logs():

@@ -650,6 +650,20 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
+    def test_deploy_image_with_enrich_registry_prefix(self):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.image = ".my/image:latest"
+
+        with unittest.mock.patch(
+            "mlrun.utils.get_parsed_docker_registry",
+            return_value=["some.registry", "some-repository"],
+        ):
+            self.execute_function(function)
+            self._assert_deploy_called_basic_config(
+                expected_class=self.class_name,
+                expected_build_base_image="some.registry/some-repository/my/image:latest",
+            )
+
     @pytest.mark.parametrize(
         "requirements,expected_commands",
         [

@@ -21,10 +21,10 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/log/{project}")
 
 
-@router.post("/log/{project}/{uid}")
+@router.post("/{uid}")
 async def store_log(
     request: fastapi.Request,
     project: str,
@@ -52,7 +52,7 @@ async def store_log(
     return {}
 
 
-@router.get("/log/{project}/{uid}")
+@router.get("/{uid}")
 async def get_log(
     project: str,
     uid: str,

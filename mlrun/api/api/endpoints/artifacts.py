@@ -70,7 +70,9 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Storing artifact", data=data)
+    logger.debug(
+        "Storing artifact", project=project, uid=uid, key=key, tag=tag, iter=iter
+    )
     await run_in_threadpool(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,

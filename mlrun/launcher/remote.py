@@ -32,7 +32,9 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -55,7 +57,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> "mlrun.run.RunObject":
-        self._enrich_runtime(runtime)
+        self.enrich_runtime(runtime)
         run = self._create_run_object(task)
 
         run = self._enrich_run(
@@ -174,6 +176,3 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             resp = runtime._get_db_run(run)
 
         return self._wrap_run_result(runtime, resp, run, schedule=schedule)
-
-    def _save_or_push_notifications(self, runobj):
-        pass

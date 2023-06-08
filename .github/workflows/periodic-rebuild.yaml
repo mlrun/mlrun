@@ -21,6 +21,8 @@ on:
 
 jobs:
   re-build-images:
+    # let's not run this on every fork, change to your fork when developing
+    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:

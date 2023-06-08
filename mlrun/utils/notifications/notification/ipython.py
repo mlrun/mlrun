@@ -28,9 +28,10 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
+        name: str = None,
         params: typing.Dict[str, str] = None,
     ):
-        super().__init__(params)
+        super().__init__(name, params)
         self._ipython = None
         try:
             import IPython

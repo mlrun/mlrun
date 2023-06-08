@@ -66,7 +66,7 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         pass
 
     def read_run(self, uid, project="", iter=0):

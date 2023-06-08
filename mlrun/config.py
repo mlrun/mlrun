@@ -376,6 +376,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.13.1",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
+            # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
+            "kaniko_image_fs_extraction_retries": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",

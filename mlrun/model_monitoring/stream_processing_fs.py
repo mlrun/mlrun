@@ -407,7 +407,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -465,7 +464,6 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -535,7 +533,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
@@ -621,10 +618,12 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
 
-        # Handle errors coming from stream
-        found_errors = self.handle_errors(endpoint_id, event)
-        if found_errors:
-            return None
+        # If error key has been found in the current event,
+        # increase the error counter by 1 and raise the error description
+        error = event.get("error")
+        if error:
+            self.error_count[endpoint_id] += 1
+            raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
@@ -745,7 +744,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             endpoint_id in self.last_request
             and self.last_request[endpoint_id] > timestamp
         ):
-
             logger.error(
                 f"current event request time {timestamp} is earlier than the last request time "
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
@@ -767,7 +765,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
         if endpoint_id not in self.endpoints:
-
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
             endpoint_record = get_endpoint_record(
                 project=self.project,
@@ -783,7 +780,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
                 last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
                 if last_request:
-
                     self.last_request[endpoint_id] = last_request
 
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
@@ -804,13 +800,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if validation_function(field, dict_path):
             return True
         self.error_count[endpoint_id] += 1
-        return False
-
-    def handle_errors(self, endpoint_id, event) -> bool:
-        if "error" in event:
-            self.error_count[endpoint_id] += 1
-            return True
-
         return False
 
 
@@ -1065,7 +1054,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.keys = set()
 
     def do(self, event: typing.Dict):
-
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)

@@ -57,6 +57,7 @@ class TestMLRunSystem:
         cls._setup_env(cls._get_env_from_file())
         cls._run_db = get_run_db()
         cls.custom_setup_class()
+        cls._logger = logger.get_child(cls.__name__.lower())
 
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
@@ -68,7 +69,9 @@ class TestMLRunSystem:
         pass
 
     def setup_method(self, method):
-        logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Setting up test {self.__class__.__name__}::{method.__name__}"
+        )
 
         self._setup_env(self._get_env_from_file())
         self._run_db = get_run_db()
@@ -79,7 +82,7 @@ class TestMLRunSystem:
 
         self.custom_setup()
 
-        logger.info(
+        self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
@@ -95,9 +98,11 @@ class TestMLRunSystem:
             )
 
     def teardown_method(self, method):
-        logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
 
-        logger.debug("Removing test data from database")
+        self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
             fsets = self._run_db.list_feature_sets()
             if fsets:
@@ -108,7 +113,7 @@ class TestMLRunSystem:
 
         self.custom_teardown()
 
-        logger.info(
+        self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
@@ -187,7 +192,7 @@ class TestMLRunSystem:
 
     @classmethod
     def _setup_env(cls, env: dict):
-        logger.debug("Setting up test environment")
+        cls._logger.debug("Setting up test environment")
         cls._test_env.update(env)
 
         # save old env vars for returning them on teardown
@@ -203,7 +208,7 @@ class TestMLRunSystem:
 
     @classmethod
     def _teardown_env(cls):
-        logger.debug("Tearing down test environment")
+        cls._logger.debug("Tearing down test environment")
         for env_var in cls._test_env:
             if env_var in os.environ:
                 del os.environ[env_var]
@@ -232,7 +237,7 @@ class TestMLRunSystem:
         data_stores: list = None,
         scrape_metrics: bool = None,
     ):
-        logger.debug("Verifying run spec", spec=run_spec)
+        self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
             self._assert_with_deepdiff(parameters, run_spec["parameters"])
         if inputs:
@@ -259,7 +264,7 @@ class TestMLRunSystem:
         labels: dict = None,
         iteration: int = None,
     ):
-        logger.debug("Verifying run metadata", spec=run_metadata)
+        self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
             assert run_metadata["uid"] == uid
         if name:
@@ -285,7 +290,7 @@ class TestMLRunSystem:
         best_iteration: int = None,
         iteration_results: bool = False,
     ):
-        logger.debug("Verifying run outputs", spec=run_outputs)
+        self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["model"].startswith(str(output_path))
         assert run_outputs["html_result"].startswith(str(output_path))
         assert run_outputs["chart"].startswith(str(output_path))

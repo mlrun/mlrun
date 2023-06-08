@@ -103,7 +103,6 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    join_type: str = "inner",
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
 ) -> OfflineVectorResponse:
@@ -153,16 +152,6 @@ def get_offline_features(
     :param engine_args:     kwargs for the processing engine
     :param query:           The query string used to filter rows
     :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
-    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
-                                    Supported retrieval engines: "dask", "local"
-                                    This parameter is in use when entity_timestamp_column and
-                                    feature_vector.spec.timestamp_field are None, if one of them
-                                    isn't none we're preforming as_of join.
-                                    Possible values :
-                                    * left: use only keys from left frame (SQL: left outer join)
-                                    * right: use only keys from right frame (SQL: right outer join)
-                                    * outer: use union of keys from both frames (SQL: full outer join)
-                                    * inner: use intersection of keys from both frames (SQL: inner join).
     :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
                             or the alias of the feature you pass in the feature list.
     """
@@ -193,7 +182,6 @@ def get_offline_features(
             drop_columns=drop_columns,
             with_indexes=with_indexes,
             query=query,
-            join_type=join_type,
             order_by=order_by,
         )
 
@@ -217,7 +205,6 @@ def get_offline_features(
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,
-        join_type=join_type,
         order_by=order_by,
     )
 
@@ -388,7 +375,8 @@ def ingest(
     :param targets:       optional list of data target objects
     :param namespace:     namespace or module containing graph classes
     :param return_df:     indicate if to return a dataframe with the graph results
-    :param infer_options: schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param infer_options: schema (for discovery of entities, features in featureset), index, stats,
+                          histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param run_config:    function and/or run configuration for remote jobs,
                           see :py:class:`~mlrun.feature_store.RunConfig`
     :param mlrun_context: mlrun context (when running as a job), for internal use !
@@ -665,7 +653,8 @@ def preview(
     :param entity_columns: list of entity (index) column names
     :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
-    :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
+    :param options:        schema (for discovery of entities, features in featureset), index, stats,
+                           histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """

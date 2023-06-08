@@ -56,13 +56,13 @@ from mlrun.api.db.sqldb.models import (
     Function,
     HubSource,
     Log,
-    Notification,
     Project,
     Run,
     Schedule,
     User,
     _labeled,
     _tagged,
+    _with_notifications,
 )
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -382,7 +382,7 @@ class SQLDB(DBInterface):
 
         # Purposefully not using outer join to avoid returning runs without notifications
         if with_notifications:
-            query = query.join(Notification, Run.id == Notification.run)
+            query = query.join(Run.Notification)
 
         runs = RunList()
         for run in query:
@@ -988,7 +988,31 @@ class SQLDB(DBInterface):
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
+        """
+        In version 1.4.0 we added a normalization to the function name before storing.
+        To be backwards compatible and allow users to query old non-normalized functions,
+        we're providing a fallback to get_function:
+        normalize the requested name and try to retrieve it from the database.
+        If no answer is received, we will check to see if the original name contained underscores,
+        if so, the retrieval will be repeated and the result (if it exists) returned.
+        """
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        try:
+            return self._get_function(
+                session, normalized_function_name, project, tag, hash_key
+            )
+        except mlrun.errors.MLRunNotFoundError as exc:
+            if "_" in name:
+                logger.warning(
+                    "Failed to get underscore-named function, trying without normalization",
+                    function_name=name,
+                )
+                return self._get_function(session, name, project, tag, hash_key)
+            else:
+                raise exc
+
+    def _get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1745,7 +1769,9 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = self._get_db_notifications(session, project=name)
+        notifications = []
+        for cls in _with_notifications:
+            notifications.extend(self._get_db_notifications(session, cls, project=name))
         self._verify_empty_list_of_project_related_resources(
             name, notifications, "notifications"
         )
@@ -2890,10 +2916,10 @@ class SQLDB(DBInterface):
         return self._add_labels_filter(session, query, Run, labels)
 
     def _get_db_notifications(
-        self, session, name: str = None, run_id: int = None, project: str = None
+        self, session, cls, name: str = None, parent_id: int = None, project: str = None
     ):
         return self._query(
-            session, Notification, name=name, run=run_id, project=project
+            session, cls.Notification, name=name, parent_id=parent_id, project=project
         ).all()
 
     def _latest_uid_filter(self, session, query):
@@ -3236,7 +3262,7 @@ class SQLDB(DBInterface):
 
     def _transform_notification_record_to_spec_and_status(
         self,
-        notification_record: Notification,
+        notification_record,
     ) -> typing.Tuple[dict, dict]:
         notification_spec = self._transform_notification_record_to_schema(
             notification_record
@@ -3249,7 +3275,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_notification_record_to_schema(
-        notification_record: Notification,
+        notification_record,
     ) -> mlrun.model.Notification:
         return mlrun.model.Notification(
             kind=notification_record.kind,
@@ -3642,18 +3668,30 @@ class SQLDB(DBInterface):
                 f"Run not found: uid={run_uid}, project={project}"
             )
 
-        run_notifications = {
+        self._store_notifications(session, Run, notification_objects, run.id, project)
+
+    def _store_notifications(
+        self,
+        session,
+        cls,
+        notification_objects: typing.List[mlrun.model.Notification],
+        parent_id: str,
+        project: str,
+    ):
+        db_notifications = {
             notification.name: notification
-            for notification in self._get_db_notifications(session, run_id=run.id)
+            for notification in self._get_db_notifications(
+                session, cls, parent_id=parent_id
+            )
         }
         notifications = []
         for notification_model in notification_objects:
             new_notification = False
-            notification = run_notifications.get(notification_model.name, None)
+            notification = db_notifications.get(notification_model.name, None)
             if not notification:
                 new_notification = True
-                notification = Notification(
-                    name=notification_model.name, run=run.id, project=project
+                notification = cls.Notification(
+                    name=notification_model.name, parent_id=parent_id, project=project
                 )
 
             notification.kind = notification_model.kind
@@ -3671,7 +3709,7 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
                 notification_name=notification.name,
-                run_uid=run_uid,
+                parent_id=parent_id,
                 project=project,
             )
             notifications.append(notification)
@@ -3692,7 +3730,9 @@ class SQLDB(DBInterface):
 
         return [
             self._transform_notification_record_to_schema(notification)
-            for notification in self._query(session, Notification, run=run.id).all()
+            for notification in self._query(
+                session, Run.Notification, parent_id=run.id
+            ).all()
         ]
 
     def delete_run_notifications(
@@ -3718,7 +3758,7 @@ class SQLDB(DBInterface):
         if project == "*":
             project = None
 
-        query = self._get_db_notifications(session, name, run_id, project)
+        query = self._get_db_notifications(session, Run, name, run_id, project)
         for notification in query:
             session.delete(notification)
 

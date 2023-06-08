@@ -17,6 +17,7 @@ import pathlib
 import re
 import shutil
 import sys
+import warnings
 from sys import executable
 
 import pytest
@@ -25,7 +26,6 @@ from kfp import dsl
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
-from mlrun.utils import logger
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -64,6 +64,10 @@ class TestProject(TestMLRunSystem):
         pass
 
     def custom_teardown(self):
+        self._logger.debug(
+            "Deleting custom projects",
+            num_projects_to_delete=len(self.custom_project_names_to_delete),
+        )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -122,8 +126,31 @@ class TestProject(TestMLRunSystem):
             == commands
         )
 
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        with warnings.catch_warnings(record=True) as w:
+            self.project.build_function(
+                fn,
+                image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+                base_image="mlrun/mlrun",
+                commands=["echo 1"],
+            )
+            assert len(w) == 2
+            assert (
+                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
+                " if you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also simply use '.' instead of the full URL). "
+                in str(w[-1].message)
+            )
+
     def test_run(self):
-        name = "pipe1"
+        name = "pipe0"
         self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
@@ -186,7 +213,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
 
         # run project, load source into container at runtime
         project2.spec.load_source_on_run = True
@@ -204,7 +231,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
         run = project2.run(
             "main",
@@ -241,7 +268,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
@@ -249,7 +276,7 @@ class TestProject(TestMLRunSystem):
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
-        print(project2.to_yaml())
+        self._logger.debug("saved project", project2=project2.to_yaml())
 
         # exec the workflow
         args = [
@@ -281,7 +308,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # exec the workflow
         args = [
@@ -425,7 +452,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        print(project.to_yaml())
+        self._logger.debug("set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -501,7 +528,7 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
@@ -513,6 +540,12 @@ class TestProject(TestMLRunSystem):
     def test_kfp_from_local_code(self):
         name = "kfp-from-local-code"
         self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
         project = mlrun.get_or_create_project(name, user_project=True, context="./")
 
         handler_fn = project.set_function(
@@ -548,7 +581,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
         )
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
 
         # exec the workflow
         args = [
@@ -564,7 +597,7 @@ class TestProject(TestMLRunSystem):
             str(self.assets_path),
         ]
         out = exec_project(args)
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find("pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
@@ -589,11 +622,13 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
 
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )

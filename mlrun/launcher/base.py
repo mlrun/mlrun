@@ -73,6 +73,7 @@ class BaseLauncher(abc.ABC):
         hash_key = hash_key if versioned else None
         return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
+    @abc.abstractmethod
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -308,7 +309,13 @@ class BaseLauncher(abc.ABC):
                 run.spec.output_path, run.metadata.project
             )
 
-        run.spec.notifications = notifications or run.spec.notifications or []
+        notifications = notifications or run.spec.notifications or []
+        mlrun.model.Notification.validate_notification_uniqueness(notifications)
+        for notification in notifications:
+            notification.validate_notification()
+
+        run.spec.notifications = notifications
+
         return run
 
     @staticmethod
@@ -349,12 +356,12 @@ class BaseLauncher(abc.ABC):
         if result:
             run = mlrun.run.RunObject.from_dict(result)
             logger.info(
-                f"run executed, status={run.status.state}", name=run.metadata.name
+                f"Run executed, status={run.status.state}", name=run.metadata.name
             )
             if run.status.state == "error":
                 if runtime._is_remote and not runtime.is_child:
-                    logger.error(f"runtime error: {run.status.error}")
-                raise mlrun.runtimes.utils.RunError(run.status.error)
+                    logger.error("Run error", status=run.status.to_dict())
+                raise mlrun.runtimes.utils.RunError(run.error)
             return run
 
         return None
@@ -370,9 +377,9 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def _enrich_runtime(
+    def enrich_runtime(
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project: Optional[str] = "",
+        project_name: Optional[str] = "",
     ):
         pass
 

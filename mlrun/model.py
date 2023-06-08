@@ -24,7 +24,10 @@ from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pydantic.error_wrappers
+
 import mlrun
+import mlrun.common.schemas.notification
 
 from .utils import (
     dict_to_json,
@@ -545,6 +548,25 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+
+        self.validate_notification()
+
+    def validate_notification(self):
+        try:
+            mlrun.common.schemas.notification.Notification(**self.to_dict())
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid notification object"
+            ) from exc
+
+    @staticmethod
+    def validate_notification_uniqueness(notifications: List["Notification"]):
+        """Validate that all notifications in the list are unique by name"""
+        names = [notification.name for notification in notifications]
+        if len(names) != len(set(names)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification names must be unique"
+            )
 
 
 class RunMetadata(ModelObj):
@@ -1160,6 +1182,20 @@ class RunObject(RunTemplate):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", RunStatus)
+
+    @property
+    def error(self) -> str:
+        """error string if failed"""
+        if self.status:
+            if self.status.state != "error":
+                return f"Run state ({self.status.state}) is not in error state"
+            return (
+                self.status.error
+                or self.status.reason
+                or self.status.status_text
+                or "Unknown error"
+            )
+        return ""
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""

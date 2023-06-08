@@ -16,6 +16,7 @@ import getpass
 import glob
 import http
 import json
+import os.path
 import pathlib
 import shutil
 import tempfile
@@ -34,6 +35,7 @@ import kfp
 import nuclio
 import requests
 import yaml
+from deprecated import deprecated
 
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
@@ -375,7 +377,7 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"loaded project {name} from MLRun DB")
+        logger.info(f"Loaded project {name} from MLRun DB")
         return project
 
     except mlrun.errors.MLRunNotFoundError:
@@ -393,7 +395,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url or context}"
+            message = f"Loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -409,7 +411,7 @@ def get_or_create_project(
                 subpath=subpath,
                 save=save,
             )
-            message = f"created project {name}"
+            message = f"Created project {name}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -1543,6 +1545,7 @@ class MlrunProject(ModelObj):
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
 
@@ -1579,7 +1582,8 @@ class MlrunProject(ModelObj):
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
         :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
-        :param requirements:    list of python packages or pip requirements file path
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
 
         :returns: project object
         """
@@ -1628,7 +1632,9 @@ class MlrunProject(ModelObj):
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
             if requirements:
-                function_object.with_requirements(requirements)
+                function_object.with_requirements(
+                    requirements, requirements_file=requirements_file
+                )
             if not name:
                 raise ValueError("function name must be specified")
         else:
@@ -2047,9 +2053,9 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-            workflow_spec.cleanup_ttl = (
-                cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
-            )
+        workflow_spec.cleanup_ttl = (
+            cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+        )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
@@ -2135,14 +2141,43 @@ class MlrunProject(ModelObj):
             notifiers=notifiers,
         )
 
+    # TODO: remove in 1.6.0
+    @deprecated(
+        version="1.4.0",
+        reason="'clear_context' will be removed in 1.6.0, this can cause unexpected issues",
+        category=FutureWarning,
+    )
     def clear_context(self):
         """delete all files and clear the context dir"""
-        if (
-            self.spec.context
-            and path.exists(self.spec.context)
-            and path.isdir(self.spec.context)
-        ):
-            shutil.rmtree(self.spec.context)
+        warnings.warn(
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
+            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
+            " it will be deprecated in 1.6.0."
+        )
+        # clear only if the context path exists and not relative
+        if self.spec.context and os.path.isabs(self.spec.context):
+
+            # if a subpath is defined, will empty the subdir instead of the entire context
+            if self.spec.subpath:
+                path_to_clear = path.join(self.spec.context, self.spec.subpath)
+                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
+            else:
+                path_to_clear = self.spec.context
+                logger.info(
+                    f"Subpath is not defined, Clearing context: {path_to_clear}"
+                )
+            if path.exists(path_to_clear) and path.isdir(path_to_clear):
+                shutil.rmtree(path_to_clear)
+            else:
+                logger.warn(
+                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
+                    " Please ensure that your context or subdpath are properly defined."
+                )
+        else:
+            logger.warn(
+                "Your context path is a relative path;"
+                " in order to avoid unexpected results, we do not allow the deletion of relative paths."
+            )
 
     def save(self, filepath=None, store=True):
         """export project to yaml file and save project in database
@@ -2681,17 +2716,17 @@ class MlrunProject(ModelObj):
 
     def list_runs(
         self,
-        name=None,
-        uid=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime.datetime] = None,
+        start_time_to: Optional[datetime.datetime] = None,
+        last_update_time_from: Optional[datetime.datetime] = None,
+        last_update_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs, filtered by various options.
@@ -2705,6 +2740,10 @@ class MlrunProject(ModelObj):
             # return a list of runs matching the name and label and compare
             runs = project.list_runs(name='download', labels='owner=admin')
             runs.compare()
+
+            # multi-label filter can also be provided
+            runs = project.list_runs(name='download', labels=["kind=job", "owner=admin"])
+
             # If running in Jupyter, can use the .show() function to display the results
             project.list_runs(name='').show()
 
@@ -2712,8 +2751,8 @@ class MlrunProject(ModelObj):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).

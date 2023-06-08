@@ -270,6 +270,17 @@ def test_build_project_from_minimal_dict():
             False,
             "",
         ),
+        (
+            "ssh://git@something/something",
+            "something",
+            [],
+            False,
+            0,
+            False,
+            "",
+            True,
+            "Unsupported url scheme, supported schemes are: git://, db:// or",
+        ),
     ],
 )
 def test_load_project(

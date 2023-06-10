@@ -143,10 +143,11 @@ class TestProject(TestMLRunSystem):
             )
             assert len(w) == 2
             assert (
-                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
-                " if you wish to use the default configured registry, no protocol prefix is required "
-                "(note that you can also simply use '.' instead of the full URL). "
-                in str(w[-1].message)
+                "The image has an unexpected protocol prefix ('http://' or 'https://'). "
+                "If you wish to use the default configured registry, no protocol prefix is required "
+                "(note that you can also use '.<image-name>' instead of the full URL "
+                "where <image-name> is a placeholder). "
+                "Removing protocol prefix from image." in str(w[-1].message)
             )
 
     def test_run(self):

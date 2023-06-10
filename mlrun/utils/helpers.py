@@ -238,7 +238,7 @@ def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
 
 
-def remove_image_protocol_prefix(image):
+def remove_image_protocol_prefix(image: str) -> str:
     if not image:
         return image
 

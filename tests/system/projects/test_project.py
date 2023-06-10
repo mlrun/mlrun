@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
 import pathlib
 import re
 import shutil
 import sys
-import warnings
 from sys import executable
 
 import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path
@@ -59,11 +60,16 @@ def pipe_test():
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
     custom_project_names_to_delete = []
+    _logger_redirected = False
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        if self._logger_redirected:
+            mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
+            self._logger_redirected = False
+
         self._logger.debug(
             "Deleting custom projects",
             num_projects_to_delete=len(self.custom_project_names_to_delete),
@@ -134,21 +140,27 @@ class TestProject(TestMLRunSystem):
             kind="job",
             image="mlrun/mlrun",
         )
-        with warnings.catch_warnings(record=True) as w:
-            self.project.build_function(
-                fn,
-                image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
-                base_image="mlrun/mlrun",
-                commands=["echo 1"],
-            )
-            assert len(w) == 2
-            assert (
-                "The image has an unexpected protocol prefix ('http://' or 'https://'). "
-                "If you wish to use the default configured registry, no protocol prefix is required "
-                "(note that you can also use '.<image-name>' instead of the full URL "
-                "where <image-name> is a placeholder). "
-                "Removing protocol prefix from image." in str(w[-1].message)
-            )
+
+        # redirect logger to capture logs and check for warnings
+        self._logger_redirected = True
+        _stdout = io.StringIO()
+        mlrun.utils.logger.replace_handler_stream("default", _stdout)
+
+        # build function with image that has a protocol prefix
+        self.project.build_function(
+            fn,
+            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            base_image="mlrun/mlrun",
+            commands=["echo 1"],
+        )
+        out = _stdout.getvalue()
+        assert (
+            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL "
+            "where <image-name> is a placeholder). "
+            "Removing protocol prefix from image." in out
+        )
 
     def test_run(self):
         name = "pipe0"

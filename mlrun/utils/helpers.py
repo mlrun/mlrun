@@ -245,7 +245,7 @@ def remove_image_protocol_prefix(image: str) -> str:
     prefixes = ["https://", "https://"]
     if any(prefix in image for prefix in prefixes):
         image = image.removeprefix("https://").removeprefix("http://")
-        logger.warn(
+        logger.warning(
             "The image has an unexpected protocol prefix ('http://' or 'https://'). "
             "If you wish to use the default configured registry, no protocol prefix is required "
             "(note that you can also use '.<image-name>' instead of the full URL where <image-name> is a placeholder). "

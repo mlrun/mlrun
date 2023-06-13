@@ -945,13 +945,13 @@ class SQLSource(BaseSourceDriver):
         table_name = self.attributes.get("table_name")
         if table_name and db_path:
             engine = sqlalchemy.create_engine(db_path)
-            table = sqlalchemy.Table(
-                table_name,
-                sqlalchemy.MetaData(),
-                autoload=True,
-                autoload_with=engine,
-            )
             if not query:
+                table = sqlalchemy.Table(
+                    table_name,
+                    sqlalchemy.MetaData(),
+                    autoload=True,
+                    autoload_with=engine,
+                )
                 query = sqlalchemy.select(table)
             with engine.connect() as con:
                 return pd.read_sql(

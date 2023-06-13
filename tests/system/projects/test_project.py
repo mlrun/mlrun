@@ -23,6 +23,7 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.common.schemas
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from mlrun.utils import logger
@@ -968,3 +969,23 @@ class TestProject(TestMLRunSystem):
         assert run_result.output("score")
 
         shutil.rmtree(project_dir, ignore_errors=True)
+
+    @pytest.mark.parametrize(
+        "name, save_secrets",
+        [("load-proj-secrets", True), ("load-proj-secrets-1", False)],
+    )
+    def test_load_project_remotely_with_secrets(self, name, save_secrets):
+        name = "load-proj-secrets"
+        self.custom_project_names_to_delete.append(name)
+        db = self._run_db
+        bg_task = db.load_project(
+            name=name,
+            url="git://github.com/mlrun/project-demo.git",
+            secrets={"secret1": "1234"},
+            save_secrets=save_secrets,
+        )
+        assert (
+            bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+        project = mlrun.get_or_create_project(name)
+        assert project.get_secret("secret1") == save_secrets

@@ -83,6 +83,7 @@ class ProjectSpec(pydantic.BaseModel):
     subpath: typing.Optional[str] = None
     origin_url: typing.Optional[str] = None
     desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
+    default_image: typing.Optional[str] = None
 
     class Config:
         extra = pydantic.Extra.allow

@@ -3099,17 +3099,47 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         url: str,
+        secrets: Optional[Dict] = None,
+        save_secrets: bool = True,
     ) -> mlrun.common.schemas.BackgroundTask:
         """
         Loading a project remotely from the given source.
-        :param name:        project name
-        :param url:         git or tar.gz or .zip sources archive path e.g.:
-                            git://github.com/mlrun/demo-xgb-project.git
-                            http://mysite/archived-project.zip
-                            The git project should include the project yaml file.
+        :param name:            project name
+        :param url:             git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project.
+
         :returns:      A BackgroundTask object, with details on execution process and its status.
         """
-        response = self.api_call("POST", f"projects/{name}/load", params={"url": url})
+        params = {"url": url}
+        if secrets:
+            params["secrets"] = secrets
+        response = self.api_call("POST", f"projects/{name}/load", params=params)
+
+        if secrets and not save_secrets:
+            # In order to remove secrets from project we need to wait for the background task to end:
+            bg_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            while (
+                bg_task.status.state
+                not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+            ):
+                time.sleep(2)
+                bg_task = self.get_project_background_task(
+                    project=name, name=bg_task.metadata.name
+                )
+            if (
+                bg_task.status.state
+                != mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.error("Load project task failed")
+                return bg_task
+            self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+            return bg_task
+
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
 

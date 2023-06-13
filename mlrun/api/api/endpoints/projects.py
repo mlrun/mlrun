@@ -332,6 +332,7 @@ async def load_project(
     name: str,
     url: str,
     background_tasks: fastapi.BackgroundTasks,
+    secrets: typing.Dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -348,6 +349,8 @@ async def load_project(
                                 http://mysite/archived-project.zip
                                 The git project should include the project yaml file.
     :param background_tasks:    injected automatically by fastapi
+    :param secrets:             Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
     :param auth_info:           auth info of the request
     :param db_session:          session that manages the current dialog with the database
 
@@ -358,6 +361,26 @@ async def load_project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=name),
         spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
+
+    # Storing secrets in project
+    if secrets:
+        provider = mlrun.common.schemas.SecretProviderName.kubernetes
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project.metadata.name,
+            provider,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+
+        secrets_data = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets=secrets
+        )
+        await run_in_threadpool(
+            mlrun.api.crud.Secrets().store_project_secrets,
+            project=project.metadata.name,
+            secrets=secrets_data,
+        )
 
     # We must create the project before we run the remote load_project function because
     # we want this function will be running under the project itself instead of the default project.

@@ -143,7 +143,7 @@ class TestDBFSStore:
         parquets_dir_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + os.path.dirname(upload_parquet_file_path)
         )
-        df = (
+        response_df = (
             parquets_dir_data_item.as_df(format="parquet")
             .sort_values("Name")
             .reset_index(drop=True)
@@ -155,7 +155,7 @@ class TestDBFSStore:
             .sort_values("Name")
             .reset_index(drop=True)
         )
-        assert df.equals(appended_df)
+        assert response_df.equals(appended_df)
 
     def test_secrets_as_input(self):
         self._perform_dbfs_tests(secrets=self.secrets)

@@ -546,6 +546,9 @@ def test_set_function_with_tagged_key():
     func = project.get_function(f"{my_func.metadata.name}:{tag}")
     assert func.metadata.tag == tag
 
+    func = project.get_function(my_func.metadata.name, tag=tag)
+    assert func.metadata.tag == tag
+
     func = project.get_function(my_func.metadata.name)
     assert func.metadata.tag == tag
 
@@ -553,6 +556,12 @@ def test_set_function_with_tagged_key():
     assert func.metadata.tag == tag
 
     func = project.get_function("my_func:v2")
+    assert func.metadata.tag == tag
+
+    func = project.get_function("my_func", tag="v2")
+    assert func.metadata.tag == tag
+
+    func = project.get_function("my_func:v2", tag="v2")
     assert func.metadata.tag == tag
 
 

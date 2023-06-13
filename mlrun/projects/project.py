@@ -1678,7 +1678,7 @@ class MlrunProject(ModelObj):
         :param enrich:          add project info/config/source info to the function object
         :param ignore_cache:    read the function object from the DB (ignore the local cache)
         :param copy_function:   return a copy of the function object
-        :param tag:             provide if the function was set with a tag (function key is tagged)
+        :param tag:             provide if the function key is tagged under the project (function was set with a tag)
 
         :returns: function object
         """

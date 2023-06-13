@@ -26,7 +26,6 @@ from kfp import dsl
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.logger
-
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path

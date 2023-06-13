@@ -268,7 +268,7 @@ class RunDBMock:
         self._runs[uid] = struct
 
     def read_run(self, uid, project, iter=0):
-        return self._runs.get(uid, {}).get("struct", {})
+        return self._runs.get(uid, {})
 
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:

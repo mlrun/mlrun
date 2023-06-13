@@ -65,7 +65,7 @@ class DataStore:
         return True
 
     @staticmethod
-    def get_parsed_url(url):
+    def get_file_url(url):
         parsed_url = urllib.parse.urlparse(url)
         scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
         netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""
@@ -156,14 +156,14 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        filepath = self.get_parsed_url(url)
-        if filepath.endswith(".csv") or format == "csv":
+        file_url = self.get_file_url(url)
+        if file_url.endswith(".csv") or format == "csv":
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
-                if filesystem.isdir(filepath):
+                if filesystem.isdir(file_url):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
@@ -186,8 +186,8 @@ class DataStore:
                         return pd.concat(dfs)
 
         elif (
-            filepath.endswith(".parquet")
-            or filepath.endswith(".pq")
+            file_url.endswith(".parquet")
+            or file_url.endswith(".pq")
             or format == "parquet"
         ):
             if columns:
@@ -221,7 +221,7 @@ class DataStore:
 
                 return df_module.read_parquet(*args, **kwargs)
 
-        elif filepath.endswith(".json") or format == "json":
+        elif file_url.endswith(".json") or format == "json":
             reader = df_module.read_json
 
         else:
@@ -229,7 +229,7 @@ class DataStore:
 
         file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(filepath) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

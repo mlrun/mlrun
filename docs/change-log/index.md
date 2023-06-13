@@ -25,7 +25,7 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3940 | Runs that are in a terminal state no longer produce logs. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+| ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
 
 ## v1.3.2
 

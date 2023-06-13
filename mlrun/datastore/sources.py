@@ -32,7 +32,12 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import filter_df_start_end_time, select_columns_from_df, store_path_to_spark
+from .utils import (
+    _generate_sql_query_with_time_filter,
+    filter_df_start_end_time,
+    select_columns_from_df,
+    store_path_to_spark,
+)
 
 
 def get_source_from_dict(source):
@@ -100,6 +105,8 @@ class BaseSourceDriver(DataSource):
         raise NotImplementedError()
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
+        if not (columns or time_field):
+            return df
 
         from pyspark.sql.functions import col
 
@@ -957,13 +964,14 @@ class SQLSource(BaseSourceDriver):
         table_name: str = None,
         spark_options: dict = None,
         time_fields: List[str] = None,
+        parse_dates: List[str] = None,
     ):
         """
         Reads SqlDB as input source for a flow.
         example::
-            db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
+            db_url = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
             source = SQLSource(
-                collection_name='source_name', db_path=self.db, key_field='key'
+                table_name='source_name', db_url=db_url, key_field='key'
             )
         :param name:            source name
         :param chunksize:       number of rows per chunk (default large single chunk)
@@ -980,19 +988,32 @@ class SQLSource(BaseSourceDriver):
                                 from the current database
         :param spark_options:   additional spark read options
         :param time_fields :    all the field to be parsed as timestamp.
+        :param parse_dates :    all the field to be parsed as timestamp.
         """
-
+        if time_fields:
+            warnings.warn(
+                "'time_fields' is deprecated, use 'parse_dates' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
+            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify without db_path arg or secret MLRUN_SQL__URL"
             )
+        if time_field:
+            if parse_dates:
+                time_fields.append(time_field)
+            else:
+                parse_dates = [time_field]
         attrs = {
             "chunksize": chunksize,
             "spark_options": spark_options,
             "table_name": table_name,
             "db_path": db_url,
-            "time_fields": time_fields,
+            "parse_dates": parse_dates,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -1014,30 +1035,32 @@ class SQLSource(BaseSourceDriver):
         end_time=None,
         time_field=None,
     ):
-        import sqlalchemy as db
+        import sqlalchemy as sqlalchemy
 
-        query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
-        params = None
-        if not query:
-            query = "SELECT * FROM %(table)s"
-            params = {"table": table_name}
+        parse_dates = self.attributes.get("parse_dates")
+        time_field = time_field or self.time_field
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
         if table_name and db_path:
-            engine = db.create_engine(db_path)
+            engine = sqlalchemy.create_engine(db_path)
+            query, parse_dates = _generate_sql_query_with_time_filter(
+                table_name=table_name,
+                engine=engine,
+                time_column=time_field,
+                parse_dates=parse_dates,
+                start_time=start_time,
+                end_time=end_time,
+            )
+
             with engine.connect() as con:
-                return filter_df_start_end_time(
-                    pd.read_sql(
-                        query,
-                        con=con,
-                        params=params,
-                        chunksize=self.attributes.get("chunksize"),
-                        parse_dates=self.attributes.get("time_fields"),
-                        columns=columns,
-                    ),
-                    time_column=time_field or self.time_field,
-                    start_time=start_time or self.start_time,
-                    end_time=end_time or self.end_time,
+                return pd.read_sql(
+                    query,
+                    con=con,
+                    chunksize=self.attributes.get("chunksize"),
+                    parse_dates=parse_dates,
+                    columns=columns,
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

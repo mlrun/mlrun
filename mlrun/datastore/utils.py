@@ -18,6 +18,7 @@ import typing
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
+import sqlalchemy
 
 import mlrun.datastore
 
@@ -85,7 +86,10 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def filter_df_start_end_time(
-    df, time_column=None, start_time=None, end_time=None
+    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    time_column: str = None,
+    start_time: pd.Timestamp = None,
+    end_time: pd.Timestamp = None,
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not time_column or (not start_time and not end_time):
         return df
@@ -96,13 +100,18 @@ def filter_df_start_end_time(
 
 
 def filter_df_generator(
-    dfs, time_field, start_time, end_time
+    dfs: typing.Iterator[pd.DataFrame],
+    time_field: str,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
 ) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
         yield _execute_time_filter(df, time_field, start_time, end_time)
 
 
-def _execute_time_filter(df, time_column, start_time, end_time):
+def _execute_time_filter(
+    df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
+):
     df[time_column] = pd.to_datetime(df[time_column])
     if start_time:
         df = df[df[time_column] > start_time]
@@ -112,7 +121,8 @@ def _execute_time_filter(df, time_column, start_time, end_time):
 
 
 def select_columns_from_df(
-    df, columns
+    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    columns: typing.List[str],
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not columns:
         return df
@@ -122,6 +132,44 @@ def select_columns_from_df(
         return select_columns_generator(df, columns)
 
 
-def select_columns_generator(dfs, columns) -> typing.Iterator[pd.DataFrame]:
+def select_columns_generator(
+    dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    columns: typing.List[str],
+) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
         yield df[columns]
+
+
+def _generate_sql_query_with_time_filter(
+    table_name: str,
+    engine: sqlalchemy.engine.Engine,
+    time_column: str,
+    parse_dates: typing.List[str],
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+):
+    table = sqlalchemy.Table(
+        table_name,
+        sqlalchemy.MetaData(),
+        autoload=True,
+        autoload_with=engine,
+    )
+    query = sqlalchemy.select(table)
+    if time_column:
+        if parse_dates and time_column not in parse_dates:
+            parse_dates.append(time_column)
+        else:
+            parse_dates = [time_column]
+        if start_time and end_time:
+            query = query.where(
+                sqlalchemy.and_(
+                    getattr(table.c, time_column) > start_time,
+                    getattr(table.c, time_column) <= end_time,
+                )
+            )
+        elif start_time:
+            query = query.where(getattr(table.c, time_column) > start_time)
+        elif end_time:
+            query = query.where(getattr(table.c, time_column) <= end_time)
+
+    return query, parse_dates

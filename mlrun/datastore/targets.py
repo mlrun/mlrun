@@ -17,6 +17,7 @@ import os
 import random
 import sys
 import time
+import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -36,6 +37,7 @@ from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .utils import (
+    _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
     parse_kafka_url,
     select_columns_from_df,
@@ -1521,14 +1523,15 @@ class SQLTarget(BaseStoreTarget):
         # create_according_to_data: bool = False,
         time_fields: List[str] = None,
         varchar_len: int = 50,
+        parse_dates: List[str] = None,
     ):
         """
         Write to SqlDB as output target for a flow.
         example::
-             db_path = "sqlite:///stockmarket.db"
+             db_url = "sqlite:///stockmarket.db"
              schema = {'time': datetime.datetime, 'ticker': str,
                     'bid': float, 'ask': float, 'ind': int}
-             target = SqlDBTarget(table_name=f'{name}-tatget', db_path=db_path, create_table=True,
+             target = SqlDBTarget(table_name=f'{name}-target', db_url=db_url, create_table=True,
                                    schema=schema, primary_key_column=key)
         :param name:
         :param path:
@@ -1558,8 +1561,17 @@ class SQLTarget(BaseStoreTarget):
         :param create_according_to_data:    (not valid)
         :param time_fields :    all the field to be parsed as timestamp.
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
+        :param parse_dates :    all the field to be parsed as timestamp.
         """
         create_according_to_data = False  # TODO: open for user
+        if time_fields:
+            warnings.warn(
+                "'time_fields' is deprecated, use 'parse_dates' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
+            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None or table_name is None:
             attr = {}
@@ -1572,7 +1584,7 @@ class SQLTarget(BaseStoreTarget):
                 "db_path": db_url,
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
-                "time_fields": time_fields,
+                "parse_dates": parse_dates,
                 "varchar_len": varchar_len,
             }
             path = (
@@ -1659,19 +1671,21 @@ class SQLTarget(BaseStoreTarget):
     ):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
+        parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
-            # TODO : filter as part of the query
-            df = filter_df_start_end_time(
-                pd.read_sql(
-                    "SELECT * FROM %(table)s",
-                    con=conn,
-                    params={"table": self.attributes.get("table_name")},
-                    parse_dates=self.attributes.get("time_fields"),
-                    columns=columns,
-                ),
+            query, parse_dates = _generate_sql_query_with_time_filter(
+                table_name=table_name,
+                engine=engine,
                 time_column=time_column,
+                parse_dates=parse_dates,
                 start_time=start_time,
                 end_time=end_time,
+            )
+            df = pd.read_sql(
+                query,
+                con=conn,
+                parse_dates=parse_dates,
+                columns=columns,
             )
             if self._primary_key_column:
                 df.set_index(self._primary_key_column, inplace=True)

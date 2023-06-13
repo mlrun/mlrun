@@ -98,7 +98,6 @@ def get_offline_features(
     drop_columns: List[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
-    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
@@ -106,6 +105,7 @@ def get_offline_features(
     query: str = None,
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
+    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -145,12 +145,6 @@ def get_offline_features(
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
-                                    dictionary ({<feature set name>: <timestamp column name>, ...})
-                                    that indicates the timestamp column name for each feature set. Optional.
-                                    By default, the filter executed on the timestamp_key of each feature set.
-                                    Note: the time filtering preformed on each feature set before the
-                                    merge process using start_time and end_time params.
     :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.
@@ -161,6 +155,12 @@ def get_offline_features(
     :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
     :param order_by:                Name or list of names to order by. The name or the names in the list can be the
                                     feature name or the alias of the feature you pass in the feature list.
+    :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
+                                    dictionary ({<feature set name>: <timestamp column name>, ...})
+                                    that indicates the timestamp column name for each feature set. Optional.
+                                    By default, the filter executed on the timestamp_key of each feature set.
+                                    Note: the time filtering preformed on each feature set before the
+                                    merge process using start_time and end_time params.
 
     """
     if isinstance(feature_vector, FeatureVector):

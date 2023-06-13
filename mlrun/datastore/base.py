@@ -153,11 +153,20 @@ class DataStore:
         df_module = df_module or pd
         parsed_url = urllib.parse.urlparse(url)
         filepath = parsed_url.path
-        is_csv, is_json = False, False
+        is_csv, is_json, drop_time_column = False, False, False
         if filepath.endswith(".csv") or format == "csv":
             is_csv = True
+            drop_time_column = False
             if columns:
+                if (
+                    time_column
+                    and (start_time or end_time)
+                    and time_column not in columns
+                ):
+                    columns.append(time_column)
+                    drop_time_column = True
                 kwargs["usecols"] = columns
+
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
@@ -257,6 +266,8 @@ class DataStore:
                 start_time=start_time,
                 end_time=end_time,
             )
+            if drop_time_column:
+                df.drop(columns=[time_column], inplace=True)
         if is_json:
             # for csv and parquet files the columns select is executed in `reader`.
             df = select_columns_from_df(df, columns=columns)

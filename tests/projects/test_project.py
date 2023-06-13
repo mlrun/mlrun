@@ -513,6 +513,49 @@ def test_set_func_with_tag():
     assert func.metadata.tag is None
 
 
+def test_set_function_with_tagged_key():
+    project = mlrun.new_project("set-func-tagged-key", save=False)
+    tag = "v1"
+    my_func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        tag=tag,
+    )
+    # function key is <function name>:<tag>
+    project.set_function(
+        my_func,
+        tag=tag,
+    )
+    # function key is <function name>
+    project.set_function(
+        my_func,
+    )
+    # function key is "my_func"
+    project.set_function(
+        my_func,
+        name="my_func",
+    )
+    # function key is "my_func:v2" (tag should remain "v1")
+    project.set_function(
+        my_func,
+        name="my_func:v2",
+    )
+
+    assert len(project.spec._function_objects) == 4
+
+    func = project.get_function(f"{my_func.metadata.name}:{tag}")
+    assert func.metadata.tag == tag
+
+    func = project.get_function(my_func.metadata.name)
+    assert func.metadata.tag == tag
+
+    func = project.get_function("my_func")
+    assert func.metadata.tag == tag
+
+    func = project.get_function("my_func:v2")
+    assert func.metadata.tag == tag
+
+
 def test_set_function_with_relative_path(context):
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

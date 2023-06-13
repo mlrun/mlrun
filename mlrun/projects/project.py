@@ -1573,15 +1573,18 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:      function object or spec/code url, None refers to current Notebook
-        :param name:      name of the function (under the project)
-        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
-                          default: job
-        :param image:     docker image to be used, can also be specified in
-                          the function object/yaml
-        :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo: add (clone) the current repo to the build source
-        :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
+        :param func:                function object or spec/code url, None refers to current Notebook
+        :param name:                name of the function (under the project), can be specified with a tag to support
+                                    versions (e.g. myfunc:v1)
+        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    default: job
+        :param image:               docker image to be used, can also be specified in
+                                    the function object/yaml
+        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           add (clone) the current repo to the build source
+        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                    if tag is specified and name is empty, the function key (under the project)
+                                    will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:        a list of python packages
         :param requirements_file:   path to a python requirements file
 
@@ -1603,7 +1606,6 @@ class MlrunProject(ModelObj):
 
         func = func or ""
         name = mlrun.utils.normalize_name(name) if name else name
-        resolved_function_name = None
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
@@ -1647,7 +1649,7 @@ class MlrunProject(ModelObj):
 
         # if function name was not explicitly provided,
         # we use the resolved name (from the function object) and add the tag
-        if tag and not name:
+        if tag and not name and ":" not in resolved_function_name:
             resolved_function_name = f"{resolved_function_name}:{tag}"
 
         self.spec.set_function(resolved_function_name, function_object, func)
@@ -1667,17 +1669,22 @@ class MlrunProject(ModelObj):
         enrich=False,
         ignore_cache=False,
         copy_function=True,
+        tag: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
-        :param key:   name of key for search
-        :param sync:  will reload/reinit the function from the project spec
-        :param enrich: add project info/config/source info to the function object
-        :param ignore_cache: read the function object from the DB (ignore the local cache)
-        :param copy_function: return a copy of the function object
+        :param key:             name of key for search
+        :param sync:            will reload/reinit the function from the project spec
+        :param enrich:          add project info/config/source info to the function object
+        :param ignore_cache:    read the function object from the DB (ignore the local cache)
+        :param copy_function:   return a copy of the function object
+        :param tag:             provide if the function was set with a tag (function key is tagged)
 
         :returns: function object
         """
+        if tag and ":" not in key:
+            key = f"{key}:{tag}"
+
         function, err = self._get_function(
             mlrun.utils.normalize_name(key), sync, ignore_cache
         )
@@ -1720,7 +1727,7 @@ class MlrunProject(ModelObj):
 
         return function, None
 
-    def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
+    def get_function_objects(self) -> FunctionsDict:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)

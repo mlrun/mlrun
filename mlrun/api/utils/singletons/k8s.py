@@ -413,7 +413,7 @@ class K8sHelper:
     def delete_project_secrets(self, project, secrets, namespace="") -> (str, bool):
         """
         Delete secrets from a kubernetes secret object
-        :return: returns True if the secret was deleted, False if it still exists and only deleted part of the keys
+        :return: returns the secret name and a boolean indicating whether the secret was deleted
         """
         secret_name = self.get_project_secret_name(project)
         deleted = self.delete_secrets(secret_name, secrets, namespace)

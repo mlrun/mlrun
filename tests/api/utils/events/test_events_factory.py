@@ -11,29 +11,29 @@ import mlrun.common.schemas
     "events_mode,kind,igz_version,expected_error,expected_instance",
     [
         (
-            mlrun.common.schemas.EventsMode.disabled,
+            mlrun.common.schemas.EventsModes.disabled,
             None,
             None,
             None,
             mlrun.api.utils.events.nop.NopClient,
         ),
         (
-            mlrun.common.schemas.EventsMode.enabled,
+            mlrun.common.schemas.EventsModes.enabled,
             None,
             None,
             None,
             mlrun.api.utils.events.nop.NopClient,
         ),
         (
-            mlrun.common.schemas.EventsMode.enabled,
-            mlrun.common.schemas.EventClientsTypes.iguazio,
+            mlrun.common.schemas.EventsModes.enabled,
+            mlrun.common.schemas.EventClientKinds.iguazio,
             None,
             mlrun.errors.MLRunInvalidArgumentError,
             None,
         ),
         (
-            mlrun.common.schemas.EventsMode.enabled,
-            mlrun.common.schemas.EventClientsTypes.iguazio,
+            mlrun.common.schemas.EventsModes.enabled,
+            mlrun.common.schemas.EventClientKinds.iguazio,
             "3.5.3",
             None,
             mlrun.api.utils.events.iguazio.Client,
@@ -41,8 +41,8 @@ import mlrun.common.schemas
     ],
 )
 def test_get_events_client(
-    events_mode: mlrun.common.schemas.EventsMode,
-    kind: mlrun.common.schemas.EventClientsTypes,
+    events_mode: mlrun.common.schemas.EventsModes,
+    kind: mlrun.common.schemas.EventClientKinds,
     igz_version: str,
     expected_error: mlrun.errors.MLRunBaseError,
     expected_instance: mlrun.api.utils.events.base.BaseEventClient,

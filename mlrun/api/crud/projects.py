@@ -184,11 +184,10 @@ class Projects(
             ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                 name, secrets
             )
-            if mlrun.mlconf.events.mode == mlrun.common.schemas.EventsMode.disabled:
-                return
-
-            client = events_factory.EventsFactory().get_events_client()
-            client.emit(client.generate_project_secret_deleted_event(name, secret_name))
+            events_client = events_factory.EventsFactory().get_events_client()
+            events_client.emit(
+                events_client.generate_project_secret_deleted_event(name, secret_name)
+            )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

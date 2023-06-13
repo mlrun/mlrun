@@ -1,11 +1,22 @@
 import mlrun.common.types
 
 
-class EventsMode(mlrun.common.types.StrEnum):
+class EventsModes(mlrun.common.types.StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class EventClientsTypes(mlrun.common.types.StrEnum):
+class EventClientKinds(mlrun.common.types.StrEnum):
     iguazio = "iguazio"
     nop = "nop"
+
+
+class SecretEventActions(mlrun.common.types.StrEnum):
+    created = "created"
+    updated = "updated"
+    deleted = "deleted"
+
+
+class AuthSecretEventActions(mlrun.common.types.StrEnum):
+    created = "created"
+    updated = "updated"

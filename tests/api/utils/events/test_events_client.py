@@ -93,7 +93,7 @@ class TestEventClient:
             assert self.client.emit.call_args[0][0] is None
 
     def _initialize_and_mock_client(self, monkeypatch, iguazio_version: str):
-        mlrun.mlconf.events.mode = mlrun.common.schemas.EventsMode.enabled.value
+        mlrun.mlconf.events.mode = mlrun.common.schemas.EventsModes.enabled.value
         self._initialize_client(iguazio_version)
         self.client.emit = unittest.mock.MagicMock()
         monkeypatch.setattr(

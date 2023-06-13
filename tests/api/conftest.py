@@ -319,7 +319,7 @@ async def api_url() -> str:
 @pytest.fixture()
 async def iguazio_client(
     api_url: str,
-    request,
+    request: pytest.FixtureRequest,
 ) -> mlrun.api.utils.clients.iguazio.Client:
     if request.param == "async":
         client = mlrun.api.utils.clients.iguazio.AsyncClient()

@@ -5,6 +5,7 @@ import semver
 
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.events.base
+import mlrun.common.schemas
 from mlrun.utils import logger
 
 PROJECT_AUTH_SECRET_CREATED = "Software.Project.AuthSecret.Created"
@@ -36,6 +37,30 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                     event=event,
                     exc_info=exc,
                 )
+
+    def generate_project_auth_secret_event(
+        self,
+        username: str,
+        secret_name: str,
+        action: mlrun.common.schemas.AuthSecretEventActions,
+    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
+        """
+        Generate a project auth secret event
+        :param username:  username
+        :param secret_name:  secret name
+        :param action: preformed action
+        :return: event object to emit
+        """
+        if action == mlrun.common.schemas.SecretEventActions.created:
+            return self.generate_project_auth_secret_created_event(
+                username, secret_name
+            )
+        elif action == mlrun.common.schemas.SecretEventActions.updated:
+            return self.generate_project_auth_secret_updated_event(
+                username, secret_name
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
 
     def generate_project_auth_secret_created_event(
         self, username: str, secret_name: str
@@ -100,6 +125,34 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 system_event=False,
                 visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
             )
+
+    def generate_project_secret_event(
+        self,
+        project: str,
+        secret_name: str,
+        secret_keys: typing.List[str] = None,
+        action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
+    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
+        """
+        Generate a project secret event
+        :param project: project name
+        :param secret_name: secret name
+        :param secret_keys: secret keys, optional, only relevant for created/updated events
+        :param action: preformed action
+        :return: event object to emit
+        """
+        if action == "created":
+            return self.generate_project_secret_created_event(
+                project, secret_name, secret_keys
+            )
+        elif action == "updated":
+            return self.generate_project_secret_updated_event(
+                project, secret_name, secret_keys
+            )
+        elif action == "deleted":
+            return self.generate_project_secret_deleted_event(project, secret_name)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
 
     def generate_project_secret_created_event(
         self, project: str, secret_name: str, secret_keys: typing.List[str]

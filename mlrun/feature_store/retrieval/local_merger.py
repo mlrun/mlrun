@@ -21,6 +21,7 @@ from .base import BaseMerger
 
 class LocalFeatureMerger(BaseMerger):
     engine = "local"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)

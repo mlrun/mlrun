@@ -27,7 +27,8 @@ from ..feature_vector import OfflineVectorResponse
 
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
-
+    support_online = False
+    support_offline = False
     engine = None
 
     def __init__(self, vector, **engine_args):

@@ -25,6 +25,7 @@ from .base import BaseMerger
 
 class DaskFeatureMerger(BaseMerger):
     engine = "dask"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)

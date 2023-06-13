@@ -22,7 +22,7 @@ from ..feature_vector import OnlineVectorService
 from .base import BaseMerger
 
 
-class OnlineFeatureMerger(BaseMerger):
+class StoreyFeatureMerger(BaseMerger):
     engine = "storey"
     support_online = True
 
@@ -67,7 +67,7 @@ class OnlineFeatureMerger(BaseMerger):
                 table=featureset.uri,
                 key_field=entity_list,
                 aliases=aliases,
-                # todo: aliases on incoming event = {k: v for k, v in zip(node.data['left_keys'], entity_list)}
+                input_aliases={k: v for k, v in zip(node.data['left_keys'], entity_list)},
                 fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
             )
         for name in start_states:

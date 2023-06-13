@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import shutil
 import unittest
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Generator, Union
+from typing import Callable, Generator
 from unittest.mock import Mock
 
 import deepdiff
@@ -212,13 +211,15 @@ class RunDBMock:
         self._pipeline = None
         self._functions = {}
         self._artifacts = {}
-        self._projects = {}
+        self._project_name = None
+        self._project = None
         self._runs = {}
 
     def reset(self):
         self._functions = {}
         self._pipeline = None
-        self._projects = {}
+        self._project_name = None
+        self._project = None
         self._artifacts = {}
 
     # Expected to return a hash-key
@@ -298,33 +299,22 @@ class RunDBMock:
         return True
 
     def store_project(self, name, project):
-        self._projects[name] = project
+        self._project_name = name
+
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
+        self._project = project
 
     def get_project(self, name):
-        if name in self._projects:
-            return mlrun.projects.MlrunProject.from_dict(struct=self._projects[name])
-        else:
-            raise mlrun.errors.MLRunNotFoundError("Project '{name}' not found")
+        if self._project_name and name == self._project_name:
+            return self._project
 
-    def create_project(
-        self,
-        project: Union[dict, mlrun.projects.MlrunProject],
-    ) -> mlrun.projects.MlrunProject:
-        """
-        Create a new project. A project with the same name must not exist prior to creation.
+        elif name == config.default_project and not self._project:
+            project = mlrun.projects.MlrunProject(name)
+            self.store_project(name, project)
+            return project
 
-        :param project: The project to create.
-        """
-        # `create_project` is needed because when using `mlrun.get_or_create_project` there is a call to
-        # `project.save(store=False)` (line 202) and `store=False` yield tto a call to `create_project`.
-        if isinstance(project, mlrun.projects.MlrunProject):
-            project = project.to_dict()
-        project_name = project["metadata"]["name"]
-        if project_name in self._projects:
-            # Hinted to be raised from HTTP DB:
-            raise RuntimeError("Project already exist in DB.")
-        self._projects[project_name] = project
-        return mlrun.projects.MlrunProject.from_dict(project)
+        raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
         self,
@@ -500,9 +490,6 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-
-    mlrun.get_or_create_project("default")
-
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
@@ -510,6 +497,3 @@ def rundb_mock() -> RunDBMock:
     mlrun.get_run_db = orig_get_run_db
     BaseRuntime._get_db = orig_get_db
     config.dbpath = orig_db_path
-
-    # Delete the project yaml created by `mlrun.get_or_create_project`:
-    os.remove("./project.yaml")

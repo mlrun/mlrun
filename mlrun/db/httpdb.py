@@ -3021,18 +3021,19 @@ class HTTPRunDB(RunDBInterface):
         notifications: typing.List[mlrun.model.Notification],
         parent: Union[mlrun.common.schemas.NotificationParent, dict],
     ):
+        if isinstance(parent, mlrun.common.schemas.NotificationParent):
+            parent = parent.dict()
+
         self.api_call(
             "PUT",
             f"projects/{project}/notifications",
             f"Failed to set notifications on object {parent}",
-            body=dict_to_json(
-                {
-                    "notifications": [
-                        notification.to_dict() for notification in notifications
-                    ],
-                    "parent": parent,
-                }
-            ),
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+                "parent": parent,
+            },
         )
 
     def set_run_notifications(

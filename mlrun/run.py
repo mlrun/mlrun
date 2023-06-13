@@ -550,6 +550,7 @@ def new_function(
     source: str = None,
     requirements: Union[str, List[str]] = None,
     kfp=None,
+    requirements_file: str = "",
 ):
     """Create a new ML function from base properties
 
@@ -590,7 +591,8 @@ def new_function(
                      `http://some/url/file.zip`
                      note path source must exist on the image or exist locally when run is local
                      (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
-    :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param requirements:        a list of python packages, defaults to None
+    :param requirements_file:   path to a python requirements file
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -655,7 +657,11 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements, prepare_image_for_deploy=False)
+        runner.with_requirements(
+            requirements,
+            requirements_file=requirements_file,
+            prepare_image_for_deploy=False,
+        )
 
     runner.prepare_image_for_deploy()
     return runner
@@ -697,6 +703,7 @@ def code_to_function(
     labels: Dict[str, str] = None,
     with_doc: bool = True,
     ignored_tags=None,
+    requirements_file: str = "",
 ) -> Union[
     MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
@@ -750,6 +757,8 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param requirements: a list of python packages
+    :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
@@ -802,7 +811,7 @@ def code_to_function(
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
 
         if requirements:
-            fn.with_requirements(requirements)
+            fn.with_requirements(requirements, requirements_file=requirements_file)
 
         if embed_code:
             fn.spec.build.functionSourceCode = get_in(
@@ -1166,8 +1175,6 @@ def wait_for_pipeline_completion(
             logger,
             False,
             _wait_for_pipeline_completion,
-            run_id,
-            namespace=namespace,
         )
     else:
         client = Client(namespace=namespace)

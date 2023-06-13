@@ -15,6 +15,7 @@ import os.path
 import pathlib
 import re
 import tempfile
+import typing
 from base64 import b64decode, b64encode
 from os import path
 from urllib.parse import urlparse
@@ -28,6 +29,7 @@ import mlrun.errors
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
+from mlrun.utils.helpers import remove_image_protocol_prefix
 
 
 def make_dockerfile(
@@ -78,7 +80,7 @@ def make_dockerfile(
         dock += (
             f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
         )
-        dock += f"RUN python -m pip install --upgrade -r {requirements_path}\n"
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -134,7 +136,16 @@ def make_kaniko_pod(
     if dockertext:
         dockerfile = "/empty/Dockerfile"
 
-    args = ["--dockerfile", dockerfile, "--context", context, "--destination", dest]
+    args = [
+        "--dockerfile",
+        dockerfile,
+        "--context",
+        context,
+        "--destination",
+        dest,
+        "--image-fs-extract-retry",
+        config.httpdb.builder.kaniko_image_fs_extraction_retries,
+    ]
     for value, flag in [
         (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
         (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
@@ -327,25 +338,10 @@ def build_image(
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
-    if requirements and isinstance(requirements, list):
-        requirements_list = requirements
-        requirements_path = "/empty/requirements.txt"
-    else:
-        requirements_list = None
-        requirements_path = requirements or ""
 
-    commands = commands or []
-    if with_mlrun:
-        # mlrun prerequisite - upgrade pip
-        upgrade_pip_command = resolve_upgrade_pip_command(commands)
-        if upgrade_pip_command:
-            commands.append(upgrade_pip_command)
-
-        mlrun_command = resolve_mlrun_install_command(
-            mlrun_version_specifier, client_version, commands
-        )
-        if mlrun_command:
-            commands.append(mlrun_command)
+    commands, requirements_list, requirements_path = _resolve_build_requirements(
+        requirements, commands, with_mlrun, mlrun_version_specifier, client_version
+    )
 
     if not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")
@@ -400,7 +396,7 @@ def build_image(
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Load of relative source ({source}) is not supported at build time"
+                f"Load of relative source ({source}) is not supported at build time "
                 "see 'mlrun.runtimes.kubejob.KubejobRuntime.with_source_archive' or "
                 "'mlrun.projects.project.MlrunProject.set_source' for more details"
             )
@@ -492,7 +488,7 @@ def get_kaniko_spec_attributes_from_runtime():
     ]
 
 
-def resolve_mlrun_install_command(
+def resolve_mlrun_install_command_version(
     mlrun_version_specifier=None, client_version=None, commands=None
 ):
     commands = commands or []
@@ -522,7 +518,7 @@ def resolve_mlrun_install_command(
             mlrun_version_specifier = (
                 f"{config.package_path}[complete]=={config.version}"
             )
-    return f'python -m pip install "{mlrun_version_specifier}"'
+    return mlrun_version_specifier
 
 
 def resolve_upgrade_pip_command(commands=None):
@@ -689,6 +685,8 @@ def resolve_image_target_and_registry_secret(
 
         return "/".join(image_target_components), secret_name
 
+    image_target = remove_image_protocol_prefix(image_target)
+
     return image_target, secret_name
 
 
@@ -708,3 +706,43 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _resolve_build_requirements(
+    requirements: typing.Union[typing.List, str],
+    commands: typing.List,
+    with_mlrun: bool,
+    mlrun_version_specifier: typing.Optional[str],
+    client_version: typing.Optional[str],
+):
+    """
+    Resolve build requirements list, requirements path and commands.
+    If mlrun requirement is needed, we add a pip upgrade command to the commands list (prerequisite).
+    """
+    requirements_path = "/empty/requirements.txt"
+    if requirements and isinstance(requirements, list):
+        requirements_list = requirements
+    else:
+        requirements_list = []
+        requirements_path = requirements or requirements_path
+    commands = commands or []
+
+    if with_mlrun:
+        # mlrun prerequisite - upgrade pip
+        upgrade_pip_command = resolve_upgrade_pip_command(commands)
+        if upgrade_pip_command:
+            commands.append(upgrade_pip_command)
+
+        mlrun_version = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version, commands
+        )
+
+        # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
+        if mlrun_version:
+            requirements_list.insert(0, mlrun_version)
+
+    if not requirements_list:
+        # no requirements, we don't need a requirements file
+        requirements_path = ""
+
+    return commands, requirements_list, requirements_path

@@ -75,6 +75,10 @@ class SlackNotification(NotificationBase):
                 },
             ]
         }
+        if self.name:
+            data["blocks"].append(
+                {"type": "section", "text": self._get_slack_row(self.name)}
+            )
 
         if not runs:
             return data

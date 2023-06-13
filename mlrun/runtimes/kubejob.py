@@ -139,6 +139,7 @@ class KubejobRuntime(KubeResource):
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         """
 
+        image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image,
             base_image,

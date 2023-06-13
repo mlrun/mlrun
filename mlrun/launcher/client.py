@@ -32,8 +32,8 @@ class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
     """
 
     @staticmethod
-    def _enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()

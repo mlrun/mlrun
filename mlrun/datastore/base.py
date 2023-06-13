@@ -66,6 +66,10 @@ class DataStore:
 
     @staticmethod
     def get_file_url(url):
+        """
+        Extract only the schema, netloc, and path from an input URL if they exist,
+        excluding parameters, query, or fragments.
+        """
         parsed_url = urllib.parse.urlparse(url)
         scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
         netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""

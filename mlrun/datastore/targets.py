@@ -1610,9 +1610,16 @@ class SQLTarget(BaseStoreTarget):
     ):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
+        table = sqlalchemy.Table(
+            self.attributes.get("table_name"),
+            sqlalchemy.MetaData(),
+            autoload=True,
+            autoload_with=engine,
+        )
+        query = sqlalchemy.select(table)
         with engine.connect() as conn:
             df = pd.read_sql(
-                f"SELECT * FROM {self.attributes.get('table_name')}",
+                query,
                 con=conn,
                 parse_dates=self.attributes.get("time_fields"),
             )

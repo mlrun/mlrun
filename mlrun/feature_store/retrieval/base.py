@@ -16,8 +16,6 @@ import abc
 import typing
 from datetime import datetime
 
-import pandas as pd
-
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet

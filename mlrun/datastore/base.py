@@ -67,8 +67,8 @@ class DataStore:
     @staticmethod
     def get_parsed_url(url):
         parsed_url = urllib.parse.urlparse(url)
-        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""
         scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""
         return f"{scheme}{netloc}{parsed_url.path}"
 
     @staticmethod

@@ -1603,6 +1603,7 @@ class MlrunProject(ModelObj):
 
         func = func or ""
         name = mlrun.utils.normalize_name(name) if name else name
+        resolved_function_name = None
         if isinstance(func, str):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
@@ -1618,10 +1619,14 @@ class MlrunProject(ModelObj):
                 "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
-            name, function_object = _init_function_from_dict(func, self)
-            func["name"] = name
+            resolved_function_name, function_object = _init_function_from_dict(
+                func, self
+            )
+            func["name"] = resolved_function_name
         elif hasattr(func, "to_dict"):
-            name, function_object = _init_function_from_obj(func, self, name=name)
+            resolved_function_name, function_object = _init_function_from_obj(
+                func, self, name=name
+            )
             if handler:
                 raise ValueError(
                     "default handler cannot be set for existing function object"
@@ -1635,12 +1640,17 @@ class MlrunProject(ModelObj):
                 function_object.with_requirements(
                     requirements, requirements_file=requirements_file
                 )
-            if not name:
+            if not resolved_function_name:
                 raise ValueError("function name must be specified")
         else:
             raise ValueError("func must be a function url or object")
 
-        self.spec.set_function(name, function_object, func)
+        # if function name was not explicitly provided,
+        # we use the resolved name (from the function object) and add the tag
+        if tag and not name:
+            resolved_function_name = f"{resolved_function_name}:{tag}"
+
+        self.spec.set_function(resolved_function_name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -2787,7 +2797,11 @@ def _set_as_current_default_project(project: MlrunProject):
     pipeline_context.set(project)
 
 
-def _init_function_from_dict(f, project, name=None):
+def _init_function_from_dict(
+    f: dict,
+    project: mlrun.projects.MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
@@ -2861,7 +2875,11 @@ def _init_function_from_dict(f, project, name=None):
     return _init_function_from_obj(func, project, name)
 
 
-def _init_function_from_obj(func, project, name=None):
+def _init_function_from_obj(
+    func: mlrun.runtimes.BaseRuntime,
+    project: mlrun.projects.MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     build = func.spec.build
     if project.spec.origin_url:
         origin = project.spec.origin_url

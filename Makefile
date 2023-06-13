@@ -100,7 +100,8 @@ all:
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install \
+	# TODO: remove before merge and once igz-mgmt 0.0.6 is released
+	python -m pip install --extra-index-url https://test.pypi.org/simple/ \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \

@@ -58,11 +58,9 @@ class Notification(pydantic.BaseModel):
 
 class NotificationParent(pydantic.BaseModel):
 
-    kind: str
-
     # TODO: Add more types to the list for new supported notifications
     identifier: typing.Union[RunIdentifier, ScheduleIdentifier] = pydantic.Field(
-        ..., discriminator="identifier_kind"
+        ..., discriminator="kind"
     )
 
 

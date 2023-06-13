@@ -3040,16 +3040,13 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        iteration: int = None,
         notifications: typing.List[mlrun.model.Notification] = None,
     ):
         notifications = notifications or []
 
         parent = mlrun.common.schemas.NotificationParent(
-            kind="run",
             identifier=mlrun.common.schemas.RunIdentifier(
                 uid=run_uid,
-                iter=iteration,
             ),
         )
         self.set_object_notifications(project, notifications, parent)
@@ -3062,7 +3059,6 @@ class HTTPRunDB(RunDBInterface):
     ):
 
         parent = mlrun.common.schemas.NotificationParent(
-            kind="schedule",
             identifier=mlrun.common.schemas.ScheduleIdentifier(
                 name=schedule_name,
             ),

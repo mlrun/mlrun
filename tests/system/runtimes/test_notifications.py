@@ -75,6 +75,65 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             _assert_notifications,
         )
 
+    # TODO: currently the test checks setting notifications on live runs. We need to add a test for setting
+    #  notifications on scheduled runs as well. The issue is MLRun hardcoded blocks schedules more frequent than
+    #  10 minutes, so we need to wait for the schedule to run, which takes a long time. We need to add a way to
+    #  override this behavior for tests.
+    def test_set_run_notifications(self):
+
+        notification_name = "slack-should-succeed"
+
+        def _assert_notifications():
+            runs = self._run_db.list_runs(
+                project=self.project_name,
+                with_notifications=True,
+            )
+            assert len(runs) == 1
+            assert len(runs[0]["status"]["notifications"]) == 1
+            assert (
+                runs[0]["status"]["notifications"][notification_name]["status"]
+                == "sent"
+            )
+
+        code_path = str(self.assets_path / "sleep.py")
+
+        notification = self._create_notification(
+            name=notification_name,
+            message="should-fail",
+            params={
+                # dummy slack test url should return 200
+                "webhook": "https://slack.com/api/api.test",
+            },
+        )
+
+        sleep_func = mlrun.code_to_function(
+            name="test-sleep",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(sleep_func)
+        self.project.sync_functions(save=True)
+
+        run = self.project.run_function(
+            "test-sleep", local=False, params={"time_to_sleep": 10}
+        )
+        self._run_db.set_run_notifications(
+            self.project_name, run.metadata.uid, [notification]
+        )
+
+        run.wait_for_completion()
+
+        # the notifications are sent asynchronously, so we need to wait for them
+        mlrun.utils.retry_until_successful(
+            1,
+            40,
+            self._logger,
+            True,
+            _assert_notifications,
+        )
+
     @staticmethod
     def _create_notification(
         kind=None,

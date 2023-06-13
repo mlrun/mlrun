@@ -3773,13 +3773,12 @@ class SQLDB(DBInterface):
         identifier: mlrun.common.schemas.RunIdentifier,
         **kwargs,
     ):
-        run = self._get_run(session, identifier.uid, project, identifier.iter)
+        run = self._get_run(session, identifier.uid, project, None)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 "Could not find run",
                 project=project,
                 uid=identifier.uid,
-                iter=identifier.iter,
             )
 
         run.struct.setdefault("spec", {})["notifications"] = [

@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.4.0](#v1-4-0)
 - [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
@@ -17,6 +18,119 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
+
+## v1.4.0	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2030 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2380 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
+| ML-2968 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3202 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3312 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3315 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
+| ML-3420 | MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3549 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3551 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3605 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3621 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3631 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3647 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3652 | now inferred.  [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3703 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3705 |  **May also in docs dep on fix**[View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3713 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3731 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3733 | **breaking change** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3743 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3761 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3763 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3782 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3806 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3847 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3856 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3884 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3900 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+
+
+###  APIs
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3375 | Two new APIs in the MlrunProject object: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`. [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
+
+###  Documentation
+New sections describing:
+- 3589
+- 3763
+- 3375
+- 2030:  add to docs: To register artifact between difrrent environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
+- 3647
+- 3202
+- 3373
+- 3857 - need doc update, not RN. Multiple engines - each has its own run ID
+
+
+
+| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). |   
+
+
+### Deprecations
+**if it gets in: | ML-3547 | [View in Git](https://github.com/mlrun/mlrun/pull/). |**
+
+### Breaking changes
+
+- 3733
 
 ## v1.3.2	
 
@@ -558,7 +672,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-2489 | Cannot pickle a class inside an mlrun function. | Use cloudpickle instead of pickle | v1.2.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
-| ML-3420 | MLRun database doesn't raise an exception when the blob size is greater than 16,777,215 bytes | NA      | v1.2.1 |
 | ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
@@ -584,3 +697,4 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |------ | ---- | --------------------------------------------------------------------|
 | v1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 |     | See [Deprecated APIs](#api-130).|
+| v1.4.0|     | FeatureSet(relations) is replaced by JoinSpec. See **ref to docs**

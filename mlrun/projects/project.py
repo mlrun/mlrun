@@ -377,7 +377,7 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"loaded project {name} from MLRun DB")
+        logger.info(f"Loaded project {name} from MLRun DB")
         return project
 
     except mlrun.errors.MLRunNotFoundError:
@@ -395,7 +395,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url or context}"
+            message = f"Loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -411,7 +411,7 @@ def get_or_create_project(
                 subpath=subpath,
                 save=save,
             )
-            message = f"created project {name}"
+            message = f"Created project {name}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -1591,6 +1591,7 @@ class MlrunProject(ModelObj):
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
 
@@ -1627,7 +1628,8 @@ class MlrunProject(ModelObj):
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
         :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
-        :param requirements:    list of python packages or pip requirements file path
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
 
         :returns: project object
         """
@@ -1676,7 +1678,9 @@ class MlrunProject(ModelObj):
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
             if requirements:
-                function_object.with_requirements(requirements)
+                function_object.with_requirements(
+                    requirements, requirements_file=requirements_file
+                )
             if not name:
                 raise ValueError("function name must be specified")
         else:

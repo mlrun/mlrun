@@ -173,17 +173,18 @@ def validate_builder_source(
     if "://" not in source:
         if not path.isabs(source):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
                 "set 'source' to a remote URL to clone/copy the source to the base image, "
                 "or set 'pull_at_runtime' to True to pull the source at runtime."
             )
-    else:
-        logger.warn(
-            "Loading local source at build time requires the source to be on the base image, "
-            "in which case it is recommended to use 'workdir' instead",
-            source=source,
-            workdir=workdir,
-        )
+
+        else:
+            logger.warn(
+                "Loading local source at build time requires the source to be on the base image, "
+                "in which case it is recommended to use 'workdir' instead",
+                source=source,
+                workdir=workdir,
+            )
 
     if source.endswith(".zip"):
         logger.warn(
@@ -235,6 +236,23 @@ def tag_name_regex_as_string() -> str:
 
 def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
+
+
+def remove_image_protocol_prefix(image: str) -> str:
+    if not image:
+        return image
+
+    prefixes = ["https://", "https://"]
+    if any(prefix in image for prefix in prefixes):
+        image = image.removeprefix("https://").removeprefix("http://")
+        logger.warning(
+            "The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL where <image-name> is a placeholder). "
+            "Removing protocol prefix from image.",
+            image=image,
+        )
+    return image
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError

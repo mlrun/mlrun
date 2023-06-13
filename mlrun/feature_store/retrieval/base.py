@@ -76,11 +76,9 @@ class BaseMerger(abc.ABC):
         with_indexes=None,
         update_stats=None,
         query=None,
-        join_type="inner",
         order_by=None,
     ):
         self._target = target
-        self._join_type = join_type
 
         # calculate the index columns and columns we need to drop
         self._drop_columns = drop_columns or self._drop_columns
@@ -345,11 +343,6 @@ class BaseMerger(abc.ABC):
         for featureset, featureset_df, lr_key in zip(featuresets, featureset_dfs, keys):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
-                if self._join_type != "inner":
-                    logger.warn(
-                        "Merge all the features with as_of_join and don't "
-                        "take into account the join_type that was given"
-                    )
             else:
                 merge_func = self._join
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
 import pathlib
 import re
@@ -23,9 +24,9 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
-from mlrun.utils import logger
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -59,11 +60,16 @@ def pipe_test():
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
     custom_project_names_to_delete = []
+    _logger_redirected = False
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        if self._logger_redirected:
+            mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
+            self._logger_redirected = False
+
         self._logger.debug(
             "Deleting custom projects",
             num_projects_to_delete=len(self.custom_project_names_to_delete),
@@ -124,6 +130,36 @@ class TestProject(TestMLRunSystem):
         assert (
             self.project.get_function(func_name, sync=False).spec.build.commands
             == commands
+        )
+
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        # redirect logger to capture logs and check for warnings
+        self._logger_redirected = True
+        _stdout = io.StringIO()
+        mlrun.utils.logger.replace_handler_stream("default", _stdout)
+
+        # build function with image that has a protocol prefix
+        self.project.build_function(
+            fn,
+            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            base_image="mlrun/mlrun",
+            commands=["echo 1"],
+        )
+        out = _stdout.getvalue()
+        assert (
+            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL "
+            "where <image-name> is a placeholder). "
+            "Removing protocol prefix from image." in out
         )
 
     def test_run(self):
@@ -190,7 +226,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
 
         # run project, load source into container at runtime
         project2.spec.load_source_on_run = True
@@ -208,7 +244,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
         run = project2.run(
             "main",
@@ -245,7 +281,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
@@ -253,7 +289,7 @@ class TestProject(TestMLRunSystem):
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
-        print(project2.to_yaml())
+        self._logger.debug("saved project", project2=project2.to_yaml())
 
         # exec the workflow
         args = [
@@ -285,7 +321,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # exec the workflow
         args = [
@@ -429,7 +465,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        print(project.to_yaml())
+        self._logger.debug("set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -497,6 +533,15 @@ class TestProject(TestMLRunSystem):
                 local=True,
             )
 
+    def test_non_existent_run_id_in_pipeline(self):
+        project_name = "default"
+        db = mlrun.get_run_db()
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_pipeline(
+                "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
+            )
+
     def test_remote_from_archive(self):
         name = "pipe6"
         self.custom_project_names_to_delete.append(name)
@@ -505,7 +550,7 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
@@ -558,7 +603,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
         )
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
 
         # exec the workflow
         args = [
@@ -574,7 +619,7 @@ class TestProject(TestMLRunSystem):
             str(self.assets_path),
         ]
         out = exec_project(args)
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find("pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
@@ -599,11 +644,13 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
 
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )

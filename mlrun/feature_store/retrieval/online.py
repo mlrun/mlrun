@@ -69,6 +69,10 @@ def init_feature_vector_graph(vector, query_options, update_stats=False):
     feature_set_objects, feature_set_fields = vector.parse_features(
         offline=False, update_stats=update_stats
     )
+    if not feature_set_fields:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"No features found for feature vector '{vector.metadata.name}'"
+        )
     graph = _build_feature_vector_graph(
         vector, feature_set_fields, feature_set_objects, query_options
     )

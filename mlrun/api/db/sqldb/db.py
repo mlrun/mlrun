@@ -3787,5 +3787,11 @@ class SQLDB(DBInterface):
         ]
         self._upsert(session, [run], ignore=True)
 
-        self.delete_run_notifications(session, run.metadata.uid, project)
-        self.store_run_notifications(session, notifications, run.id, project)
+        self.delete_run_notifications(session, run_uid=run.uid, project=project)
+        if notifications:
+            self.store_run_notifications(
+                session,
+                notification_objects=notifications,
+                run_uid=run.uid,
+                project=project,
+            )

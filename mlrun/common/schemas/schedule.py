@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -139,4 +139,5 @@ class SchedulesOutput(BaseModel):
 
 
 class ScheduleIdentifier(BaseModel):
+    identifier_kind: Literal["schedule"] = "schedule"
     name: str

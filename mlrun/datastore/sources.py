@@ -1053,7 +1053,6 @@ class SQLSource(BaseSourceDriver):
                 start_time=start_time,
                 end_time=end_time,
             )
-
             with engine.connect() as con:
                 return pd.read_sql(
                     query,

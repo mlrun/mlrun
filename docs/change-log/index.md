@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.3](#v1-3-3)
 - [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
@@ -18,7 +19,15 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.3.2	
+## v1.3.3	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3940 | Runs that are in a terminal state no longer produce logs. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+
+## v1.3.2
 
 ### Closed issues
 

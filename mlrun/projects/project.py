@@ -2799,7 +2799,7 @@ def _set_as_current_default_project(project: MlrunProject):
 
 def _init_function_from_dict(
     f: dict,
-    project: mlrun.projects.MlrunProject,
+    project: MlrunProject,
     name: typing.Optional[str] = None,
 ) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     name = name or f.get("name", "")
@@ -2877,7 +2877,7 @@ def _init_function_from_dict(
 
 def _init_function_from_obj(
     func: mlrun.runtimes.BaseRuntime,
-    project: mlrun.projects.MlrunProject,
+    project: MlrunProject,
     name: typing.Optional[str] = None,
 ) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     build = func.spec.build

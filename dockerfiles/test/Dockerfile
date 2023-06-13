@@ -50,7 +50,8 @@ COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 COPY ./dev-requirements.txt ./
 COPY ./docs/requirements.txt ./docs-requirements.txt
 
-RUN pip install \
+# TODO: remove before merge and once igz-mgmt 0.0.6 is released
+RUN pip install --extra-index-url https://test.pypi.org/simple/ \
     -r requirements.txt \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt

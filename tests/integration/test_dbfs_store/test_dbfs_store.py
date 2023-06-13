@@ -32,6 +32,7 @@ with config_file_path.open() as fp:
 
 test_filename = here / "test.txt"
 test_parquet = here / "test_data.parquet"
+test_additional_parquet = here / "additional_data.parquet"
 test_csv = here / "test_data.csv"
 with open(test_filename, "r") as f:
     test_string = f.read()
@@ -122,6 +123,39 @@ class TestDBFSStore:
         upload_csv_data_item.upload(str(test_csv))
         response = upload_csv_data_item.as_df()
         assert source_csv.equals(response)
+
+        #  TODO take it out from this function
+        upload_parquet_file_path = (
+            f"{self._object_dir}{self.parquets_dir}/file_{str(uuid.uuid4())}.parquet"
+        )
+        upload_parquet_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_parquet_file_path
+        )
+        upload_parquet_data_item.upload(str(test_parquet))
+
+        upload_parquet_file_path = (
+            f"{self._object_dir}{self.parquets_dir}/file_{str(uuid.uuid4())}.parquet"
+        )
+        upload_parquet_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_parquet_file_path
+        )
+        upload_parquet_data_item.upload(str(test_additional_parquet))
+        parquets_dir_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + os.path.dirname(upload_parquet_file_path)
+        )
+        df = (
+            parquets_dir_data_item.as_df(format="parquet")
+            .sort_values("Name")
+            .reset_index(drop=True)
+        )
+        parquet_df = pd.read_parquet(test_parquet)
+        additional_parquet = pd.read_parquet(test_additional_parquet)
+        appended_df = (
+            pd.concat([parquet_df, additional_parquet], axis=0)
+            .sort_values("Name")
+            .reset_index(drop=True)
+        )
+        assert df.equals(appended_df)
 
     def test_secrets_as_input(self):
         self._perform_dbfs_tests(secrets=self.secrets)

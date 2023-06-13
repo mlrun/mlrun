@@ -257,6 +257,9 @@ class RunDBMock:
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
+        if hasattr(struct, "to_dict"):
+            struct = struct.to_dict()
+
         if project:
             struct["metadata"]["project"] = project
 

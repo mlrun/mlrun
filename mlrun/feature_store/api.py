@@ -248,14 +248,14 @@ def get_online_feature_service(
 
             Example with imputing::
 
-                with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                with get_online_feature_service(vector_uri, ['id'], impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
 
         2. as simple function, note that in that option you need to close the session.
 
             Example::
 
-                svc = get_online_feature_service(vector_uri)
+                svc = get_online_feature_service(vector_uri, ['id'])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -267,7 +267,7 @@ def get_online_feature_service(
 
             Example with imputing::
 
-                svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+                svc = get_online_feature_service(vector_uri, ['id'], impute_policy={"*": "$mean", "amount": 0))
                 try:
                     resp = svc.get([{"id": "C123487"}])
                 except Exception as e:
@@ -277,7 +277,7 @@ def get_online_feature_service(
 
     :param feature_vector:      feature vector uri or FeatureVector object. passing feature vector obj requires update
                                 permissions
-    :param entity_rows_keys:    name list of the feature_vector indexes,
+    :param entity_rows_keys:    list of the feature_vector indexes.
                                 the same indexes that needed for the get function.
     :param run_config:          function and/or run configuration for remote jobs/services
     :param impute_policy:       a dict with `impute_policy` per feature, the dict key is the feature name and the dict
@@ -288,6 +288,8 @@ def get_online_feature_service(
     :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by ingest
     :param update_stats:        update features statistics from the requested feature sets on the vector.
                                 Default: False.
+
+    :return:                    `OnlineVectorService`
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -305,7 +307,7 @@ def get_online_feature_service(
 
     merger = merger_engine(feature_vector, **engine_args)
 
-    return merger.init_feature_vector_graph(
+    return merger.init_online_vector_service(
         entity_rows_keys, fixed_window_type, update_stats=update_stats
     )
 

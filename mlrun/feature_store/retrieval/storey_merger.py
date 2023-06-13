@@ -61,13 +61,18 @@ class StoreyFeatureMerger(BaseMerger):
                 featureset.spec.entities.keys()
             )
             next = next.to(
+                "storey.Rename",
+                f"rename-{name}",
+                mapping={
+                    k: v for k, v in zip(node.data["left_keys"], entity_list) if k != v
+                },
+            ).to(
                 "storey.QueryByKey",
                 f"query-{name}",
                 features=column_names,
                 table=featureset.uri,
                 key_field=entity_list,
                 aliases=aliases,
-                input_aliases={k: v for k, v in zip(node.data['left_keys'], entity_list)},
                 fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
             )
         for name in start_states:
@@ -83,8 +88,8 @@ class StoreyFeatureMerger(BaseMerger):
             )
         return graph
 
-    def init_feature_vector_graph(
-        self, entity_rows_keys, query_options, update_stats=False
+    def init_online_vector_service(
+        self, entity_rows_keys, fixed_window_type, update_stats=False
     ):
         try:
             from storey import SyncEmitSource
@@ -102,7 +107,7 @@ class StoreyFeatureMerger(BaseMerger):
             entity_rows_keys_df,
             feature_set_fields,
             feature_set_objects,
-            query_options,
+            fixed_window_type,
         )
         graph.set_flow_source(SyncEmitSource())
         server = create_graph_server(graph=graph, parameters={})

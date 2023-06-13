@@ -27,6 +27,7 @@ from ..feature_vector import OfflineVectorResponse
 
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
+
     support_online = False
     support_offline = False
     engine = None
@@ -43,6 +44,7 @@ class BaseMerger(abc.ABC):
         self._target = None
         self._alias = dict()
         self._origin_alias = dict()
+        self._entity_rows_node_name = "__mlrun__$entity_rows$"
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -80,6 +82,21 @@ class BaseMerger(abc.ABC):
         join_type="inner",
         order_by=None,
     ):
+        """
+
+        :param entity_rows:
+        :param entity_timestamp_column:
+        :param target:
+        :param drop_columns:
+        :param start_time:
+        :param end_time:
+        :param with_indexes:
+        :param update_stats:
+        :param query:
+        :param join_type:
+        :param order_by:
+        :return:
+        """
         self._target = target
         self._join_type = join_type
 
@@ -110,7 +127,7 @@ class BaseMerger(abc.ABC):
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
 
-        return self._generate_vector(
+        return self._generate_offline_vector(
             entity_rows,
             entity_timestamp_column,
             feature_set_objects=feature_set_objects,
@@ -121,7 +138,7 @@ class BaseMerger(abc.ABC):
             order_by=order_by,
         )
 
-    def _write_to_target(self):
+    def _write_to_offline_target(self):
         self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
@@ -161,7 +178,7 @@ class BaseMerger(abc.ABC):
         else:
             df.reset_index(drop=True, inplace=True)
 
-    def _generate_vector(
+    def _generate_offline_vector(
         self,
         entity_rows,
         entity_timestamp_column,
@@ -183,22 +200,11 @@ class BaseMerger(abc.ABC):
         # and the right keys in index 1, this keys will be the keys that will be used in this join
 
         fs_link_list = self._create_linked_relation_list(
-            feature_set_objects, feature_set_fields, entity_rows
+            feature_set_objects, feature_set_fields
         )
 
         for node in fs_link_list:
             name = node.name
-            if name == "entity_rows" and entity_rows is not None:
-                # convert pandas entity_rows to spark DF if needed
-                if not hasattr(entity_rows, "rdd") and self.engine == "spark":
-                    entity_rows = self.spark.createDataFrame(entity_rows)
-                dfs.append(entity_rows)
-                keys.append(
-                    [node.data["left_keys"], node.data["right_keys"]]
-                )  # empty keys
-                feature_sets.append(None)
-                continue
-
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             columns = feature_set_fields[name]
@@ -260,8 +266,17 @@ class BaseMerger(abc.ABC):
                     new_columns.append((column, alias))
             self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
+        # convert pandas entity_rows to spark DF if needed
+        if (
+            entity_rows is not None
+            and not hasattr(entity_rows, "rdd")
+            and self.engine == "spark"
+        ):
+            entity_rows = self.spark.createDataFrame(entity_rows)
+
         # join the feature data frames
         self.merge(
+            entity_df=entity_rows,
             entity_timestamp_column=entity_timestamp_column,
             featuresets=feature_sets,
             featureset_dfs=dfs,
@@ -312,38 +327,57 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_target()
+        self._write_to_offline_target()
         return OfflineVectorResponse(self)
+
+    def init_online_vector_service(
+        self, entity_rows_keys, fixed_window_type, update_stats=False
+    ):
+        """
+        initialize the `OnlineVectorService`
+
+        :param entity_rows_keys:    list of the feature_vector indexes.
+        :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by ingest
+        :param update_stats:        update features statistics from the requested feature sets on the vector.
+                                    Default: False.
+
+        :return:                    `OnlineVectorService`
+        """
+        raise NotImplementedError
 
     def _unpersist_df(self, df):
         pass
 
     def merge(
         self,
+        entity_df,
         entity_timestamp_column: str,
         featuresets: list,
         featureset_dfs: list,
         keys: list = None,
     ):
         """join the entities and feature set features into a result dataframe"""
-        merged_df = featureset_dfs.pop(0)
-        featureset = featuresets.pop(0)
-        if keys is not None:
-            keys.pop(0)
-        else:
-            # keys can be multiple keys on each side of the join
-            keys = [[[], []]] * len(featureset_dfs)
-        if not entity_timestamp_column and featureset:
-            entity_timestamp_column = featureset.spec.timestamp_key
+        merged_df = entity_df
+        if entity_df is None and featureset_dfs:
+            merged_df = featureset_dfs.pop(0)
+            featureset = featuresets.pop(0)
+            if keys is not None:
+                keys.pop(0)
+            else:
+                # keys can be multiple keys on each side of the join
+                keys = [[[], []]] * len(featureset_dfs)
+            entity_timestamp_column = (
+                entity_timestamp_column or featureset.spec.timestamp_key
+            )
+        elif entity_df is not None and featureset_dfs:
+            # when `entity_rows` passed to `get_offline_features`
+            # keys[0] mention the way that `entity_rows`  joins to the first `featureset`
+            # and it can join only by the entities of the first `featureset`
+            keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
         for featureset, featureset_df, lr_key in zip(featuresets, featureset_dfs, keys):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
-                if self._join_type != "inner":
-                    logger.warn(
-                        "Merge all the features with as_of_join and don't "
-                        "take into account the join_type that was given"
-                    )
             else:
                 merge_func = self._join
 
@@ -504,12 +538,11 @@ class BaseMerger(abc.ABC):
                         self.add_last(other_node)
                     node = other_node
 
-    @staticmethod
     def _create_linked_relation_list(
-        feature_set_objects, feature_set_fields, entity_rows=None
+        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
     ):
         feature_set_names = list(feature_set_fields.keys())
-        if len(feature_set_names) == 1 and not entity_rows:
+        if len(feature_set_names) == 1 and not entity_rows_keys:
             return BaseMerger._LinkedList(
                 head=BaseMerger._Node(
                     name=feature_set_names[0],
@@ -609,14 +642,13 @@ class BaseMerger(abc.ABC):
             return linked_list_relation
 
         def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-            feature_set_in_entity_list = feature_set_entity_list_dict[fs_name]
-            feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
+            feature_set_entity_list = feature_set_entity_list_dict[fs_name]
+            feature_set_entity_list_names = list(feature_set_entity_list.keys())
 
-            if all(
-                [ent in entity_rows.columns for ent in feature_set_in_entity_list_names]
-            ):
-                # add to the link list feature set according to indexes match
-                keys = feature_set_in_entity_list_names
+            if all([ent in entity_rows_keys for ent in feature_set_entity_list_names]):
+                # add to the link list feature set according to indexes match,
+                # only if all entities in the feature set exist in
+                keys = feature_set_entity_list_names
                 entity_rows_relation.add_last(
                     BaseMerger._Node(
                         fs_name,
@@ -631,8 +663,10 @@ class BaseMerger(abc.ABC):
                 )
                 entity_rows_relation.head.data["save_index"] = keys
 
-        if entity_rows is not None:
-            entity_rows_linked_relation = _create_relation("entity_rows", -1)
+        if entity_rows_keys:
+            entity_rows_linked_relation = _create_relation(
+                self._entity_rows_node_name, -1
+            )
             relation_linked_lists.append(entity_rows_linked_relation)
             linked_list_len_goal = len(feature_set_objects) + 1
         else:

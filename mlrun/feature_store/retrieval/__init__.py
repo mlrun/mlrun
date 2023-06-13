@@ -16,8 +16,8 @@ import mlrun.errors
 from .dask_merger import DaskFeatureMerger
 from .job import run_merge_job  # noqa
 from .local_merger import LocalFeatureMerger
-from .online import StoreyFeatureMerger
 from .spark_merger import SparkFeatureMerger
+from .storey_merger import StoreyFeatureMerger
 
 mergers = {
     "local": LocalFeatureMerger,

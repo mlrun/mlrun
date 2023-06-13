@@ -33,12 +33,15 @@ def run_merge_job(
     engine_args: dict,
     spark_service: str = None,
     entity_rows=None,
-    timestamp_column=None,
+    entity_timestamp_column=None,
     run_config=None,
     drop_columns=None,
     with_indexes=None,
     query=None,
     order_by=None,
+    start_time=None,
+    end_time=None,
+    timestamp_for_filtering=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -92,17 +95,24 @@ def run_merge_job(
         set_default_resources(
             function.spec.executor_resources, function.with_executor_requests
         )
+    if start_time and not isinstance(start_time, str):
+        start_time = start_time.isoformat()
+    if end_time and not isinstance(end_time, str):
+        end_time = end_time.isoformat()
 
     task = new_task(
         name=name,
         params={
             "vector_uri": vector.uri,
             "target": target.to_dict(),
-            "timestamp_column": timestamp_column,
+            "entity_timestamp_column": entity_timestamp_column,
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
             "order_by": order_by,
+            "start_time": start_time,
+            "end_time": end_time,
+            "timestamp_for_filtering": timestamp_for_filtering,
             "engine_args": engine_args,
         },
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
@@ -172,18 +182,18 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, 
-                  engine_args=None, order_by=None):
+                  entity_timestamp_column=None, drop_columns=None, with_indexes=None, query=None,
+                  engine_args=None, order_by=None, start_time=None, end_time=None, timestamp_for_filtering=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
-    entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
     if entity_rows:
         entity_rows = entity_rows.as_df()
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
-                 query=query, order_by=order_by)
+                 query=query, order_by=order_by, start_time=start_time, end_time=end_time,
+                 timestamp_for_filtering=timestamp_for_filtering)
 
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)

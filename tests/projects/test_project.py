@@ -280,7 +280,7 @@ def test_build_project_from_minimal_dict():
             "",
             True,
             "Unsupported url scheme, supported schemes are: git://, db:// or "
-            ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB"
+            ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB",
         ),
     ],
 )

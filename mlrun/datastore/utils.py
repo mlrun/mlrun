@@ -160,16 +160,9 @@ def _generate_sql_query_with_time_filter(
             parse_dates.append(time_column)
         else:
             parse_dates = [time_column]
-        if start_time and end_time:
-            query = query.where(
-                sqlalchemy.and_(
-                    getattr(table.c, time_column) > start_time,
-                    getattr(table.c, time_column) <= end_time,
-                )
-            )
-        elif start_time:
-            query = query.where(getattr(table.c, time_column) > start_time)
-        elif end_time:
-            query = query.where(getattr(table.c, time_column) <= end_time)
+        if start_time:
+            query = query.filter(getattr(table.c, time_column) > start_time)
+        if end_time:
+            query = query.filter(getattr(table.c, time_column) <= end_time)
 
     return query, parse_dates

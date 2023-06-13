@@ -67,7 +67,9 @@ class DataStore:
     @staticmethod
     def get_parsed_url(url):
         parsed_url = urllib.parse.urlparse(url)
-        return f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""
+        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        return f"{scheme}{netloc}{parsed_url.path}"
 
     @staticmethod
     def uri_to_kfp(endpoint, subpath):

@@ -175,7 +175,6 @@ def test_as_df(auth_method):
     storage_options = verify_auth_parameters_and_configure_env(auth_method)
     blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
     blob_url = blob_path + "/" + blob_dir + "/" + blob_file.replace("txt", "csv")
-    print(f"\nBlob URL: {blob_url}")
 
     upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
     upload_data_item.upload(test_csv_filename)

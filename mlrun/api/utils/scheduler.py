@@ -349,20 +349,21 @@ class Scheduler:
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def set_schedule_notifications(
         self,
-        db_session: Session,
+        session: Session,
         project: str,
-        name: str,
+        identifier: mlrun.common.schemas.ScheduleIdentifier,
         notifications: List[mlrun.model.Notification],
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
+        name = identifier.name
         logger.debug("Setting schedule notifications", project=project, name=name)
-        db_schedule = get_db().get_schedule(db_session, project, name)
+        db_schedule = get_db().get_schedule(session, project, name)
         scheduled_object = db_schedule.scheduled_object
         if scheduled_object:
             scheduled_object.get("task", {}).get("spec", {})["notifications"] = [
                 notification.to_dict() for notification in notifications
             ]
-        self.update_schedule(db_session, auth_info, project, name, scheduled_object)
+        self.update_schedule(session, auth_info, project, name, scheduled_object)
 
     def _ensure_auth_info_has_access_key(
         self,

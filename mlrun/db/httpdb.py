@@ -3039,17 +3039,17 @@ class HTTPRunDB(RunDBInterface):
     def set_run_notifications(
         self,
         project: str,
-        run: Union[mlrun.model.RunObject, dict],
-        notifications: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        iteration: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
-        if isinstance(run, dict):
-            run = mlrun.model.RunObject.from_dict(run)
+        notifications = notifications or []
 
         parent = mlrun.common.schemas.NotificationParent(
             kind="run",
             identifier=mlrun.common.schemas.RunIdentifier(
-                uid=run.metadata.uid,
-                iter=run.metadata.iteration,
+                uid=run_uid,
+                iter=iteration,
             ),
         )
         self.set_object_notifications(project, notifications, parent)

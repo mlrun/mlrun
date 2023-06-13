@@ -183,7 +183,7 @@ class Client(
         Schedules are running only on chief
         """
         return await self._proxy_request_to_chief(
-            "PUT", f"/project/{project}/notifications", request, json
+            "PUT", f"projects/{project}/notifications", request, json
         )
 
     async def _proxy_request_to_chief(

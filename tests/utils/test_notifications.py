@@ -353,9 +353,7 @@ def test_inverse_dependencies(
     )
 
     custom_notification_pusher.push("test-message", "info", [])
-    import time
 
-    time.sleep(3)
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
 

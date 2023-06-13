@@ -257,11 +257,13 @@ class RunDBMock:
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._runs[uid] = {
-            "struct": struct,
-            "project": project,
-            "iter": iter,
-        }
+        if project:
+            struct["metadata"]["project"] = project
+
+        if iter:
+            struct["status"]["iteration"] = iter
+
+        self._runs[uid] = struct
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
@@ -342,7 +344,7 @@ class RunDBMock:
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
-            update_in(self._runs[uid]["struct"], key, value)
+            update_in(self._runs[uid], key, value)
 
     def assert_no_mount_or_creds_configured(self, function_name=None):
         function = self._get_function_internal(function_name)

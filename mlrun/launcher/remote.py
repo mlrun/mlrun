@@ -115,6 +115,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
         watch: Optional[bool] = None,
     ):
+        logger.info("innnnn submit_job!!")
         if runtime._secrets:
             run.spec.secret_sources = runtime._secrets.to_serial()
         try:
@@ -162,7 +163,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             logs_interval = int(
                 mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval
             )
-
+            logger.info("innnn if watch, going to wait")
             run.wait_for_completion(
                 show_logs=True,
                 sleep=state_interval,

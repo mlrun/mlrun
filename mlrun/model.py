@@ -1337,11 +1337,13 @@ class RunObject(RunTemplate):
         last_pull_log_time = None
         logs_enabled = show_logs is not False
         state = self.state()
+        logger.info(f"stateeeee: {state}")
         if state not in mlrun.runtimes.constants.RunStates.terminal_states():
             logger.info(
                 f"run {self.metadata.name} is not completed yet, waiting for it to complete",
                 current_state=state,
             )
+        logger.info("innnnnn before loop")
         while True:
             state = self.state()
             if (
@@ -1357,6 +1359,7 @@ class RunObject(RunTemplate):
                 state, offset = self.logs(watch=False, offset=offset)
 
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                logger.info(f"hopaaaaaa: {state}")
                 if logs_enabled and logs_interval:
                     self.logs(watch=False, offset=offset)
                 break
@@ -1368,7 +1371,7 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-
+        logger.info(f"raise on failureeeee: {raise_on_failure}, {state}")
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"

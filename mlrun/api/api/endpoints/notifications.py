@@ -26,7 +26,7 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-router = fastapi.APIRouter(prefix="/project/{project}/notifications")
+router = fastapi.APIRouter(prefix="/projects/{project}/notifications")
 
 
 CHIEF_REDIRECTED_NOTIFICATIONS = [

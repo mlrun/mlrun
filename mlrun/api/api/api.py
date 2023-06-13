@@ -32,6 +32,7 @@ from mlrun.api.api.endpoints import (
     internal,
     logs,
     model_endpoints,
+    notifications,
     operations,
     pipelines,
     projects,
@@ -137,6 +138,11 @@ api_router.include_router(
 api_router.include_router(
     tags.router,
     tags=["tags"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    notifications.router,
+    tags=["notifications"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
 

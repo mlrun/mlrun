@@ -554,6 +554,7 @@ class ProjectSpec(ModelObj):
         workdir=None,
         default_image=None,
         build=None,
+        custom_packagers: typing.List[typing.Tuple[str, bool]] = None,
     ):
         self.repo = None
 
@@ -588,6 +589,11 @@ class ProjectSpec(ModelObj):
         self.default_image = default_image
 
         self.build = build
+
+        # A list of custom packagers to include when running the functions of the project. A custom packager is stored
+        # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
+        # whether it is mandatory for a run (raise exception on collection error) or not.
+        self.custom_packagers = custom_packagers or []
 
     @property
     def source(self) -> str:
@@ -753,6 +759,54 @@ class ProjectSpec(ModelObj):
         if key in self._artifacts:
             del self._artifacts[key]
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        # TODO: enable importing packagers from the hub.
+        if packager in [
+            custom_packager[0] for custom_packager in self.custom_packagers
+        ]:
+            logger.warn(
+                f"The packager's module path '{packager}' is already registered in the project."
+            )
+            return
+        self.custom_packagers.append((packager, is_mandatory))
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        # Look for the packager tuple in the list to remove it:
+        packager_tuple: typing.Tuple[str, bool] = None
+        for custom_packager in self.custom_packagers:
+            if custom_packager[0] == packager:
+                packager_tuple = custom_packager
+
+        # If not found, raise an error, otherwise remove:
+        if packager_tuple is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The packager module path '{packager}' is not registered in the project, hence it cannot be removed."
+            )
+        self.custom_packagers.remove(packager_tuple)
+
     def _source_repo(self):
         src = self.source
         if src:
@@ -764,14 +818,6 @@ class ProjectSpec(ModelObj):
             if f.spec.build.source in [".", "./"]:
                 return True
         return False
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, "build", ImageBuilder)
 
     def get_code_path(self):
         """Get the path to the code root/workdir"""
@@ -2802,6 +2848,42 @@ class MlrunProject(ModelObj):
             last_update_time_to=last_update_time_to,
             **kwargs,
         )
+
+    def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:
+        """
+        Get the custom packagers registered in the project.
+
+        :return: A list of the custom packagers module paths.
+        """
+        # Return a copy so the user won't be able to edit the list by the reference returned (no need for deep copy as
+        # tuples do not support item assignment):
+        return self.spec.custom_packagers.copy()
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list. All project's custom packagers are added to each project
+        function.
+
+        **Notice** that in order to run a function with the custom packagers included, you must set a source for the
+        project (using the `project.set_source` method) with the parameter `pull_at_runtime=True` so the source code of
+        the packagers will be able to be imported.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        self.spec.add_custom_packager(packager=packager, is_mandatory=is_mandatory)
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        self.spec.remove_custom_packager(packager=packager)
 
 
 def _set_as_current_default_project(project: MlrunProject):

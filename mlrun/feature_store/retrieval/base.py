@@ -126,7 +126,6 @@ class BaseMerger(abc.ABC):
         start_time = str_to_timestamp(start_time)
         end_time = str_to_timestamp(end_time)
 
-        return self._generate_vector(
         return self._generate_offline_vector(
             entity_rows,
             entity_timestamp_column,

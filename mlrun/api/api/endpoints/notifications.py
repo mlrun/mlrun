@@ -59,7 +59,7 @@ async def set_object_notifications(
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         getattr(
             mlrun.common.schemas.AuthorizationResourceTypes,
-            set_notifications_request.parent.identifier.kind,
+            set_notifications_request.parent.kind,
         ),
         project,
         resource_name="notifications",
@@ -68,8 +68,7 @@ async def set_object_notifications(
     )
 
     if (
-        set_notifications_request.parent.identifier.kind
-        in CHIEF_REDIRECTED_NOTIFICATIONS
+        set_notifications_request.parent.kind in CHIEF_REDIRECTED_NOTIFICATIONS
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):

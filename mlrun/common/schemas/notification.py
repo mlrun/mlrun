@@ -56,14 +56,10 @@ class Notification(pydantic.BaseModel):
     sent_time: typing.Union[str, datetime.datetime] = None
 
 
-class NotificationParent(pydantic.BaseModel):
-
-    # TODO: Add more types to the list for new supported notifications
-    identifier: typing.Union[RunIdentifier, ScheduleIdentifier] = pydantic.Field(
-        ..., discriminator="kind"
-    )
-
-
 class SetNotificationRequest(pydantic.BaseModel):
     notifications: typing.List[Notification] = None
-    parent: NotificationParent = None
+
+    # TODO: Add more types to the list for new supported notifications
+    parent: typing.Union[RunIdentifier, ScheduleIdentifier] = pydantic.Field(
+        ..., discriminator="kind"
+    )

@@ -3019,9 +3019,16 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         notifications: typing.List[mlrun.model.Notification],
-        parent: Union[mlrun.common.schemas.NotificationParent, dict],
+        parent: Union[
+            mlrun.common.schemas.RunIdentifier,
+            mlrun.common.schemas.ScheduleIdentifier,
+            dict,
+        ],
     ):
-        if isinstance(parent, mlrun.common.schemas.NotificationParent):
+        if type(parent) in [
+            mlrun.common.schemas.RunIdentifier,
+            mlrun.common.schemas.ScheduleIdentifier,
+        ]:
             parent = parent.dict()
 
         self.api_call(
@@ -3044,10 +3051,8 @@ class HTTPRunDB(RunDBInterface):
     ):
         notifications = notifications or []
 
-        parent = mlrun.common.schemas.NotificationParent(
-            identifier=mlrun.common.schemas.RunIdentifier(
-                uid=run_uid,
-            ),
+        parent = mlrun.common.schemas.RunIdentifier(
+            uid=run_uid,
         )
         self.set_object_notifications(project, notifications, parent)
 
@@ -3058,10 +3063,8 @@ class HTTPRunDB(RunDBInterface):
         notifications: typing.List[mlrun.model.Notification],
     ):
 
-        parent = mlrun.common.schemas.NotificationParent(
-            identifier=mlrun.common.schemas.ScheduleIdentifier(
-                name=schedule_name,
-            ),
+        parent = mlrun.common.schemas.ScheduleIdentifier(
+            name=schedule_name,
         )
         self.set_object_notifications(project, notifications, parent)
 

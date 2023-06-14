@@ -942,7 +942,6 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     if not handler and hasattr(mod, "pipeline"):
         handler = "pipeline"
     if not handler or not hasattr(mod, handler):
-        raise ValueError(f"pipeline function ({handler or 'pipeline'}) not found")
         raise ValueError(
             f"'workflow_handler' is not defined. "
             f"Either provide it as set_workflow argument, or include a function named"

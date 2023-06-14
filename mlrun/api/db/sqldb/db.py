@@ -3784,17 +3784,20 @@ class SQLDB(DBInterface):
         run = self._get_run(session, identifier.uid, project, None)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
-                "Could not find run",
-                project=project,
-                uid=identifier.uid,
+                f"Run not found: project={project}, uid={identifier.uid}"
             )
 
         run.struct.setdefault("spec", {})["notifications"] = [
             notification.to_dict() for notification in notifications
         ]
-        self._upsert(session, [run], ignore=True)
 
-        self.delete_run_notifications(session, run_uid=run.uid, project=project)
+        # update run, delete and store notifications all in one transaction.
+        # using session.add instead of upsert, so we don't commit the run.
+        # the commit will happen at the end (in store_run_notifications, or manually at the end).
+        session.add(run)
+        self.delete_run_notifications(
+            session, run_uid=run.uid, project=project, commit=False
+        )
         if notifications:
             self.store_run_notifications(
                 session,
@@ -3802,3 +3805,4 @@ class SQLDB(DBInterface):
                 run_uid=run.uid,
                 project=project,
             )
+        self._commit(session, [run], ignore=True)

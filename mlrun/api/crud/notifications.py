@@ -24,19 +24,6 @@ import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 import mlrun.utils.singleton
 
-set_notification_methods = {
-    "run": {
-        "factory": mlrun.api.utils.singletons.db.get_db,
-        "method_name": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
-        "identifier_key": "uid",
-    },
-    "schedule": {
-        "factory": mlrun.api.utils.singletons.scheduler.get_scheduler,
-        "method_name": mlrun.api.utils.scheduler.Scheduler.set_schedule_notifications.__name__,
-        "identifier_key": "name",
-    },
-}
-
 
 class Notifications(
     metaclass=mlrun.utils.singleton.Singleton,
@@ -113,6 +100,19 @@ class Notifications(
         :param notifications: List of notifications to set
         :param notification_parent: Identifier of the object on which to set the notifications
         """
+        set_notification_methods = {
+            "run": {
+                "factory": mlrun.api.utils.singletons.db.get_db,
+                "method_name": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
+                "identifier_key": "uid",
+            },
+            "schedule": {
+                "factory": mlrun.api.utils.singletons.scheduler.get_scheduler,
+                "method_name": mlrun.api.utils.scheduler.Scheduler.set_schedule_notifications.__name__,
+                "identifier_key": "name",
+            },
+        }
+
         set_notification_method = set_notification_methods.get(
             notification_parent.kind, {}
         )

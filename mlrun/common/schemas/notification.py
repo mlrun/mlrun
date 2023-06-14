@@ -19,9 +19,6 @@ import pydantic
 
 import mlrun.common.types
 
-from .runs import RunIdentifier
-from .schedule import ScheduleIdentifier
-
 
 class NotificationKind(mlrun.common.types.StrEnum):
     console = "console"

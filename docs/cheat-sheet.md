@@ -784,7 +784,7 @@ fstore.ingest(
 
 #### Aggregations
 
-Docs: [add_aggregation()](./api/mlrun.feature_store.html#mlrun.feature_store.FeatureSet.add_aggregation)
+Docs: [add_aggregation()](./api/mlrun.feature_store.html#mlrun.feature_store.FeatureSet.add_aggregation), [Aggregations](./feature-store/transformations.html#aggregations)
 
 ```python
 quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])

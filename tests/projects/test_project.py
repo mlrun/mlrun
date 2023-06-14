@@ -515,54 +515,61 @@ def test_set_func_with_tag():
 
 def test_set_function_with_tagged_key():
     project = mlrun.new_project("set-func-tagged-key", save=False)
-    tag = "v1"
-    my_func = mlrun.code_to_function(
+    # create 2 functions with different tags
+    tag_v1 = "v1"
+    tag_v2 = "v2"
+    my_func_v1 = mlrun.code_to_function(
         filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         kind="job",
-        tag=tag,
+        tag=tag_v1,
     )
+    my_func_v2 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="my_func",
+        tag=tag_v2,
+    )
+
+    # set the functions
     # function key is <function name>:<tag>
     project.set_function(
-        my_func,
-        tag=tag,
+        my_func_v1,
+        tag=tag_v1,
     )
     # function key is <function name>
     project.set_function(
-        my_func,
+        my_func_v1,
     )
     # function key is "my_func"
     project.set_function(
-        my_func,
-        name="my_func",
+        my_func_v2,
+        name=my_func_v2.metadata.name,
     )
-    # function key is "my_func:v2" (tag should remain "v1")
-    project.set_function(
-        my_func,
-        name="my_func:v2",
-    )
+    # function key is "my_func:v2"
+    project.set_function(my_func_v2, name=f"{my_func_v2.metadata.name}:{tag_v2}")
 
     assert len(project.spec._function_objects) == 4
 
-    func = project.get_function(f"{my_func.metadata.name}:{tag}")
-    assert func.metadata.tag == tag
+    func = project.get_function(f"{my_func_v1.metadata.name}:{tag_v1}")
+    assert func.metadata.tag == tag_v1
 
-    func = project.get_function(my_func.metadata.name, tag=tag)
-    assert func.metadata.tag == tag
+    func = project.get_function(my_func_v1.metadata.name, tag=tag_v1)
+    assert func.metadata.tag == tag_v1
 
-    func = project.get_function(my_func.metadata.name)
-    assert func.metadata.tag == tag
+    func = project.get_function(my_func_v1.metadata.name)
+    assert func.metadata.tag == tag_v1
 
-    func = project.get_function("my_func")
-    assert func.metadata.tag == tag
+    func = project.get_function(my_func_v2.metadata.name)
+    assert func.metadata.tag == tag_v2
 
-    func = project.get_function("my_func:v2")
-    assert func.metadata.tag == tag
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}")
+    assert func.metadata.tag == tag_v2
 
-    func = project.get_function("my_func", tag="v2")
-    assert func.metadata.tag == tag
+    func = project.get_function(my_func_v2.metadata.name, tag=tag_v2)
+    assert func.metadata.tag == tag_v2
 
-    func = project.get_function("my_func:v2", tag="v2")
-    assert func.metadata.tag == tag
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}", tag=tag_v2)
+    assert func.metadata.tag == tag_v2
 
 
 def test_set_function_with_relative_path(context):

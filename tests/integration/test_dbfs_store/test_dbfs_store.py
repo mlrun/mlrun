@@ -135,6 +135,15 @@ class TestDBFSStore:
         response = upload_csv_data_item.as_df()
         assert source_csv.equals(response)
 
+        source_json = pd.read_json(json_path)
+        upload_json_file_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.json"
+        upload_json_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_json_file_path
+        )
+        upload_json_data_item.upload(str(json_path))
+        response = upload_json_data_item.as_df()
+        assert source_json.equals(response)
+
     @pytest.mark.parametrize(
         "directory, file_format, file_extension, files_paths, reader",
         [

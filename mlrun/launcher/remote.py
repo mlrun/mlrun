@@ -147,6 +147,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             txt = mlrun.runtimes.utils.helpers.get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        logger.info(f"before watchhhhhh###: {watch}, {runtime.kfp}, {mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode}")
         # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
         # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
         # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as

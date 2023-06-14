@@ -31,6 +31,8 @@ from mlrun.utils import StorePrefix, is_ipython, logger
 
 from .store_resources import is_store_uri, parse_store_uri
 
+from .utils import filter_df_start_end_time, select_columns_from_df
+
 verify_ssl = False
 if not verify_ssl:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -154,9 +156,20 @@ class DataStore:
         df_module = df_module or pd
         parsed_url = urllib.parse.urlparse(url)
         filepath = parsed_url.path
+        is_csv, is_json, drop_time_column = False, False, False
         if filepath.endswith(".csv") or format == "csv":
+            is_csv = True
+            drop_time_column = False
             if columns:
+                if (
+                    time_column
+                    and (start_time or end_time)
+                    and time_column not in columns
+                ):
+                    columns.append(time_column)
+                    drop_time_column = True
                 kwargs["usecols"] = columns
+
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
@@ -219,6 +232,7 @@ class DataStore:
                 return df_module.read_parquet(*args, **kwargs)
 
         elif filepath.endswith(".json") or format == "json":
+            is_json = True
             reader = df_module.read_json
 
         else:
@@ -230,7 +244,7 @@ class DataStore:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
-                return reader(url, **kwargs)
+                df = reader(url, **kwargs)
             else:
 
                 file = url
@@ -240,12 +254,26 @@ class DataStore:
                     # support the storage_options parameter.
                     file = file_system.open(url)
 
-                return reader(file, **kwargs)
+                df = reader(file, **kwargs)
+        else:
+            temp_file = tempfile.NamedTemporaryFile(delete=False)
+            self.download(self._join(subpath), temp_file.name)
+            df = reader(temp_file.name, **kwargs)
+            remove(temp_file.name)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        self.download(self._join(subpath), temp_file.name)
-        df = reader(temp_file.name, **kwargs)
-        remove(temp_file.name)
+        if is_json or is_csv:
+            # for parquet file the time filtering is executed in `reader`
+            df = filter_df_start_end_time(
+                df,
+                time_column=time_column,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            if drop_time_column:
+                df.drop(columns=[time_column], inplace=True)
+        if is_json:
+            # for csv and parquet files the columns select is executed in `reader`.
+            df = select_columns_from_df(df, columns=columns)
         return df
 
     def to_dict(self):
@@ -421,22 +449,33 @@ class DataItem:
         columns=None,
         df_module=None,
         format="",
+        time_column=None,
+        start_time=None,
+        end_time=None,
         **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
-        :param columns:   optional, list of columns to select
-        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
-        :param format:    file format, if not specified it will be deducted from the suffix
+        :param columns:     optional, list of columns to select
+        :param df_module:   optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
+        :param format:      file format, if not specified it will be deducted from the suffix
+        :param start_time:  filters out data before this time
+        :param end_time:    filters out data after this time
+        :param time_column: Store timestamp_key will be used if None.
+                            The results will be filtered by this column and start_time & end_time.
         """
-        return self._store.as_df(
+        df = self._store.as_df(
             self._url,
             self._path,
             columns=columns,
             df_module=df_module,
             format=format,
+            time_column=time_column,
+            start_time=start_time,
+            end_time=end_time,
             **kwargs,
         )
+        return df
 
     def show(self, format=None):
         """show the data object content in Jupyter

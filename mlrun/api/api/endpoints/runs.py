@@ -287,9 +287,9 @@ async def delete_runs(
 
 @router.put(
     "/projects/{project}/runs/{uid}/notifications",
-    status_code=HTTPStatus.ACCEPTED.value,
+    status_code=HTTPStatus.OK.value,
 )
-async def set_object_notifications(
+async def set_run_notifications(
     project: str,
     uid: str,
     set_notifications_request: mlrun.common.schemas.SetNotificationRequest = Body(...),
@@ -322,4 +322,4 @@ async def set_object_notifications(
         set_notifications_request.notifications,
         mlrun.common.schemas.RunIdentifier(uid=uid),
     )
-    return Response(status_code=HTTPStatus.ACCEPTED.value)
+    return Response(status_code=HTTPStatus.OK.value)

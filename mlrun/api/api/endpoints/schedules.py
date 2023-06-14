@@ -308,8 +308,8 @@ async def delete_schedules(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.put("/{name}/notifications", status_code=HTTPStatus.ACCEPTED.value)
-async def set_object_notifications(
+@router.put("/{name}/notifications", status_code=HTTPStatus.OK.value)
+async def set_schedule_notifications(
     project: str,
     name: str,
     request: fastapi.Request,
@@ -362,4 +362,4 @@ async def set_object_notifications(
         set_notifications_request.notifications,
         mlrun.common.schemas.ScheduleIdentifier(name=name),
     )
-    return fastapi.Response(status_code=HTTPStatus.ACCEPTED.value)
+    return fastapi.Response(status_code=HTTPStatus.OK.value)

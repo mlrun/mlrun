@@ -120,21 +120,32 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             _assert_notification_was_sent,
         )
 
-    # TODO: currently the test checks setting notifications on the schedule but it doesn't check that the notification
-    #  has been sent. We need to configure the system test mlrun system config to allow schedules to run more frequently
-    #  than once per 10 minutes, and then we can check that the notification has been sent.
     def test_set_schedule_notifications(self):
 
         notification_name = "slack-notification"
         schedule_name = "test-sleep"
 
         def _assert_notification_in_schedule():
-            schedule_spec = self._run_db.get_schedule(
-                self.project_name, schedule_name
-            ).scheduled_object["task"]["spec"]
+            schedule = self._run_db.get_schedule(
+                self.project_name, schedule_name, include_last_run=True
+            )
+            schedule_spec = schedule.scheduled_object["task"]["spec"]
+            last_run = schedule.last_run
             assert "notifications" in schedule_spec
             assert len(schedule_spec["notifications"]) == 1
             assert schedule_spec["notifications"][0]["name"] == notification_name
+
+            runs = self._run_db.list_runs(
+                uid=last_run["metadata"]["uid"],
+                project=self.project_name,
+                with_notifications=True,
+            )
+            assert len(runs) == 1
+            assert len(runs[0]["status"]["notifications"]) == 1
+            assert (
+                runs[0]["status"]["notifications"][notification_name]["status"]
+                == "sent"
+            )
 
         self._create_sleep_func_in_project()
 
@@ -150,8 +161,8 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         self.project.run_function(
             "test-sleep",
             local=False,
-            params={"time_to_sleep": 10},
-            schedule="*/10 * * * *",
+            params={"time_to_sleep": 1},
+            schedule="* * * * *",
         )
         self._run_db.set_schedule_notifications(
             self.project_name, schedule_name, [notification]
@@ -159,7 +170,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
 
         mlrun.utils.retry_until_successful(
             1,
-            40,
+            2 * 60,  # 2 schedule cycles, so at least one should run
             self._logger,
             True,
             _assert_notification_in_schedule,

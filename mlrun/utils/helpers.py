@@ -98,7 +98,10 @@ def get_artifact_target(item: dict, project=None):
 
     kind = item.get("kind")
     if kind in ["dataset", "model", "artifact"] and db_key:
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+        if tree:
+            target = f"{target}:{tree}"
+        return target
 
     return (
         item.get("target_path")

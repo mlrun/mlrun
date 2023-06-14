@@ -95,7 +95,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
 
         notification = self._create_notification(
             name=notification_name,
-            message="should-fail",
+            message="should-succeed",
             params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",
@@ -140,7 +140,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
 
         notification = self._create_notification(
             name=notification_name,
-            message="should-fail",
+            message="should-succeed",
             params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",

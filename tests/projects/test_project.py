@@ -531,20 +531,12 @@ def test_set_function_with_tagged_key():
     )
 
     # set the functions
-    # function key is <function name>:<tag>
-    project.set_function(
-        my_func_v1,
-        tag=tag_v1,
-    )
-    # function key is <function name>
-    project.set_function(
-        my_func_v1,
-    )
+    # function key is <function name> ("handler")
+    project.set_function(my_func_v1)
+    # function key is <function name>:<tag> ("handler:v1")
+    project.set_function(my_func_v1, tag=tag_v1)
     # function key is "my_func"
-    project.set_function(
-        my_func_v2,
-        name=my_func_v2.metadata.name,
-    )
+    project.set_function(my_func_v2, name=my_func_v2.metadata.name)
     # function key is "my_func:v2"
     project.set_function(my_func_v2, name=f"{my_func_v2.metadata.name}:{tag_v2}")
 

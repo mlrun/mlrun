@@ -92,7 +92,7 @@ class StoreyFeatureMerger(BaseMerger):
             )
         next = next.to(
             "storey.Rename",
-            f"rename-{name}",
+            f"rename-entity-to-features",
             mapping=end_aliases,
         )
         for name in start_states:

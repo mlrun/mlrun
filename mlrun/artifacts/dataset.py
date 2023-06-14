@@ -44,6 +44,12 @@ class TableArtifactSpec(ArtifactSpec):
         self.header = None
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.4.0",
+    reason="'TableArtifact' will be removed in 1.6.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class TableArtifact(Artifact):
     kind = "table"
 

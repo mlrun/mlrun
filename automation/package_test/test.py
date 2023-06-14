@@ -279,8 +279,7 @@ class PackageTester:
         )
 
         self._run_command(
-            # TODO: remove before merge and once igz-mgmt 0.0.6 is released
-            f"pip install --extra-index-url https://test.pypi.org/simple/ '.{extra}'",
+            f"pip install '.{extra}'",
             run_in_venv=True,
         )
 

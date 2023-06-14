@@ -48,8 +48,7 @@ COPY ./dockerfiles/mlrun-api/igz-requirements.txt ./igz-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 
-# TODO: remove before merge and once igz-mgmt 0.0.6 is released
-RUN python -m pip install --extra-index-url https://test.pypi.org/simple/ \
+RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt
@@ -60,8 +59,7 @@ ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 COPY . .
 
-# TODO: remove before merge and once igz-mgmt 0.0.6 is released
-RUN python -m pip install --extra-index-url https://test.pypi.org/simple/ .[complete-api]
+RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
 CMD ["python",  "-m",  "mlrun",  "db"]

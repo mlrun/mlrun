@@ -182,7 +182,7 @@ class StoreManager:
         schema, endpoint, parsed_url = parse_url(url)
         if (
             endpoint in url and schema == "dbfs"
-        ):  # TODO check if need to be done to other schemas.
+        ):
             url = url.replace(endpoint, "")
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 

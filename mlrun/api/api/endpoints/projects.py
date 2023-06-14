@@ -362,6 +362,16 @@ async def load_project(
         spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
 
+    # We must create the project before we run the remote load_project function because
+    # we want this function will be running under the project itself instead of the default project.
+    project, _ = await fastapi.concurrency.run_in_threadpool(
+        get_project_member().create_project,
+        db_session=db_session,
+        project=project,
+        projects_role=auth_info.projects_role,
+        leader_session=auth_info.session,
+    )
+
     # Storing secrets in project
     if secrets:
         provider = mlrun.common.schemas.SecretProviderName.kubernetes
@@ -381,16 +391,6 @@ async def load_project(
             project=project.metadata.name,
             secrets=secrets_data,
         )
-
-    # We must create the project before we run the remote load_project function because
-    # we want this function will be running under the project itself instead of the default project.
-    project, _ = await fastapi.concurrency.run_in_threadpool(
-        get_project_member().create_project,
-        db_session=db_session,
-        project=project,
-        projects_role=auth_info.projects_role,
-        leader_session=auth_info.session,
-    )
 
     # Creating the auxiliary function for loading the project:
     load_project_runner = await fastapi.concurrency.run_in_threadpool(

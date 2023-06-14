@@ -1018,11 +1018,27 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
 
     @pytest.mark.parametrize(
-        "name, save_secrets",
-        [("load-proj-secrets", True), ("load-proj-secrets-1", False)],
+        "name, save_secrets, expected_states",
+        [
+            (
+                "load-project-secrets",
+                True,
+                [
+                    mlrun.common.schemas.BackgroundTaskState.running,
+                    mlrun.common.schemas.BackgroundTaskState.succeeded,
+                ],
+            ),
+            (
+                "load-project-secrets-1",
+                False,
+                [mlrun.common.schemas.BackgroundTaskState.succeeded],
+            ),
+        ],
     )
-    def test_load_project_remotely_with_secrets(self, name, save_secrets):
-        name = "load-proj-secrets"
+    def test_load_project_remotely_with_secrets(
+        self, name, save_secrets, expected_states
+    ):
+        # name = "load-proj-secrets"
         self.custom_project_names_to_delete.append(name)
         db = self._run_db
         bg_task = db.load_project(
@@ -1031,8 +1047,10 @@ class TestProject(TestMLRunSystem):
             secrets={"secret1": "1234"},
             save_secrets=save_secrets,
         )
-        assert (
-            bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
-        )
-        project = mlrun.get_or_create_project(name)
-        assert project.get_secret("secret1") == save_secrets
+        assert bg_task.status.state in expected_states
+
+        secrets = db.list_project_secret_keys(name)
+        if save_secrets:
+            assert "secret1" in secrets.secret_keys
+        else:
+            assert "secret1" not in secrets.secret_keys

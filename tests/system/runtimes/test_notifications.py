@@ -75,15 +75,11 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             _assert_notifications,
         )
 
-    # TODO: currently the test checks setting notifications on live runs. We need to add a test for setting
-    #  notifications on scheduled runs as well. The issue is MLRun hardcoded blocks schedules more frequent than
-    #  10 minutes, so we need to wait for the schedule to run, which takes a long time. We need to add a way to
-    #  override this behavior for tests.
     def test_set_run_notifications(self):
 
         notification_name = "slack-should-succeed"
 
-        def _assert_notifications():
+        def _assert_notification_was_sent():
             runs = self._run_db.list_runs(
                 project=self.project_name,
                 with_notifications=True,
@@ -95,7 +91,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
                 == "sent"
             )
 
-        code_path = str(self.assets_path / "sleep.py")
+        self._create_sleep_func_in_project()
 
         notification = self._create_notification(
             name=notification_name,
@@ -105,16 +101,6 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
                 "webhook": "https://slack.com/api/api.test",
             },
         )
-
-        sleep_func = mlrun.code_to_function(
-            name="test-sleep",
-            kind="job",
-            project=self.project_name,
-            filename=code_path,
-            image="mlrun/mlrun",
-        )
-        self.project.set_function(sleep_func)
-        self.project.sync_functions(save=True)
 
         run = self.project.run_function(
             "test-sleep", local=False, params={"time_to_sleep": 10}
@@ -131,7 +117,52 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             40,
             self._logger,
             True,
-            _assert_notifications,
+            _assert_notification_was_sent,
+        )
+
+    # TODO: currently the test checks setting notifications on the schedule but it doesn't check that the notification
+    #  has been sent. We need to configure the system test mlrun system config to allow schedules to run more frequently
+    #  than once per 10 minutes, and then we can check that the notification has been sent.
+    def test_set_schedule_notifications(self):
+
+        notification_name = "slack-notification"
+        schedule_name = "test-sleep"
+
+        def _assert_notification_in_schedule():
+            schedule_spec = self._run_db.get_schedule(
+                self.project_name, schedule_name
+            ).scheduled_object["task"]["spec"]
+            assert "notifications" in schedule_spec
+            assert len(schedule_spec["notifications"]) == 1
+            assert schedule_spec["notifications"][0]["name"] == notification_name
+
+        self._create_sleep_func_in_project()
+
+        notification = self._create_notification(
+            name=notification_name,
+            message="should-fail",
+            params={
+                # dummy slack test url should return 200
+                "webhook": "https://slack.com/api/api.test",
+            },
+        )
+
+        self.project.run_function(
+            "test-sleep",
+            local=False,
+            params={"time_to_sleep": 10},
+            schedule="*/10 * * * *",
+        )
+        self._run_db.set_schedule_notifications(
+            self.project_name, schedule_name, [notification]
+        )
+
+        mlrun.utils.retry_until_successful(
+            1,
+            40,
+            self._logger,
+            True,
+            _assert_notification_in_schedule,
         )
 
     @staticmethod
@@ -153,3 +184,19 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             severity=severity or "info",
             params=params or {},
         )
+
+    def _create_sleep_func_in_project(self):
+
+        code_path = str(self.assets_path / "sleep.py")
+
+        sleep_func = mlrun.code_to_function(
+            name="test-sleep",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(sleep_func)
+        self.project.sync_functions(save=True)
+
+        return sleep_func

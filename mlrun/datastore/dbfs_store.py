@@ -165,4 +165,3 @@ class DBFSStore(DataStore):
                 "dbfs file system does not support maxdepth option in rm function"
             )
         self.get_filesystem().rm(path=path, recursive=recursive)
-

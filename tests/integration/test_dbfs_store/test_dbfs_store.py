@@ -25,6 +25,7 @@ from databricks.sdk import WorkspaceClient
 import mlrun
 import mlrun.errors
 from mlrun.utils import logger
+
 PARQUETS_DIR = "/parquets"
 CSV_DIR = "/csv"
 here = Path(__file__).absolute().parent
@@ -134,10 +135,19 @@ class TestDBFSStore:
         response = upload_csv_data_item.as_df()
         assert source_csv.equals(response)
 
-    @pytest.mark.parametrize("directory, file_format, file_extension, files_paths, reader", [
-        (PARQUETS_DIR, "parquet", "parquet", [parquet_path, additional_parquet_path], pd.read_parquet),
-        (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv)
-    ])
+    @pytest.mark.parametrize(
+        "directory, file_format, file_extension, files_paths, reader",
+        [
+            (
+                PARQUETS_DIR,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                pd.read_parquet,
+            ),
+            (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
+        ],
+    )
     def test_check_read_df_dir(
         self,
         directory: str,

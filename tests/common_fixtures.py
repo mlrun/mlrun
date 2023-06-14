@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import shutil
 import unittest
 from http import HTTPStatus
@@ -490,6 +491,10 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+
+    # Create the default project to mimic real MLRun DB (the default project is always available for use):
+    mlrun.get_or_create_project("default")
+
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing

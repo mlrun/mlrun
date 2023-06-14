@@ -16,6 +16,8 @@ import abc
 import typing
 from datetime import datetime
 
+import dask.dataframe as dd
+
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
@@ -293,13 +295,21 @@ class BaseMerger(abc.ABC):
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
-        # convert pandas entity_rows to spark DF if needed
+        # convert pandas entity_rows to spark\dask DF if needed
         if (
             entity_rows is not None
             and not hasattr(entity_rows, "rdd")
             and self.engine == "spark"
         ):
             entity_rows = self.spark.createDataFrame(entity_rows)
+        elif (
+            entity_rows is not None
+            and not hasattr(entity_rows, "dask")
+            and self.engine == "dask"
+        ):
+            entity_rows = dd.from_pandas(
+                entity_rows, npartitions=len(entity_rows.columns)
+            )
 
         # join the feature data frames
         result_timestamp = self.merge(

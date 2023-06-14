@@ -698,6 +698,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
+    @abstractmethod
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
 

@@ -698,6 +698,24 @@ class SQLRunDB(RunDBInterface):
             mask_params,
         )
 
+    def store_alert_notifications(
+        self,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.Notifications().store_alerts_notifications,
+            notification_objects,
+            alert_id,
+            project,
+            mask_params,
+        )
+
     def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 

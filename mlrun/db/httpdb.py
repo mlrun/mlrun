@@ -3667,6 +3667,16 @@ class HTTPRunDB(RunDBInterface):
         """
         pass
 
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
     def submit_workflow(
         self,
         project: str,

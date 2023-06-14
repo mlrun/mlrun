@@ -2,8 +2,7 @@
 
 # Notifications
 
-MLRun supports configuring notifications on jobs and scheduled jobs. In this section, 
-the SDK for using notifications will be explained in detail.
+MLRun supports configuring notifications on jobs and scheduled jobs. This section describes the SDK for notifications.
 
 - [The Notification Object](#the-notification-object)
 - [Local vs Remote](#local-vs-remote)
@@ -17,7 +16,7 @@ the SDK for using notifications will be explained in detail.
 
 
 ## The Notification Object
-The notification object's schema is as follows:
+The notification object's schema is:
 - `kind`: str - notification kind (slack, git, etc...)
 - `when`: list[str] - run states on which to send the notification (completed, error, aborted)
 - `name`: str - notification name
@@ -27,8 +26,8 @@ The notification object's schema is as follows:
 
 
 ## Local vs Remote
-Notifications can either be sent locally from the SDK, or remotely from the MLRun API. 
-This depends on whether the run is local or not.
+Notifications can be sent either locally from the SDK, or remotely from the MLRun API. 
+Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
 - Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
@@ -95,7 +94,7 @@ import mlrun
 mlrun.get_run_db().set_run_notifications("<project-name>", "<run-uid>", [notification1, notification2])
 ```
 
-Note that this overrides any existing notifications on the run. So deleting all notifications is done by passing an empty list.
+Using the `set_run_notifications` method overrides any existing notifications on the run. To delete all notifications, pass an empty list.
 
 ## Setting Notifications on Scheduled Runs
 You can set notifications on scheduled runs via the `set_schedule_notifications` method. For example:
@@ -106,16 +105,16 @@ import mlrun
 mlrun.get_run_db().set_schedule_notifications("<project-name>", "<schedule-name>", [notification1, notification2])
 ```
 
-Note that this overrides any existing notifications on the schedule. So deleting all notifications is done by passing an empty list.
+Using the `set_schedule_notifications` method overrides any existing notifications on the schedule. To delete all notifications, pass an empty list.
 
 ## Notification Conditions
 You can configure the notification to be sent only if the run meets certain conditions. This is done using the `condition`
 parameter in the notification object. The condition is a string that is evaluated using a jinja templator with the run 
-object in its context. The jinja template should return a boolean value on which the notification will be sent or not. 
+object in its context. The jinja template should return a boolean value that determines whether the notification is sent or not. 
 If any other value is returned or if the template is malformed, the condition is ignored and the notification is sent 
 as normal.
 
-So for example, lets say there's a run which calculates and outputs model drift, we can set a notification to fire only 
+Take the case of a run that calculates and outputs model drift. This example code sets a notification to fire only
 if the drift is above a certain threshold:
 
 ```python

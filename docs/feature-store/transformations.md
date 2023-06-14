@@ -44,11 +44,12 @@ to the [feature store example](./basic-demo.html).
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
-feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
-sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
-aggregations. 
+feature-set, which is created by performing an aggregate function over the feature's values.
 
-Features matching this regex pattern aree treated as aggregations: `.*_[a-z]+_[0-9]+[smhd]$`
+Feature names must match this regex pattern to be treated as aggregations: `.*_[a-z]+_[0-9]+[smhd]$`<br>
+where [a-z]+ is the name of an aggregation.
+
+If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
 
 If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
 If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
@@ -73,10 +74,13 @@ Aggregations that are supported using this function are:
 - `stdvar`
 - `stddev`
 
-For full documentation of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
+For full description of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
 documentation.
 
 ### Windows
+
+You can use aggregation for time-based sliding windows and fixed windows. In general, sliding windows are used for real time data, 
+while fixed windows are used for historical Aggregations. 
 
 A window can be measured in years, days, hours, seconds, minutes. 
 A window can be a single window, e.g. ‘1h’, ‘1d’, or a 

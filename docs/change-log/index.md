@@ -26,82 +26,41 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2030 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2380 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
 | ML-2968 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3202 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3312 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3315 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
 | ML-3420 | MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3549 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3551 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3605 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3621 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3631 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3647 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3652 | now inferred.  [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3703 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3705 |  **May also in docs dep on fix**[View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3713 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3549 | New Resource monitoring button in the Job Details view that opens Grafana. [View in Git](https://github.com/mlrun/ui/pull/1691). |
+| ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. [View in Git](https://github.com/mlrun/ui/pull/1742). |
+| ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
+| ML-3631 | MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927). |
+| ML-3647 | Jobs can now be terminated with both the UI and the MLRun SDK.  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). **Looks like 1.5**|
+| ML-3652 | V3IO_API is now inferred from the DBPATH.  [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
+| ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
+| ML-3705 |  **Is it in rel? May also in docs dep on fix**[View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3713 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3731 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3733 | **breaking change** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3733 | **See breaking changes** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3743 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3761 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3763 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3806 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3847 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3856 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3884 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3900 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML- | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+
 
 
 ###  APIs
@@ -126,11 +85,20 @@ New sections describing:
 
 
 ### Deprecations
-**if it gets in: | ML-3547 | [View in Git](https://github.com/mlrun/mlrun/pull/). |**
+- **if it gets in: | ML-3547 | [View in Git](https://github.com/mlrun/mlrun/pull/). |**
+
 
 ### Breaking changes
 
-- 3733
+- 3733   `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`.
+
+
+### Future Deprecation
+
+- Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
+old dashboards won't be supported in v1.5.0.  **(ml-3605)**
+- clear_context() will be deprecated in v1.6.0.
+
 
 ## v1.3.2	
 

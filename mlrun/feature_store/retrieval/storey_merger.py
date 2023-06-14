@@ -18,6 +18,7 @@ from mlrun.datastore.store_resources import ResourceCache
 from mlrun.datastore.targets import get_online_target
 from mlrun.serving.server import create_graph_server
 
+from ...features import Feature
 from ..feature_vector import OnlineVectorService
 from .base import BaseMerger
 
@@ -33,7 +34,7 @@ class StoreyFeatureMerger(BaseMerger):
 
     def _generate_online_feature_vector_graph(
         self,
-        entity_rows_keys_df,
+        entity_rows_keys,
         feature_set_fields,
         feature_set_objects,
         fixed_window_type,
@@ -45,20 +46,34 @@ class StoreyFeatureMerger(BaseMerger):
         next = graph
 
         fs_link_list = self._create_linked_relation_list(
-            feature_set_objects, feature_set_fields, entity_rows_keys_df
+            feature_set_objects, feature_set_fields, entity_rows_keys
         )
 
+        save_column = []
+        end_aliases = {}
         for node in fs_link_list:
             name = node.name
-            if name == "entity_rows":
+            if name == self._entity_rows_node_name:
                 continue
             featureset = feature_set_objects[name]
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
+            for col in node.data["save_cols"]:
+                if col not in column_names:
+                    column_names.append(col)
+                else:
+                    save_column.append(col)
             aliases = {name: alias for name, alias in columns if alias}
 
             entity_list = node.data["right_keys"] or list(
                 featureset.spec.entities.keys()
+            )
+            end_aliases.update(
+                {
+                    k: v
+                    for k, v in zip(entity_list, node.data["left_keys"])
+                    if k != v and v in save_column
+                }
             )
             next = next.to(
                 "storey.Rename",
@@ -75,6 +90,11 @@ class StoreyFeatureMerger(BaseMerger):
                 aliases=aliases,
                 fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
             )
+        next = next.to(
+            "storey.Rename",
+            f"rename-{name}",
+            mapping=end_aliases,
+        )
         for name in start_states:
             next.set_next(name)
 
@@ -96,15 +116,11 @@ class StoreyFeatureMerger(BaseMerger):
         except ImportError as exc:
             raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-        entity_rows_keys_df = (
-            pd.DataFrame(columns=entity_rows_keys) if entity_rows_keys else None
-        )
-
         feature_set_objects, feature_set_fields = self.vector.parse_features(
             offline=False, update_stats=update_stats
         )
         graph = self._generate_online_feature_vector_graph(
-            entity_rows_keys_df,
+            entity_rows_keys,
             feature_set_fields,
             feature_set_objects,
             fixed_window_type,
@@ -124,8 +140,14 @@ class StoreyFeatureMerger(BaseMerger):
             for key in featureset.spec.entities.keys():
                 if not self.vector.spec.with_indexes and key not in index_columns:
                     index_columns.append(key)
+                if (
+                    not self.vector.spec.with_indexes
+                    and key not in self.vector.spec.entity_fields.keys()
+                ):
+                    self.vector.spec.entity_fields[key] = Feature(name=key)
         server.init_states(context=None, namespace=None, resource_cache=cache)
         server.init_object(None)
+        self.vector.save()
 
         service = OnlineVectorService(
             self.vector,

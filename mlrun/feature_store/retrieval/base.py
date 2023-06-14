@@ -663,7 +663,7 @@ class BaseMerger(abc.ABC):
                 )
                 entity_rows_relation.head.data["save_index"] = keys
 
-        if entity_rows_keys:
+        if entity_rows_keys is not None:
             entity_rows_linked_relation = _create_relation(
                 self._entity_rows_node_name, -1
             )

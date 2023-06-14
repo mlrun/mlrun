@@ -19,6 +19,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
+import storey
 
 import mlrun
 
@@ -493,11 +494,6 @@ class OnlineVectorService:
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
 
-        requested_columns = list(self.vector.status.features.keys())
-        aliases = self.vector.get_feature_aliases()
-        for i, column in enumerate(requested_columns):
-            requested_columns[i] = aliases.get(column, column)
-
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -506,14 +502,6 @@ class OnlineVectorService:
                     del data[key]
             if not data:
                 data = None
-            else:
-                actual_columns = data.keys()
-                for column in requested_columns:
-                    if (
-                        column not in actual_columns
-                        and column != self.vector.status.label_column
-                    ):
-                        data[column] = None
 
             if self._impute_values and data:
                 for name in data.keys():
@@ -525,8 +513,8 @@ class OnlineVectorService:
 
             if as_list and data:
                 data = [
-                    data.get(key, None)
-                    for key in requested_columns
+                    val
+                    for key, val in data.items()
                     if key != self.vector.status.label_column
                 ]
             results.append(data)

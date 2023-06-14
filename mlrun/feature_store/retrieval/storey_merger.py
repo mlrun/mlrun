@@ -47,6 +47,7 @@ class StoreyFeatureMerger(BaseMerger):
             feature_set_objects, feature_set_fields, entity_rows_keys
         )
 
+        all_columns = []
         save_column = []
         end_aliases = {}
         for node in fs_link_list:
@@ -56,12 +57,13 @@ class StoreyFeatureMerger(BaseMerger):
             featureset = feature_set_objects[name]
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
+            aliases = {name: alias for name, alias in columns if alias}
+            all_columns += [aliases.get(name, name) for name in column_names]
             for col in node.data["save_cols"]:
                 if col not in column_names:
                     column_names.append(col)
                 else:
                     save_column.append(col)
-            aliases = {name: alias for name, alias in columns if alias}
 
             entity_list = node.data["right_keys"] or list(
                 featureset.spec.entities.keys()
@@ -110,7 +112,7 @@ class StoreyFeatureMerger(BaseMerger):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "the graph doesnt have an explicit final step to respond on"
             )
-        return graph
+        return graph, all_columns
 
     def init_online_vector_service(
         self, entity_rows_keys, fixed_window_type, update_stats=False
@@ -123,7 +125,7 @@ class StoreyFeatureMerger(BaseMerger):
         feature_set_objects, feature_set_fields = self.vector.parse_features(
             offline=False, update_stats=update_stats
         )
-        graph = self._generate_online_feature_vector_graph(
+        graph, requested_columns = self._generate_online_feature_vector_graph(
             entity_rows_keys,
             feature_set_fields,
             feature_set_objects,
@@ -158,6 +160,7 @@ class StoreyFeatureMerger(BaseMerger):
             graph,
             entity_rows_keys or index_columns,
             impute_policy=self.impute_policy,
+            requested_columns=requested_columns,
         )
         service.initialize()
 

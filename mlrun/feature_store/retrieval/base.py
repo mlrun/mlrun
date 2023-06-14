@@ -374,7 +374,8 @@ class BaseMerger(abc.ABC):
         initialize the `OnlineVectorService`
 
         :param entity_rows_keys:    list of the feature_vector indexes.
-        :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by ingest
+        :param fixed_window_type:   determines how to query the fixed window values which were previously
+                                    inserted by ingest
         :param update_stats:        update features statistics from the requested feature sets on the vector.
                                     Default: False.
 

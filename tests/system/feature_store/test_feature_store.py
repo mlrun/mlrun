@@ -1397,9 +1397,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert path == data_set.get_target_path()
 
         source = ParquetSource(
-            "myparquet",
-            path=path,
-            schedule="mock",
+            "myparquet", path=path, schedule="mock", time_field="time"
         )
 
         feature_set = fstore.FeatureSet(

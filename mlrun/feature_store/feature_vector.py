@@ -384,13 +384,21 @@ class FeatureVector(ModelObj):
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, graph, index_columns, impute_policy: dict = None):
+    def __init__(
+        self,
+        vector,
+        graph,
+        index_columns,
+        impute_policy: dict = None,
+        requested_columns: List[str] = None,
+    ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
 
         self._controller = graph.controller
         self._index_columns = index_columns
         self._impute_values = {}
+        self._requested_columns = requested_columns
 
     def __enter__(self):
         return self
@@ -501,6 +509,14 @@ class OnlineVectorService:
                     del data[key]
             if not data:
                 data = None
+            else:
+                actual_columns = data.keys()
+                for column in self._requested_columns:
+                    if (
+                        column not in actual_columns
+                        and column != self.vector.status.label_column
+                    ):
+                        data[column] = None
 
             if self._impute_values and data:
                 for name in data.keys():
@@ -513,8 +529,8 @@ class OnlineVectorService:
 
             if as_list and data:
                 data = [
-                    val
-                    for key, val in data.items()
+                    data.get(key, None)
+                    for key in self._requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)

@@ -23,7 +23,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
 
     def test_run_notifications(self):
         error_notification_name = "slack-should-fail"
-        success_notification_name = "console-should-succeed"
+        success_notification_name = "slack-should-succeed"
 
         def _assert_notifications():
             runs = self._run_db.list_runs(
@@ -48,9 +48,13 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             },
         )
         success_notification = self._create_notification(
-            kind="console",
+            kind="slack",
             name=success_notification_name,
             message="should-succeed",
+            params={
+                # dummy slack test url should return 200
+                "webhook": "https://slack.com/api/api.test",
+            },
         )
 
         function = mlrun.new_function(

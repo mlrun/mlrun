@@ -46,12 +46,21 @@ class DaskFeatureMerger(BaseMerger):
         left_keys: list,
         right_keys: list,
     ):
+        def sort_partition(partition, timestamp):
+            return partition.sort_values(timestamp)
+
+        entity_df = entity_df.map_partitions(
+            sort_partition, timestamp=entity_timestamp_column
+        )
+        featureset_df = featureset_df.map_partitions(
+            sort_partition, timestamp=featureset.spec.timestamp_key
+        )
 
         merged_df = merge_asof(
             entity_df,
             featureset_df,
             left_on=entity_timestamp_column,
-            right_on=entity_timestamp_column,
+            right_on=featureset.spec.timestamp_key,
             left_by=left_keys or None,
             right_by=right_keys or None,
             suffixes=("", f"_{featureset.metadata.name}_"),
@@ -118,14 +127,14 @@ class DaskFeatureMerger(BaseMerger):
         column_names=None,
         start_time=None,
         end_time=None,
-        entity_timestamp_column=None,
+        time_column=None,
     ):
         df = feature_set.to_dataframe(
             columns=column_names,
             df_module=dd,
             start_time=start_time,
             end_time=end_time,
-            time_column=entity_timestamp_column,
+            time_column=time_column,
             index=False,
         )
 

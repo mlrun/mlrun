@@ -500,16 +500,16 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project="", iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
@@ -518,6 +518,7 @@ class HTTPRunDB(RunDBInterface):
             uid,
             project,
             iter,
+            timeout,
         )
 
     def read_run(self, uid, project="", iter=0):
@@ -549,21 +550,23 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from: datetime = None,
-        start_time_to: datetime = None,
-        last_update_time_from: datetime = None,
-        last_update_time_to: datetime = None,
-        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -573,7 +576,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of runs, filtered by various options.
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
             # If running in Jupyter, can use the .show() function to display the results
             db.list_runs(name='', project=project_name).show()
 
@@ -581,8 +584,8 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1471,21 +1474,17 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        try:
-            params = {}
-            if namespace:
-                params["namespace"] = namespace
-            params["format"] = format_
-            project_path = project if project else "*"
-            resp = self.api_call(
-                "GET",
-                f"projects/{project_path}/pipelines/{run_id}",
-                params=params,
-                timeout=timeout,
-            )
-        except OSError as err:
-            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+        params["format"] = format_
+        project_path = project if project else "*"
+        resp = self.api_call(
+            "GET",
+            f"projects/{project_path}/pipelines/{run_id}",
+            params=params,
+            timeout=timeout,
+        )
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")

@@ -15,6 +15,7 @@
 import asyncio
 import builtins
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import aiohttp
 import pytest
@@ -22,7 +23,43 @@ import tabulate
 
 import mlrun.api.api.utils
 import mlrun.api.crud
+import mlrun.common.schemas.notification
 import mlrun.utils.notifications
+
+
+@pytest.mark.parametrize(
+    "notification_kind", mlrun.common.schemas.notification.NotificationKind
+)
+def test_load_notification(notification_kind):
+    run_uid = "test-run-uid"
+    notification_name = "test-notification-name"
+    when_state = "completed"
+    notification = mlrun.model.Notification.from_dict(
+        {
+            "kind": notification_kind,
+            "when": when_state,
+            "status": "pending",
+            "name": notification_name,
+        }
+    )
+    run = mlrun.model.RunObject.from_dict(
+        {
+            "metadata": {"uid": run_uid},
+            "spec": {"notifications": [notification]},
+            "status": {"state": when_state},
+        }
+    )
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    notification_pusher._load_notification(run, notification)
+    loaded_notifications = (
+        notification_pusher._sync_notifications
+        + notification_pusher._async_notifications
+    )
+    assert len(loaded_notifications) == 1
+    assert loaded_notifications[0][0].name == notification_name
 
 
 @pytest.mark.parametrize(
@@ -32,10 +69,10 @@ import mlrun.utils.notifications
         (["completed"], "", "completed", True, False),
         (["completed"], "", "error", False, False),
         (["completed"], "", "error", True, False),
-        (["completed"], "True", "completed", False, True),
-        (["completed"], "True", "completed", True, False),
-        (["completed"], "False", "completed", False, False),
-        (["completed"], "False", "completed", True, False),
+        (["completed"], "> 4", "completed", False, True),
+        (["completed"], "> 4", "completed", True, False),
+        (["completed"], "< 4", "completed", False, False),
+        (["completed"], "< 4", "completed", True, False),
         (["error"], "", "completed", False, False),
         (["error"], "", "completed", True, False),
         (["error"], "", "error", False, True),
@@ -44,20 +81,25 @@ import mlrun.utils.notifications
         (["completed", "error"], "", "completed", True, False),
         (["completed", "error"], "", "error", False, True),
         (["completed", "error"], "", "error", True, False),
-        (["completed", "error"], "True", "completed", False, True),
-        (["completed", "error"], "True", "completed", True, False),
-        (["completed", "error"], "True", "error", False, True),
-        (["completed", "error"], "True", "error", True, False),
-        (["completed", "error"], "False", "completed", False, False),
-        (["completed", "error"], "False", "completed", True, False),
-        (["completed", "error"], "False", "error", False, True),
-        (["completed", "error"], "False", "error", True, False),
+        (["completed", "error"], "> 4", "completed", False, True),
+        (["completed", "error"], "> 4", "completed", True, False),
+        (["completed", "error"], "> 4", "error", False, True),
+        (["completed", "error"], "> 4", "error", True, False),
+        (["completed", "error"], "< 4", "completed", False, False),
+        (["completed", "error"], "< 4", "completed", True, False),
+        (["completed", "error"], "< 4", "error", False, True),
+        (["completed", "error"], "< 4", "error", True, False),
     ],
 )
 def test_notification_should_notify(
     when, condition, run_state, notification_previously_sent, expected
 ):
-    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    if condition:
+        condition = f'{{{{ run["status"]["results"]["val"] {condition} }}}}'
+
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": run_state, "results": {"val": 5}}}
+    )
     notification = mlrun.model.Notification.from_dict(
         {
             "when": when,
@@ -66,12 +108,34 @@ def test_notification_should_notify(
         }
     )
 
-    assert (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher._should_notify(
-            run, notification
-        )
-        == expected
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
     )
+    assert notification_pusher._should_notify(run, notification) == expected
+
+
+def test_condition_evaluation_timeout():
+    condition = """
+        {% for i in range(100000) %}
+            {% for i in range(100000) %}
+                {% for i in range(100000) %}
+                    {{ i }}
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}
+    """
+
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": "completed", "results": {"val": 5}}}
+    )
+    notification = mlrun.model.Notification.from_dict(
+        {"when": ["completed"], "condition": condition, "status": "pending"}
+    )
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+    assert notification_pusher._should_notify(run, notification)
 
 
 @pytest.mark.parametrize(
@@ -276,8 +340,8 @@ def test_inverse_dependencies(
         ]
     )
 
-    mock_console_push = unittest.mock.MagicMock()
-    mock_ipython_push = unittest.mock.MagicMock()
+    mock_console_push = unittest.mock.MagicMock(return_value=Exception())
+    mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
     monkeypatch.setattr(
         mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
     )
@@ -289,6 +353,7 @@ def test_inverse_dependencies(
     )
 
     custom_notification_pusher.push("test-message", "info", [])
+
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
 
@@ -316,3 +381,165 @@ def test_notification_params_masking_on_run(monkeypatch):
         run["spec"]["notifications"][0]["params"]["secret"]
         == f"mlrun.notifications.{run_uid}"
     )
+
+
+NOTIFICATION_VALIDATION_PARMETRIZE = [
+    (
+        {
+            "kind": "invalid-kind",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "kind": mlrun.common.schemas.notification.NotificationKind.slack,
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "severity": "invalid-severity",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "status": "invalid-status",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "status": mlrun.common.schemas.notification.NotificationStatus.PENDING,
+        },
+        does_not_raise(),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "notification_kwargs,expectation",
+    NOTIFICATION_VALIDATION_PARMETRIZE,
+)
+def test_notification_validation_on_object(
+    monkeypatch, notification_kwargs, expectation
+):
+    with expectation:
+        mlrun.model.Notification(**notification_kwargs)
+
+
+@pytest.mark.parametrize(
+    "notification_kwargs,expectation",
+    NOTIFICATION_VALIDATION_PARMETRIZE,
+)
+def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+    for key, value in notification_kwargs.items():
+        setattr(notification, key, value)
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="job",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+    with expectation:
+        function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification],
+            local=True,
+        )
+
+
+def test_notification_sent_on_handler_run(monkeypatch):
+
+    run_many_mock = unittest.mock.Mock(return_value=[])
+    push_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(mlrun.runtimes.HandlerRuntime, "_run_many", run_many_mock)
+    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+
+    def hyper_func(context, p1, p2):
+        print(f"p1={p1}, p2={p2}, result={p1 * p2}")
+        context.log_result("multiplier", p1 * p2)
+
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+
+    grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
+    task = mlrun.new_task("grid-demo").with_hyper_params(
+        grid_params, selector="max.multiplier"
+    )
+    mlrun.new_function().run(task, handler=hyper_func, notifications=[notification])
+    run_many_mock.assert_called_once()
+    push_mock.assert_called_once()
+
+
+def test_notification_sent_on_dask_run(monkeypatch):
+
+    run_mock = unittest.mock.Mock(return_value=None)
+    push_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(mlrun.runtimes.LocalRuntime, "_run", run_mock)
+    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
+
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="dask",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+
+    function.run(
+        handler="json.dumps",
+        params={"obj": {"x": 99}},
+        notifications=[notification],
+        local=True,
+    )
+
+    run_mock.assert_called_once()
+    push_mock.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "notification1_name,notification2_name,expectation",
+    [
+        ("n1", "n1", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("n1", "n2", does_not_raise()),
+    ],
+)
+def test_notification_name_uniqueness_validation(
+    notification1_name, notification2_name, expectation
+):
+    notification1 = mlrun.model.Notification(
+        name=notification1_name, when=["completed"]
+    )
+    notification2 = mlrun.model.Notification(
+        name=notification2_name, when=["completed"]
+    )
+    function = mlrun.new_function(
+        "function-from-module",
+        kind="job",
+        project="test-project",
+        image="mlrun/mlrun",
+    )
+    with expectation:
+        function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification1, notification2],
+            local=True,
+        )

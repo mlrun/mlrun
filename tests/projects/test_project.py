@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 import os
+import os.path
 import pathlib
 import shutil
 import tempfile
 import unittest.mock
+import warnings
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -268,6 +270,18 @@ def test_build_project_from_minimal_dict():
             False,
             "",
         ),
+        (
+            "ssh://git@something/something",
+            "something",
+            [],
+            False,
+            0,
+            False,
+            "",
+            True,
+            "Unsupported url scheme, supported schemes are: git://, db:// or "
+            ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB",
+        ),
     ],
 )
 def test_load_project(
@@ -509,6 +523,57 @@ def test_set_func_with_tag():
     )
     func = project.get_function("desc2")
     assert func.metadata.tag is None
+
+
+def test_set_function_with_tagged_key():
+    project = mlrun.new_project("set-func-tagged-key", save=False)
+    # create 2 functions with different tags
+    tag_v1 = "v1"
+    tag_v2 = "v2"
+    my_func_v1 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        tag=tag_v1,
+    )
+    my_func_v2 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="my_func",
+        tag=tag_v2,
+    )
+
+    # set the functions
+    # function key is <function name> ("handler")
+    project.set_function(my_func_v1)
+    # function key is <function name>:<tag> ("handler:v1")
+    project.set_function(my_func_v1, tag=tag_v1)
+    # function key is "my_func"
+    project.set_function(my_func_v2, name=my_func_v2.metadata.name)
+    # function key is "my_func:v2"
+    project.set_function(my_func_v2, name=f"{my_func_v2.metadata.name}:{tag_v2}")
+
+    assert len(project.spec._function_objects) == 4
+
+    func = project.get_function(f"{my_func_v1.metadata.name}:{tag_v1}")
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name, tag=tag_v1)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v2.metadata.name)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}")
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(my_func_v2.metadata.name, tag=tag_v2)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}", tag=tag_v2)
+    assert func.metadata.tag == tag_v2
 
 
 def test_set_function_with_relative_path(context):
@@ -813,6 +878,44 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
+
+
+def test_clear_context():
+    proj = mlrun.new_project("proj", save=False)
+    proj_with_subpath = mlrun.new_project(
+        "proj",
+        subpath="test",
+        context=pathlib.Path(tests.conftest.tests_root_directory),
+        save=False,
+    )
+    subdir_path = os.path.join(
+        proj_with_subpath.spec.context, proj_with_subpath.spec.subpath
+    )
+    # when the context is relative, assert no deletion called
+    with unittest.mock.patch(
+        "shutil.rmtree", return_value=True
+    ) as rmtree, warnings.catch_warnings(record=True) as w:
+        proj.clear_context()
+        rmtree.assert_not_called()
+
+        assert len(w) == 2
+        assert issubclass(w[-2].category, FutureWarning)
+        assert (
+            "This method deletes all files and clears the context directory or subpath (if defined)!"
+            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
+            " it will be deprecated in 1.6.0." in str(w[-1].message)
+        )
+
+    # when the context is not relative and subdir specified, assert that the subdir is deleted rather than the context
+    with unittest.mock.patch(
+        "shutil.rmtree", return_value=True
+    ) as rmtree, unittest.mock.patch(
+        "os.path.exists", return_value=True
+    ), unittest.mock.patch(
+        "os.path.isdir", return_value=True
+    ):
+        proj_with_subpath.clear_context()
+        rmtree.assert_called_once_with(subdir_path)
 
 
 @pytest.mark.parametrize(

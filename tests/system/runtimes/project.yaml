@@ -1,0 +1,13 @@
+kind: project
+metadata:
+  name: notifications-test
+spec:
+  functions: []
+  workflows: []
+  artifacts: []
+  conda: ''
+  source: ''
+  desired_state: online
+  build:
+    commands: []
+    requirements: []

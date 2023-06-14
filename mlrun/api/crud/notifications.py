@@ -24,7 +24,7 @@ import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 import mlrun.utils.singleton
 
-set_schedule_methods = {
+set_notification_methods = {
     "run": {
         "factory": mlrun.api.utils.singletons.db.get_db,
         "method_name": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
@@ -104,7 +104,7 @@ class Notifications(
             mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
         ],
     ):
-        set_notification_method = set_schedule_methods.get(notification_parent.kind, {})
+        set_notification_method = set_notification_methods.get(notification_parent.kind, {})
         factory = set_notification_method.get("factory")
         if not factory:
             raise mlrun.errors.MLRunNotFoundError(

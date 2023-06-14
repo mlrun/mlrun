@@ -664,7 +664,7 @@ class HTTPRunDB(RunDBInterface):
         error = "del runs"
         self.api_call("DELETE", "runs", error, params=params)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.

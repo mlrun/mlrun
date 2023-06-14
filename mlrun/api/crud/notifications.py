@@ -104,7 +104,9 @@ class Notifications(
             mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
         ],
     ):
-        set_notification_method = set_notification_methods.get(notification_parent.kind, {})
+        set_notification_method = set_notification_methods.get(
+            notification_parent.kind, {}
+        )
         factory = set_notification_method.get("factory")
         if not factory:
             raise mlrun.errors.MLRunNotFoundError(

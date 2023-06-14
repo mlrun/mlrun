@@ -80,18 +80,14 @@ class TestDBFSStore:
             self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
             self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
         else:
-            self.workspace.dbfs.delete(f"{self.test_root_dir}", recursive=True)
+            self.workspace.dbfs.delete(self.test_root_dir, recursive=True)
             self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
             self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
 
     def teardown_class(self):
-        dir_dataitem = mlrun.run.get_dataitem(
-            self._dbfs_url + self.test_root_dir, secrets=self.secrets
-        )
-        test_files = dir_dataitem.listdir()
-        store = dir_dataitem.store
-        for test_file in test_files:
-            store.rm(path=f"{self.test_root_dir}/{test_file}", recursive=True)
+        all_paths_under_test_root = [file_info.path for file_info in self.workspace.dbfs.list(self.test_root_dir)]
+        for path in all_paths_under_test_root:
+            self.workspace.dbfs.delete(path, recursive=True)
 
     def _perform_dbfs_tests(self, secrets):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)

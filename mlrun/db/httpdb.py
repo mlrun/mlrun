@@ -3015,34 +3015,6 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def set_object_notifications(
-        self,
-        project: str,
-        notifications: typing.List[mlrun.model.Notification],
-        parent: Union[
-            mlrun.common.schemas.RunIdentifier,
-            mlrun.common.schemas.ScheduleIdentifier,
-            dict,
-        ],
-    ):
-        if type(parent) in [
-            mlrun.common.schemas.RunIdentifier,
-            mlrun.common.schemas.ScheduleIdentifier,
-        ]:
-            parent = parent.dict()
-
-        self.api_call(
-            "PUT",
-            f"projects/{project}/notifications",
-            f"Failed to set notifications on object {parent}",
-            json={
-                "notifications": [
-                    notification.to_dict() for notification in notifications
-                ],
-                "parent": parent,
-            },
-        )
-
     def set_run_notifications(
         self,
         project: str,
@@ -3057,10 +3029,16 @@ class HTTPRunDB(RunDBInterface):
         """
         notifications = notifications or []
 
-        parent = mlrun.common.schemas.RunIdentifier(
-            uid=run_uid,
+        self.api_call(
+            "PUT",
+            f"projects/{project}/runs/{run_uid}/notifications",
+            f"Failed to set notifications on run. uid={run_uid}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
         )
-        self.set_object_notifications(project, notifications, parent)
 
     def set_schedule_notifications(
         self,
@@ -3076,10 +3054,16 @@ class HTTPRunDB(RunDBInterface):
         """
         notifications = notifications or []
 
-        parent = mlrun.common.schemas.ScheduleIdentifier(
-            name=schedule_name,
+        self.api_call(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            f"Failed to set notifications on schedule. schedule={schedule_name}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
         )
-        self.set_object_notifications(project, notifications, parent)
 
 
 def _as_json(obj):

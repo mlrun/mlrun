@@ -34,6 +34,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_file_path = here / "test.txt"
+json_path = here / "test_data.json"
 parquet_path = here / "test_data.parquet"
 additional_parquet_path = here / "additional_data.parquet"
 csv_path = here / "test_data.csv"

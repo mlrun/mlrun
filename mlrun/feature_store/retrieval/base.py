@@ -16,6 +16,7 @@ import abc
 import typing
 from datetime import datetime
 
+import dask.dataframe as dd
 import pandas as pd
 
 import mlrun
@@ -287,6 +288,14 @@ class BaseMerger(abc.ABC):
             and self.engine == "spark"
         ):
             entity_rows = self.spark.createDataFrame(entity_rows)
+        elif (
+            entity_rows is not None
+            and not hasattr(entity_rows, "dask")
+            and self.engine == "dask"
+        ):
+            entity_rows = dd.from_pandas(
+                entity_rows, npartitions=len(entity_rows.columns)
+            )
 
         # join the feature data frames
         result_timestamp = self.merge(

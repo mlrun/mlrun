@@ -149,7 +149,7 @@ def kafka_consumer():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
-    project_name = "fs-system-test-project-1"
+    project_name = "fs-system-test-project"
 
     def custom_setup(self):
         pass

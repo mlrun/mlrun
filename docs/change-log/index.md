@@ -32,7 +32,6 @@
 | ML-2968 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
 | ML-3202 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3312 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3315 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
 | ML-3420 | MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
@@ -55,11 +54,10 @@
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3806 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3847 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3806 | **if it's in the rel** Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
+| ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3856 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3884 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3900 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/). |
 
 
 

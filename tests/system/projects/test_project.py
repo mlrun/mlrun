@@ -915,6 +915,52 @@ class TestProject(TestMLRunSystem):
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
+    @pytest.mark.parametrize("pull_state_mode", ["enabled", "disabled"])
+    def test_abort_step_in_workflow(self, pull_state_mode):
+        project_name = "test-abort-step"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.new_project(project_name, context=str(self.assets_path))
+
+        # when pull_state mode is enabled it simulates the flow of wait_for_completion
+        mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = pull_state_mode
+
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "workflow.py")
+
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        project.set_function(
+            name="func-2",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+
+        project.set_workflow("main", workflow_path)
+        workflow = project.run("main", engine="kfp")
+
+        db = mlrun.get_run_db()
+        runs = []
+        while len(runs) != 1:
+            runs = project.list_runs(
+                labels=[f"workflow={workflow.run_id}"], state="running"
+            )
+
+        db.abort_run(runs.to_objects()[0].uid())
+
+        def _assert_workflow_error(workflow):
+            assert workflow.state == "Failed"
+
+        mlrun.utils.retry_until_successful(
+            5, 60, self._logger, True, _assert_workflow_error, workflow
+        )
+
     def test_project_build_image(self):
         name = "test-build-image"
         self.custom_project_names_to_delete.append(name)

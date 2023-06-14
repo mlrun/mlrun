@@ -70,9 +70,9 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install \
-          -r automation/requirements.txt 
+          -r automation/requirements.txt \
           -r dockerfiles/test-system/requirements.txt \
-          -r dockerfiles/mlrun-api/requirements.txt 
+          -r dockerfiles/mlrun-api/requirements.txt \
           -r dev-requirements.txt \
           -r extras-requirements.txt \
         && pip install -e .

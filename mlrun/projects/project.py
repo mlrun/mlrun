@@ -282,13 +282,18 @@ def load_project(
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
             clone_zip(url, context, secrets, clone)
-        else:
+        elif url.startswith("db://") or "://" not in url:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
             if not path.isdir(context):
                 makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unsupported url scheme, supported schemes are: git://, db:// or "
+                ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB"
+            )
 
     if not repo:
         repo, url = init_repo(context, url, init_git)

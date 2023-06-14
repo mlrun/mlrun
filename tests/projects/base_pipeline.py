@@ -16,7 +16,6 @@ import pathlib
 import sys
 
 import mlrun
-import mlrun.projects
 from mlrun.projects.pipelines import pipeline_context
 from tests.conftest import out_path
 

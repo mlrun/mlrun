@@ -51,8 +51,8 @@
 | ML-3713 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3731 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3733 | **See breaking changes** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3743 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3761 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3743 | **not needed?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3806 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
@@ -73,7 +73,7 @@ New sections describing:
 - 3589
 - 3763
 - 3375
-- 2030:  add to docs: To register artifact between difrrent environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
+- 2030:  add to docs: To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
 - 3647
 - 3202
 - 3373

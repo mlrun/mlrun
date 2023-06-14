@@ -149,7 +149,7 @@ def kafka_consumer():
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestFeatureStore(TestMLRunSystem):
-    project_name = "fs-system-test-project"
+    project_name = "fs-system-test-project-1"
 
     def custom_setup(self):
         pass
@@ -1396,9 +1396,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        source = ParquetSource(
-            "myparquet", path=path, schedule="mock", time_field="time"
-        )
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fstore.FeatureSet(
             name=name,

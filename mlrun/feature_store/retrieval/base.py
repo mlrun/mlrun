@@ -17,6 +17,7 @@ import typing
 from datetime import datetime
 
 import dask.dataframe as dd
+import pandas as pd
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
@@ -127,6 +128,9 @@ class BaseMerger(abc.ABC):
 
         start_time = str_to_timestamp(start_time)
         end_time = str_to_timestamp(end_time)
+        if start_time and not end_time:
+            # if end_time is not specified set it to now()
+            end_time = pd.Timestamp.now()
 
         return self._generate_offline_vector(
             entity_rows,

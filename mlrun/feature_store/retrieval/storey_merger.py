@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pandas as pd
-
 import mlrun
 from mlrun.datastore.store_resources import ResourceCache
 from mlrun.datastore.targets import get_online_target
@@ -75,13 +73,17 @@ class StoreyFeatureMerger(BaseMerger):
                     if k != v and v in save_column
                 }
             )
+            mapping = {
+                k: v for k, v in zip(node.data["left_keys"], entity_list) if k != v
+            }
+            if mapping:
+                next = next.to(
+                    "storey.Rename",
+                    f"rename-{name}",
+                    mapping=mapping,
+                )
+
             next = next.to(
-                "storey.Rename",
-                f"rename-{name}",
-                mapping={
-                    k: v for k, v in zip(node.data["left_keys"], entity_list) if k != v
-                },
-            ).to(
                 "storey.QueryByKey",
                 f"query-{name}",
                 features=column_names,
@@ -94,7 +96,7 @@ class StoreyFeatureMerger(BaseMerger):
             # run if the user want to save a column that related to another entity
             next = next.to(
                 "storey.Rename",
-                f"rename-entity-to-features",
+                "rename-entity-to-features",
                 mapping=end_aliases,
             )
         for name in start_states:

@@ -304,7 +304,9 @@ class BaseMerger(abc.ABC):
         # join the feature data frames
         result_timestamp = self.merge(
             entity_df=entity_rows,
-            entity_timestamp_column=entity_timestamp_column if entity_rows else None,
+            entity_timestamp_column=entity_timestamp_column
+            if entity_rows is not None
+            else None,
             featuresets=feature_sets,
             featureset_dfs=dfs,
             keys=keys,

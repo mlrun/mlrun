@@ -98,13 +98,9 @@ class GitNotification(NotificationBase):
             repo = repo.replace("/", "%2F")
 
             if merge_request:
-                url = (
-                    f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
-                )
+                url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{merge_request}/notes"
             elif issue:
-                url = (
-                    f"https://{server}/api/v4/projects/{repo}/issues/{issue}/notes"
-                )
+                url = f"https://{server}/api/v4/projects/{repo}/issues/{issue}/notes"
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "GitLab issue or merge request id not specified"

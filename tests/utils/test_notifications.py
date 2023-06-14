@@ -278,7 +278,19 @@ def test_slack_notification(runs, expected):
                 "token": "test-token",
                 "gitlab": True,
             },
-            "https://gitlab.com/api/v4/projects/test-repo/merge_requests/test-issue/notes",
+            "https://gitlab.com/api/v4/projects/test-repo/issues/test-issue/notes",
+            {
+                "PRIVATE-TOKEN": "test-token",
+            },
+        ),
+        (
+            {
+                "repo": "test-repo",
+                "merge_request": "test-merge-request",
+                "token": "test-token",
+                "gitlab": True,
+            },
+            "https://gitlab.com/api/v4/projects/test-repo/merge_requests/test-merge-request/notes",
             {
                 "PRIVATE-TOKEN": "test-token",
             },
@@ -290,7 +302,7 @@ def test_slack_notification(runs, expected):
                 "token": "test-token",
                 "server": "custom-gitlab",
             },
-            "https://custom-gitlab/api/v4/projects/test-repo/merge_requests/test-issue/notes",
+            "https://custom-gitlab/api/v4/projects/test-repo/issues/test-issue/notes",
             {
                 "PRIVATE-TOKEN": "test-token",
             },

@@ -16,6 +16,8 @@ import abc
 import typing
 from datetime import datetime
 
+import pandas as pd
+
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
@@ -107,6 +109,9 @@ class BaseMerger(abc.ABC):
 
         start_time = str_to_timestamp(start_time)
         end_time = str_to_timestamp(end_time)
+        if start_time and not end_time:
+            # if end_time is not specified set it to now()
+            end_time = pd.Timestamp.now()
 
         return self._generate_vector(
             entity_rows,
@@ -286,7 +291,9 @@ class BaseMerger(abc.ABC):
         # join the feature data frames
         result_timestamp = self.merge(
             entity_df=entity_rows,
-            entity_timestamp_column=entity_timestamp_column if entity_rows else None,
+            entity_timestamp_column=entity_timestamp_column
+            if entity_rows is not None
+            else None,
             featuresets=feature_sets,
             featureset_dfs=dfs,
             keys=keys,

@@ -176,6 +176,7 @@ class K8sSecretsMock:
         else:
             for key in secrets:
                 self.project_secrets_map.get(project, {}).pop(key, None)
+        return "", True
 
     def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secret_keys = list(self.project_secrets_map.get(project, {}).keys())

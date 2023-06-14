@@ -232,14 +232,14 @@ class Secrets(
                 )
 
                 events_client = events_factory.EventsFactory().get_events_client()
-                if deleted:
-                    event = events_client.generate_project_secret_deleted_event(
-                        project, secret_name
-                    )
-                else:
-                    event = events_client.generate_project_secrets_updated_event(
-                        project, secret_name, secrets
-                    )
+                event = events_client.generate_project_secret_event(
+                    project=project,
+                    secret_name=secret_name,
+                    secret_keys=secrets,
+                    action=mlrun.common.schemas.SecretEventActions.deleted
+                    if deleted
+                    else mlrun.common.schemas.SecretEventActions.updated,
+                )
                 events_client.emit(event)
 
             else:

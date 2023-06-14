@@ -155,15 +155,15 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         :param action: preformed action
         :return: event object to emit
         """
-        if action == "created":
+        if action == mlrun.common.schemas.SecretEventActions.created:
             return self.generate_project_secret_created_event(
                 project, secret_name, secret_keys
             )
-        elif action == "updated":
+        elif action == mlrun.common.schemas.SecretEventActions.updated:
             return self.generate_project_secret_updated_event(
                 project, secret_name, secret_keys
             )
-        elif action == "deleted":
+        elif action == mlrun.common.schemas.SecretEventActions.deleted:
             return self.generate_project_secret_deleted_event(project, secret_name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")

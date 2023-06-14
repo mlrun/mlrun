@@ -54,7 +54,7 @@ class TestEventClient:
                 access_key=access_key,
             )
         )
-        self.__assert_client_was_called(iguazio_version)
+        self._assert_client_was_called(iguazio_version)
 
     @pytest.mark.parametrize(
         "iguazio_version",
@@ -92,19 +92,7 @@ class TestEventClient:
             key_map_secret_key=key_map_secret_key,
         )
 
-        self.__assert_client_was_called(iguazio_version)
-
-    def __assert_client_was_called(self, iguazio_version: str):
-        self.client.emit.assert_called_once()
-        if iguazio_version:
-            if iguazio_version >= semver.VersionInfo.parse("3.5.4-b1"):
-                # if equal or greater than 3.5.4-b1, then we expect the event to exist in the events.yaml of the system
-                # and therefor we send the minimized event (without the description)
-                assert not self.client.emit.call_args[0][0].description
-            else:
-                assert self.client.emit.call_args[0][0].description
-        else:
-            assert self.client.emit.call_args[0][0] is None
+        self._assert_client_was_called(iguazio_version)
 
     def _initialize_and_mock_client(self, monkeypatch, iguazio_version: str):
         mlrun.mlconf.events.mode = mlrun.common.schemas.EventsModes.enabled.value
@@ -121,3 +109,15 @@ class TestEventClient:
         self.client = (
             mlrun.api.utils.events.events_factory.EventsFactory.get_events_client()
         )
+
+    def _assert_client_was_called(self, iguazio_version: str):
+        self.client.emit.assert_called_once()
+        if iguazio_version:
+            if iguazio_version >= semver.VersionInfo.parse("3.5.4-b1"):
+                # if equal or greater than 3.5.4-b1, then we expect the event to exist in the events.yaml of the system
+                # and therefor we send the minimized event (without the description)
+                assert not self.client.emit.call_args[0][0].description
+            else:
+                assert self.client.emit.call_args[0][0].description
+        else:
+            assert self.client.emit.call_args[0][0] is None

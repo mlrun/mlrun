@@ -85,7 +85,9 @@ class TestDBFSStore:
             self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
 
     def teardown_class(self):
-        all_paths_under_test_root = [file_info.path for file_info in self.workspace.dbfs.list(self.test_root_dir)]
+        all_paths_under_test_root = [
+            file_info.path for file_info in self.workspace.dbfs.list(self.test_root_dir)
+        ]
         for path in all_paths_under_test_root:
             self.workspace.dbfs.delete(path, recursive=True)
 

@@ -15,6 +15,7 @@
 import os
 import uuid
 from pathlib import Path
+from typing import List
 
 import pandas as pd
 import pytest
@@ -24,17 +25,19 @@ from databricks.sdk import WorkspaceClient
 import mlrun
 import mlrun.errors
 from mlrun.utils import logger
-
+PARQUETS_DIR = "/parquets"
+CSV_DIR = "/csv"
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-dbfs-store.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
-test_filename = here / "test.txt"
-test_parquet = here / "test_data.parquet"
-test_additional_parquet = here / "additional_data.parquet"
-test_csv = here / "test_data.csv"
-with open(test_filename, "r") as f:
+test_file_path = here / "test.txt"
+parquet_path = here / "test_data.parquet"
+additional_parquet_path = here / "additional_data.parquet"
+csv_path = here / "test_data.csv"
+additional_csv_path = here / "additional_data.csv"
+with open(test_file_path, "r") as f:
     test_string = f.read()
 
 MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_WORKSPACE"]
@@ -55,33 +58,38 @@ def is_dbfs_configured():
 class TestDBFSStore:
     def setup_class(self):
         self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
-        self._object_dir = "/test_mlrun_dbfs_objects"
+        self.test_root_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
-        self._object_path = f"{self._object_dir}/{self._object_file}"
+        self._object_path = f"{self.test_root_dir}/{self._object_file}"
         self._dbfs_url = "dbfs://" + self._databricks_workspace
         self._object_url = self._dbfs_url + self._object_path
         self.secrets = {}
         token = config["env"].get("DATABRICKS_TOKEN", None)
         self.secrets["DATABRICKS_TOKEN"] = token
-        self.parquets_dir = "/parquets"
-        w = WorkspaceClient(host=self._databricks_workspace, token=token)
-        all_paths = [file_info.path for file_info in w.dbfs.list("/")]
-        if self._object_dir not in all_paths:
-            w.dbfs.mkdirs(f"{self._object_dir}{self.parquets_dir}")
-        else:
-            w.dbfs.delete(f"{self._object_dir}", recursive=True)
-            w.dbfs.mkdirs(f"{self._object_dir}{self.parquets_dir}")
-
+        self.parquets_dir = PARQUETS_DIR
+        self.csv_dir = CSV_DIR
+        self.workspace = WorkspaceClient(host=self._databricks_workspace, token=token)
         logger.info(f"Object URL: {self._object_url}")
+
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self):
+        all_paths = [file_info.path for file_info in self.workspace.dbfs.list("/")]
+        if self.test_root_dir not in all_paths:
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
+        else:
+            self.workspace.dbfs.delete(f"{self.test_root_dir}", recursive=True)
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
 
     def teardown_class(self):
         dir_dataitem = mlrun.run.get_dataitem(
-            self._dbfs_url + self._object_dir, secrets=self.secrets
+            self._dbfs_url + self.test_root_dir, secrets=self.secrets
         )
         test_files = dir_dataitem.listdir()
         store = dir_dataitem.store
         for test_file in test_files:
-            store.rm(path=f"{self._object_dir}/{test_file}", recursive=True)
+            store.rm(path=f"{self.test_root_dir}/{test_file}", recursive=True)
 
     def _perform_dbfs_tests(self, secrets):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
@@ -93,18 +101,20 @@ class TestDBFSStore:
         stat = data_item.stat()
         assert stat.size == len(test_string)
 
-        dir_dataitem = mlrun.run.get_dataitem(self._dbfs_url + self._object_dir)
+        dir_dataitem = mlrun.run.get_dataitem(
+            self._dbfs_url + self.test_root_dir, secrets=secrets
+        )
         dir_list = dir_dataitem.listdir()
         assert self._object_file in dir_list
 
-        source_parquet = pd.read_parquet(test_parquet)
+        source_parquet = pd.read_parquet(parquet_path)
         upload_parquet_file_path = (
-            f"{self._object_dir}/file_{str(uuid.uuid4())}.parquet"
+            f"{self.test_root_dir}/file_{str(uuid.uuid4())}.parquet"
         )
         upload_parquet_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_parquet_file_path
+            self._dbfs_url + upload_parquet_file_path, secrets=secrets
         )
-        upload_parquet_data_item.upload(str(test_parquet))
+        upload_parquet_data_item.upload(str(parquet_path))
         response = upload_parquet_data_item.as_df()
         assert source_parquet.equals(response)
         upload_parquet_data_item.delete()
@@ -115,43 +125,57 @@ class TestDBFSStore:
             == f"No file or directory exists on path {upload_parquet_file_path}."
         )
 
-        source_csv = pd.read_csv(test_csv)
-        upload_csv_file_path = f"{self._object_dir}/file_{str(uuid.uuid4())}.csv"
+        source_csv = pd.read_csv(csv_path)
+        upload_csv_file_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.csv"
         upload_csv_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_csv_file_path
         )
-        upload_csv_data_item.upload(str(test_csv))
+        upload_csv_data_item.upload(str(csv_path))
         response = upload_csv_data_item.as_df()
         assert source_csv.equals(response)
 
-        #  TODO take it out from this function
-        upload_parquet_file_path = (
-            f"{self._object_dir}{self.parquets_dir}/file_{str(uuid.uuid4())}.parquet"
+    @pytest.mark.parametrize("directory, file_format, file_extension, files_paths, reader", [
+        (PARQUETS_DIR, "parquet", "parquet", [parquet_path, additional_parquet_path], pd.read_parquet),
+        (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv)
+    ])
+    def test_check_read_df_dir(
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
+    ):
+        first_file_path = str(files_paths[0])
+        second_file_path = str(files_paths[1])
+        uploaded_file_path = (
+            f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
-        upload_parquet_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_parquet_file_path
+        uploaded_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + uploaded_file_path, secrets=self.secrets
         )
-        upload_parquet_data_item.upload(str(test_parquet))
+        uploaded_data_item.upload(first_file_path)
 
-        upload_parquet_file_path = (
-            f"{self._object_dir}{self.parquets_dir}/file_{str(uuid.uuid4())}.parquet"
+        uploaded_file_path = (
+            f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
-        upload_parquet_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_parquet_file_path
+        uploaded_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + uploaded_file_path, secrets=self.secrets
         )
-        upload_parquet_data_item.upload(str(test_additional_parquet))
-        parquets_dir_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + os.path.dirname(upload_parquet_file_path)
+        uploaded_data_item.upload(second_file_path)
+
+        dir_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + os.path.dirname(uploaded_file_path), secrets=self.secrets
         )
         response_df = (
-            parquets_dir_data_item.as_df(format="parquet")
+            dir_data_item.as_df(format=file_format)
             .sort_values("Name")
             .reset_index(drop=True)
         )
-        parquet_df = pd.read_parquet(test_parquet)
-        additional_parquet = pd.read_parquet(test_additional_parquet)
+        df = reader(first_file_path)
+        additional_df = reader(second_file_path)
         appended_df = (
-            pd.concat([parquet_df, additional_parquet], axis=0)
+            pd.concat([df, additional_df], axis=0)
             .sort_values("Name")
             .reset_index(drop=True)
         )

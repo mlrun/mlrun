@@ -3773,6 +3773,14 @@ class SQLDB(DBInterface):
         identifier: mlrun.common.schemas.RunIdentifier,
         **kwargs,
     ):
+        """
+        Set notifications for a run. This will replace any existing notifications.
+        :param session: SQLAlchemy session
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param identifier: Run identifier
+        :param kwargs: Ignored additional arguments (for interfacing purposes)
+        """
         run = self._get_run(session, identifier.uid, project, None)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(

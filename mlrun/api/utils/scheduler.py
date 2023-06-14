@@ -355,6 +355,14 @@ class Scheduler:
         notifications: List[mlrun.model.Notification],
         auth_info: mlrun.common.schemas.AuthInfo,
     ):
+        """
+        Set notifications for a schedule. This will replace any existing notifications.
+        :param session: DB session
+        :param project: Project name
+        :param identifier: Schedule identifier
+        :param notifications: List of notifications to set
+        :param auth_info: Authorization info
+        """
         name = identifier.name
         logger.debug("Setting schedule notifications", project=project, name=name)
         db_schedule = get_db().get_schedule(session, project, name)

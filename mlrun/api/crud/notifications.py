@@ -104,6 +104,15 @@ class Notifications(
             mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
         ],
     ):
+        """
+        Sets notifications on given object (run or schedule, might be extended in the future).
+        This will replace any existing notifications.
+        :param db_session: DB session
+        :param auth_info: Authorization info
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param notification_parent: Identifier of the object on which to set the notifications
+        """
         set_notification_method = set_notification_methods.get(
             notification_parent.kind, {}
         )

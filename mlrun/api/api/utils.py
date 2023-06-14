@@ -313,6 +313,15 @@ def validate_and_mask_notification_list(
     parent: str,
     project: str,
 ) -> typing.List[mlrun.model.Notification]:
+    """
+    Validates notification schema, uniqueness and masks notification params with secret if needed.
+    If at least one of the validation steps fails, the function will raise an exception and cause the API to return
+    an error response.
+    :param notifications: list of notification objects
+    :param parent: parent identifier
+    :param project: project name
+    :return: list of validated and masked notification objects
+    """
     notification_objects = []
 
     for notification in notifications:

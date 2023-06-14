@@ -3049,6 +3049,12 @@ class HTTPRunDB(RunDBInterface):
         run_uid: str,
         notifications: typing.List[mlrun.model.Notification] = None,
     ):
+        """
+        Set notifications on a run. This will override any existing notifications on the run.
+        :param project: Project containing the run.
+        :param run_uid: UID of the run.
+        :param notifications: List of notifications to set on the run. Default is an empty list.
+        """
         notifications = notifications or []
 
         parent = mlrun.common.schemas.RunIdentifier(
@@ -3060,8 +3066,15 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: typing.List[mlrun.model.Notification],
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
+        """
+        Set notifications on a schedule. This will override any existing notifications on the schedule.
+        :param project: Project containing the schedule.
+        :param schedule_name: Name of the schedule.
+        :param notifications: List of notifications to set on the schedule. Default is an empty list.
+        """
+        notifications = notifications or []
 
         parent = mlrun.common.schemas.ScheduleIdentifier(
             name=schedule_name,

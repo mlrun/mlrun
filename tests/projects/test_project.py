@@ -525,6 +525,57 @@ def test_set_func_with_tag():
     assert func.metadata.tag is None
 
 
+def test_set_function_with_tagged_key():
+    project = mlrun.new_project("set-func-tagged-key", save=False)
+    # create 2 functions with different tags
+    tag_v1 = "v1"
+    tag_v2 = "v2"
+    my_func_v1 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        tag=tag_v1,
+    )
+    my_func_v2 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="my_func",
+        tag=tag_v2,
+    )
+
+    # set the functions
+    # function key is <function name> ("handler")
+    project.set_function(my_func_v1)
+    # function key is <function name>:<tag> ("handler:v1")
+    project.set_function(my_func_v1, tag=tag_v1)
+    # function key is "my_func"
+    project.set_function(my_func_v2, name=my_func_v2.metadata.name)
+    # function key is "my_func:v2"
+    project.set_function(my_func_v2, name=f"{my_func_v2.metadata.name}:{tag_v2}")
+
+    assert len(project.spec._function_objects) == 4
+
+    func = project.get_function(f"{my_func_v1.metadata.name}:{tag_v1}")
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name, tag=tag_v1)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v2.metadata.name)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}")
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(my_func_v2.metadata.name, tag=tag_v2)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}", tag=tag_v2)
+    assert func.metadata.tag == tag_v2
+
+
 def test_set_function_with_relative_path(context):
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

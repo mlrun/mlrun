@@ -23,6 +23,7 @@ The notification object's schema is:
 - `message`: str - notification message
 - `severity`: str - notification severity (info, warning, error, debug)
 - `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-kinds))
+- `condition`: str - jinja template for a condition that determines whether the notification is sent or not (See [Notification Conditions](#notification-conditions))
 
 
 ## Local vs Remote

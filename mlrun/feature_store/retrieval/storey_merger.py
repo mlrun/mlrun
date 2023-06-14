@@ -90,11 +90,13 @@ class StoreyFeatureMerger(BaseMerger):
                 aliases=aliases,
                 fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
             )
-        next = next.to(
-            "storey.Rename",
-            f"rename-entity-to-features",
-            mapping=end_aliases,
-        )
+        if end_aliases:
+            # run if the user want to save a column that related to another entity
+            next = next.to(
+                "storey.Rename",
+                f"rename-entity-to-features",
+                mapping=end_aliases,
+            )
         for name in start_states:
             next.set_next(name)
 

@@ -1038,7 +1038,6 @@ class TestProject(TestMLRunSystem):
     def test_load_project_remotely_with_secrets(
         self, name, save_secrets, expected_states
     ):
-        # name = "load-proj-secrets"
         self.custom_project_names_to_delete.append(name)
         db = self._run_db
         bg_task = db.load_project(
@@ -1050,6 +1049,7 @@ class TestProject(TestMLRunSystem):
         assert bg_task.status.state in expected_states
 
         secrets = db.list_project_secret_keys(name)
+        print(secrets.secret_keys)
         if save_secrets:
             assert "secret1" in secrets.secret_keys
         else:

@@ -374,6 +374,7 @@ async def load_project(
 
     # Storing secrets in project
     if secrets:
+        db_session.commit()
         provider = mlrun.common.schemas.SecretProviderName.kubernetes
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.secret,

@@ -256,8 +256,11 @@ class WorkflowRunners(
 
         if "://" not in project.spec.source:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"remote workflows can only be performed by a project with remote source,"
-                f" the given source '{project.spec.source}' is not remote"
+                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
+                f" but the specified source '{project.spec.source}' is not remote. "
+                f"Either put your code in Git, or archive it and then set a source to it."
+                f" For more details, read"
+                f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
             )
         return save
 

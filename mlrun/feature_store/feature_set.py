@@ -186,13 +186,11 @@ class FeatureSetSpec(ModelObj):
     @engine.setter
     def engine(self, engine: str):
         engine_list = ["pandas", "spark", "storey"]
-        if engine:
-            if engine not in engine_list:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"engine must be one of {','.join(engine_list)}"
-                )
-        else:
-            engine = "storey"
+        engine = engine if engine else "storey"
+        if engine not in engine_list:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"engine must be one of {','.join(engine_list)}"
+            )
         self.graph.engine = "sync" if engine and engine in ["pandas", "spark"] else None
         self._engine = engine
 

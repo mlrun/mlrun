@@ -300,6 +300,9 @@ class RunDBMock:
 
     def store_project(self, name, project):
         self._project_name = name
+
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
 
     def get_project(self, name):
@@ -487,6 +490,10 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+
+    # Create the default project to mimic real MLRun DB (the default project is always available for use):
+    mlrun.get_or_create_project("default")
+
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing

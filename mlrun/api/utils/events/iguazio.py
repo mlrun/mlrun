@@ -22,11 +22,11 @@ import mlrun.api.utils.events.base
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-PROJECT_AUTH_SECRET_CREATED = "Software.Project.AuthSecret.Created"
-PROJECT_AUTH_SECRET_UPDATED = "Software.Project.AuthSecret.Updated"
-PROJECT_SECRET_CREATED = "Software.Project.Secret.Created"
-PROJECT_SECRET_UPDATED = "Software.Project.Secret.Updated"
-PROJECT_SECRET_DELETED = "Software.Project.Secret.Deleted"
+PROJECT_AUTH_SECRET_CREATED = "Security.Project.AuthSecret.Created"
+PROJECT_AUTH_SECRET_UPDATED = "Security.Project.AuthSecret.Updated"
+PROJECT_SECRET_CREATED = "Security.Project.Secret.Created"
+PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"
+PROJECT_SECRET_DELETED = "Security.Project.Secret.Deleted"
 
 
 class Client(mlrun.api.utils.events.base.BaseEventClient):
@@ -103,7 +103,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 kind=PROJECT_AUTH_SECRET_CREATED,
                 description=f"User {username} created secret {secret_name}",
                 severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.audit,
+                classification=igz_mgmt.constants.EventClassification.security,
                 system_event=False,
                 visibility=igz_mgmt.constants.EventVisibility.external,
             )
@@ -135,7 +135,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 kind=PROJECT_AUTH_SECRET_UPDATED,
                 description=f"User {username} updated secret {secret_name}",
                 severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.audit,
+                classification=igz_mgmt.constants.EventClassification.security,
                 system_event=False,
                 visibility=igz_mgmt.constants.EventVisibility.external,
             )
@@ -200,7 +200,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
                 f" for project {project}",
                 severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.audit,
+                classification=igz_mgmt.constants.EventClassification.security,
                 system_event=False,
                 visibility=igz_mgmt.constants.EventVisibility.external,
             )
@@ -245,7 +245,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 description=f"{action} secret keys {normalized_secret_keys} of project secret {secret_name} "
                 f"for project {project}",
                 severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.audit,
+                classification=igz_mgmt.constants.EventClassification.security,
                 system_event=False,
                 visibility=igz_mgmt.constants.EventVisibility.external,
             )
@@ -275,7 +275,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 kind=PROJECT_SECRET_DELETED,
                 description=f"Deleted project secret {secret_name} for project {project}",
                 severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.audit,
+                classification=igz_mgmt.constants.EventClassification.security,
                 system_event=False,
                 visibility=igz_mgmt.constants.EventVisibility.external,
             )

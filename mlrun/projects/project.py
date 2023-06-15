@@ -2108,7 +2108,10 @@ class MlrunProject(ModelObj):
 
         self.sync_functions(always=sync)
         if not self.spec._function_objects:
-            raise ValueError("no functions in the project")
+            raise ValueError(
+                "There are no functions in the project."
+                " Make sure you've set your functions with project.set_function()."
+            )
 
         if not name and not workflow_path and not workflow_handler:
             if self.spec.workflows:

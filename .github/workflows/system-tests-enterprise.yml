@@ -42,14 +42,6 @@ on:
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
-      test_code_from_action:
-        description: 'Take tested code from action from upstream rather than ref (default: false). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
-        required: true
-        default: 'false'
-      ui_code_from_action:
-        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
-        required: true
-        default: 'false'
 
 concurrency: one-at-a-time
 jobs:
@@ -171,45 +163,32 @@ jobs:
         python-version: 3.9
         cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt && pip install -e .
-    - name: Install curl and jq
-      run: sudo apt-get install curl jq
-    - name: Extract git hash from action mlrun version
-      # because it is being run mainly on CI and the code is of the development but can be run against multiple branches
-      # the default is false so it will use the code of the chosen branch
-      # TODO: remove - might not be relevant anymore due to multi branch system tests
-      if: ${{ github.event.inputs.test_code_from_action != 'false' }}
-      id: git_action_info
       run: |
-        echo "mlrun_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
-    - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
-      id: git_action_ui_info
-      run: |
-        echo "ui_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        pip install -r automation/requirements.txt && pip install -e .
+        sudo apt-get install curl jq
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
+        
+        # Get the latest commit of mlrun/mlrun (that is older than 1 hour)
         echo "mlrun_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-parse --short=8 HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+        
+        # Get the latest commit of mlrun/ui (that is older than 1 hour)
         echo "ui_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        
+        # Get the tested mlrun version
         echo "unstable_version_prefix=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \

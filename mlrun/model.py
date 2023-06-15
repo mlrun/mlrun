@@ -803,6 +803,9 @@ class RunSpec(ModelObj):
 
         :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
         """
+        # This import is located in the method due to circular imports error.
+        from mlrun.package.utils import LogHintUtils
+
         if returns is None:
             self._returns = None
             return
@@ -810,7 +813,7 @@ class RunSpec(ModelObj):
 
         # Validate:
         for log_hint in returns:
-            mlrun.run._parse_log_hint(log_hint=log_hint)
+            LogHintUtils.parse_log_hint(log_hint=log_hint)
 
         # Store the results:
         self._returns = returns

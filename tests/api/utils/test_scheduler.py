@@ -389,7 +389,7 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
                 do_nothing,
                 cron_trigger,
             )
-        assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+        assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -448,7 +448,7 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     )
     with pytest.raises(ValueError) as excinfo:
         scheduler._validate_cron_trigger(cron_trigger, now)
-    assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+    assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

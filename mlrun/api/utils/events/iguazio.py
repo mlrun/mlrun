@@ -102,10 +102,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 source=self.source,
                 kind=PROJECT_AUTH_SECRET_CREATED,
                 description=f"User {username} created secret {secret_name}",
-                severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
-                classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
+                severity=igz_mgmt.constants.EventSeverity.info,
+                classification=igz_mgmt.constants.EventClassification.audit,
                 system_event=False,
-                visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
+                visibility=igz_mgmt.constants.EventVisibility.external,
             )
 
     def generate_project_auth_secret_updated_event(
@@ -134,10 +134,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 source=self.source,
                 kind=PROJECT_AUTH_SECRET_UPDATED,
                 description=f"User {username} updated secret {secret_name}",
-                severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
-                classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
+                severity=igz_mgmt.constants.EventSeverity.info,
+                classification=igz_mgmt.constants.EventClassification.audit,
                 system_event=False,
-                visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
+                visibility=igz_mgmt.constants.EventVisibility.external,
             )
 
     def generate_project_secret_event(
@@ -199,10 +199,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 kind=PROJECT_SECRET_CREATED,
                 description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
                 f" for project {project}",
-                severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
-                classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
+                severity=igz_mgmt.constants.EventSeverity.info,
+                classification=igz_mgmt.constants.EventClassification.audit,
                 system_event=False,
-                visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
+                visibility=igz_mgmt.constants.EventVisibility.external,
             )
 
     def generate_project_secret_updated_event(
@@ -244,10 +244,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 kind=PROJECT_SECRET_UPDATED,
                 description=f"{action} secret keys {normalized_secret_keys} of project secret {secret_name} "
                 f"for project {project}",
-                severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
-                classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
+                severity=igz_mgmt.constants.EventSeverity.info,
+                classification=igz_mgmt.constants.EventClassification.audit,
                 system_event=False,
-                visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
+                visibility=igz_mgmt.constants.EventVisibility.external,
             )
 
     def generate_project_secret_deleted_event(self, project: str, secret_name: str):
@@ -274,10 +274,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                 source=self.source,
                 kind=PROJECT_SECRET_DELETED,
                 description=f"Deleted project secret {secret_name} for project {project}",
-                severity=igz_mgmt.schemas.manual_events.EventSeverity.info,
-                classification=igz_mgmt.schemas.manual_events.EventClassification.audit,
+                severity=igz_mgmt.constants.EventSeverity.info,
+                classification=igz_mgmt.constants.EventClassification.audit,
                 system_event=False,
-                visibility=igz_mgmt.schemas.manual_events.EventVisibility.external,
+                visibility=igz_mgmt.constants.EventVisibility.external,
             )
 
     @staticmethod

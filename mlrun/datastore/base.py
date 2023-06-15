@@ -67,7 +67,7 @@ class DataStore:
         return True
 
     @staticmethod
-    def sanitize_url(url):
+    def _sanitize_url(url):
         """
         Extract only the schema, netloc, and path from an input URL if they exist,
         excluding parameters, query, or fragments.
@@ -163,7 +163,7 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        file_url = self.sanitize_url(url)
+        file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
         if file_url.endswith(".csv") or format == "csv":
             is_csv = True

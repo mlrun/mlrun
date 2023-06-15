@@ -3115,9 +3115,16 @@ class HTTPRunDB(RunDBInterface):
         :returns:      A BackgroundTask object, with details on execution process and its status.
         """
         params = {"url": url}
+        body = None
         if secrets:
-            params["secrets"] = secrets
-        response = self.api_call("POST", f"projects/{name}/load", params=params)
+            provider = mlrun.common.schemas.SecretProviderName.kubernetes
+            secrets_input = mlrun.common.schemas.SecretsData(
+                provider=provider, secrets=secrets
+            )
+            body = secrets_input.dict()
+        response = self.api_call(
+            "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
+        )
 
         if secrets and not save_secrets:
             # In order to remove secrets from project we need to wait for the background task to end:

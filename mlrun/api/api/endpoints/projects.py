@@ -332,7 +332,7 @@ async def load_project(
     name: str,
     url: str,
     background_tasks: fastapi.BackgroundTasks,
-    secrets: typing.Dict = None,
+    secrets: mlrun.common.schemas.SecretsData = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -373,23 +373,20 @@ async def load_project(
     )
 
     # Storing secrets in project
-    if secrets:
-        provider = mlrun.common.schemas.SecretProviderName.kubernetes
+    if secrets is not None:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.secret,
             project.metadata.name,
-            provider,
+            secrets.provider,
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
 
-        secrets_data = mlrun.common.schemas.SecretsData(
-            provider=provider, secrets=secrets
-        )
         await run_in_threadpool(
-            mlrun.api.crud.Secrets().store_project_secrets, project.metadata.name, secrets_data
+            mlrun.api.crud.Secrets().store_project_secrets,
+            project.metadata.name,
+            secrets,
         )
-        db_session.commit()
 
     # Creating the auxiliary function for loading the project:
     load_project_runner = await fastapi.concurrency.run_in_threadpool(

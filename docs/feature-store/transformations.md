@@ -62,7 +62,7 @@ But if your dataset already contains `X_count_1h`, this would result in either u
 
 If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
     
-These features can be fed into predictive models or czn be used for additional processing and feature generation.
+These features can be fed into predictive models or can be used for additional processing and feature generation.
 
 ```{admonition} Notes
 - Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one

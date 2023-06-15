@@ -167,7 +167,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 show_logs=True,
                 sleep=state_interval,
                 logs_interval=logs_interval,
-                raise_on_failure=True,
+                raise_on_failure=False,
             )
             resp = runtime._get_db_run(run)
 

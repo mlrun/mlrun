@@ -915,7 +915,7 @@ class TestProject(TestMLRunSystem):
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
-    @pytest.mark.parametrize("pull_state_mode", ["enabled", "disabled"])
+    @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])
     def test_abort_step_in_workflow(self, pull_state_mode):
         project_name = "test-abort-step"
         self.custom_project_names_to_delete.append(project_name)
@@ -942,23 +942,43 @@ class TestProject(TestMLRunSystem):
             handler="handler",
         )
 
+        def _assert_workflow_status(workflow, status):
+            assert workflow.state == status
+
+        # set and run a two-step workflow in the project
         project.set_workflow("main", workflow_path)
         workflow = project.run("main", engine="kfp")
 
-        db = mlrun.get_run_db()
+        mlrun.utils.retry_until_successful(
+            1,
+            20,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.running,
+        )
+
+        # obtain the first run in the workflow when it began running
         runs = []
         while len(runs) != 1:
             runs = project.list_runs(
                 labels=[f"workflow={workflow.run_id}"], state="running"
             )
 
+        # abort the first workflow step
+        db = mlrun.get_run_db()
         db.abort_run(runs.to_objects()[0].uid())
 
-        def _assert_workflow_error(workflow):
-            assert workflow.state == "Failed"
-
+        # when a step is aborted, assert that the entire workflow failed and did not continue
         mlrun.utils.retry_until_successful(
-            5, 60, self._logger, True, _assert_workflow_error, workflow
+            5,
+            60,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.failed,
         )
 
     def test_project_build_image(self):

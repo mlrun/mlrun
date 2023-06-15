@@ -544,6 +544,17 @@ default_config = {
         # interval for stopping log collection for runs which are in a terminal state
         "stop_logs_interval": 3600,
     },
+    # Configurations for the `mlrun.package` sub-package involving packagers - logging returned outputs and parsing
+    # inputs data items:
+    "packagers": {
+        # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
+        # using packagers.
+        "enabled": True,
+        # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
+        # returned values will be packaged together as the tuple they are returned in. Default is False to enable
+        # logging multiple returned items.
+        "pack_tuples": False,
+    },
     # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
     "events": {
         # supported modes "enabled", "disabled".

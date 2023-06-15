@@ -85,21 +85,6 @@ class BaseMerger(abc.ABC):
         query=None,
         order_by=None,
     ):
-        """
-
-        :param entity_rows:
-        :param entity_timestamp_column:
-        :param target:
-        :param drop_columns:
-        :param start_time:
-        :param end_time:
-        :param with_indexes:
-        :param update_stats:
-        :param query:
-        :param join_type:
-        :param order_by:
-        :return:
-        """
         self._target = target
 
         # calculate the index columns and columns we need to drop

@@ -28,7 +28,6 @@ class StoreyFeatureMerger(BaseMerger):
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.impute_policy = engine_args.get("impute_policy")
-        # todo : check what needed
 
     def _generate_online_feature_vector_graph(
         self,

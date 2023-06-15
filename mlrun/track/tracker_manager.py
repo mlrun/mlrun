@@ -16,6 +16,7 @@ import typing
 from .platform_trackers import MLFlowTracker
 from .tracker import Tracker
 from mlrun.execution import MLClientCtx
+from os import environ
 
 
 class TrackerManager:
@@ -23,9 +24,9 @@ class TrackerManager:
         self._trackers = []
 
     def add_tracker(self, tracker: Tracker):
-        '''
+        """
         adds a Tracker to tracking list
-        '''
+        """
         self._trackers.append(tracker())
 
     def pre_run(
@@ -37,14 +38,14 @@ class TrackerManager:
          Returns:
             two dictionaries, env and args containing environment and tracking data for all trackers
         """
-        env = env or {}
-        args = {"mode": mode}
+        run_env = env or {}
+        kwargs = {"mode": mode}
         for tracker in self._trackers:
             if tracker.is_enabled():
-                env, args = tracker.pre_run(context, env, args)
-        return env, args
+                env = tracker.pre_run(context, run_env, kwargs)
+                environ.update(env)  # needed in order to set mlflow experiment id
 
-    def post_run(self, context: typing.Union[MLClientCtx, dict], args: dict, db = None) -> dict:
+    def post_run(self, context: typing.Union[MLClientCtx, dict], db=None) -> dict:
         """
         goes over all trackers and calls there post_run function
         """
@@ -52,14 +53,19 @@ class TrackerManager:
             if tracker.is_enabled():
                 if isinstance(context, dict):
                     context = MLClientCtx.from_dict(context)
-                tracker.post_run(context, args, db=db)
+                tracker.post_run(context, db=db)
 
         if isinstance(context, dict):
             return context
         context.commit()
         return context.to_dict()
 
+    @staticmethod
+    def get_trackers_manager():
+        trackers_manager = TrackerManager()
+        if MLFlowTracker.is_relevant():  # if mlflow is in env and enabled
+            trackers_manager.add_tracker(MLFlowTracker)
+        return trackers_manager
 
-tracking_services = TrackerManager()
-if MLFlowTracker.is_relevant():  # if mlflow is in env and enabled
-    tracking_services.add_tracker(MLFlowTracker)
+
+trackers_manager = TrackerManager.get_trackers_manager()

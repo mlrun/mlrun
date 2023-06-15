@@ -14,10 +14,5 @@
 
 from .tracker import Tracker
 from .base_tracker import BaseTracker
-from .tracker_manager import TrackerManager, tracking_services
-import platform_trackers
-
-
-
-
-
+from .tracker_manager import TrackerManager, trackers_manager
+from .platform_trackers.mlflow_tracker import MLFlowTracker

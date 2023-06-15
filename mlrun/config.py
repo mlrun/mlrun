@@ -146,7 +146,7 @@ default_config = {
     # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
     # convert mlflow tracking logs to mlrun runs
-    "mlflow_tracking": "",
+    "tracking": {"mlflow": {"enable_tracking": True}},
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",

@@ -24,6 +24,7 @@ class Tracker(abc.ABC):
     in order to log 3rd party vendor's artifacts into MLRun
     '
     """
+
     MODULE_NAME = ...
 
     def __init__(self):
@@ -34,8 +35,11 @@ class Tracker(abc.ABC):
     def utils(self):
         if self._utils:
             return self._utils
-        from mlrun.frameworks._common import CommonUtils  # needed to avoid import issues later
-        self._utils = CommonUtils
+        from mlrun.frameworks._common import (
+            CommonUtils,
+        )  # needed to avoid import issues later
+
+        self._utils = CommonUtils.convert_np_dtype_to_value_type
         return self._utils
 
     def is_enabled(self):

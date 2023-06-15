@@ -44,7 +44,7 @@ from ..utils.clones import extract_source
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
-from mlrun.track.tracker_manager import tracking_services
+from mlrun.track.tracker_manager import trackers_manager
 from .utils import RunError, global_context, log_std
 
 
@@ -168,11 +168,11 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
-        env, tracking_args = tracking_services.pre_run(context, self.spec.mode)
-        environ.update(env)
+        # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
+        trackers_manager.pre_run(context, self.spec.mode)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
-        return tracking_services.post_run(context, tracking_args, db=self._db_conn)
+        return trackers_manager.post_run(context, db=self._db_conn)
 
 
 class LocalRuntime(BaseRuntime, ParallelRunner):
@@ -220,6 +220,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
+        # _is_run_local is set when the user specifies local=True in run()
+        # in this case we don't want to extract the source code and contaminate the user's local dir
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
@@ -276,15 +278,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
-                env, tracking_args = tracking_services.pre_run(
-                    context, self.spec.mode
-                )
-                environ.update(env)
+                # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
+                trackers_manager.pre_run(context, self.spec.mode)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
-                return tracking_services.post_run(context, tracking_args)
+                return trackers_manager.post_run(
+                    context
+                )  # If trackers where used, this is where we log all data collected to MLRun
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
             except RunError as err:
@@ -327,10 +329,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     arg = arg.format(**runobj.spec.parameters)
                     new_args.append(arg)
                 args = new_args
-
-            env, tracking_args = tracking_services.pre_run(
-                execution, self.spec.mode, env=env
-            )
+            # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
+            trackers_manager.pre_run(execution, self.spec.mode, env=env)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
@@ -340,13 +340,17 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 remove(tmp)
                 if resp:
                     runobj_dict = json.loads(resp)
-                    tracking_services.post_run(runobj_dict, tracking_args)
+                    trackers_manager.post_run(
+                        runobj_dict
+                    )  # If trackers where used, this is where we log all data collected to MLRun
                     return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
             runobj_dict = runobj.to_dict()
-            return tracking_services.post_run(runobj_dict, tracking_args)
+            return trackers_manager.post_run(
+                runobj_dict
+            )  # If trackers where used, this is where we log all data collected to MLRun
 
 
 def load_module(file_name, handler, context):
@@ -373,15 +377,12 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    if env:
-        new_env = os.environ.copy()
-        new_env.update(env)
-    else:
-        new_env = os.environ
-    # process = Popen(
-    #     cmd, stdout=PIPE, stderr=PIPE, env=new_env, cwd=cwd, universal_newlines=True
-    # )
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=new_env, cwd=cwd)
+    if env and "SYSTEMROOT" in os.environ:
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
+    print("running:", cmd)
+    process = Popen(
+        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+    )
 
     def read_stderr(stderr):
         while True:
@@ -489,6 +490,13 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
     kwargs = {}
     args = inspect.signature(handler).parameters
 
+    def _get_input_value(input_key: str):
+        input_obj = context.get_input(input_key, inputs[input_key])
+        if type(args[input_key].default) is str or args[input_key].annotation == str:
+            return input_obj.local()
+        else:
+            return input_obj
+
     for key in args.keys():
         if key == "context":
             kwargs[key] = context
@@ -497,9 +505,23 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in params:
             kwargs[key] = copy(params[key])
         elif key in inputs:
-            obj = context.get_input(key, inputs[key])
-            if type(args[key].default) is str or args[key].annotation == str:
-                kwargs[key] = obj.local()
-            else:
-                kwargs[key] = context.get_input(key, inputs[key])
+            kwargs[key] = _get_input_value(key)
+
+            list_of_params = list(args.values())
+            if len(list_of_params) == 0:
+                return kwargs
+
+            # get the last parameter, as **kwargs can only be last in the function's parameters list
+            last_param = list_of_params[-1]
+            # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
+            # This corresponds to a **kwargs parameter in a Python function definition.
+            if last_param.kind == last_param.VAR_KEYWORD:
+                # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
+                # as part of the previous loop which handled all parameters which were explicitly defined in the handler
+                for key in params:
+                    if key not in kwargs:
+                        kwargs[key] = copy(params[key])
+                for key in inputs:
+                    if key not in kwargs:
+                        kwargs[key] = _get_input_value(key)
     return kwargs

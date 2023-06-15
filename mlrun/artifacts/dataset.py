@@ -26,7 +26,7 @@ import mlrun.common.schemas
 import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact, ArtifactSpec, LegacyArtifact
+from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -132,6 +132,7 @@ class DatasetArtifact(Artifact):
     kind = mlrun.common.schemas.ArtifactCategories.dataset
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
+    _store_prefix = StorePrefix.Dataset
 
     def __init__(
         self,

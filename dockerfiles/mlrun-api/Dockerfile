@@ -44,7 +44,6 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 WORKDIR /mlrun
 
 COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-COPY ./dockerfiles/mlrun-api/igz-requirements.txt ./igz-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 

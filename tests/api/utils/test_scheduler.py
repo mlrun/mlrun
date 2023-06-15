@@ -432,7 +432,7 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     If the limit is 10 minutes and the cron trigger configured with minute=0-45 (which means every minute, for the
     first 45 minutes of every hour), and the check will occur at the 44 minute of some hour, the next run time
     will be one minute away, but the second next run time after it, will be at the next hour 0 minute. The delta
-    between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
+    between the two will be 15 minutes, more than 10 minutes so it will pass validation, although it actually runs
     every minute.
     """
     scheduler._min_allowed_interval = "10 minutes"

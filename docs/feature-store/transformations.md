@@ -79,8 +79,8 @@ Aggregations that are supported using this function are:
 - `first`
 - `last`
 - `avg`
-- `stdvar`
-- `stddev`
+- `stdvar` (variance)
+- `stddev` (standard deviation)
 
 For full description of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
 documentation.

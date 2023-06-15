@@ -613,3 +613,13 @@ class DBInterface(ABC):
         commit: bool = True,
     ):
         pass
+
+    def set_run_notifications(
+        self,
+        session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
+        **kwargs,
+    ):
+        pass

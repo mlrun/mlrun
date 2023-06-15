@@ -3012,6 +3012,56 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def set_run_notifications(
+        self,
+        project: str,
+        run_uid: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a run. This will override any existing notifications on the run.
+        :param project: Project containing the run.
+        :param run_uid: UID of the run.
+        :param notifications: List of notifications to set on the run. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/runs/{run_uid}/notifications",
+            f"Failed to set notifications on run. uid={run_uid}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
+
+    def set_schedule_notifications(
+        self,
+        project: str,
+        schedule_name: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a schedule. This will override any existing notifications on the schedule.
+        :param project: Project containing the schedule.
+        :param schedule_name: Name of the schedule.
+        :param notifications: List of notifications to set on the schedule. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            f"Failed to set notifications on schedule. schedule={schedule_name}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
+
     def submit_workflow(
         self,
         project: str,

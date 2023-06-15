@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import typing
 
 import mlrun.common.schemas
@@ -30,6 +31,10 @@ class NotificationBase:
     @property
     def active(self) -> bool:
         return True
+
+    @property
+    def is_async(self) -> bool:
+        return asyncio.iscoroutinefunction(self.push)
 
     def push(
         self,

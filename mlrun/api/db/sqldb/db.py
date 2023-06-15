@@ -3768,3 +3768,45 @@ class SQLDB(DBInterface):
 
         if commit:
             session.commit()
+
+    def set_run_notifications(
+        self,
+        session: Session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifier: mlrun.common.schemas.RunIdentifier,
+        **kwargs,
+    ):
+        """
+        Set notifications for a run. This will replace any existing notifications.
+        :param session: SQLAlchemy session
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param identifier: Run identifier
+        :param kwargs: Ignored additional arguments (for interfacing purposes)
+        """
+        run = self._get_run(session, identifier.uid, project, None)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: project={project}, uid={identifier.uid}"
+            )
+
+        run.struct.setdefault("spec", {})["notifications"] = [
+            notification.to_dict() for notification in notifications
+        ]
+
+        # update run, delete and store notifications all in one transaction.
+        # using session.add instead of upsert, so we don't commit the run.
+        # the commit will happen at the end (in store_run_notifications, or manually at the end).
+        session.add(run)
+        self.delete_run_notifications(
+            session, run_uid=run.uid, project=project, commit=False
+        )
+        if notifications:
+            self.store_run_notifications(
+                session,
+                notification_objects=notifications,
+                run_uid=run.uid,
+                project=project,
+            )
+        self._commit(session, [run], ignore=True)

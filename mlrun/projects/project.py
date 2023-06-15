@@ -282,13 +282,18 @@ def load_project(
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
             clone_zip(url, context, secrets, clone)
-        else:
+        elif url.startswith("db://") or "://" not in url:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
             if not path.isdir(context):
                 makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unsupported url scheme, supported schemes are: git://, db:// or "
+                ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB"
+            )
 
     if not repo:
         repo, url = init_repo(context, url, init_git)
@@ -549,6 +554,7 @@ class ProjectSpec(ModelObj):
         workdir=None,
         default_image=None,
         build=None,
+        custom_packagers: typing.List[typing.Tuple[str, bool]] = None,
     ):
         self.repo = None
 
@@ -583,6 +589,11 @@ class ProjectSpec(ModelObj):
         self.default_image = default_image
 
         self.build = build
+
+        # A list of custom packagers to include when running the functions of the project. A custom packager is stored
+        # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
+        # whether it is mandatory for a run (raise exception on collection error) or not.
+        self.custom_packagers = custom_packagers or []
 
     @property
     def source(self) -> str:
@@ -748,6 +759,54 @@ class ProjectSpec(ModelObj):
         if key in self._artifacts:
             del self._artifacts[key]
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        # TODO: enable importing packagers from the hub.
+        if packager in [
+            custom_packager[0] for custom_packager in self.custom_packagers
+        ]:
+            logger.warn(
+                f"The packager's module path '{packager}' is already registered in the project."
+            )
+            return
+        self.custom_packagers.append((packager, is_mandatory))
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        # Look for the packager tuple in the list to remove it:
+        packager_tuple: typing.Tuple[str, bool] = None
+        for custom_packager in self.custom_packagers:
+            if custom_packager[0] == packager:
+                packager_tuple = custom_packager
+
+        # If not found, raise an error, otherwise remove:
+        if packager_tuple is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The packager module path '{packager}' is not registered in the project, hence it cannot be removed."
+            )
+        self.custom_packagers.remove(packager_tuple)
+
     def _source_repo(self):
         src = self.source
         if src:
@@ -759,14 +818,6 @@ class ProjectSpec(ModelObj):
             if f.spec.build.source in [".", "./"]:
                 return True
         return False
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, "build", ImageBuilder)
 
     def get_code_path(self):
         """Get the path to the code root/workdir"""
@@ -1577,15 +1628,18 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:      function object or spec/code url, None refers to current Notebook
-        :param name:      name of the function (under the project)
-        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
-                          default: job
-        :param image:     docker image to be used, can also be specified in
-                          the function object/yaml
-        :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo: add (clone) the current repo to the build source
-        :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
+        :param func:                function object or spec/code url, None refers to current Notebook
+        :param name:                name of the function (under the project), can be specified with a tag to support
+                                    versions (e.g. myfunc:v1)
+        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    default: job
+        :param image:               docker image to be used, can also be specified in
+                                    the function object/yaml
+        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           add (clone) the current repo to the build source
+        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                    if tag is specified and name is empty, the function key (under the project)
+                                    will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:        a list of python packages
         :param requirements_file:   path to a python requirements file
 
@@ -1622,10 +1676,14 @@ class MlrunProject(ModelObj):
                 "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
-            name, function_object = _init_function_from_dict(func, self)
-            func["name"] = name
+            resolved_function_name, function_object = _init_function_from_dict(
+                func, self
+            )
+            func["name"] = resolved_function_name
         elif hasattr(func, "to_dict"):
-            name, function_object = _init_function_from_obj(func, self, name=name)
+            resolved_function_name, function_object = _init_function_from_obj(
+                func, self, name=name
+            )
             if handler:
                 raise ValueError(
                     "default handler cannot be set for existing function object"
@@ -1639,12 +1697,17 @@ class MlrunProject(ModelObj):
                 function_object.with_requirements(
                     requirements, requirements_file=requirements_file
                 )
-            if not name:
+            if not resolved_function_name:
                 raise ValueError("function name must be specified")
         else:
             raise ValueError("func must be a function url or object")
 
-        self.spec.set_function(name, function_object, func)
+        # if function name was not explicitly provided,
+        # we use the resolved name (from the function object) and add the tag
+        if tag and not name and ":" not in resolved_function_name:
+            resolved_function_name = f"{resolved_function_name}:{tag}"
+
+        self.spec.set_function(resolved_function_name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -1661,17 +1724,22 @@ class MlrunProject(ModelObj):
         enrich=False,
         ignore_cache=False,
         copy_function=True,
+        tag: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
-        :param key:   name of key for search
-        :param sync:  will reload/reinit the function from the project spec
-        :param enrich: add project info/config/source info to the function object
-        :param ignore_cache: read the function object from the DB (ignore the local cache)
-        :param copy_function: return a copy of the function object
+        :param key:             name of key for search
+        :param sync:            will reload/reinit the function from the project spec
+        :param enrich:          add project info/config/source info to the function object
+        :param ignore_cache:    read the function object from the DB (ignore the local cache)
+        :param copy_function:   return a copy of the function object
+        :param tag:             provide if the function key is tagged under the project (function was set with a tag)
 
         :returns: function object
         """
+        if tag and ":" not in key:
+            key = f"{key}:{tag}"
+
         function, err = self._get_function(
             mlrun.utils.normalize_name(key), sync, ignore_cache
         )
@@ -1714,7 +1782,7 @@ class MlrunProject(ModelObj):
 
         return function, None
 
-    def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
+    def get_function_objects(self) -> FunctionsDict:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
@@ -2044,7 +2112,10 @@ class MlrunProject(ModelObj):
 
         self.sync_functions(always=sync)
         if not self.spec._function_objects:
-            raise ValueError("no functions in the project")
+            raise ValueError(
+                "There are no functions in the project."
+                " Make sure you've set your functions with project.set_function()."
+            )
 
         if not name and not workflow_path and not workflow_handler:
             if self.spec.workflows:
@@ -2785,13 +2856,53 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
+    def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:
+        """
+        Get the custom packagers registered in the project.
+
+        :return: A list of the custom packagers module paths.
+        """
+        # Return a copy so the user won't be able to edit the list by the reference returned (no need for deep copy as
+        # tuples do not support item assignment):
+        return self.spec.custom_packagers.copy()
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list. All project's custom packagers are added to each project
+        function.
+
+        **Notice** that in order to run a function with the custom packagers included, you must set a source for the
+        project (using the `project.set_source` method) with the parameter `pull_at_runtime=True` so the source code of
+        the packagers will be able to be imported.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        self.spec.add_custom_packager(packager=packager, is_mandatory=is_mandatory)
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        self.spec.remove_custom_packager(packager=packager)
+
 
 def _set_as_current_default_project(project: MlrunProject):
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
 
 
-def _init_function_from_dict(f, project, name=None):
+def _init_function_from_dict(
+    f: dict,
+    project: MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
@@ -2865,7 +2976,11 @@ def _init_function_from_dict(f, project, name=None):
     return _init_function_from_obj(func, project, name)
 
 
-def _init_function_from_obj(func, project, name=None):
+def _init_function_from_obj(
+    func: mlrun.runtimes.BaseRuntime,
+    project: MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     build = func.spec.build
     if project.spec.origin_url:
         origin = project.spec.origin_url

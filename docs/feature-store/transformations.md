@@ -88,7 +88,7 @@ documentation.
 ### Windows
 
 You can use aggregation for time-based sliding windows and fixed windows. In general, sliding windows are used for real time data, 
-while fixed windows are used for historical Aggregations. 
+while fixed windows are used for historical aggregations. 
 
 A window can be measured in years, days, hours, seconds, minutes. 
 A window can be a single window, e.g. ‘1h’, ‘1d’, or a 

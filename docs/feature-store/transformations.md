@@ -50,19 +50,19 @@ If the `name` parameter is not specified, features are generated in the format `
 If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
 
 
-Feature names must match this regex pattern to be treated as aggregations: `.*_[a-z]+_[0-9]+[smhd]$`,<br>
+Feature names, which are generated internally, must match this regex pattern to be treated as aggregations: 
+`.*_[a-z]+_[0-9]+[smhd]$`,<br>
 where `[a-z]+` is the name of an aggregation. 
 
 ```{admonition} Warning
-You must ensure that feature names do not conflict with the regex pattern. For example, 
-when using `add_aggregation()` on a feature X, you may get a feature `X_count_1h`. 
-But if your dataset contains `X_count_1h` to begin with, this would result in either unreliable aggregations or errors.
-
-If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
+You must ensure that your features will not conflict with the automatically generated feature names. For example, 
+when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
 ```
 
+If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
     
-These features can be fed into predictive models or be used for additional processing and feature generation.
+These features can be fed into predictive models or czn be used for additional processing and feature generation.
 
 ```{admonition} Notes
 - Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one

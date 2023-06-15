@@ -66,7 +66,7 @@ These features can be fed into predictive models or can be used for additional p
 
 ```{admonition} Notes
 - Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-   aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+   aggregation steps are needed, a unique name must be provided to each, using the `step_name` parameter.
 - The timestamp column must be part of the feature set definition (for aggregation).
 ```
 

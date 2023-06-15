@@ -69,6 +69,17 @@ class DataStore:
         return True
 
     @staticmethod
+    def _sanitize_url(url):
+        """
+        Extract only the schema, netloc, and path from an input URL if they exist,
+        excluding parameters, query, or fragments.
+        """
+        parsed_url = urllib.parse.urlparse(url)
+        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else ""
+        return f"{scheme}{netloc}{parsed_url.path}"
+
+    @staticmethod
     def uri_to_kfp(endpoint, subpath):
         raise ValueError("data store doesnt support KFP URLs")
 
@@ -153,10 +164,9 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        parsed_url = urllib.parse.urlparse(url)
-        filepath = parsed_url.path
+        file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        if filepath.endswith(".csv") or format == "csv":
+        if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
             if columns:
@@ -172,7 +182,7 @@ class DataStore:
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
-                if filesystem.isdir(filepath):
+                if filesystem.isdir(file_url):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
@@ -195,8 +205,8 @@ class DataStore:
                         return pd.concat(dfs)
 
         elif (
-            filepath.endswith(".parquet")
-            or filepath.endswith(".pq")
+            file_url.endswith(".parquet")
+            or file_url.endswith(".pq")
             or format == "parquet"
         ):
             if columns:
@@ -230,7 +240,7 @@ class DataStore:
 
                 return df_module.read_parquet(*args, **kwargs)
 
-        elif filepath.endswith(".json") or format == "json":
+        elif file_url.endswith(".json") or format == "json":
             is_json = True
             reader = df_module.read_json
 
@@ -239,7 +249,7 @@ class DataStore:
 
         file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

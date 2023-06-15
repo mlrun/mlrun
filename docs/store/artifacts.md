@@ -17,16 +17,12 @@ Artifacts metadata is stored in the project's database. The main types of artifa
    - "dir": mlrun.artifacts.DirArtifact
    - "plot": mlrun.artifacts.PlotArtifact
    - "link": mlrun.artifacts.LinkArtifact
--  **Datasets** &mdash; any data, such as tables and DataFrames
-   - "table": mlrun.artifacts.TableArtifact
-     - "chart": mlrun.artifacts.ChartArtifact
 -  **Models** &mdash; all trained models
    - "model": mlrun.artifacts.ModelArtifact
 -  **Feature Store Objects** &mdash; Feature sets and feature vectors
    -  "dataset": mlrun.artifacts.DatasetArtifact
 
     "plotly": mlrun.artifacts.PlotlyArtifact,
-    "bokeh": mlrun.artifacts.BokehArtifact,
 
 ## Viewing artifacts
 

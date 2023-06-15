@@ -71,7 +71,6 @@ class DataStore:
         """
         Extract only the schema, netloc, and path from an input URL if they exist,
         excluding parameters, query, or fragments.
-        More information about urlparse: https://datatracker.ietf.org/doc/html/rfc1808.html#section-2.1.
         """
         parsed_url = urllib.parse.urlparse(url)
         scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""

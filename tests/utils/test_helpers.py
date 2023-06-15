@@ -83,7 +83,7 @@ def test_retry_until_successful_fatal_failure():
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
-            # Invalid because it's more then 63 characters
+            # Invalid because it's more than 63 characters
             "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),

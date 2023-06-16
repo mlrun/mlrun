@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG PYTHON_VERSION=3.9
 ARG GO_VERSION=1.19
 
-FROM golang:${GO_VERSION}
+FROM golang:${GO_VERSION}-alpine AS golang
+
+FROM python:${PYTHON_VERSION}-alpine
 
 ARG PROTOC_GEN_GO_VERSION=v1.28
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
-ARG GRPCIO_TOOLS_VERSION="~=1.54.2"
+ARG GRPCIO_TOOLS_VERSION="~=1.41.0"
 
 WORKDIR /app/go
 
-RUN apt-get update && apt install -y \
-    protobuf-compiler \
-    python3 \
-    python3-setuptools  \
-    python3-pip
+RUN apk add --no-cache protoc build-base linux-headers
+
+COPY --from=golang /usr/local/go/ /usr/local/go/
+
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
 
-# use --break-system-packages to avoid "pip error "externally managed environment" on latest python/pip
-# ftr, the alternative is using venv, but it's more complicated
-RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION} --break-system-packages
+RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION}

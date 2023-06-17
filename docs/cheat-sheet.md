@@ -654,7 +654,7 @@ redis_target = RedisNoSqlTarget(name="write", path="redis://1.2.3.4:6379")
 redis_target.write_dataframe(df=redis_df)
 
 # Kafka (see docs for writing online features)
-kafka_target = KafkaSource(
+kafka_target = KafkaTarget(
     name="write",
     bootstrap_servers='localhost:9092',
     topic='topic',
@@ -1084,7 +1084,6 @@ dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers
 uri = dask_cluster.save()
-uri
 
 # Run parallel hyperparameter trials
 hp_tuning_run_dask = project.run_function(

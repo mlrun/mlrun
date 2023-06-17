@@ -197,31 +197,28 @@ class NotificationPusher(object):
             run, notification_object
         )
         logger.debug(
-            "Pushing notification",
+            "Pushing sync notification",
             notification=_sanitize_notification(notification_object),
             run_uid=run.metadata.uid,
         )
         try:
             notification.push(message, severity, runs)
-
-            if mlrun.config.is_running_as_api():
-                self._update_notification_status(
-                    db,
-                    run.metadata.uid,
-                    run.metadata.project,
-                    notification_object,
-                    status=mlrun.common.schemas.NotificationStatus.SENT,
-                    sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
-                )
+            self._update_notification_status(
+                db,
+                run.metadata.uid,
+                run.metadata.project,
+                notification_object,
+                status=mlrun.common.schemas.NotificationStatus.SENT,
+                sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+            )
         except Exception as exc:
-            if mlrun.config.is_running_as_api():
-                self._update_notification_status(
-                    db,
-                    run.metadata.uid,
-                    run.metadata.project,
-                    notification_object,
-                    status=mlrun.common.schemas.NotificationStatus.ERROR,
-                )
+            self._update_notification_status(
+                db,
+                run.metadata.uid,
+                run.metadata.project,
+                notification_object,
+                status=mlrun.common.schemas.NotificationStatus.ERROR,
+            )
             raise exc
 
     async def _push_notification_async(
@@ -235,33 +232,31 @@ class NotificationPusher(object):
             run, notification_object
         )
         logger.debug(
-            "Pushing notification",
+            "Pushing async notification",
             notification=_sanitize_notification(notification_object),
             run_uid=run.metadata.uid,
         )
         try:
             await notification.push(message, severity, runs)
 
-            if mlrun.config.is_running_as_api():
-                await run_in_threadpool(
-                    self._update_notification_status,
-                    db,
-                    run.metadata.uid,
-                    run.metadata.project,
-                    notification_object,
-                    status=mlrun.common.schemas.NotificationStatus.SENT,
-                    sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
-                )
+            await run_in_threadpool(
+                self._update_notification_status,
+                db,
+                run.metadata.uid,
+                run.metadata.project,
+                notification_object,
+                status=mlrun.common.schemas.NotificationStatus.SENT,
+                sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+            )
         except Exception as exc:
-            if mlrun.config.is_running_as_api():
-                await run_in_threadpool(
-                    self._update_notification_status,
-                    db,
-                    run.metadata.uid,
-                    run.metadata.project,
-                    notification_object,
-                    status=mlrun.common.schemas.NotificationStatus.ERROR,
-                )
+            await run_in_threadpool(
+                self._update_notification_status,
+                db,
+                run.metadata.uid,
+                run.metadata.project,
+                notification_object,
+                status=mlrun.common.schemas.NotificationStatus.ERROR,
+            )
             raise exc
 
     @staticmethod
@@ -271,8 +266,14 @@ class NotificationPusher(object):
         project: str,
         notification: mlrun.model.Notification,
         status: str = None,
-        sent_time: datetime.datetime = None,
+        sent_time: typing.Optional[datetime.datetime] = None,
     ):
+
+        # nothing to update if not running as api
+        # note, the notification mechanism may run "locally" for certain runtimes
+        if not mlrun.config.is_running_as_api():
+            return
+
         # TODO: move to api side
         db_session = mlrun.api.db.session.create_session()
         notification.status = status or notification.status

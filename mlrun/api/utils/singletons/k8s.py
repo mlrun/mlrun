@@ -19,7 +19,7 @@ import typing
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
@@ -330,10 +330,10 @@ class K8sHelper:
                 return None
 
         username = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
         )
         access_key = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
 
         return username, access_key
@@ -341,8 +341,10 @@ class K8sHelper:
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(access_key)
         secret_data = {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }

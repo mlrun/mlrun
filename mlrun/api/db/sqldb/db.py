@@ -2916,7 +2916,7 @@ class SQLDB(DBInterface):
         return self._add_labels_filter(session, query, Run, labels)
 
     def _get_db_notifications(
-        self, session, cls, name: str = None, parent_id: int = None, project: str = None
+        self, session, cls, name: str = None, parent_id: str = None, project: str = None
     ):
         return self._query(
             session, cls.Notification, name=name, parent_id=parent_id, project=project
@@ -3685,6 +3685,12 @@ class SQLDB(DBInterface):
             )
         }
         notifications = []
+        logger.debug(
+            "Storing notifications",
+            notifications_length=len(notification_objects),
+            parent_id=parent_id,
+            project=project,
+        )
         for notification_model in notification_objects:
             new_notification = False
             notification = db_notifications.get(notification_model.name, None)
@@ -3709,6 +3715,7 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
                 notification_name=notification.name,
+                notification_status=notification.status,
                 parent_id=parent_id,
                 project=project,
             )

@@ -43,7 +43,7 @@ def check_skipping_pandas_format(fmt: str):
 
     # TODO: Remove when padnas>=1.5 in requirements
     if fmt == PandasSupportedFormat.ORC:
-        # ORC format is added only since pandas 1.5.0, so we skip if padnas is older than this:
+        # ORC format is added only since pandas 1.5.0, so we skip if pandas is older than this:
         v1, v2, v3 = pd.__version__.split(".")
         if int(v1) == 1 and int(v2) < 5:
             return True

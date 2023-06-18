@@ -4202,6 +4202,27 @@ class TestFeatureStore(TestMLRunSystem):
                 f"store://feature-vectors/{self.project_name}/my-vector:latest"
             )
 
+    def test_ingest_with_rename_columns(self):
+        csv_path = str(self.assets_path / "fields_with_space.csv")
+        run_id = str(uuid.uuid4())
+        name = f'test_ingest_with_rename_columns_{run_id}'
+        data = pd.read_csv(csv_path)
+        expected_result = data.copy().rename(columns={'city of birth': 'city_of_birth'})[["city_of_birth"]]
+        feature_set = fstore.FeatureSet(
+            name=name,
+            entities=[fstore.Entity('name')],
+        )
+        fstore.preview(
+            feature_set,
+            data,
+        )
+        result = fstore.ingest(feature_set, data, run_config=fstore.RunConfig(local=True))
+        feature_vector = fstore.FeatureVector(name=run_id,
+                                              features=[f'{self.project_name}/{name}.*'])
+        training_data = fstore.get_offline_features(feature_vector).to_dataframe()
+        assert training_data.reset_index(drop=True).equals(
+            result.reset_index(drop=True))
+        assert training_data.reset_index(drop=True).equals(expected_result.reset_index(drop=True))
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

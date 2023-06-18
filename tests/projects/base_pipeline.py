@@ -16,7 +16,6 @@ import pathlib
 import sys
 
 import mlrun
-from mlrun.projects.pipelines import pipeline_context
 from tests.conftest import out_path
 
 
@@ -29,12 +28,6 @@ class TestPipeline:
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "assets"
         )
-
-    def teardown_method(self, method):
-        # revert change of default project after project creation
-        if self.project:
-            mlrun.mlconf.default_project = "default"
-            pipeline_context.set(None)
 
     def _create_project(
         self,

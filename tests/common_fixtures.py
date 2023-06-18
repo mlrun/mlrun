@@ -103,6 +103,10 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
 
+    # revert change of default project after project creation
+    mlrun.mlconf.default_project = "default"
+    mlrun.projects.project.pipeline_context.set(None)
+
 
 @pytest.fixture
 def aioresponses_mock():

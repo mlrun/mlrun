@@ -153,6 +153,7 @@ class TypeHintUtils:
         object_type: type,
         type_hint: typing.Union[type, typing.Set[type]],
         include_subclasses: bool = True,
+        reduce_type_hint: bool = True,
     ) -> bool:
         """
         Check if the given object type match the given hint.
@@ -160,6 +161,7 @@ class TypeHintUtils:
         :param object_type:        The object type to match with the type hint.
         :param type_hint:          The hint to match with. Can be given as a set resulted from a reduced hint.
         :param include_subclasses: Whether to mark a subclass as valid match. Default to True.
+        :param reduce_type_hint:   Whether to reduce the type hint to match with its reduced hints.
 
         :return: True if the object type match the type hint and False otherwise.
         """
@@ -167,17 +169,22 @@ class TypeHintUtils:
         type_hint = {type_hint} if not isinstance(type_hint, set) else type_hint
 
         # Try to match the object type to one of the hints:
-        for hint in type_hint:
-            # Subclass check can be made only on actual object types (not typing module types):
-            if (
-                not TypeHintUtils.is_typing_type(type_hint=object_type)
-                and not TypeHintUtils.is_typing_type(type_hint=hint)
-                and include_subclasses
-                and issubclass(object_type, hint)
-            ):
-                return True
-            if object_type == hint:
-                return True
+        while len(type_hint) > 0:
+            for hint in type_hint:
+                # Subclass check can be made only on actual object types (not typing module types):
+                if (
+                    not TypeHintUtils.is_typing_type(type_hint=object_type)
+                    and not TypeHintUtils.is_typing_type(type_hint=hint)
+                    and include_subclasses
+                    and issubclass(object_type, hint)
+                ):
+                    return True
+                if object_type == hint:
+                    return True
+            # See if needed to reduce, if not end on first iteration:
+            if not reduce_type_hint:
+                break
+            type_hint = TypeHintUtils.reduce_type_hint(type_hint=type_hint)
         return False
 
     @staticmethod

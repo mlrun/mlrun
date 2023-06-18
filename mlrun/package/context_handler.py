@@ -152,12 +152,10 @@ class ContextHandler:
         parsed_args = []
         type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
-            if isinstance(argument, DataItem) and type_hints[
-                type_hints_keys[i]
-            ] not in [
-                inspect.Parameter.empty,
-                DataItem,
-            ]:
+            if (
+                isinstance(argument, DataItem)
+                and type_hints[type_hints_keys[i]] is not inspect.Parameter.empty
+            ):
                 parsed_args.append(
                     self._packagers_manager.unpack(
                         data_item=argument,
@@ -170,10 +168,10 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key, value in kwargs.items():
-            if isinstance(value, DataItem) and type_hints[key] not in [
-                inspect.Parameter.empty,
-                DataItem,
-            ]:
+            if (
+                isinstance(value, DataItem)
+                and type_hints[key] is not inspect.Parameter.empty
+            ):
                 kwargs[key] = self._packagers_manager.unpack(
                     data_item=value, type_hint=type_hints[key]
                 )

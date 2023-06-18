@@ -26,15 +26,15 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-2030 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-2380 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2030 |  **Also in docs**  move artifacts from test to prod [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2380 | **Is it in release?** Spark and Presto [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
-| ML-2968 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-2968 | **Is it in release?** Workflow UI Really Slow [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
-| ML-3202 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3315 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3202 |  **Also in docs** can't access it  [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
-| ML-3420 | MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
+| ML-3420 | **needs better explanation** MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
 | ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
@@ -43,17 +43,16 @@
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. [View in Git](https://github.com/mlrun/ui/pull/1742). |
 | ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
 | ML-3631 | MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927). |
-| ML-3647 | Jobs can now be terminated with both the UI and the MLRun SDK.  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). **Looks like 1.5**|
+| ML-3647 | Jobs can now be terminated with MLRun SDK. (Previoulsy could only terminate in the UI.)  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). **Looks like 1.5**|
 | ML-3652 | V3IO_API is now inferred from the DBPATH.  [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
-| ML-3705 |  **Is it in rel? May also in docs dep on fix**[View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3713 | **Is it in release?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3731 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3733 | **See breaking changes** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3743 | **not needed?** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3705 |  **Is it in rel? May also in docs dep on fix**MLRun jobs does not execute ENTRYPOINT image command [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3713 | **Is it in release?** Jobs spec parameter failed when the user configure them in a kubeflow [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3731 | **Is it in release?** mlrun.db.list_pipelines() displays error=None [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3743 | Fix pushing to ECR [View in Git](https://github.com/mlrun/mlrun/pull/3407). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
-| ML-3763 |  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3782 | [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3763 |  **Also in docs - Gilad** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3782 | (Incorrect) naming of feature causes error when get the feature vector from the online feature service. Fix is an additional restriction in feature names. See [Aggregations](,/feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
 | ML-3806 | **if it's in the rel** Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3856 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
@@ -67,16 +66,19 @@
 | ML-3375 | Two new APIs in the MlrunProject object: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`. [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
 
 ###  Documentation
-New sections describing:
-- 3589
-- 3763
-- 3375
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3381 | Support private repo as a marketplace hub
+| ML-3647 | Jobs can now be terminated with MLRun SDK. |
+- 3763 Gilad
+- 3375  build an image directly through project API, without having to go through creating a function and building an image for it. 
 - 2030:  add to docs: To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
-- 3647
+- 
 - 3202
-- 3373
-- 3857 - need doc update, not RN. Multiple engines - each has its own run ID
-
+- 3373 feature vector complex join
+- **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but rews must bwe in another JIRA...
+3315: how to aggregate aggregations
+3647 = terminate job in SDK
 
 
 | ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). |   
@@ -87,8 +89,9 @@ New sections describing:
 
 
 ### Breaking changes
-
-- 3733   `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`.
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
 
 
 ### Future Deprecation
@@ -651,7 +654,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                                    | Workaround                           | Opened in | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
-| ML-3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
  

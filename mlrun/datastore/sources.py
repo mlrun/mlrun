@@ -740,7 +740,7 @@ class DataFrameSource:
             context=self.context or context,
         )
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         return self._df
 
     def is_iterator(self):

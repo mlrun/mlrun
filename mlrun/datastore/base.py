@@ -16,6 +16,7 @@ import tempfile
 import urllib.parse
 from base64 import b64encode
 from os import path, remove
+from typing import Union
 
 import dask.dataframe as dd
 import fsspec
@@ -26,8 +27,9 @@ import urllib3
 
 import mlrun.errors
 from mlrun.errors import err_to_str
-from mlrun.utils import is_ipython, logger
+from mlrun.utils import StorePrefix, is_ipython, logger
 
+from .store_resources import is_store_uri, parse_store_uri
 from .utils import filter_df_start_end_time, select_columns_from_df
 
 verify_ssl = False
@@ -65,6 +67,17 @@ class DataStore:
     @property
     def is_unstructured(self):
         return True
+
+    @staticmethod
+    def _sanitize_url(url):
+        """
+        Extract only the schema, netloc, and path from an input URL if they exist,
+        excluding parameters, query, or fragments.
+        """
+        parsed_url = urllib.parse.urlparse(url)
+        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
+        return f"{scheme}{netloc}{parsed_url.path}"
 
     @staticmethod
     def uri_to_kfp(endpoint, subpath):
@@ -151,10 +164,9 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        parsed_url = urllib.parse.urlparse(url)
-        filepath = parsed_url.path
+        file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        if filepath.endswith(".csv") or format == "csv":
+        if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
             if columns:
@@ -170,7 +182,7 @@ class DataStore:
             reader = df_module.read_csv
             filesystem = self.get_filesystem()
             if filesystem:
-                if filesystem.isdir(filepath):
+                if filesystem.isdir(file_url):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
@@ -193,8 +205,8 @@ class DataStore:
                         return pd.concat(dfs)
 
         elif (
-            filepath.endswith(".parquet")
-            or filepath.endswith(".pq")
+            file_url.endswith(".parquet")
+            or file_url.endswith(".pq")
             or format == "parquet"
         ):
             if columns:
@@ -228,7 +240,7 @@ class DataStore:
 
                 return df_module.read_parquet(*args, **kwargs)
 
-        elif filepath.endswith(".json") or format == "json":
+        elif file_url.endswith(".json") or format == "json":
             is_json = True
             reader = df_module.read_json
 
@@ -237,7 +249,7 @@ class DataStore:
 
         file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -505,6 +517,19 @@ class DataItem:
             display.display(display.Markdown(self.get(encoding="utf-8")))
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
+
+    def get_artifact_type(self) -> Union[str, None]:
+        """
+        Check if the data item represents an Artifact (one of Artifact, DatasetArtifact and ModelArtifact). If it does
+        it return the store uri prefix (artifacts, datasets or models), otherwise None.
+
+        :return: The store prefix of the artifact if it is an artifact data item and None if not.
+        """
+        if self.artifact_url and is_store_uri(url=self.artifact_url):
+            store_uri_prefix = parse_store_uri(self.artifact_url)[0]
+            if StorePrefix.is_artifact(prefix=store_uri_prefix):
+                return store_uri_prefix
+        return None
 
     def __str__(self):
         return self.url

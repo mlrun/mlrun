@@ -978,11 +978,15 @@ def _infer_from_static_df(
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
+        if hasattr(df, "time_field"):
+            time_field = df.time_field or featureset.spec.timestamp_key
+        else:
+            time_field = featureset.spec.timestamp_key
         if df.is_iterator():
             # todo: describe over multiple chunks
-            df = next(df.to_dataframe())
+            df = next(df.to_dataframe(time_field=time_field))
         else:
-            df = df.to_dataframe()
+            df = df.to_dataframe(time_field=time_field)
     inferer = get_infer_interface(df)
     if InferOptions.get_common_options(options, InferOptions.schema()):
         featureset.spec.timestamp_key = inferer.infer_schema(

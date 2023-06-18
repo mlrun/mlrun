@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-from .platform_trackers import MLFlowTracker
-from .tracker import Tracker
-from mlrun.execution import MLClientCtx
 from os import environ
+from typing import Union
+
+from mlrun.execution import MLClientCtx
+
+from .tracker import Tracker
 
 
 class TrackerManager:
@@ -26,46 +27,32 @@ class TrackerManager:
     def add_tracker(self, tracker: Tracker):
         """
         adds a Tracker to tracking list
+        :param tracker: class that inherits from tracker to add an instance of to trackers list
         """
         self._trackers.append(tracker())
 
-    def pre_run(
-        self, context: MLClientCtx, mode: str = None, env: dict = None
-    ) -> (dict, dict):
+    def pre_run(self, context: MLClientCtx):
         """
         goes over all trackers and calls there pre_run function
-
-         Returns:
-            two dictionaries, env and args containing environment and tracking data for all trackers
+        :param context: current mlrun context
         """
-        run_env = env or {}
-        kwargs = {"mode": mode}
         for tracker in self._trackers:
             if tracker.is_enabled():
-                env = tracker.pre_run(context, run_env, kwargs)
-                environ.update(env)  # needed in order to set mlflow experiment id
+                env = tracker.pre_run(context=context)
+                environ.update(env)  # needed in order to set 3rd party experiment id
 
-    def post_run(self, context: typing.Union[MLClientCtx, dict], db=None) -> dict:
+    def post_run(self, context: Union[MLClientCtx, dict]) -> dict:
         """
         goes over all trackers and calls there post_run function
+        :param context: current mlrun context
         """
         for tracker in self._trackers:
             if tracker.is_enabled():
                 if isinstance(context, dict):
                     context = MLClientCtx.from_dict(context)
-                tracker.post_run(context, db=db)
+                tracker.post_run(context)
 
         if isinstance(context, dict):
             return context
         context.commit()
         return context.to_dict()
-
-    @staticmethod
-    def get_trackers_manager():
-        trackers_manager = TrackerManager()
-        if MLFlowTracker.is_relevant():  # if mlflow is in env and enabled
-            trackers_manager.add_tracker(MLFlowTracker)
-        return trackers_manager
-
-
-trackers_manager = TrackerManager.get_trackers_manager()

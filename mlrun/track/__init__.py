@@ -12,7 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tracker import Tracker
 from .base_tracker import BaseTracker
-from .tracker_manager import TrackerManager, trackers_manager
-from .platform_trackers.mlflow_tracker import MLFlowTracker
+from .tracker import Tracker
+from .tracker_manager import TrackerManager
+from .trackers.mlflow_tracker import MLFlowTracker
+
+
+def get_trackers_manager():
+    """
+    initiates an TrackerManager, looks for all relevant trackers and adds them
+    :return: instance of TrackerManager with all relevant trackers
+    """
+    trackers_manager = TrackerManager()
+    if MLFlowTracker.is_enabled():  # if mlflow is in env and enabled
+        trackers_manager.add_tracker(MLFlowTracker)
+    return trackers_manager
+
+
+TRACKERS_MANAGER = get_trackers_manager()

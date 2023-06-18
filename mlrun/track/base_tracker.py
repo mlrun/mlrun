@@ -12,24 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
+import importlib
+import pathlib
+from abc import abstractmethod
 
 from mlrun.config import config as mlconf
-from .tracker import Tracker
 
-from mlrun.execution import MLClientCtx
+from .tracker import Tracker
 
 
 class BaseTracker(Tracker):
-    MODULE_NAME = ...
+    TRACKED_MODULE_NAME = ...
 
-    def is_enabled(self) -> bool:
-        """
-        Checks if tracker is enabled. only checks in config.
-        :return: True if the feature is enabled, False otherwise.
-        """
-        return mlconf.trackers.is_enabled
+    def __init__(self):
+        super().__init__()
+        self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
+        self._run_track_kwargs = {}
+        self._artifacts = {}
 
-    @abc.abstractmethod
-    def log_model(self, model_uri, context):
+    @classmethod
+    def is_enabled(cls) -> bool:
+        try:
+            # Check if the module is available - can be imported:
+            importlib.import_module(cls.TRACKED_MODULE_NAME)
+
+            module_in_area = True
+        except:
+            module_in_area = False
+
+        # Check for user configuration - defaulted to False if not configured:
+        return module_in_area and (
+            getattr(mlconf.tracking, cls.TRACKED_MODULE_NAME, {}).mode == "enabled"
+        )
+
+    @abstractmethod
+    def _log_model(self, model_uri, context):
+        """
+        zips model dir and logs it and all artifacts
+        :param model_uri: uri of model to log
+        :param context: run context in which we log the model
+        """
         pass
+
+    def _log_artifact(self, context, full_path, artifact):
+        """
+        logs 3rd party artifacts, turns into mlrun artifacts and then stores them in list
+        :param context: run context in which we log the model
+        :param full_path:
+        :param artifact:
+        """
+        artifact = context.log_artifact(
+            item=pathlib.Path(artifact.path).stem, local_path=full_path
+        )
+        self._artifacts[artifact.key] = artifact

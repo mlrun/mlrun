@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import abc
-import typing
+from typing import Union
 
 from mlrun.execution import MLClientCtx
 
@@ -22,50 +22,37 @@ class Tracker(abc.ABC):
     """
     general tracker class, includes basic demands for tracker classes,
     in order to log 3rd party vendor's artifacts into MLRun
-    '
     """
 
-    MODULE_NAME = ...
+    # The name of the module to be tracked by this tracker:
+    TRACKED_MODULE_NAME = ...
 
     def __init__(self):
-        self._utils = None
         self._tracked_platform = None  # assuming only one is being used every time
         self._client = None
-
-    def utils(self):
-        if self._utils:
-            return self._utils
-        from mlrun.frameworks._common import (
-            CommonUtils,
-        )  # needed to avoid import issues later
-
-        self._utils = CommonUtils.convert_np_dtype_to_value_type
-        return self._utils
 
     def is_enabled(self):
         """
         Checks if tracker is enabled.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
+        :return: True if the feature is enabled, False otherwise.
         """
         return True
 
     @abc.abstractmethod
-    def pre_run(self, context: MLClientCtx, env: dict, args: dict) -> (dict, dict):
+    def pre_run(self, context: MLClientCtx) -> dict:
         """
         Initializes the tracking system for a 3rd party module.
-
         This function sets up the necessary components and resources to enable tracking of params, artifacts,
         or metrics within the module.
-        Returns:
-            two dictionaries, env and args containing environment and tracking data
+        :param context: current mlrun context
+        :return: env containing environment data to log and track 3-rd party runs
         """
         pass
 
     @abc.abstractmethod
-    def post_run(self, context: typing.Union[MLClientCtx, dict], args: dict):
+    def post_run(self, context: Union[MLClientCtx, dict]):
         """
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
+        :param context: current mlrun context
         """
         pass

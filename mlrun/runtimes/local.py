@@ -35,6 +35,7 @@ from nuclio import Event
 
 import mlrun
 from mlrun.lists import RunList
+from mlrun.track import TRACKERS_MANAGER
 
 from ..errors import err_to_str
 from ..execution import MLClientCtx
@@ -44,7 +45,6 @@ from ..utils.clones import extract_source
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
-from mlrun.track.tracker_manager import trackers_manager
 from .utils import RunError, global_context, log_std
 
 
@@ -168,11 +168,11 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
-        # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
-        trackers_manager.pre_run(context, self.spec.mode)
+        # Running tracking services pre run to detect if some of them should be used and update the env accordingly:
+        TRACKERS_MANAGER.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
-        return trackers_manager.post_run(context, db=self._db_conn)
+        return TRACKERS_MANAGER.post_run(context)
 
 
 class LocalRuntime(BaseRuntime, ParallelRunner):
@@ -278,15 +278,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
-                # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
-                trackers_manager.pre_run(context, self.spec.mode)
+                # Running tracking services pre run to detect if some of them should be used
+                # and update the env accordingly:
+                TRACKERS_MANAGER.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
-                return trackers_manager.post_run(
-                    context
-                )  # If trackers where used, this is where we log all data collected to MLRun
+                # If trackers where used, this is where we log all data collected to MLRun
+                return TRACKERS_MANAGER.post_run(context)
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
             except RunError as err:
@@ -329,8 +329,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     arg = arg.format(**runobj.spec.parameters)
                     new_args.append(arg)
                 args = new_args
-            # Running tracking services pre run to detect if some of them should be used, if so we'll update the env vars returned:
-            trackers_manager.pre_run(execution, self.spec.mode, env=env)
+            # Running tracking services pre run to detect if some of them should be used
+            # and update the env accordingly:
+            TRACKERS_MANAGER.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
@@ -340,17 +341,15 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 remove(tmp)
                 if resp:
                     runobj_dict = json.loads(resp)
-                    trackers_manager.post_run(
-                        runobj_dict
-                    )  # If trackers where used, this is where we log all data collected to MLRun
+                    # If trackers where used, this is where we log all data collected to MLRun
+                    TRACKERS_MANAGER.post_run(runobj_dict)
                     return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
             runobj_dict = runobj.to_dict()
-            return trackers_manager.post_run(
-                runobj_dict
-            )  # If trackers where used, this is where we log all data collected to MLRun
+            # If trackers where used, this is where we log all data collected to MLRun
+            return TRACKERS_MANAGER.post_run(runobj_dict)
 
 
 def load_module(file_name, handler, context):
@@ -507,21 +506,21 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in inputs:
             kwargs[key] = _get_input_value(key)
 
-            list_of_params = list(args.values())
-            if len(list_of_params) == 0:
-                return kwargs
+    list_of_params = list(args.values())
+    if len(list_of_params) == 0:
+        return kwargs
 
-            # get the last parameter, as **kwargs can only be last in the function's parameters list
-            last_param = list_of_params[-1]
-            # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
-            # This corresponds to a **kwargs parameter in a Python function definition.
-            if last_param.kind == last_param.VAR_KEYWORD:
-                # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
-                # as part of the previous loop which handled all parameters which were explicitly defined in the handler
-                for key in params:
-                    if key not in kwargs:
-                        kwargs[key] = copy(params[key])
-                for key in inputs:
-                    if key not in kwargs:
-                        kwargs[key] = _get_input_value(key)
+    # get the last parameter, as **kwargs can only be last in the function's parameters list
+    last_param = list_of_params[-1]
+    # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
+    # This corresponds to a **kwargs parameter in a Python function definition.
+    if last_param.kind == last_param.VAR_KEYWORD:
+        # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
+        # as part of the previous loop which handled all parameters which were explicitly defined in the handler
+        for key in params:
+            if key not in kwargs:
+                kwargs[key] = copy(params[key])
+        for key in inputs:
+            if key not in kwargs:
+                kwargs[key] = _get_input_value(key)
     return kwargs

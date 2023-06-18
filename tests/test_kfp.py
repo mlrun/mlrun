@@ -18,13 +18,15 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 import yaml
 
 import mlrun.kfpops
 from mlrun import new_function, new_task
-from mlrun.artifacts import ChartArtifact
+from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
 
 model_body = "abc is 123"
@@ -54,12 +56,10 @@ def my_job(context, p1=1, p2="a-string"):
     context.log_artifact("model", body=model_body, local_path="model.txt")
     context.log_artifact("results", local_path="results.html", body=results_body)
 
-    # create a chart output (will show in the pipelines UI)
-    chart = ChartArtifact("chart")
-    chart.header = ["Epoch", "Accuracy", "Loss"]
-    for i in range(1, 8):
-        chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
-    context.log_artifact(chart)
+    x = np.arange(10)
+    fig = go.Figure(data=go.Scatter(x=x, y=x**2))
+    plotly = PlotlyArtifact(figure=fig, key="plotly")
+    context.log_artifact(plotly)
 
     raw_data = {
         "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -148,7 +148,7 @@ def _assert_iteration_output_dir_files(output_dir, iteration):
     with open(file_path("results.html")) as results_file:
         contents = results_file.read()
         assert contents == results_body
-    assert os.path.exists(file_path("chart.html"))
+    assert os.path.exists(file_path("plotly.html"))
     assert os.path.exists(file_path("mydf.parquet"))
 
 

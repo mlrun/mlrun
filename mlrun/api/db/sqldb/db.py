@@ -1411,7 +1411,14 @@ class SQLDB(DBInterface):
     def store_project(
         self, session: Session, name: str, project: mlrun.common.schemas.Project
     ):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug(
+            "Storing project in DB",
+            name=name,
+            project_metadata=project.metadata,
+            project_owner=project.spec.owner,
+            project_desired_state=project.spec.desired_state,
+            project_status=project.status,
+        )
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1743,7 +1750,7 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
-    ) -> Project:
+    ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"

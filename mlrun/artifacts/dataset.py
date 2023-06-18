@@ -331,7 +331,7 @@ class DatasetArtifact(Artifact):
 # TODO: remove in 1.5.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
+    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'Artifact' instead",
     category=FutureWarning,
 )
 class LegacyTableArtifact(LegacyArtifact):

@@ -44,9 +44,51 @@ to the [feature store example](./basic-demo.html).
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
-feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
-sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
-aggregations. 
+feature-set, which is created by performing an aggregate function over the feature's values.
+
+If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
+If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
+
+
+Feature names, which are generated internally, must match this regex pattern to be treated as aggregations: 
+`.*_[a-z]+_[0-9]+[smhd]$`,<br>
+where `[a-z]+` is the name of an aggregation. 
+
+```{admonition} Warning
+You must ensure that your features will not conflict with the automatically generated feature names. For example, 
+when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
+```
+
+If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
+    
+These features can be fed into predictive models or can be used for additional processing and feature generation.
+
+```{admonition} Notes
+- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
+   aggregation steps are needed, a unique name must be provided to each, using the `step_name` parameter.
+- The timestamp column must be part of the feature set definition (for aggregation).
+```
+
+Aggregations that are supported using this function are:
+- `count` 
+- `sum`
+- `sqr` (sum of squares)
+- `max`
+- `min`
+- `first`
+- `last`
+- `avg`
+- `stdvar` (variance)
+- `stddev` (standard deviation)
+
+For full description of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
+documentation.
+
+### Windows
+
+You can use aggregation for time-based sliding windows and fixed windows. In general, sliding windows are used for real time data, 
+while fixed windows are used for historical aggregations. 
 
 A window can be measured in years, days, hours, seconds, minutes. 
 A window can be a single window, e.g. ‘1h’, ‘1d’, or a 
@@ -97,34 +139,8 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
    quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
    quotes_set.add_aggregation("bid", ["min", "max"], ["1h"] name="price")
    ```
-   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.
-   
-   
-If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
-If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
-    
-These features can be fed into predictive models or be used for additional processing and feature generation.
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.  
 
-```{admonition} Notes
-- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-   aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
-- The timestamp column must be part of the feature set definition (for aggregation).
-```
-
-Aggregations that are supported using this function are:
-- `count` 
-- `sum`
-- `sqr` (sum of squares)
-- `max`
-- `min`
-- `first`
-- `last`
-- `avg`
-- `stdvar`
-- `stddev`
-
-For a full documentation of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
-documentation.
 
 ## Built-in transformations
 

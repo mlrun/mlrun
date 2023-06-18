@@ -57,6 +57,10 @@ def ensure_running_on_chief(function):
 
     if asyncio.iscoroutinefunction(function):
         return async_wrapper
+
+    # ensure method name is preserved
+    wrapper.__name__ = function.__name__
+
     return wrapper
 
 

@@ -33,7 +33,7 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
 * **name** &mdash; The feature set name is a unique name within a project. 
 * **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the key columns 
-   are determined by the the relations field if it exists, and otherwise by the entities.
+   are determined by the relations field if it exists, and otherwise by the entities.
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
    - Spark

@@ -14,7 +14,7 @@
 
 ARG GO_VERSION=1.19
 
-FROM golang:${GO_VERSION}
+FROM gcr.io/iguazio/golang:${GO_VERSION}
 
 ARG PROTOC_GEN_GO_VERSION=v1.28
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
@@ -33,4 +33,5 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERS
 
 # use --break-system-packages to avoid "pip error "externally managed environment" on latest python/pip
 # ftr, the alternative is using venv, but it's more complicated
-RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION} --break-system-packages
+# TODO: uncomment --break-system-packages once we upgrade pip to > 23.0.1 https://pip.pypa.io/en/stable/news/#v23-0-1
+RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION} #--break-system-packages

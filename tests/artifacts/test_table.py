@@ -28,6 +28,7 @@ def test_table_artifact_get_body(use_dataframe):
     assert artifact_body is not None
 
 
+# TODO: remove in 1.6.0 when removing TableArtifact
 def _generate_table_artifact(use_dataframe=True):
     if use_dataframe:
         data_frame = pandas.DataFrame({"x": [1, 2]})

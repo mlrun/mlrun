@@ -51,6 +51,7 @@ from .plots import (
     PlotlyArtifact,
 )
 
+# TODO - Remove this when types are deleted in 1.6.0
 artifact_types = {
     "": Artifact,
     "artifact": Artifact,

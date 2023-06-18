@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import importlib
 import os
 import pathlib
 import tempfile
@@ -313,8 +314,7 @@ class _XMLFormatter(_Formatter):
         parser = to_kwargs.pop("parser", None)
         if parser is None:
             try:
-                import lxml
-
+                importlib.import_module("lxml")
                 parser = "lxml"
             except ModuleNotFoundError:
                 parser = "etree"

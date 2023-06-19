@@ -274,10 +274,18 @@ def uninstall(redis, kafka, mysql, redisinsight):
         if redisinsight:
             cmd = "kubectl delete ingress -n devtools redisinsight"
             subprocess.run(cmd.split(), check=True)
+    except Exception as e:  # !!!
+        pass
+        print(e)
+    try:
         for service in services:
             if locals().get(service):
                 cmd = f"helm uninstall {service} --namespace {namespace}"
                 subprocess.run(cmd.split(), check=True)
+    except Exception as e:  # !!!
+        print(e)
+        pass
+    try:
         print("namespace deleteted")
         delns = "kubectl delete namespace  devtools"
         subprocess.run(cmd.split(), check=True)

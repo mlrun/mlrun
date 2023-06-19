@@ -180,7 +180,7 @@ class StoreManager:
 
         store, subpath = self.get_or_create_store(url, secrets=secrets)
         schema, endpoint, parsed_url = parse_url(url)
-        if endpoint in url and schema == "dbfs":
+        if endpoint and endpoint in url and schema == "dbfs":
             url = url.replace(endpoint, "")
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 

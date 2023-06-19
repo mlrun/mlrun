@@ -354,7 +354,7 @@ def parse_query_parameters(request_body: Dict[str, Any]) -> Dict[str, str]:
 
     if len(targets) > 1:
         logger.warn(
-            f"The 'targets' list contains more then one element ({len(targets)}), all targets except the first one are "
+            f"The 'targets' list contains more than one element ({len(targets)}), all targets except the first one are "
             f"ignored."
         )
 

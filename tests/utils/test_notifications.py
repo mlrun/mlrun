@@ -33,7 +33,6 @@ import mlrun.utils.notifications
 def test_load_notification(notification_kind):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
-    notification_key = f"{run_uid}-{notification_name}"
     when_state = "completed"
     notification = mlrun.model.Notification.from_dict(
         {
@@ -55,11 +54,12 @@ def test_load_notification(notification_kind):
         mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
     )
     notification_pusher._load_notification(run, notification)
-    assert notification_key in notification_pusher._notifications
-    assert isinstance(
-        notification_pusher._notifications[notification_key],
-        mlrun.utils.notifications.NotificationTypes.get_notification(notification_kind),
+    loaded_notifications = (
+        notification_pusher._sync_notifications
+        + notification_pusher._async_notifications
     )
+    assert len(loaded_notifications) == 1
+    assert loaded_notifications[0][0].name == notification_name
 
 
 @pytest.mark.parametrize(
@@ -278,7 +278,19 @@ def test_slack_notification(runs, expected):
                 "token": "test-token",
                 "gitlab": True,
             },
-            "https://gitlab.com/api/v4/projects/test-repo/merge_requests/test-issue/notes",
+            "https://gitlab.com/api/v4/projects/test-repo/issues/test-issue/notes",
+            {
+                "PRIVATE-TOKEN": "test-token",
+            },
+        ),
+        (
+            {
+                "repo": "test-repo",
+                "merge_request": "test-merge-request",
+                "token": "test-token",
+                "gitlab": True,
+            },
+            "https://gitlab.com/api/v4/projects/test-repo/merge_requests/test-merge-request/notes",
             {
                 "PRIVATE-TOKEN": "test-token",
             },
@@ -290,7 +302,7 @@ def test_slack_notification(runs, expected):
                 "token": "test-token",
                 "server": "custom-gitlab",
             },
-            "https://custom-gitlab/api/v4/projects/test-repo/merge_requests/test-issue/notes",
+            "https://custom-gitlab/api/v4/projects/test-repo/issues/test-issue/notes",
             {
                 "PRIVATE-TOKEN": "test-token",
             },
@@ -340,8 +352,8 @@ def test_inverse_dependencies(
         ]
     )
 
-    mock_console_push = unittest.mock.MagicMock()
-    mock_ipython_push = unittest.mock.MagicMock()
+    mock_console_push = unittest.mock.MagicMock(return_value=Exception())
+    mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
     monkeypatch.setattr(
         mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
     )
@@ -353,6 +365,7 @@ def test_inverse_dependencies(
     )
 
     custom_notification_pusher.push("test-message", "info", [])
+
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
 

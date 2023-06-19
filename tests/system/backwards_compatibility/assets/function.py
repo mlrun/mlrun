@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 import mlrun
 from mlrun import DataItem
-from mlrun.artifacts import ChartArtifact
+from mlrun.artifacts import PlotlyArtifact
 
 
 def log_dataset(context: mlrun.MLClientCtx, dataset_name: str):
@@ -47,15 +49,15 @@ def api_backward_compatibility_tests_succeeding_function(
     )
     context.logger.info("Logged artifact", artifact=logged_artifact.base_dict())
 
-    # logging ChartArtifact
-    chart = ChartArtifact("chart")
-    chart.labels = {"type": "roc"}
-    chart.header = ["Epoch", "Accuracy", "Loss"]
-    for i in range(1, 8):
-        chart.add_row([i, i / 20 + 0.75, 0.30 - i / 20])
-    logged_chart = context.log_artifact(chart)
+    # logging PlotlyArtifact
+    x = np.arange(10)
+    fig = go.Figure(data=go.Scatter(x=x, y=x**2))
+
+    plotly = PlotlyArtifact(figure=fig, key="plotly")
+    logged_plotly = context.log_artifact(plotly)
+
     context.logger.info(
-        "Logged chart artifact", chart_artifact=logged_chart.base_dict()
+        "Logged plotly artifact", plotly_artifact=logged_plotly.base_dict()
     )
 
     # Model logging

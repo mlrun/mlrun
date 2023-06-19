@@ -80,5 +80,8 @@ class InMemoryStore(DataStore):
             reader = df_module.read_json
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"file type unhandled {url}")
+        # InMemoryStore store do not filter on time
+        for field in ["time_column", "start_time", "end_time"]:
+            kwargs.pop(field, None)
 
         return reader(item, **kwargs)

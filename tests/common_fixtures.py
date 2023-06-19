@@ -103,6 +103,10 @@ def config_test_base():
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
 
+    # revert change of default project after project creation
+    mlrun.mlconf.default_project = "default"
+    mlrun.projects.project.pipeline_context.set(None)
+
 
 @pytest.fixture
 def aioresponses_mock():
@@ -257,11 +261,16 @@ class RunDBMock:
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._runs[uid] = {
-            "struct": struct,
-            "project": project,
-            "iter": iter,
-        }
+        if hasattr(struct, "to_dict"):
+            struct = struct.to_dict()
+
+        if project:
+            struct["metadata"]["project"] = project
+
+        if iter:
+            struct["status"]["iteration"] = iter
+
+        self._runs[uid] = struct
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
@@ -295,6 +304,9 @@ class RunDBMock:
 
     def store_project(self, name, project):
         self._project_name = name
+
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
 
     def get_project(self, name):
@@ -342,7 +354,7 @@ class RunDBMock:
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
-            update_in(self._runs[uid]["struct"], key, value)
+            update_in(self._runs[uid], key, value)
 
     def assert_no_mount_or_creds_configured(self, function_name=None):
         function = self._get_function_internal(function_name)
@@ -482,6 +494,10 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+
+    # Create the default project to mimic real MLRun DB (the default project is always available for use):
+    mlrun.get_or_create_project("default")
+
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing

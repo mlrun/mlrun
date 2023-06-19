@@ -1,6 +1,8 @@
 (change-log)=
 # Change log
+
 - [v1.4.0](#v1-4-0)
+- [v1.3.3](#v1-3-3)
 - [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
@@ -29,9 +31,7 @@
 | ML-2030 |  **Also in docs**  move artifacts from test to prod [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2380 | **Is it in release?** Spark and Presto [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
-| ML-2968 | **Is it in release?** Workflow UI Really Slow [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
-| ML-3202 |  **Also in docs** can't access it  [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
 | ML-3420 | **needs better explanation** MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
@@ -53,12 +53,9 @@
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs - Gilad** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | (Incorrect) naming of feature causes error when get the feature vector from the online feature service. Fix is an additional restriction in feature names. See [Aggregations](,/feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
-| ML-3806 | **if it's in the rel** Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
+| ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
-| ML-3856 | **if it's in the rel** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/). |
-
-
+| ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/). 
 
 ###  APIs
 | ID   | Description                                                    |
@@ -70,22 +67,19 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3381 | Support private repo as a marketplace hub
 | ML-3647 | Jobs can now be terminated with MLRun SDK. |
-- 3763 Gilad
-- 3375  build an image directly through project API, without having to go through creating a function and building an image for it. 
-- 2030:  add to docs: To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
-- 
-- 3202
-- 3373 feature vector complex join
-- **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but rews must bwe in another JIRA...
-3315: how to aggregate aggregations
-3647 = terminate job in SDK
-
-
+| ML-3763 Gilad
+| ML-3375  build an image directly through project API, without having to go through creating a function and building an image for it. 
+| ML-2030:  add to docs: move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
+| ML-3202 | 
+| ML-3373 | feature vector complex join
+| ML- **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA...
+| ML-3315 | how to aggregate aggregations
+| ML-3647 | terminate job in SDK
 | ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). |   
 
 
 ### Deprecations
-- **if it gets in: | ML-3547 | [View in Git](https://github.com/mlrun/mlrun/pull/). |**
+| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |**
 
 
 ### Breaking changes
@@ -95,13 +89,16 @@
 
 
 ### Future Deprecation
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
+old dashboards won't be supported in v1.5.0. |
+| | clear_context() will be deprecated in v1.6.0. |
 
-- Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
-old dashboards won't be supported in v1.5.0.  **(ml-3605)**
-- clear_context() will be deprecated in v1.6.0.
 
-
-## v1.3.2	
+## v1.3.3	
+=======
+| ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
 
 ### Closed issues
 
@@ -149,7 +146,7 @@ To install on a **Python 3.7** environment (and optionally upgrade to python 3.9
 
 ```
 $CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip
+$CONDA_HOME/bin/conda install -y 'pip>=22.0'
 ```
 3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
 ```
@@ -663,6 +660,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
     
 | In   | ID |Description                                                          |
 |------ | ---- | --------------------------------------------------------------------|
-| v1.0.0 |     | MLRun / Nuclio do not support python 3.6.                             |
-| v1.3.0 |     | See [Deprecated APIs](#api-130).|
+| v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
+| v1.3.0 |  NA | See [Deprecated APIs](#api-130).|
 | v1.4.0|     | FeatureSet(relations) is replaced by JoinSpec. See **ref to docs**

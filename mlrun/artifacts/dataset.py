@@ -26,7 +26,7 @@ import mlrun.common.schemas
 import mlrun.utils.helpers
 
 from ..datastore import is_store_uri, store_manager
-from .base import Artifact, ArtifactSpec, LegacyArtifact
+from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
 max_preview_columns = 100
@@ -44,6 +44,12 @@ class TableArtifactSpec(ArtifactSpec):
         self.header = None
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.4.0",
+    reason="'TableArtifact' will be removed in 1.6.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class TableArtifact(Artifact):
     kind = "table"
 
@@ -126,6 +132,7 @@ class DatasetArtifact(Artifact):
     kind = mlrun.common.schemas.ArtifactCategories.dataset
     # List of all the supported saving formats of a DataFrame:
     SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
+    _store_prefix = StorePrefix.Dataset
 
     def __init__(
         self,
@@ -324,7 +331,7 @@ class DatasetArtifact(Artifact):
 # TODO: remove in 1.5.0
 @deprecated(
     version="1.3.0",
-    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'TableArtifact' instead",
+    reason="'LegacyTableArtifact' will be removed in 1.5.0, use 'Artifact' instead",
     category=FutureWarning,
 )
 class LegacyTableArtifact(LegacyArtifact):

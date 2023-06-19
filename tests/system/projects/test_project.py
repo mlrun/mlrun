@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
 import pathlib
 import re
@@ -23,9 +24,9 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
-from mlrun.utils import logger
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -45,7 +46,7 @@ def exec_project(args):
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs["auto_trainer"].as_step(
+    funcs["auto-trainer"].as_step(
         name="train",
         inputs={"dataset": data_url},
         params={"model_class": model_class, "label_columns": "label"},
@@ -59,11 +60,20 @@ def pipe_test():
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
     custom_project_names_to_delete = []
+    _logger_redirected = False
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        if self._logger_redirected:
+            mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
+            self._logger_redirected = False
+
+        self._logger.debug(
+            "Deleting custom projects",
+            num_projects_to_delete=len(self.custom_project_names_to_delete),
+        )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
@@ -86,8 +96,8 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://auto_trainer", "auto_trainer")
-        proj.set_function("hub://v2_model_server", "serving")
+        proj.set_function("hub://auto-trainer", "auto-trainer")
+        proj.set_function("hub://v2-model-server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(
@@ -122,8 +132,38 @@ class TestProject(TestMLRunSystem):
             == commands
         )
 
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        # redirect logger to capture logs and check for warnings
+        self._logger_redirected = True
+        _stdout = io.StringIO()
+        mlrun.utils.logger.replace_handler_stream("default", _stdout)
+
+        # build function with image that has a protocol prefix
+        self.project.build_function(
+            fn,
+            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            base_image="mlrun/mlrun",
+            commands=["echo 1"],
+        )
+        out = _stdout.getvalue()
+        assert (
+            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL "
+            "where <image-name> is a placeholder). "
+            "Removing protocol prefix from image." in out
+        )
+
     def test_run(self):
-        name = "pipe1"
+        name = "pipe0"
         self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
@@ -186,7 +226,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
 
         # run project, load source into container at runtime
         project2.spec.load_source_on_run = True
@@ -204,13 +244,12 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
         run = project2.run(
             "main",
             artifact_path=f"v3io:///projects/{name}",
             arguments={"build": 1},
-            workflow_path=str(self.assets_path / "kflow.py"),
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
@@ -242,7 +281,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
@@ -250,7 +289,7 @@ class TestProject(TestMLRunSystem):
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
-        print(project2.to_yaml())
+        self._logger.debug("saved project", project2=project2.to_yaml())
 
         # exec the workflow
         args = [
@@ -261,7 +300,6 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -283,7 +321,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # exec the workflow
         args = [
@@ -296,7 +334,6 @@ class TestProject(TestMLRunSystem):
             "remote",
             "-p",
             f"v3io:///projects/{name}",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -314,6 +351,27 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
+    def test_cli_no_save_flag(self):
+        # load project from git
+        name = "saveproj12345"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # clone a project to local dir but don't save the project to the DB
+        args = [
+            "-n",
+            name,
+            "-u",
+            "git://github.com/mlrun/project-demo.git",
+            "--no-save",
+            project_dir,
+        ]
+        exec_project(args)
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self._run_db.get_project(name=name)
 
     def test_get_or_create(self):
         # create project and save to DB
@@ -407,7 +465,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        print(project.to_yaml())
+        self._logger.debug("set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -475,6 +533,15 @@ class TestProject(TestMLRunSystem):
                 local=True,
             )
 
+    def test_non_existent_run_id_in_pipeline(self):
+        project_name = "default"
+        db = mlrun.get_run_db()
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_pipeline(
+                "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
+            )
+
     def test_remote_from_archive(self):
         name = "pipe6"
         self.custom_project_names_to_delete.append(name)
@@ -483,11 +550,43 @@ class TestProject(TestMLRunSystem):
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
             engine="remote",
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+
+    def test_kfp_from_local_code(self):
+        name = "kfp-from-local-code"
+        self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
+        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+
+        handler_fn = project.set_function(
+            func="./assets/handler.py",
+            handler="my_func",
+            name="my-func",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        project.build_function(handler_fn)
+
+        project.set_workflow(
+            "main", "./assets/handler_workflow.py", handler="job_pipeline"
+        )
+        project.save()
+
+        run = project.run(
+            "main",
+            watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
@@ -504,7 +603,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
         )
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
 
         # exec the workflow
         args = [
@@ -520,7 +619,7 @@ class TestProject(TestMLRunSystem):
             str(self.assets_path),
         ]
         out = exec_project(args)
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find("pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
@@ -541,16 +640,17 @@ class TestProject(TestMLRunSystem):
             "main",
             "--watch",
             "--timeout 1",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
 
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )
@@ -614,6 +714,23 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert run_result.output("score")
 
+    def test_run_function_uses_user_defined_artifact_path_over_project_artifact_path(
+        self,
+    ):
+        func_name = "my-func"
+        self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        self.project.artifact_path = "/User/project_artifact_path"
+        user_artifact_path = "/User/user_artifact_path"
+
+        run = self.project.run_function(func_name, artifact_path=user_artifact_path)
+        assert run.spec.output_path == user_artifact_path
+
     def test_set_secrets(self):
         name = "set-secrets"
         self.custom_project_names_to_delete.append(name)
@@ -639,26 +756,18 @@ class TestProject(TestMLRunSystem):
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
         # overwriting nothing
-        project.run(workflow_name, schedule=schedules[0], override=True)
+        project.run(workflow_name, schedule=schedules[0])
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[0]
         ), "Failed to override nothing"
 
         # overwriting schedule:
-        project.run(workflow_name, schedule=schedules[1], dirty=True, override=True)
+        project.run(workflow_name, schedule=schedules[1], dirty=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[1]
         ), "Failed to override existing workflow"
-
-        # submit schedule when one exists without override - fail:
-        with pytest.raises(mlrun.errors.MLRunConflictError):
-            project.run(
-                workflow_name,
-                schedule=schedules[1],
-                dirty=True,
-            )
 
         # overwriting schedule from cli:
         args = [
@@ -668,7 +777,6 @@ class TestProject(TestMLRunSystem):
             "-d",
             "-r",
             workflow_name,
-            "-ow",  # stands for override-workflow
             "--schedule",
             f"'{schedules[2]}'",
         ]
@@ -677,20 +785,6 @@ class TestProject(TestMLRunSystem):
         assert (
             schedule.scheduled_object["schedule"] == schedules[2]
         ), "Failed to override from CLI"
-
-        # without override workflow from cli:
-        args = [
-            project_dir,
-            "-n",
-            name,
-            "-d",
-            "-r",
-            workflow_name,
-            "--schedule",
-            f"'{schedules[1]}'",
-        ]
-        out = exec_project(args)
-        assert "use 'override=True' (SDK) or '--override-workflow' (CLI)" in out
 
     def test_timeout_warning(self):
         name = "timeout-warning-test"
@@ -762,6 +856,8 @@ class TestProject(TestMLRunSystem):
             original_source,
             name=name,
         )
+        # Getting the expected source after possible enrichment:
+        expected_source = project.source
 
         run = project.run(
             "newflow",
@@ -773,8 +869,7 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
-        assert project_from_db.spec.source == original_source
-        assert project.spec.source == original_source
+        assert project_from_db.source == expected_source
 
         for engine in ["remote", "local", "kfp"]:
             project.run(
@@ -787,7 +882,7 @@ class TestProject(TestMLRunSystem):
 
             # Ensuring that the project's source has not changed in the db:
             project_from_db = self._run_db.get_project(name)
-            assert project_from_db.spec.source == original_source
+            assert project_from_db.source == expected_source
 
         # Ensuring that the loaded project is from the given source
         run = project.run(
@@ -806,28 +901,86 @@ class TestProject(TestMLRunSystem):
         schedule = self._run_db.get_schedule(project_name, "main")
         assert schedule.scheduled_object["schedule"] == schedule_str
 
-    def test_backwards_compatibility_overwrite(self):
-        # TODO: Remove in 1.6.0 when removing overwrite from SDK
-        name = "set-workflow"
+    def test_remote_workflow_source_with_subpath(self):
+        # Test running remote workflow when the project files are store in a relative path (the subpath)
+        project_source = "git://github.com/mlrun/system-tests.git#main"
+        project_context = "./test_subpath_remote"
+        project_name = "test-remote-workflow-source-with-subpath"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.load_project(
+            context=project_context,
+            url=project_source,
+            subpath="./test_remote_workflow_subpath",
+            name=project_name,
+        )
+        project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    def test_project_build_image(self):
+        name = "test-build-image"
         self.custom_project_names_to_delete.append(name)
+        project = mlrun.new_project(name, context=str(self.assets_path))
 
-        # _create_project contains set_workflow inside:
-        project = self._create_project(name)
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
 
-        archive_path = f"v3io:///projects/{project.name}/archived.zip"
-        project.export(archive_path)
-        project.spec.source = archive_path
-        project.save()
-        print(project.to_yaml())
+        assert project.default_image == image_name
 
-        schedule = "*/20 * * * *"
-        project.run("main", schedule=schedule)
-        self._assert_scheduled(name, schedule)
+        # test with user provided function object
+        project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
 
-        schedule = "*/21 * * * *"
-        project.run("main", schedule=schedule, override=True)
-        self._assert_scheduled(name, schedule)
+        run_result = project.run_function("scores", params={"text": "good morning"})
+        assert run_result.output("score")
 
-        schedule = "*/22 * * * *"
-        project.run("main", schedule=schedule, overwrite=True)
-        self._assert_scheduled(name, schedule)
+    def test_project_build_config_export_import(self):
+        # Verify that the build config is exported properly by the project, and a new project loaded from it
+        # can build default image directly without needing additional details.
+
+        name_export = "test-build-image-export"
+        name_import = "test-build-image-import"
+        self.custom_project_names_to_delete.extend([name_export, name_import])
+
+        project = mlrun.new_project(name_export, context=str(self.assets_path))
+        image_name = ".test-export-custom-image"
+
+        project.build_config(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo 1"],
+        )
+        assert project.default_image == image_name
+
+        project_dir = f"{projects_dir}/{name_export}"
+        proj_file_path = project_dir + "/project.yaml"
+        project.export(proj_file_path)
+
+        new_project = mlrun.load_project(project_dir, name=name_import)
+        new_project.build_image()
+
+        new_project.set_function(
+            str(self.assets_path / "sentiment.py"),
+            name="scores",
+            kind="job",
+            handler="handler",
+        )
+
+        run_result = new_project.run_function(
+            "scores", params={"text": "terrible evening"}
+        )
+        assert run_result.output("score")
+
+        shutil.rmtree(project_dir, ignore_errors=True)

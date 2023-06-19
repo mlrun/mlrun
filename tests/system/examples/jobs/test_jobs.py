@@ -87,7 +87,11 @@ class TestJobs(TestMLRunSystem):
         artifact_path = "v3io:///users/admin/kfp/{{workflow.uid}}/"
         arguments = {"p1": 8}
         workflow_run_id = _run_pipeline(
-            job_pipeline, arguments, experiment="my-job", artifact_path=artifact_path
+            job_pipeline,
+            arguments,
+            project=self.project_name,
+            experiment="my-job",
+            artifact_path=artifact_path,
         )
 
         wait_for_pipeline_completion(workflow_run_id)

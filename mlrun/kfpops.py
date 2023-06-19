@@ -226,7 +226,7 @@ def mlrun_op(
     :param labels:   labels to tag the job/run with ({key:val, ..})
     :param inputs:   dictionary of input objects + optional paths (if path is
                      omitted the path will be the in_path/key.
-    :param outputs:  dictionary of input objects + optional paths (if path is
+    :param outputs:  dictionary of output objects + optional paths (if path is
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts

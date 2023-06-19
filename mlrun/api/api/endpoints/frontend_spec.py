@@ -18,12 +18,13 @@ import fastapi
 import semver
 
 import mlrun.api.api.deps
-import mlrun.api.schemas
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
-import mlrun.builder
+import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
+from mlrun.api.api.utils import get_allowed_path_prefixes_list
 from mlrun.config import config
 from mlrun.platforms import is_iguazio_session_cookie
 
@@ -32,19 +33,15 @@ router = fastapi.APIRouter()
 
 @router.get(
     "/frontend-spec",
-    response_model=mlrun.api.schemas.FrontendSpec,
+    response_model=mlrun.common.schemas.FrontendSpec,
 )
 def get_frontend_spec(
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
-    # the cookie like it was before
-    # TODO: remove when Iguazio 3.0 is no longer relevant
-    session: typing.Optional[str] = fastapi.Cookie(None),
 ):
     jobs_dashboard_url = None
-    session = auth_info.session or session
+    session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
@@ -65,7 +62,7 @@ def get_frontend_spec(
     function_target_image_name_prefix_template = (
         config.httpdb.builder.function_target_image_name_prefix_template
     )
-    return mlrun.api.schemas.FrontendSpec(
+    return mlrun.common.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
         feature_flags=feature_flags,
@@ -75,17 +72,27 @@ def get_frontend_spec(
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
         function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
-        function_deployment_mlrun_command=mlrun.builder.resolve_mlrun_install_command(),
+        function_deployment_mlrun_command=_resolve_function_deployment_mlrun_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
         default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
         feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
+        allowed_artifact_path_prefixes_list=get_allowed_path_prefixes_list(),
         # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
         ce_mode=config.ce.mode,
         ce=config.ce.to_dict(),
     )
+
+
+def _resolve_function_deployment_mlrun_command():
+    # TODO: When UI adds a requirements section, mlrun should be specified there instead of the commands section i.e.
+    #  frontend spec will contain only the mlrun_version_specifier instead of the full command
+    mlrun_version_specifier = (
+        mlrun.api.utils.builder.resolve_mlrun_install_command_version()
+    )
+    return f'python -m pip install "{mlrun_version_specifier}"'
 
 
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
@@ -100,25 +107,25 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     return None
 
 
-def _resolve_feature_flags() -> mlrun.api.schemas.FeatureFlags:
-    project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.disabled
+def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
+    project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
-        project_membership = mlrun.api.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.api.schemas.AuthenticationFeatureFlag(
+        project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
+    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
         mlrun.mlconf.httpdb.authentication.mode
     )
-    nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.disabled
+    nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
         mlrun.runtimes.utils.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
-        nuclio_streams = mlrun.api.schemas.NuclioStreamsFeatureFlag.enabled
+        nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 
-    preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.disabled
+    preemption_nodes = mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled
     if mlrun.mlconf.is_preemption_nodes_configured():
-        preemption_nodes = mlrun.api.schemas.PreemptionNodesFeatureFlag.enabled
+        preemption_nodes = mlrun.common.schemas.PreemptionNodesFeatureFlag.enabled
 
-    return mlrun.api.schemas.FeatureFlags(
+    return mlrun.common.schemas.FeatureFlags(
         project_membership=project_membership,
         authentication=authentication,
         nuclio_streams=nuclio_streams,

@@ -20,19 +20,27 @@ from fastapi.testclient import TestClient
 
 import mlrun.api.api.endpoints.functions
 import mlrun.api.crud
-import mlrun.api.schemas
 import mlrun.api.utils
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.schemas
 import mlrun.errors
 
 PROJECT = "project-name"
 
 
-def create_project(client: TestClient, project_name: str = PROJECT, artifact_path=None):
-    project = _create_project_obj(project_name, artifact_path)
+def create_project(
+    client: TestClient,
+    project_name: str = PROJECT,
+    artifact_path=None,
+    source="source",
+    load_source_on_run=False,
+):
+    project = _create_project_obj(
+        project_name, artifact_path, source, load_source_on_run
+    )
     resp = client.post("projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
@@ -41,11 +49,11 @@ def create_project(client: TestClient, project_name: str = PROJECT, artifact_pat
 def compile_schedule(schedule_name: str = None, to_json: bool = True):
     if not schedule_name:
         schedule_name = f"schedule-name-{str(uuid.uuid4())}"
-    schedule = mlrun.api.schemas.ScheduleInput(
+    schedule = mlrun.common.schemas.ScheduleInput(
         name=schedule_name,
-        kind=mlrun.api.schemas.ScheduleKinds.job,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
         scheduled_object={"metadata": {"name": "something"}},
-        cron_trigger=mlrun.api.schemas.ScheduleCronTrigger(year=1999),
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(year=1999),
     )
     if not to_json:
         return schedule
@@ -55,9 +63,9 @@ def compile_schedule(schedule_name: str = None, to_json: bool = True):
 async def create_project_async(
     async_client: httpx.AsyncClient, project_name: str = PROJECT
 ):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.api.schemas.ProjectSpec(
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
@@ -69,12 +77,15 @@ async def create_project_async(
     return resp
 
 
-def _create_project_obj(project_name, artifact_path) -> mlrun.api.schemas.Project:
-    return mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.api.schemas.ProjectSpec(
+def _create_project_obj(
+    project_name, artifact_path, source, load_source_on_run=False
+) -> mlrun.common.schemas.Project:
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
             description="banana",
-            source="source",
+            source=source,
+            load_source_on_run=load_source_on_run,
             goals="some goals",
             artifact_path=artifact_path,
         ),

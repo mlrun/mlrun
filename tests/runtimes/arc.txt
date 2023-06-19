@@ -2,7 +2,7 @@
 
 def arc_to_parquet(
     context: MLClientCtx,
-    archive_url: Union[str, DataItem],
+    archive_url: Optional[Union[str, DataItem]],
     header: Optional[List[str]] = None,
     chunksize: int = 10_000,
     dtype=None,
@@ -10,6 +10,9 @@ def arc_to_parquet(
     key: str = "data",
     dataset: Optional[str] = None,
     part_cols = [],
+    str_list: List[str] = [],
+    full_import: mlrun.run.RunObject = [],
+    full_import_with_slice: typing.Union[typing.List[str], mlrun.run.RunObject] = [],
 ) -> None:
     """Open a file/object archive and save as a parquet file.
     Partitioning requires precise specification of column types.

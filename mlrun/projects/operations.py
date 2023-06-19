@@ -70,8 +70,9 @@ def run_function(
     selector: str = None,
     project_object=None,
     auto_build: bool = None,
-    schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
+    notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
@@ -91,16 +92,16 @@ def run_function(
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://auto-trainer")
         run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                       inputs={"dataset": DATA_PATH})
 
     example (use with project)::
 
-        # create a project with two functions (local and from marketplace)
+        # create a project with two functions (local and from hub)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        project.set_function("hub://auto_trainer", "train")
+        project.set_function("hub://auto-trainer", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
@@ -111,7 +112,7 @@ def run_function(
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
-            run1 = run_function("loaddata", params={"url": url})
+            run1 = run_function("loaddata", params={"url": url}, outputs=["data"])
             run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                          inputs={"dataset": run1.outputs["data"]})
 
@@ -143,6 +144,7 @@ def run_function(
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param notifications:   list of notifications to push when the run is completed
     :param returns:         List of log hints - configurations for how to log the returning values from the handler's
                             run (as artifacts or results). The list's length must be equal to the amount of returning
                             objects. A log hint may be given as:
@@ -191,13 +193,14 @@ def run_function(
             verbose=verbose,
             watch=watch,
             local=local,
+            artifact_path=artifact_path
             # workflow artifact_path has precedence over the project artifact_path equivalent to
             # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
-            artifact_path=pipeline_context.workflow_artifact_path
-            or (project.artifact_path if project else None)
-            or artifact_path,
+            or pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None),
             auto_build=auto_build,
             schedule=schedule,
+            notifications=notifications,
         )
         if run_result:
             run_result._notified = False
@@ -233,6 +236,7 @@ def build_function(
     commands: list = None,
     secret_name=None,
     requirements: Union[str, List[str]] = None,
+    requirements_file: str = None,
     mlrun_version_specifier=None,
     builder_env: dict = None,
     project_object=None,
@@ -247,7 +251,8 @@ def build_function(
     :param base_image:      base image name/path (commands and source code will be added to it)
     :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
     :param secret_name:     k8s secret for accessing the docker registry
-    :param requirements:    list of python packages or pip requirements file path, defaults to None
+    :param requirements:    list of python packages, defaults to None
+    :param requirements_file:    pip requirements file path, defaults to None
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -266,7 +271,7 @@ def build_function(
         if overwrite_build_params:
             function.spec.build.commands = None
         if requirements:
-            function.with_requirements(requirements)
+            function.with_requirements(requirements, requirements_file)
         if commands:
             function.with_commands(commands)
         return function.deploy_step(
@@ -327,7 +332,7 @@ def deploy_function(
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object
-    :param dashboard:  url of the remote Nuclio dashboard (when not local)
+    :param dashboard:  DEPRECATED. Keep empty to allow auto-detection by MLRun API.
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag

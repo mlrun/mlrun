@@ -16,11 +16,11 @@ from copy import copy
 
 import mlrun
 import mlrun.errors
-from mlrun.api.schemas import AuthorizationVerificationInput
+from mlrun.common.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import StorePrefix, logger, mlconf, parse_versioned_object_uri
+from mlrun.utils import StorePrefix, logger, parse_versioned_object_uri
 
 from ..config import config
 
@@ -86,13 +86,13 @@ def get_feature_set_by_uri(uri, project=None):
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
     resource = (
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
             project, "feature-set"
         )
     )
 
     auth_input = AuthorizationVerificationInput(
-        resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
+        resource=resource, action=mlrun.common.schemas.AuthorizationAction.read
     )
     db.verify_authorization(auth_input)
 
@@ -115,19 +115,17 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
 
     project, name, tag, uid = parse_versioned_object_uri(uri, default_project)
 
-    resource = (
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-            project, "feature-vector"
-        )
+    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+        project, "feature-vector"
     )
 
     if update:
         auth_input = AuthorizationVerificationInput(
-            resource=resource, action=mlrun.api.schemas.AuthorizationAction.update
+            resource=resource, action=mlrun.common.schemas.AuthorizationAction.update
         )
     else:
         auth_input = AuthorizationVerificationInput(
-            resource=resource, action=mlrun.api.schemas.AuthorizationAction.read
+            resource=resource, action=mlrun.common.schemas.AuthorizationAction.read
         )
 
     db.verify_authorization(auth_input)
@@ -136,12 +134,12 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
 
 
 def verify_feature_set_permissions(
-    feature_set, action: mlrun.api.schemas.AuthorizationAction
+    feature_set, action: mlrun.common.schemas.AuthorizationAction
 ):
     project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
     resource = (
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
             project, "feature-set"
         )
     )
@@ -164,14 +162,12 @@ def verify_feature_set_exists(feature_set):
 
 
 def verify_feature_vector_permissions(
-    feature_vector, action: mlrun.api.schemas.AuthorizationAction
+    feature_vector, action: mlrun.common.schemas.AuthorizationAction
 ):
-    project = feature_vector._metadata.project or mlconf.default_project
+    project = feature_vector._metadata.project or config.default_project
 
-    resource = (
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-            project, "feature-vector"
-        )
+    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+        project, "feature-vector"
     )
 
     db = mlrun.get_run_db()
@@ -200,7 +196,7 @@ class RunConfig:
     ):
         """class for holding function and run specs for jobs and serving functions
 
-        When running feature ingestion or merging tasks we use the RunConfig class to pass
+        when running feature ingestion or merging tasks we use the RunConfig class to pass
         the desired function and job configuration.
         the apply() method is used to set resources like volumes, the with_secret() method adds secrets
 
@@ -218,7 +214,7 @@ class RunConfig:
             config = RunConfig("mycode.py", image="mlrun/mlrun", requirements=["spacy"])
 
             # config for using function object
-            function = mlrun.import_function("hub://some_function")
+            function = mlrun.import_function("hub://some-function")
             config = RunConfig(function)
 
         :param function:    this can be function uri or function object or path to function code (.py/.ipynb)
@@ -229,7 +225,8 @@ class RunConfig:
         :param kind:        function runtime kind (job, serving, spark, ..), required when function points to code
         :param handler:     the function handler to execute (for jobs or nuclio)
         :param parameters:  job parameters
-        :param watch:       in batch jobs will wait for the job completion and print job logs to the console
+        :param watch:       in batch jobs will wait for the job completion and print job logs to the console.
+                            Default (None) is True.
         :param owner:       job owner
         :param credentials: job credentials
         :param code:        function source code (as string)

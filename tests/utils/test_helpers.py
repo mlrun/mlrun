@@ -36,6 +36,7 @@ from mlrun.utils.helpers import (
     resolve_image_tag_suffix,
     str_to_timestamp,
     update_in,
+    validate_artifact_key_name,
     validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
@@ -82,7 +83,7 @@ def test_retry_until_successful_fatal_failure():
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
-            # Invalid because it's more then 63 characters
+            # Invalid because it's more than 63 characters
             "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
@@ -251,6 +252,42 @@ def test_validate_tag_name(tag_name, expected):
         validate_tag_name(
             tag_name,
             field_name="artifact.metadata,tag",
+        )
+
+
+@pytest.mark.parametrize(
+    "artifact_name,expected",
+    [
+        # Invalid names
+        (
+            "artifact/name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "/artifact-name",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "artifact-name/",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "artifact-name\\test",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Valid names
+        ("artifact-name2.0", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name", does_not_raise()),
+        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifactNAME", does_not_raise()),
+    ],
+)
+def test_validate_artifact_name(artifact_name, expected):
+    with expected:
+        validate_artifact_key_name(
+            artifact_name,
+            field_name="artifact.key",
         )
 
 

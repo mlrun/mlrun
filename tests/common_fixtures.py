@@ -35,6 +35,7 @@ import mlrun.config
 import mlrun.datastore
 import mlrun.db
 import mlrun.k8s_utils
+import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
@@ -42,6 +43,7 @@ from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
+from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
@@ -80,6 +82,9 @@ def config_test_base():
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
+    # no need to raise error when using nop_db
+    mlrun.mlconf.httpdb.nop_db.raise_error = False
+
     # remove the is_running_as_api cache, so it won't pass between tests
     mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)
@@ -91,13 +96,16 @@ def config_test_base():
     mlrun.api.utils.singletons.k8s._k8s = None
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
-    mlrun.k8s_utils._k8s = None
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
+
+    # revert change of default project after project creation
+    mlrun.mlconf.default_project = "default"
+    mlrun.projects.project.pipeline_context.set(None)
 
 
 @pytest.fixture
@@ -116,18 +124,25 @@ def db():
     db_session = None
     try:
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        _init_engine(dsn=dsn)
         init_data()
         initialize_db()
         db_session = create_session()
         db = SQLDB(dsn)
         db.initialize(db_session)
+        config.dbpath = dsn
     finally:
         if db_session is not None:
             db_session.close()
     mlrun.api.utils.singletons.db.initialize_db(db)
+    mlrun.api.utils.singletons.logs_dir.initialize_logs_dir()
     mlrun.api.utils.singletons.project_member.initialize_project_member()
     return db
+
+
+@pytest.fixture
+def ensure_default_project() -> mlrun.projects.project.MlrunProject:
+    return mlrun.get_or_create_project("default")
 
 
 @pytest.fixture()
@@ -139,6 +154,14 @@ def db_session() -> Generator:
     finally:
         if db_session is not None:
             db_session.close()
+
+
+@pytest.fixture()
+def running_as_api():
+    old_is_running_as_api = mlrun.config.is_running_as_api
+    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+    yield
+    mlrun.config.is_running_as_api = old_is_running_as_api
 
 
 @pytest.fixture
@@ -190,46 +213,80 @@ class RunDBMock:
     def __init__(self):
         self.kind = "http"
         self._pipeline = None
-        self._function = None
-        self._artifact = None
+        self._functions = {}
+        self._artifacts = {}
+        self._project_name = None
+        self._project = None
         self._runs = {}
 
     def reset(self):
-        self._function = None
+        self._functions = {}
         self._pipeline = None
         self._project_name = None
         self._project = None
-        self._artifact = None
+        self._artifacts = {}
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
-        self._function = function
-        return "1234-1234-1234-1234"
+        hash_key = mlrun.utils.fill_function_hash(function, tag)
+        self._functions[name] = function
+        return hash_key
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifacts[key] = artifact
+        return artifact
+
+    def read_artifact(self, key, tag=None, iter=None, project=""):
+        return self._artifacts.get(key, None)
+
+    def list_artifacts(
+        self,
+        name="",
+        project="",
+        tag="",
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category=None,
+        iter: int = None,
+        best_iteration: bool = False,
+        as_records: bool = False,
+        use_tag_as_uid: bool = None,
+    ):
+        def filter_artifact(artifact):
+            if artifact["metadata"].get("tag", None) == tag:
+                return True
+
+        return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._runs[uid] = {
-            "struct": struct,
-            "project": project,
-            "iter": iter,
-        }
+        if hasattr(struct, "to_dict"):
+            struct = struct.to_dict()
+
+        if project:
+            struct["metadata"]["project"] = project
+
+        if iter:
+            struct["status"]["iteration"] = iter
+
+        self._runs[uid] = struct
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
-        self._artifact = artifact
-
-    def get_function(self, function, project, tag):
-        return {
-            "name": function,
-            "metadata": "bla",
-            "uid": "1234-1234-1234-1234",
-            "project": project,
-            "tag": tag,
-        }
+    def get_function(self, function, project, tag, hash_key=None):
+        if function not in self._functions:
+            raise mlrun.errors.MLRunNotFoundError("Function not found")
+        return self._functions[function]
 
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        # mock API updated the run status to completed
+        self._runs[uid]["status"] = {"state": "completed"}
+        return "completed", 0
 
     def submit_pipeline(
         self,
@@ -247,13 +304,21 @@ class RunDBMock:
 
     def store_project(self, name, project):
         self._project_name = name
+
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
 
     def get_project(self, name):
         if self._project_name and name == self._project_name:
             return self._project
-        else:
-            raise mlrun.errors.MLRunNotFoundError("Project not found")
+
+        elif name == config.default_project and not self._project:
+            project = mlrun.projects.MlrunProject(name)
+            self.store_project(name, project)
+            return project
+
+        raise mlrun.errors.MLRunNotFoundError(f"Project '{name}' not found")
 
     def remote_builder(
         self,
@@ -263,16 +328,17 @@ class RunDBMock:
         skip_deployed=False,
         builder_env=None,
     ):
-        self._function = func.to_dict()
+        function = func.to_dict()
         status = NuclioStatus(
             state="ready",
             nuclio_name="test-nuclio-name",
         )
+        self._functions[function["metadata"]["name"]] = function
         return {
             "data": {
                 "status": status.to_dict(),
-                "metadata": self._function.get("metadata"),
-                "spec": self._function.get("spec"),
+                "metadata": function.get("metadata"),
+                "spec": function.get("spec"),
             }
         }
 
@@ -287,18 +353,13 @@ class RunDBMock:
         return "ready", last_log_timestamp
 
     def update_run(self, updates: dict, uid, project="", iter=0):
-        state = self._function.get("state", {})
-        update_in(state, "status.state", updates)
-        update_in(state, "status.results", updates)
-        update_in(state, "status.start_time", updates)
-        update_in(state, "status.last_update", updates)
-        update_in(state, "status.error", updates)
-        update_in(state, "status.commit", updates)
-        update_in(state, "status.iterations", updates)
-        self._function["state"] = state
+        for key, value in updates.items():
+            update_in(self._runs[uid], key, value)
 
-    def assert_no_mount_or_creds_configured(self):
-        env_list = self._function["spec"]["env"]
+    def assert_no_mount_or_creds_configured(self, function_name=None):
+        function = self._get_function_internal(function_name)
+
+        env_list = function["spec"]["env"]
         env_params = [item["name"] for item in env_list]
         for env_variable in [
             "V3IO_USERNAME",
@@ -308,15 +369,16 @@ class RunDBMock:
         ]:
             assert env_variable not in env_params
 
-        volume_mounts = self._function["spec"]["volume_mounts"]
-        volumes = self._function["spec"]["volumes"]
+        volume_mounts = function["spec"]["volume_mounts"]
+        volumes = function["spec"]["volumes"]
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
     def assert_v3io_mount_or_creds_configured(
-        self, v3io_user, v3io_access_key, cred_only=False
+        self, v3io_user, v3io_access_key, cred_only=False, function_name=None
     ):
-        env_list = self._function["spec"]["env"]
+        function = self._get_function_internal(function_name)
+        env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
         expected_env = {
             "V3IO_USERNAME": v3io_user,
@@ -327,8 +389,8 @@ class RunDBMock:
         result.pop("dictionary_item_removed")
         assert result == {}
 
-        volume_mounts = self._function["spec"]["volume_mounts"]
-        volumes = self._function["spec"]["volumes"]
+        volume_mounts = function["spec"]["volume_mounts"]
+        volumes = function["spec"]["volumes"]
 
         if cred_only:
             assert len(volumes) == 0
@@ -352,8 +414,8 @@ class RunDBMock:
         assert deepdiff.DeepDiff(volumes, expected_volumes) == {}
         assert deepdiff.DeepDiff(volume_mounts, expected_mounts) == {}
 
-    def assert_pvc_mount_configured(self, pvc_params):
-        function_spec = self._function["spec"]
+    def assert_pvc_mount_configured(self, pvc_params, function_name=None):
+        function_spec = self._get_function_internal(function_name)["spec"]
 
         expected_volumes = [
             {
@@ -371,8 +433,9 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
-    def assert_s3_mount_configured(self, s3_params):
-        env_list = self._function["spec"]["env"]
+    def assert_s3_mount_configured(self, s3_params, function_name=None):
+        function = self._get_function_internal(function_name)
+        env_list = function["spec"]["env"]
         param_names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
         secret_name = s3_params.get("secret_name")
         non_anonymous = s3_params.get("non_anonymous")
@@ -397,8 +460,9 @@ class RunDBMock:
             expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
 
-    def assert_env_variables(self, expected_env_dict):
-        env_list = self._function["spec"]["env"]
+    def assert_env_variables(self, expected_env_dict, function_name=None):
+        function = self._get_function_internal(function_name)
+        env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
 
         for key, value in expected_env_dict.items():
@@ -406,9 +470,15 @@ class RunDBMock:
 
     def verify_authorization(
         self,
-        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+        authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
     ):
         pass
+
+    def _get_function_internal(self, function_name: str = None):
+        if function_name:
+            return self._functions[function_name]
+
+        return list(self._functions.values())[0]
 
 
 @pytest.fixture()
@@ -419,17 +489,19 @@ def rundb_mock() -> RunDBMock:
     mlrun.db.get_run_db = unittest.mock.Mock(return_value=mock_object)
     mlrun.get_run_db = unittest.mock.Mock(return_value=mock_object)
 
-    orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db
     BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+
+    # Create the default project to mimic real MLRun DB (the default project is always available for use):
+    mlrun.get_or_create_project("default")
+
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
     mlrun.db.get_run_db = orig_get_run_db
     mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._use_remote_api = orig_use_remote_api
     BaseRuntime._get_db = orig_get_db
     config.dbpath = orig_db_path

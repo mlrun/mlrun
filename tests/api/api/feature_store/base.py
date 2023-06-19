@@ -17,7 +17,7 @@ from http import HTTPStatus
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 
 def _list_and_assert_objects(
@@ -68,7 +68,7 @@ def _patch_object(
     patch_mode = "replace"
     if additive:
         patch_mode = "additive"
-    headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
+    headers = {mlrun.common.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
         f"projects/{project_name}/{object_url_path}/{name}/references/{reference}",
         json=object_update,

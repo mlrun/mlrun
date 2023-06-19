@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 import deepdiff
 from sqlalchemy.orm import Session
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.models import Artifact
 from mlrun.lists import ArtifactList
@@ -59,12 +59,12 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
 
     # filter by category
     model_tags = db.list_artifact_tags(
-        db_session, "p1", mlrun.api.schemas.ArtifactCategories.model
+        db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
     )
     assert [("p1", "k2", "t3"), ("p1", "k2", "latest")] == model_tags
 
     model_tags = db.list_artifact_tags(
-        db_session, "p2", mlrun.api.schemas.ArtifactCategories.dataset
+        db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
     )
     assert [("p2", "k3", "t4"), ("p2", "k3", "latest")] == model_tags
 
@@ -200,10 +200,12 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
 
 
 def test_projects_crud(db: SQLDB, db_session: Session):
-    project = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
-        spec=mlrun.api.schemas.ProjectSpec(description="banana", other_field="value"),
-        status=mlrun.api.schemas.ObjectStatus(state="active"),
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="p1"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", other_field="value"
+        ),
+        status=mlrun.common.schemas.ObjectStatus(state="active"),
     )
     db.create_project(db_session, project)
     project_output = db.get_project(db_session, name=project.metadata.name)
@@ -221,12 +223,12 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     project_output = db.get_project(db_session, name=project.metadata.name)
     assert project_output.spec.description == project_patch["spec"]["description"]
 
-    project_2 = mlrun.api.schemas.Project(
-        metadata=mlrun.api.schemas.ProjectMetadata(name="p2"),
+    project_2 = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="p2"),
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
+        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

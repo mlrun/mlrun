@@ -14,10 +14,11 @@
 
 import typing
 
+import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class IPythonNotification(NotificationBase):
@@ -27,9 +28,10 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
+        name: str = None,
         params: typing.Dict[str, str] = None,
     ):
-        super().__init__(params)
+        super().__init__(name, params)
         self._ipython = None
         try:
             import IPython
@@ -45,10 +47,12 @@ class IPythonNotification(NotificationBase):
     def active(self) -> bool:
         return self._ipython is not None
 
-    def send(
+    def push(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):

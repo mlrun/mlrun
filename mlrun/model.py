@@ -16,13 +16,18 @@ import inspect
 import pathlib
 import re
 import time
+import typing
+import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pydantic.error_wrappers
+
 import mlrun
+import mlrun.common.schemas.notification
 
 from .utils import (
     dict_to_json,
@@ -338,6 +343,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
+        requirements: list = None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -355,6 +361,7 @@ class ImageBuilder(ModelObj):
         self.with_mlrun = with_mlrun  #: with_mlrun
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
+        self.requirements = requirements or []  #: pip requirements
 
     @property
     def source(self):
@@ -369,11 +376,197 @@ class ImageBuilder(ModelObj):
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must be a compressed (tar.gz / zip) file, a git repo, "
-                "a file path or in the project's context (.)"
+                f"source ({source}) must be a compressed (tar.gz / zip) file, a git repo, "
+                f"a file path or in the project's context (.)"
             )
 
         self._source = source
+
+    def build_config(
+        self,
+        image="",
+        base_image=None,
+        commands: list = None,
+        secret=None,
+        source=None,
+        extra=None,
+        load_source_on_run=None,
+        with_mlrun=None,
+        auto_build=None,
+        requirements=None,
+        requirements_file=None,
+        overwrite=False,
+    ):
+        if image:
+            self.image = image
+        if base_image:
+            self.base_image = base_image
+        if commands:
+            self.with_commands(commands, overwrite=overwrite)
+        if requirements:
+            self.with_requirements(requirements, requirements_file, overwrite=overwrite)
+        if extra:
+            self.extra = extra
+        if secret is not None:
+            self.secret = secret
+        if source:
+            self.source = source
+        if load_source_on_run:
+            self.load_source_on_run = load_source_on_run
+        if with_mlrun is not None:
+            self.with_mlrun = with_mlrun
+        if auto_build:
+            self.auto_build = auto_build
+
+    def with_commands(
+        self,
+        commands: List[str],
+        overwrite: bool = False,
+    ):
+        """add commands to build spec.
+
+        :param commands:  list of commands to run during build
+        :param overwrite: whether to overwrite the existing commands or add to them (the default)
+
+        :return: function object
+        """
+        if not isinstance(commands, list) or not all(
+            isinstance(item, str) for item in commands
+        ):
+            raise ValueError("commands must be a string list")
+        if not self.commands or overwrite:
+            self.commands = commands
+        else:
+            # add commands to existing build commands
+            for command in commands:
+                if command not in self.commands:
+                    self.commands.append(command)
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.commands = list(dict.fromkeys(self.commands))
+
+    def with_requirements(
+        self,
+        requirements: Union[str, List[str]],
+        requirements_file: str = "",
+        overwrite: bool = False,
+    ):
+        """add package requirements from file or list to build spec.
+
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
+        :param overwrite:           overwrite existing requirements,
+                                    when False (default) will append to existing requirements
+        :return: function object
+        """
+        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
+            # TODO: remove in 1.6.0
+            warnings.warn(
+                "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
+                "and will be removed in 1.6.0, use 'requirements_file' instead",
+                FutureWarning,
+            )
+
+        resolved_requirements = self._resolve_requirements(
+            requirements, requirements_file
+        )
+        requirements = self.requirements or [] if not overwrite else []
+
+        # make sure we don't append the same line twice
+        for requirement in resolved_requirements:
+            if requirement not in requirements:
+                requirements.append(requirement)
+
+        self.requirements = requirements
+
+    @staticmethod
+    def _resolve_requirements(
+        requirements: typing.Union[str, list], requirements_file: str = ""
+    ) -> list:
+        requirements_to_resolve = []
+
+        # handle the requirements_file argument
+        if requirements_file:
+            with open(requirements_file, "r") as fp:
+                requirements_to_resolve.extend(fp.read().splitlines())
+
+        # handle the requirements argument
+        # TODO: remove in 1.6.0, when requirements can only be a list
+        if isinstance(requirements, str):
+            # if it's a file path, read the file and add its content to the list
+            if mlrun.utils.is_file_path(requirements):
+                with open(requirements, "r") as fp:
+                    requirements_to_resolve.extend(fp.read().splitlines())
+            else:
+                # it's a string but not a file path, split it by lines and add it to the list
+                requirements_to_resolve.append(requirements)
+        else:
+            # it's a list, add it to the list
+            requirements_to_resolve.extend(requirements)
+
+        requirements = []
+        for requirement in requirements_to_resolve:
+            # clean redundant leading and trailing whitespaces
+            requirement = requirement.strip()
+
+            # ignore empty lines
+            # ignore comments
+            if not requirement or requirement.startswith("#"):
+                continue
+
+            # ignore inline comments as well
+            inline_comment = requirement.split(" #")
+            if len(inline_comment) > 1:
+                requirement = inline_comment[0].strip()
+
+            requirements.append(requirement)
+
+        return requirements
+
+
+class Notification(ModelObj):
+    """Notification specification"""
+
+    def __init__(
+        self,
+        kind=None,
+        name=None,
+        message=None,
+        severity=None,
+        when=None,
+        condition=None,
+        params=None,
+        status=None,
+        sent_time=None,
+    ):
+        self.kind = kind
+        self.name = name
+        self.message = message
+        self.severity = severity
+        self.when = when
+        self.condition = condition
+        self.params = params or {}
+        self.status = status
+        self.sent_time = sent_time
+
+        self.validate_notification()
+
+    def validate_notification(self):
+        try:
+            mlrun.common.schemas.notification.Notification(**self.to_dict())
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid notification object"
+            ) from exc
+
+    @staticmethod
+    def validate_notification_uniqueness(notifications: List["Notification"]):
+        """Validate that all notifications in the list are unique by name"""
+        names = [notification.name for notification in notifications]
+        if len(names) != len(set(names)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification names must be unique"
+            )
 
 
 class RunMetadata(ModelObj):
@@ -492,6 +685,7 @@ class RunSpec(ModelObj):
         allow_empty_resources=None,
         inputs_type_hints=None,
         returns=None,
+        notifications=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -526,6 +720,7 @@ class RunSpec(ModelObj):
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
+        self._notifications = notifications or []
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -608,6 +803,9 @@ class RunSpec(ModelObj):
 
         :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
         """
+        # This import is located in the method due to circular imports error.
+        from mlrun.package.utils import LogHintUtils
+
         if returns is None:
             self._returns = None
             return
@@ -615,7 +813,7 @@ class RunSpec(ModelObj):
 
         # Validate:
         for log_hint in returns:
-            mlrun.run._parse_log_hint(log_hint=log_hint)
+            LogHintUtils.parse_log_hint(log_hint=log_hint)
 
         # Store the results:
         self._returns = returns
@@ -677,6 +875,19 @@ class RunSpec(ModelObj):
             else:
                 return str(self.handler)
         return ""
+
+    @property
+    def notifications(self):
+        return self._notifications
+
+    @notifications.setter
+    def notifications(self, notifications):
+        if isinstance(notifications, list):
+            self._notifications = ObjectList.from_list(Notification, notifications)
+        elif isinstance(notifications, ObjectList):
+            self._notifications = notifications
+        else:
+            raise ValueError("Notifications must be a list")
 
     def extract_type_hints_from_inputs(self):
         """
@@ -790,6 +1001,7 @@ class RunStatus(ModelObj):
         iterations=None,
         ui_url=None,
         reason: str = None,
+        notifications: Dict[str, Notification] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -803,6 +1015,7 @@ class RunStatus(ModelObj):
         self.iterations = iterations
         self.ui_url = ui_url
         self.reason = reason
+        self.notifications = notifications or {}
 
 
 class RunTemplate(ModelObj):
@@ -973,6 +1186,20 @@ class RunObject(RunTemplate):
     def status(self, status):
         self._status = self._verify_dict(status, "status", RunStatus)
 
+    @property
+    def error(self) -> str:
+        """error string if failed"""
+        if self.status:
+            if self.status.state != "error":
+                return f"Run state ({self.status.state}) is not in error state"
+            return (
+                self.status.error
+                or self.status.reason
+                or self.status.status_text
+                or "Unknown error"
+            )
+        return ""
+
     def output(self, key):
         """return the value of a specific result or artifact by key"""
         self._outputs_wait_for_completion()
@@ -1079,6 +1306,7 @@ class RunObject(RunTemplate):
             state, new_offset = db.watch_log(
                 self.metadata.uid, self.metadata.project, watch=watch, offset=offset
             )
+        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
         else:
             state, text = db.get_log(
                 self.metadata.uid, self.metadata.project, offset=offset

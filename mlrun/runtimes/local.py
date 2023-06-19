@@ -14,11 +14,13 @@
 
 import importlib.util as imputil
 import inspect
+import io
 import json
 import os
 import socket
 import sys
 import tempfile
+import threading
 import traceback
 from contextlib import redirect_stdout
 from copy import copy
@@ -39,7 +41,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
-from .base import BaseRuntime, FunctionSpec, spec_fields
+from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
 from .utils import RunError, global_context, log_std
@@ -170,47 +172,9 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         return context.to_dict()
 
 
-class LocalFunctionSpec(FunctionSpec):
-    _dict_fields = spec_fields + ["clone_target_dir"]
-
-    def __init__(
-        self,
-        command=None,
-        args=None,
-        mode=None,
-        default_handler=None,
-        pythonpath=None,
-        entry_points=None,
-        description=None,
-        workdir=None,
-        build=None,
-        clone_target_dir=None,
-    ):
-        super().__init__(
-            command=command,
-            args=args,
-            mode=mode,
-            build=build,
-            entry_points=entry_points,
-            description=description,
-            workdir=workdir,
-            default_handler=default_handler,
-            pythonpath=pythonpath,
-        )
-        self.clone_target_dir = clone_target_dir
-
-
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
-
-    @property
-    def spec(self) -> LocalFunctionSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", LocalFunctionSpec)
 
     def to_job(self, image=""):
         struct = self.to_dict()
@@ -222,12 +186,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def with_source_archive(self, source, workdir=None, handler=None, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
-        :param source:     valid path to git, zip, or tar file, e.g.
-                           git://github.com/mlrun/something.git
-                           http://some/url/file.zip
-        :param handler: default function handler
-        :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
-        :param target_dir: local target dir for repo clone (by default its <current-dir>/code)
+        :param source:      valid path to git, zip, or tar file, e.g.
+                            git://github.com/mlrun/something.git
+                            http://some/url/file.zip
+        :param handler:     default function handler
+        :param workdir:     working dir relative to the archive root (e.g. './subdir') or absolute
+        :param target_dir:  local target dir for repo clone (by default its <current-dir>/code)
         """
         self.spec.build.source = source
         self.spec.build.load_source_on_run = True
@@ -253,6 +217,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
+        # _is_run_local is set when the user specifies local=True in run()
+        # in this case we don't want to extract the source code and contaminate the user's local dir
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
@@ -396,21 +362,43 @@ def load_module(file_name, handler, context):
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("running:", cmd)
-    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
-    while True:
-        nextline = process.stdout.readline()
-        if not nextline and process.poll() is not None:
-            break
-        print(nextline.decode("utf-8"), end="")
-        sys.stdout.flush()
-        out += nextline.decode("utf-8")
-    code = process.poll()
+    process = Popen(
+        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+    )
 
-    err = process.stderr.read().decode("utf-8") if code != 0 else ""
+    def read_stderr(stderr):
+        while True:
+            nextline = process.stderr.readline()
+            if not nextline:
+                break
+            stderr.write(nextline)
+
+    # ML-3710. We must read stderr in a separate thread to drain the stderr pipe so that the spawned process won't
+    # hang if it tries to write more to stderr than the buffer size (default of approx 8kb).
+    with io.StringIO() as stderr:
+        stderr_consumer_thread = threading.Thread(target=read_stderr, args=[stderr])
+        stderr_consumer_thread.start()
+
+        with io.StringIO() as stdout:
+            while True:
+                nextline = process.stdout.readline()
+                if not nextline:
+                    break
+                print(nextline, end="")
+                sys.stdout.flush()
+                stdout.write(nextline)
+            out = stdout.getvalue()
+
+        stderr_consumer_thread.join()
+        err = stderr.getvalue()
+
+    # if we return anything for err, the caller will assume that the process failed
+    code = process.poll()
+    err = "" if code == 0 else err
+
     return out, err
 
 
@@ -447,20 +435,23 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             if cwd:
                 os.chdir(cwd)
             # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
-            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user.
-            # outputs are logged only if log hints are provided by the user):
-            val = mlrun.handler(
-                inputs=(
-                    runobj.spec.inputs_type_hints
-                    if runobj.spec.inputs_type_hints
-                    else True  # True will use type hints if provided in user's code.
-                ),
-                outputs=(
-                    runobj.spec.returns
-                    if runobj.spec.returns
-                    else None  # None will turn off outputs logging.
-                ),
-            )(handler)(**kwargs)
+            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
+            # are logged only if log hints are provided by the user):
+            if mlrun.mlconf.packagers.enabled:
+                val = mlrun.handler(
+                    inputs=(
+                        runobj.spec.inputs_type_hints
+                        if runobj.spec.inputs_type_hints
+                        else True  # True will use type hints if provided in user's code.
+                    ),
+                    outputs=(
+                        runobj.spec.returns
+                        if runobj.spec.returns
+                        else None  # None will turn off outputs logging.
+                    ),
+                )(handler)(**kwargs)
+            else:
+                val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
@@ -487,6 +478,18 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
     kwargs = {}
     args = inspect.signature(handler).parameters
 
+    def _get_input_value(input_key: str):
+        input_obj = context.get_input(input_key, inputs[input_key])
+        # If there is no type hint annotation but there is a default value and its type is string, point the data
+        # item to local downloaded file path (`local()` returns the downloaded temp path string):
+        if (
+            args[input_key].annotation is inspect.Parameter.empty
+            and type(args[input_key].default) is str
+        ):
+            return input_obj.local()
+        else:
+            return input_obj
+
     for key in args.keys():
         if key == "context":
             kwargs[key] = context
@@ -495,9 +498,23 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         elif key in params:
             kwargs[key] = copy(params[key])
         elif key in inputs:
-            obj = context.get_input(key, inputs[key])
-            if type(args[key].default) is str or args[key].annotation == str:
-                kwargs[key] = obj.local()
-            else:
-                kwargs[key] = context.get_input(key, inputs[key])
+            kwargs[key] = _get_input_value(key)
+
+    list_of_params = list(args.values())
+    if len(list_of_params) == 0:
+        return kwargs
+
+    # get the last parameter, as **kwargs can only be last in the function's parameters list
+    last_param = list_of_params[-1]
+    # VAR_KEYWORD meaning : A dict of keyword arguments that aren’t bound to any other parameter.
+    # This corresponds to a **kwargs parameter in a Python function definition.
+    if last_param.kind == last_param.VAR_KEYWORD:
+        # if handler has **kwargs, pass all parameters provided by the user to the handler which were not already set
+        # as part of the previous loop which handled all parameters which were explicitly defined in the handler
+        for key in params:
+            if key not in kwargs:
+                kwargs[key] = copy(params[key])
+        for key in inputs:
+            if key not in kwargs:
+                kwargs[key] = _get_input_value(key)
     return kwargs

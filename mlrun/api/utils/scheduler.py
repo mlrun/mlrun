@@ -27,11 +27,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
@@ -57,10 +58,10 @@ class Scheduler:
         self._scheduler = AsyncIOScheduler(gconfig=scheduler_config, prefix=None)
         # this should be something that does not make any sense to be inside project name or job name
         self._job_id_separator = "-_-"
-        # we don't allow to schedule a job to run more then one time per X
-        # NOTE this cannot be less then one minute - see _validate_cron_trigger
+        # we don't allow to schedule a job to run more than one time per X
+        # NOTE this cannot be less than one minute - see _validate_cron_trigger
         self._min_allowed_interval = config.httpdb.scheduling.min_allowed_interval
-        self._secrets_provider = schemas.SecretProviderName.kubernetes
+        self._secrets_provider = mlrun.common.schemas.SecretProviderName.kubernetes
 
     async def start(self, db_session: Session):
         logger.info("Starting scheduler")
@@ -73,7 +74,7 @@ class Scheduler:
         try:
             if (
                 mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.api.schemas.ClusterizationRole.chief
+                == mlrun.common.schemas.ClusterizationRole.chief
             ):
                 self._reload_schedules(db_session)
         except Exception as exc:
@@ -93,7 +94,7 @@ class Scheduler:
         return labels
 
     def _get_access_key_secret_name_from_db_record(
-        self, db_schedule: schemas.ScheduleRecord
+        self, db_schedule: mlrun.common.schemas.ScheduleRecord
     ):
         schedule_labels = db_schedule.dict()["labels"]
         for label in schedule_labels:
@@ -104,19 +105,21 @@ class Scheduler:
     def create_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        kind: schemas.ScheduleKinds,
+        kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Union[Dict, Callable],
-        cron_trigger: Union[str, schemas.ScheduleCronTrigger],
+        cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
         labels: Dict = None,
         concurrency_limit: int = None,
     ):
         if concurrency_limit is None:
             concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if isinstance(cron_trigger, str):
-            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
 
         self._validate_cron_trigger(cron_trigger)
 
@@ -135,6 +138,9 @@ class Scheduler:
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
+
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+
         get_db().create_schedule(
             db_session,
             project,
@@ -177,16 +183,18 @@ class Scheduler:
     def update_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
         scheduled_object: Union[Dict, Callable] = None,
-        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         labels: Dict = None,
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
-            cron_trigger = schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
 
         if cron_trigger is not None:
             self._validate_cron_trigger(cron_trigger)
@@ -205,6 +213,8 @@ class Scheduler:
         self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
+
+        self._enrich_schedule_notifications(project, name, scheduled_object)
 
         get_db().update_schedule(
             db_session,
@@ -241,7 +251,7 @@ class Scheduler:
         labels: str = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
-    ) -> schemas.SchedulesOutput:
+    ) -> mlrun.common.schemas.SchedulesOutput:
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
@@ -249,7 +259,7 @@ class Scheduler:
                 db_session, db_schedule, include_last_run, include_credentials
             )
             schedules.append(schedule)
-        return schemas.SchedulesOutput(schedules=schedules)
+        return mlrun.common.schemas.SchedulesOutput(schedules=schedules)
 
     def get_schedule(
         self,
@@ -258,7 +268,7 @@ class Scheduler:
         name: str,
         include_last_run: bool = False,
         include_credentials: bool = False,
-    ) -> schemas.ScheduleOutput:
+    ) -> mlrun.common.schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
         return self._transform_and_enrich_db_schedule(
@@ -273,7 +283,7 @@ class Scheduler:
         name: str,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_scheduler_resources(project, name)
+        self._remove_schedule_scheduler_resources(db_session, project, name)
         get_db().delete_schedule(db_session, project, name)
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
@@ -288,15 +298,18 @@ class Scheduler:
         )
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
-            self._remove_schedule_scheduler_resources(schedule.project, schedule.name)
+            self._remove_schedule_scheduler_resources(
+                db_session, schedule.project, schedule.name
+            )
         get_db().delete_schedules(db_session, project)
 
-    def _remove_schedule_scheduler_resources(self, project, name):
+    def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
         self._remove_schedule_from_scheduler(project, name)
         # This is kept for backwards compatibility - if schedule was using the "old" format of storing secrets, then
         # this is a good opportunity to remove them. Using the new method we don't remove secrets since they are per
         # access-key and there may be other entities (runtimes, for example) using the same secret.
         self._remove_schedule_secrets(project, name)
+        self._remove_schedule_notification_secrets(db_session, project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
@@ -309,7 +322,7 @@ class Scheduler:
     async def invoke_schedule(
         self,
         db_session: Session,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
     ):
@@ -333,15 +346,42 @@ class Scheduler:
         )
         return await function(*args, **kwargs)
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
+    def set_schedule_notifications(
+        self,
+        session: Session,
+        project: str,
+        identifier: mlrun.common.schemas.ScheduleIdentifier,
+        notifications: List[mlrun.model.Notification],
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ):
+        """
+        Set notifications for a schedule. This will replace any existing notifications.
+        :param session: DB session
+        :param project: Project name
+        :param identifier: Schedule identifier
+        :param notifications: List of notifications to set
+        :param auth_info: Authorization info
+        """
+        name = identifier.name
+        logger.debug("Setting schedule notifications", project=project, name=name)
+        db_schedule = get_db().get_schedule(session, project, name)
+        scheduled_object = db_schedule.scheduled_object
+        if scheduled_object:
+            scheduled_object.get("task", {}).get("spec", {})["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+        self.update_schedule(session, auth_info, project, name, scheduled_object)
+
     def _ensure_auth_info_has_access_key(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
-        kind: schemas.ScheduleKinds,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        kind: mlrun.common.schemas.ScheduleKinds,
     ):
         import mlrun.api.crud
 
         if (
-            kind not in schemas.ScheduleKinds.local_kinds()
+            kind not in mlrun.common.schemas.ScheduleKinds.local_kinds()
             and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
         ):
             if (
@@ -371,7 +411,7 @@ class Scheduler:
 
     def _store_schedule_secrets_using_auth_secret(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ) -> str:
         # import here to avoid circular imports
         import mlrun.api.crud
@@ -388,8 +428,8 @@ class Scheduler:
                 auth_info.username = ""
 
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-                mlrun.api.schemas.AuthSecretData(
-                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                mlrun.common.schemas.AuthSecretData(
+                    provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                     username=auth_info.username,
                     access_key=auth_info.access_key,
                 )
@@ -400,7 +440,7 @@ class Scheduler:
     #       are sure we are far enough that it's no longer going to be used (or keep, and use for other things).
     def _store_schedule_secrets(
         self,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
     ):
@@ -441,7 +481,7 @@ class Scheduler:
                 secrets[username_secret_key] = auth_info.username
             mlrun.api.crud.Secrets().store_project_secrets(
                 project,
-                schemas.SecretsData(
+                mlrun.common.schemas.SecretsData(
                     provider=self._secrets_provider,
                     secrets=secrets,
                 ),
@@ -545,14 +585,13 @@ class Scheduler:
 
     def _validate_cron_trigger(
         self,
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         # accepting now from outside for testing purposes
         now: datetime = None,
     ):
         """
-        Enforce no more then one job per min_allowed_interval
+        Enforce no more than one job per min_allowed_interval
         """
-        logger.debug("Validating cron trigger")
         apscheduler_cron_trigger = (
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
                 cron_trigger
@@ -561,7 +600,7 @@ class Scheduler:
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
         second_next_run_time = now
 
-        # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less then one minute validation
+        # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less than one minute validation
         # won't fail in certain scenarios that it should. See test_validate_cron_trigger_multi_checks for detailed
         # explanation
         for index in range(60):
@@ -591,7 +630,7 @@ class Scheduler:
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f"Cron trigger too frequent. no more then one job "
+                    f"Cron trigger too frequent. no more than one job "
                     f"per {self._min_allowed_interval} is allowed"
                 )
 
@@ -599,11 +638,11 @@ class Scheduler:
         self,
         project: str,
         name: str,
-        kind: schemas.ScheduleKinds,
+        kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Any,
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Adding schedule to scheduler", job_id=job_id)
@@ -629,11 +668,11 @@ class Scheduler:
         self,
         project: str,
         name: str,
-        kind: schemas.ScheduleKinds,
+        kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Any,
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
         job_id = self._resolve_job_id(project, name)
         logger.debug("Updating schedule in scheduler", job_id=job_id)
@@ -707,7 +746,7 @@ class Scheduler:
                         if access_key:
                             need_to_update_credentials = True
 
-                auth_info = mlrun.api.schemas.AuthInfo(
+                auth_info = mlrun.common.schemas.AuthInfo(
                     username=username,
                     access_key=access_key,
                     # enriching with control plane tag because scheduling a function requires control plane
@@ -754,21 +793,21 @@ class Scheduler:
     def _transform_and_enrich_db_schedule(
         self,
         db_session: Session,
-        schedule_record: schemas.ScheduleRecord,
+        schedule_record: mlrun.common.schemas.ScheduleRecord,
         include_last_run: bool = False,
         include_credentials: bool = False,
-    ) -> schemas.ScheduleOutput:
+    ) -> mlrun.common.schemas.ScheduleOutput:
         schedule_dict = schedule_record.dict()
         schedule_dict["labels"] = {
             label["name"]: label["value"] for label in schedule_dict["labels"]
         }
-        schedule = schemas.ScheduleOutput(**schedule_dict)
+        schedule = mlrun.common.schemas.ScheduleOutput(**schedule_dict)
 
         # Schedules are running only on chief. Therefore, we query next_run_time from the scheduler only when
         # running on chief.
         if (
             mlrun.mlconf.httpdb.clusterization.role
-            == mlrun.api.schemas.ClusterizationRole.chief
+            == mlrun.common.schemas.ClusterizationRole.chief
         ):
             job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
             job = self._scheduler.get_job(job_id)
@@ -789,7 +828,7 @@ class Scheduler:
 
     @staticmethod
     def _enrich_schedule_with_last_run(
-        db_session: Session, schedule_output: schemas.ScheduleOutput
+        db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
     ):
         if schedule_output.last_run_uri:
             run_project, run_uid, iteration, _ = RunObject.parse_uri(
@@ -799,7 +838,7 @@ class Scheduler:
             schedule_output.last_run = run_data
 
     def _enrich_schedule_with_credentials(
-        self, schedule_output: schemas.ScheduleOutput
+        self, schedule_output: mlrun.common.schemas.ScheduleOutput
     ):
         secret_name = schedule_output.labels.get(self._db_record_auth_label)
         if secret_name:
@@ -809,18 +848,18 @@ class Scheduler:
 
     def _resolve_job_function(
         self,
-        scheduled_kind: schemas.ScheduleKinds,
+        scheduled_kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Any,
         project_name: str,
         schedule_name: str,
         schedule_concurrency_limit: int,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ) -> Tuple[Callable, Optional[Union[List, Tuple]], Optional[Dict]]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """
 
-        if scheduled_kind == schemas.ScheduleKinds.job:
+        if scheduled_kind == mlrun.common.schemas.ScheduleKinds.job:
             scheduled_object_copy = copy.deepcopy(scheduled_object)
             return (
                 Scheduler.submit_run_wrapper,
@@ -834,7 +873,7 @@ class Scheduler:
                 ],
                 {},
             )
-        if scheduled_kind == schemas.ScheduleKinds.local_function:
+        if scheduled_kind == mlrun.common.schemas.ScheduleKinds.local_function:
             return scheduled_object, [], {}
 
         # sanity
@@ -853,13 +892,62 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
+    def _enrich_schedule_notifications(
+        project: str, schedule_name: str, scheduled_object: Union[Dict, Callable]
+    ):
+        if not isinstance(scheduled_object, dict):
+            return
+
+        schedule_notifications = (
+            scheduled_object.get("task", {}).get("spec", {}).get("notifications")
+        )
+        if schedule_notifications:
+            scheduled_object["task"]["spec"]["notifications"] = [
+                notification.to_dict()
+                for notification in mlrun.api.api.utils.validate_and_mask_notification_list(
+                    schedule_notifications, schedule_name, project
+                )
+            ]
+
+    @staticmethod
+    def _remove_schedule_notification_secrets(
+        db_session: Session, project: str, schedule_name: str
+    ):
+        try:
+            db_schedule = get_db().get_schedule(
+                db_session,
+                project,
+                schedule_name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # we allow deleting a schedule even if it does not exist in the DB
+            logger.debug(
+                "Failed to find schedule. Continuing",
+                project=project,
+                schedule_name=schedule_name,
+            )
+            return
+
+        if db_schedule and isinstance(db_schedule.scheduled_object, dict):
+            notifications = (
+                db_schedule.scheduled_object.get("task", {})
+                .get("spec", {})
+                .get("notifications")
+            )
+            if notifications:
+                for notification in notifications:
+                    mlrun.api.api.utils.delete_notification_params_secret(
+                        project, mlrun.model.Notification.from_dict(notification)
+                    )
+
+    @staticmethod
     async def submit_run_wrapper(
         scheduler,
         scheduled_object,
         project_name,
         schedule_name,
         schedule_concurrency_limit,
-        auth_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.common.schemas.AuthInfo,
     ):
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
@@ -873,7 +961,7 @@ class Scheduler:
         if "task" in scheduled_object and "metadata" in scheduled_object["task"]:
             scheduled_object["task"]["metadata"].setdefault("labels", {})
             scheduled_object["task"]["metadata"]["labels"][
-                schemas.constants.LabelNames.schedule_name
+                mlrun.common.schemas.constants.LabelNames.schedule_name
             ] = schedule_name
 
         return await fastapi.concurrency.run_in_threadpool(
@@ -888,7 +976,7 @@ class Scheduler:
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
-        cron_trigger: schemas.ScheduleCronTrigger,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
     ):
         return APSchedulerCronTrigger(
             cron_trigger.year,
@@ -928,7 +1016,7 @@ class Scheduler:
                 db_session,
                 states=RunStates.non_terminal_states(),
                 project=project_name,
-                labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+                labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
             )
             if len(active_runs) >= schedule_concurrency_limit:
                 logger.warn(
@@ -966,7 +1054,7 @@ class Scheduler:
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
                 scheduler.update_schedule(
                     db_session,
-                    mlrun.api.schemas.AuthInfo(
+                    mlrun.common.schemas.AuthInfo(
                         username=project_owner.username,
                         access_key=project_owner.access_key,
                         # enriching with control plane tag because scheduling a function requires control plane

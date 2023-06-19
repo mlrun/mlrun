@@ -71,9 +71,10 @@ def test_with_kwargs(make_stream_logger):
     assert "special_kwarg_value" in stream.getvalue()
 
 
-def test_levels(make_stream_logger, logger_level):
+@pytest.mark.parametrize("level_with", [True, False])
+def test_levels(make_stream_logger, logger_level, level_with):
     stream, test_logger = make_stream_logger
-    getattr(test_logger, logger_level)(
+    getattr(test_logger, f"{logger_level}_with" if level_with else logger_level)(
         "Message %s", "somearg", somekwarg="somekwarg-value"
     )
     assert "Message somearg" in stream.getvalue()
@@ -91,3 +92,35 @@ def test_exception_with_stack(make_stream_logger):
         test_logger.exception("This is just a test")
     assert str(err) in stream.getvalue()
     assert "This is just a test" in stream.getvalue()
+
+
+# Regression test for duplicate logs bug fixed in PR #3381
+def test_redundant_logger_creation():
+    stream = StringIO()
+    logger1 = create_logger("debug", name="test-logger", stream=stream)
+    logger2 = create_logger("debug", name="test-logger", stream=stream)
+    logger3 = create_logger("debug", name="test-logger", stream=stream)
+    logger1.info("1")
+    assert stream.getvalue().count("[info] 1\n") == 1
+    logger2.info("2")
+    assert stream.getvalue().count("[info] 2\n") == 1
+    logger3.info("3")
+    assert stream.getvalue().count("[info] 3\n") == 1
+
+
+def test_child_logger():
+    stream = StringIO()
+    logger = create_logger(
+        "debug",
+        name="test-logger",
+        stream=stream,
+        formatter_kind=FormatterKinds.HUMAN_EXTENDED.name,
+    )
+    child_logger = logger.get_child("child")
+    logger.debug("")
+    child_logger.debug("")
+    log_lines = stream.getvalue().strip().splitlines()
+
+    # validate parent and child log lines
+    assert "test-logger:debug" in log_lines[0]
+    assert "test-logger.child:debug" in log_lines[1]

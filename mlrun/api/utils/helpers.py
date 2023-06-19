@@ -13,20 +13,10 @@
 # limitations under the License.
 #
 import asyncio
-import enum
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 from mlrun.utils import logger
-
-
-# TODO: From python 3.11 StrEnum is built-in and this will not be needed
-class StrEnum(str, enum.Enum):
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
 
 
 def ensure_running_on_chief(function):
@@ -41,7 +31,7 @@ def ensure_running_on_chief(function):
     def _ensure_running_on_chief():
         if (
             mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.api.schemas.ClusterizationRole.chief
+            != mlrun.common.schemas.ClusterizationRole.chief
         ):
             if (
                 mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode
@@ -67,4 +57,17 @@ def ensure_running_on_chief(function):
 
     if asyncio.iscoroutinefunction(function):
         return async_wrapper
+
+    # ensure method name is preserved
+    wrapper.__name__ = function.__name__
+
     return wrapper
+
+
+def minimize_project_schema(
+    project: mlrun.common.schemas.Project,
+) -> mlrun.common.schemas.Project:
+    project.spec.functions = None
+    project.spec.workflows = None
+    project.spec.artifacts = None
+    return project

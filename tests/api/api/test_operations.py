@@ -24,10 +24,10 @@ import mlrun
 import mlrun.api.api.endpoints.operations
 import mlrun.api.crud
 import mlrun.api.initial_data
-import mlrun.api.schemas
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.scheduler
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 from mlrun.utils import logger
@@ -49,10 +49,10 @@ def test_migrations_already_in_progress(
         "InternalBackgroundTasksHandler",
         lambda *args, **kwargs: handler_mock,
     )
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task_name == background_task.metadata.name
     mlrun.api.api.endpoints.operations.current_migration_background_task_name = None
 
@@ -60,7 +60,7 @@ def test_migrations_already_in_progress(
 def test_migrations_failed(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_failed
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_failed
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "Migrations were already triggered and failed" in response.text
@@ -69,19 +69,19 @@ def test_migrations_failed(
 def test_migrations_not_needed(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.online
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.OK.value
 
 
 def _mock_migration_process(*args, **kwargs):
     logger.info("Mocking migration process")
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_completed
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
 
 
 @pytest.fixture
 def _mock_waiting_for_migration():
-    mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_migrations
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_migrations
 
 
 def test_migrations_success(
@@ -103,15 +103,18 @@ def test_migrations_success(
     # trigger migrations
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.api.schemas.BackgroundTaskState.running
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     response = client.get(f"background-tasks/{background_task.metadata.name}")
     assert response.status_code == http.HTTPStatus.OK.value
-    background_task = mlrun.api.schemas.BackgroundTask(**response.json())
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert (
-        background_task.status.state == mlrun.api.schemas.BackgroundTaskState.succeeded
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
     )
-    assert mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.online
+    assert mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.online
     # now we should be able to get projects
     response = client.get("projects")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -124,15 +127,15 @@ def test_migrations_success(
 
 def _generate_background_task_schema(
     background_task_name,
-) -> mlrun.api.schemas.BackgroundTask:
-    return mlrun.api.schemas.BackgroundTask(
-        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+) -> mlrun.common.schemas.BackgroundTask:
+    return mlrun.common.schemas.BackgroundTask(
+        metadata=mlrun.common.schemas.BackgroundTaskMetadata(
             name=background_task_name,
             created=datetime.utcnow(),
             updated=datetime.utcnow(),
         ),
-        status=mlrun.api.schemas.BackgroundTaskStatus(
-            state=mlrun.api.schemas.BackgroundTaskState.running
+        status=mlrun.common.schemas.BackgroundTaskStatus(
+            state=mlrun.common.schemas.BackgroundTaskState.running
         ),
-        spec=mlrun.api.schemas.BackgroundTaskSpec(),
+        spec=mlrun.common.schemas.BackgroundTaskSpec(),
     )

@@ -21,8 +21,8 @@ import urllib.parse
 import aiohttp
 import fastapi
 
-import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger
@@ -157,7 +157,7 @@ class Client(
 
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
-    ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
+    ) -> typing.Union[fastapi.Response, mlrun.common.schemas.ClusterizationSpec]:
         """
         This method is used both for proxying requests from worker to chief and for aligning the worker state
         with the clusterization spec brought from the chief
@@ -172,7 +172,22 @@ class Client(
                     chief_response
                 )
 
-            return mlrun.api.schemas.ClusterizationSpec(**(await chief_response.json()))
+            return mlrun.common.schemas.ClusterizationSpec(
+                **(await chief_response.json())
+            )
+
+    async def set_schedule_notifications(
+        self, project: str, schedule_name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            request,
+            json,
+        )
 
     async def _proxy_request_to_chief(
         self,

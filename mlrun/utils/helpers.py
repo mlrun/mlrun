@@ -16,6 +16,7 @@ import enum
 import hashlib
 import inspect
 import json
+import os
 import re
 import sys
 import time
@@ -27,6 +28,7 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import git
 import numpy as np
 import pandas
 import semver
@@ -95,8 +97,11 @@ def get_artifact_target(item: dict, project=None):
         tree = item["metadata"].get("tree")
 
     kind = item.get("kind")
-    if kind in ["dataset", "model"] and db_key:
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+    if kind in ["dataset", "model", "artifact"] and db_key:
+        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+        if tree:
+            target = f"{target}:{tree}"
+        return target
 
     return (
         item.get("target_path")
@@ -138,13 +143,17 @@ class run_keys:
 
 
 def verify_field_regex(
-    field_name, field_value, patterns, raise_on_failure: bool = True
+    field_name,
+    field_value,
+    patterns,
+    raise_on_failure: bool = True,
+    log_message: str = "Field is malformed. Does not match required pattern",
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
             log_func(
-                "Field is malformed. Does not match required pattern",
+                log_message,
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
@@ -156,6 +165,35 @@ def verify_field_regex(
             else:
                 return False
     return True
+
+
+def validate_builder_source(
+    source: str, pull_at_runtime: bool = False, workdir: str = None
+):
+    if pull_at_runtime or not source:
+        return
+
+    if "://" not in source:
+        if not path.isabs(source):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
+                "set 'source' to a remote URL to clone/copy the source to the base image, "
+                "or set 'pull_at_runtime' to True to pull the source at runtime."
+            )
+
+        else:
+            logger.warn(
+                "Loading local source at build time requires the source to be on the base image, "
+                "in which case it is recommended to use 'workdir' instead",
+                source=source,
+                workdir=workdir,
+            )
+
+    if source.endswith(".zip"):
+        logger.warn(
+            "zip files are not natively extracted by docker, use tar.gz for faster loading during build",
+            source=source,
+        )
 
 
 def validate_tag_name(
@@ -171,6 +209,19 @@ def validate_tag_name(
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
+        log_message="Special characters are not permitted in tag names",
+    )
+
+
+def validate_artifact_key_name(
+    artifact_key: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        artifact_key,
+        mlrun.utils.regex.artifact_key,
+        raise_on_failure=raise_on_failure,
+        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
     )
 
 
@@ -188,6 +239,23 @@ def tag_name_regex_as_string() -> str:
 
 def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
+
+
+def remove_image_protocol_prefix(image: str) -> str:
+    if not image:
+        return image
+
+    prefixes = ["https://", "https://"]
+    if any(prefix in image for prefix in prefixes):
+        image = image.removeprefix("https://").removeprefix("http://")
+        logger.warning(
+            "The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL where <image-name> is a placeholder). "
+            "Removing protocol prefix from image.",
+            image=image,
+        )
+    return image
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -260,16 +328,17 @@ def to_date_str(d):
     return ""
 
 
-def normalize_name(name):
+def normalize_name(name: str, verbose: bool = True):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        warnings.warn(
-            "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-            "Replacing underscores with dashes.",
-            FutureWarning,
-        )
+        if verbose:
+            warnings.warn(
+                "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
+                "Replacing underscores with dashes.",
+                FutureWarning,
+            )
         name = name.replace("_", "-")
     return name.lower()
 
@@ -787,7 +856,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
-    data = json.dumps(object_dict, sort_keys=True).encode()
+    # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
+    # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
+    # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
+    # it's valid here.
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
@@ -931,7 +1004,7 @@ def retry_until_successful(
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
-    )
+    ) from last_exception
 
 
 def get_ui_url(project, uid=None):
@@ -977,7 +1050,7 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: list):
+def create_function(pkg_func: str):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
@@ -991,9 +1064,16 @@ def create_function(pkg_func: list):
     return function_
 
 
-def get_caller_globals(level=2):
+def get_caller_globals():
+    """Returns a dictionary containing the first non-mlrun caller function's namespace."""
     try:
-        return inspect.stack()[level][0].f_globals
+        stack = inspect.stack()
+        # If an API function called this function directly, the first non-mlrun caller will be 2 levels up the stack.
+        # Otherwise, we keep going up the stack until we find it.
+        for level in range(2, len(stack)):
+            namespace = stack[level][0].f_globals
+            if not namespace["__name__"].startswith("mlrun."):
+                return namespace
     except Exception:
         return None
 
@@ -1240,3 +1320,63 @@ def filter_warnings(action, category):
         return wrapper
 
     return decorator
+
+
+def resolve_git_reference_from_source(source):
+    # kaniko allow multiple "#" e.g. #refs/..#commit
+    split_source = source.split("#", 1)
+
+    # no reference was passed
+    if len(split_source) < 2:
+        return source, "", ""
+
+    reference = split_source[1]
+    if reference.startswith("refs/"):
+        return split_source[0], reference, ""
+
+    return split_source[0], "", reference
+
+
+def ensure_git_branch(url: str, repo: git.Repo) -> str:
+    """Ensures git url includes branch.
+    If no branch or refs are included in the git source then will enrich the git url with the current active branch
+     as defined in the repo object. Otherwise, will just return the url and won't apply any enrichments.
+
+    :param url:   Git source url
+    :param repo: `git.Repo` object that will be used for getting the active branch value (if required)
+
+    :return:     Git source url with full valid path to the relevant branch
+
+    """
+    source, reference, branch = resolve_git_reference_from_source(url)
+    if not branch and not reference:
+        url = f"{url}#refs/heads/{repo.active_branch}"
+    return url
+
+
+def is_file_path(filepath):
+    root, ext = os.path.splitext(filepath)
+    return os.path.isfile(filepath) and ext
+
+
+class DeprecationHelper(object):
+    """A helper class to deprecate old schemas"""
+
+    def __init__(self, new_target, version="1.4.0"):
+        self._new_target = new_target
+        self._version = version
+
+    def _warn(self):
+        warnings.warn(
+            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
+            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
+            FutureWarning,
+        )
+
+    def __call__(self, *args, **kwargs):
+        self._warn()
+        return self._new_target(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        self._warn()
+        return getattr(self._new_target, attr)

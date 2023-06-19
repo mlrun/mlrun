@@ -23,7 +23,7 @@ def current_version():
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
 
-            # __version__ = '1.3.0'
+            # __version__ = '0.4.6'
             match = re.search(r"__version__\s*=\s*'([^']+)'", line)
             if match:
                 return match.group(1)
@@ -63,9 +63,6 @@ extensions = [
     "sphinx_reredirects",
 ]
 
-# redirect paths due to filename changes
-redirects = {"runtimes/load-from-marketplace": "load-from-hub.html"}
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [
     "_templates",
@@ -81,15 +78,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = [
-    "_build",
-    "Thumbs.db",
-    ".DS_Store",
-    "**.ipynb_checkpoints",
-    "CONTRIBUTING.md.",
-    "contributing-to-docs.md",
-    "tutorial/colab/01-mlrun-basics-colab.ipynb",
-]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 
 source_suffix = {
     ".rst": "restructuredtext",
@@ -149,7 +138,12 @@ myst_enable_extensions = [
 myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 myst_all_links_external = True
-myst_substitutions = {"version": version}
+
+myst_substitutions = {
+    "version": "version",
+    "ceversion": "v1.2.1",
+    "releasedocumentation": "docs.mlrun.org/en/v1.2.1/index.html",
+}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

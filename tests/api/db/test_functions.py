@@ -18,12 +18,8 @@ from sqlalchemy.orm import Session
 import mlrun.errors
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.models import Function
-from tests.api.db.conftest import dbs
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_store_function_default_to_latest(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -43,9 +39,6 @@ def test_store_function_default_to_latest(db: DBInterface, db_session: Session):
     assert function_queried_without_tag_hash == function_queried_without_tag_hash
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_store_function_versioned(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -84,9 +77,6 @@ def test_store_function_versioned(db: DBInterface, db_session: Session):
     assert tagged_count == 1
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -110,9 +100,6 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     assert len(functions) == 1
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -134,9 +121,36 @@ def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     assert function_queried_with_hash_key["metadata"]["tag"] == ""
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
+def test_get_function_when_using_not_normalize_name(
+    db: DBInterface, db_session: Session
+):
+    # add a function with a non-normalized name to the database
+    function_name = "function_name"
+    project_name = "project"
+    _generate_and_insert_function_record(db_session, function_name, project_name)
+
+    # getting the function using the non-normalized name, and ensure that it works
+    response = db.get_function(db_session, function_name, project_name)
+    assert response["metadata"]["name"] == function_name
+
+
+def _generate_and_insert_function_record(
+    db_session: Session, function_name: str, project_name: str
+):
+    function = {
+        "metadata": {"name": function_name, "project": project_name},
+        "spec": {"asd": "test"},
+    }
+    fn = Function(
+        name=function_name, project=project_name, struct=function, uid="1", id="1"
+    )
+    tag = Function.Tag(project=project_name, name="latest", obj_name=fn.name)
+    tag.obj_id, tag.uid = fn.id, fn.uid
+    db_session.add(fn)
+    db_session.add(tag)
+    db_session.commit()
+
+
 def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     function_hash_key = db.store_function(
@@ -149,9 +163,6 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
     assert function_hash_key == function_not_queried_by_tag_hash
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_get_function_not_found(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
     db.store_function(
@@ -167,9 +178,6 @@ def test_get_function_not_found(db: DBInterface, db_session: Session):
         )
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_list_functions_no_tags(db: DBInterface, db_session: Session):
     function_1 = {"bla": "blabla", "status": {"bla": "blabla"}}
     function_2 = {"bla2": "blabla", "status": {"bla": "blabla"}}
@@ -195,9 +203,6 @@ def test_list_functions_no_tags(db: DBInterface, db_session: Session):
             assert function["status"] is None
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     tag = "function_name_1"
 
@@ -213,10 +218,6 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
     assert len(names) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Session):
     names = ["some_name", "some_name2", "some_name3"]
     for name in names:
@@ -226,9 +227,6 @@ def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Sessi
     assert len(functions) == 0
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(db, db) for db in dbs], indirect=["db", "db_session"]
-)
 def test_list_functions_filtering_unversioned_untagged(
     db: DBInterface, db_session: Session
 ):
@@ -257,10 +255,6 @@ def test_list_functions_filtering_unversioned_untagged(
     assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_delete_function(db: DBInterface, db_session: Session):
     labels = {
         "name": "value",
@@ -316,10 +310,6 @@ def test_delete_function(db: DBInterface, db_session: Session):
     assert number_of_labels == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 @pytest.mark.parametrize("use_hash_key", [True, False])
 def test_list_functions_multiple_tags(
     db: DBInterface, db_session: Session, use_hash_key: bool
@@ -349,10 +339,6 @@ def test_list_functions_multiple_tags(
     assert len(tags) == 0
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     tag_name = "some_tag"
     function_1 = _generate_function(tag=tag_name)

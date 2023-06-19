@@ -34,7 +34,7 @@ ALGORITHM_FUNCTIONALITIES = [  # type: List[str]
 
 
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_training_api_training(algorithm_functionality: str):
+def test_training_api_training(rundb_mock, algorithm_functionality: str):
     # Run training:
     train_run = mlrun.new_function().run(
         artifact_path="./temp",
@@ -53,7 +53,7 @@ def test_training_api_training(algorithm_functionality: str):
 
 
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_sklearn_api_training(algorithm_functionality: str):
+def test_sklearn_api_training(rundb_mock, algorithm_functionality: str):
     # Run training:
     train_run = mlrun.new_function().run(
         artifact_path="./temp",
@@ -81,7 +81,7 @@ def test_sklearn_api_training(algorithm_functionality: str):
 
 
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)
-def test_sklearn_api_evaluation(algorithm_functionality: str):
+def test_sklearn_api_evaluation(rundb_mock, algorithm_functionality: str):
     # Run training:
     train_run = mlrun.new_function().run(
         artifact_path="./temp2",

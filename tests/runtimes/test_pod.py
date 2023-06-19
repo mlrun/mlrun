@@ -33,7 +33,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
-            mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.pod.KubeResourceSpec: [
@@ -44,7 +43,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
             mlrun.runtimes.sparkjob.abstract.AbstractSparkJobSpec,
-            mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.function.NuclioSpec: [
@@ -64,7 +62,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
-            mlrun.runtimes.sparkjob.spark2job.Spark2Runtime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
         ],
     }
@@ -208,3 +205,29 @@ def test_volume_mounts_addition():
         sanitized_dict_volume_mount,
     ]
     assert len(function.spec.volume_mounts) == 1
+
+
+def test_build_config_with_multiple_commands():
+    image = "mlrun/ml-models"
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
+    fn.build_config(commands=["pip install pandas", "pip install numpy"])
+    assert len(fn.spec.build.commands) == 2
+
+    fn.build_config(commands=["pip install pandas"])
+    assert len(fn.spec.build.commands) == 2
+
+
+def test_build_config_preserve_order():
+    function = mlrun.new_function("some-function", kind="job")
+    # run a lot of times as order change
+    commands = []
+    for index in range(10):
+        commands.append(str(index))
+    # when using un-stable (doesn't preserve order) methods to make a list unique (like list(set(x))) it's random
+    # whether the order will be preserved, therefore run in a loop
+    for _ in range(100):
+        function.spec.build.commands = []
+        function.build_config(commands=commands)
+        assert function.spec.build.commands == commands

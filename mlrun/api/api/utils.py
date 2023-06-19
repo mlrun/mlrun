@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import collections
+import json
 import re
 import traceback
 import typing
@@ -29,19 +30,18 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
-from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.schemas import SecretProviderName, SecurityContextEnrichmentModes
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
-from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
@@ -98,8 +98,18 @@ def get_obj_path(schema, path, user=""):
         if not path.startswith(schema_prefix):
             path = f"{schema_prefix}{path}"
 
-    # Check if path is allowed - v3io:// is always allowed, and also the real_path parameter if specified.
-    # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
+    allowed_paths_list = get_allowed_path_prefixes_list()
+    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
+        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
+    return path
+
+
+def get_allowed_path_prefixes_list() -> typing.List[str]:
+    """
+    Get list of allowed paths - v3io:// is always allowed, and also the real_path parameter if specified.
+    We never allow local files in the allowed paths list. Allowed paths must contain a schema (://).
+    """
+    real_path = config.httpdb.real_path
     allowed_file_paths = config.httpdb.allowed_file_paths or ""
     allowed_paths_list = [
         path.strip() for path in allowed_file_paths.split(",") if "://" in path
@@ -107,13 +117,12 @@ def get_obj_path(schema, path, user=""):
     if real_path:
         allowed_paths_list.append(real_path)
     allowed_paths_list.append("v3io://")
-
-    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
-        raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
-    return path
+    return allowed_paths_list
 
 
-def get_secrets(auth_info: mlrun.api.schemas.AuthInfo):
+def get_secrets(
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
     return {
         "V3IO_ACCESS_KEY": auth_info.data_session,
     }
@@ -146,7 +155,7 @@ def parse_submit_run_body(data):
 
 
 def _generate_function_and_task_from_submit_run_body(
-    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
 ):
     function_dict, function_url, task = parse_submit_run_body(data)
     # TODO: block exec for function["kind"] in ["", "local]  (must be a
@@ -178,20 +187,173 @@ def _generate_function_and_task_from_submit_run_body(
             function = enrich_function_from_dict(function, function_dict)
 
     apply_enrichment_and_validation_on_function(function, auth_info)
+    apply_enrichment_and_validation_on_task(task)
 
     return function, task
 
 
-async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
+async def submit_run(
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
+):
     _, _, _, response = await run_in_threadpool(
         submit_run_sync, db_session, auth_info, data
     )
     return response
 
 
+def apply_enrichment_and_validation_on_task(task):
+
+    # Masking notification config params from the task object
+    mask_notification_params_on_task(task)
+
+
+def mask_notification_params_on_task(task):
+    run_uid = get_in(task, "metadata.uid")
+    project = get_in(task, "metadata.project")
+    notifications = task.get("spec", {}).get("notifications", [])
+    masked_notifications = []
+    if notifications:
+        for notification in notifications:
+            notification_object = mlrun.model.Notification.from_dict(notification)
+            masked_notifications.append(
+                mask_notification_params_with_secret(
+                    project, run_uid, notification_object
+                ).to_dict()
+            )
+    task.setdefault("spec", {})["notifications"] = masked_notifications
+
+
+def mask_notification_params_with_secret(
+    project: str, parent: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    if notification_object.params and "secret" not in notification_object.params:
+        secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.SecretsClientType.notifications,
+            parent,
+            notification_object.name,
+        )
+        mlrun.api.crud.Secrets().store_project_secrets(
+            project,
+            mlrun.common.schemas.SecretsData(
+                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+                secrets={secret_key: json.dumps(notification_object.params)},
+            ),
+            allow_internal_secrets=True,
+        )
+        notification_object.params = {"secret": secret_key}
+
+    return notification_object
+
+
+def unmask_notification_params_secret_on_task(run):
+    if isinstance(run, dict):
+        run = mlrun.model.RunObject.from_dict(run)
+
+    run.spec.notifications = [
+        unmask_notification_params_secret(run.metadata.project, notification)
+        for notification in run.spec.notifications
+    ]
+    return run
+
+
+def unmask_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return notification_object
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot load notification params secret"
+        )
+
+    notification_object.params = json.loads(
+        mlrun.api.crud.Secrets().get_project_secret(
+            project,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            secret_key=params_secret,
+            allow_internal_secrets=True,
+            allow_secrets_from_k8s=True,
+        )
+    )
+
+    return notification_object
+
+
+def delete_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> None:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot delete notification params secret"
+        )
+
+    mlrun.api.crud.Secrets().delete_project_secret(
+        project,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        secret_key=params_secret,
+        allow_internal_secrets=True,
+        allow_secrets_from_k8s=True,
+    )
+
+
+def validate_and_mask_notification_list(
+    notifications: typing.List[
+        typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
+    ],
+    parent: str,
+    project: str,
+) -> typing.List[mlrun.model.Notification]:
+    """
+    Validates notification schema, uniqueness and masks notification params with secret if needed.
+    If at least one of the validation steps fails, the function will raise an exception and cause the API to return
+    an error response.
+    :param notifications: list of notification objects
+    :param parent: parent identifier
+    :param project: project name
+    :return: list of validated and masked notification objects
+    """
+    notification_objects = []
+
+    for notification in notifications:
+        if isinstance(notification, dict):
+            notification_object = mlrun.model.Notification.from_dict(notification)
+        elif isinstance(notification, mlrun.common.schemas.Notification):
+            notification_object = mlrun.model.Notification.from_dict(
+                notification.dict()
+            )
+        elif isinstance(notification, mlrun.model.Notification):
+            notification_object = notification
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "notification must be a dict or a Notification object"
+            )
+
+        # validate notification schema
+        mlrun.common.schemas.Notification(**notification_object.to_dict())
+
+        notification_objects.append(notification_object)
+
+    mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
+
+    return [
+        mask_notification_params_with_secret(project, parent, notification_object)
+        for notification_object in notification_objects
+    ]
+
+
 def apply_enrichment_and_validation_on_function(
     function,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     ensure_auth: bool = True,
     perform_auto_mount: bool = True,
     validate_service_account: bool = True,
@@ -231,14 +393,14 @@ def apply_enrichment_and_validation_on_function(
 
 def ensure_function_auth_and_sensitive_data_is_masked(
     function,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     allow_empty_access_key: bool = False,
 ):
     ensure_function_has_auth_set(function, auth_info, allow_empty_access_key)
     mask_function_sensitive_data(function, auth_info)
 
 
-def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+def mask_function_sensitive_data(function, auth_info: mlrun.common.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
         _mask_v3io_volume_credentials(function)
@@ -322,8 +484,8 @@ def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
             if not username:
                 continue
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-                mlrun.api.schemas.AuthSecretData(
-                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                mlrun.common.schemas.AuthSecretData(
+                    provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                     username=username,
                     access_key=access_key,
                 )
@@ -385,7 +547,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
 
 
 def _mask_v3io_access_key_env_var(
-    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.api.schemas.AuthInfo
+    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.common.schemas.AuthInfo
 ):
     v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
     # if it's already a V1EnvVarSource or dict instance, it's already been masked
@@ -412,14 +574,14 @@ def _mask_v3io_access_key_env_var(
                 )
                 return
         secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-            mlrun.api.schemas.AuthSecretData(
-                provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            mlrun.common.schemas.AuthSecretData(
+                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                 username=username,
                 access_key=v3io_access_key,
             )
         )
-        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
-            "access_key"
+        access_key_secret_key = (
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
         function.set_env_from_secret(
             "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
@@ -428,7 +590,7 @@ def _mask_v3io_access_key_env_var(
 
 def ensure_function_has_auth_set(
     function: mlrun.runtimes.BaseRuntime,
-    auth_info: mlrun.api.schemas.AuthInfo,
+    auth_info: mlrun.common.schemas.AuthInfo,
     allow_empty_access_key: bool = False,
 ):
     """
@@ -475,8 +637,8 @@ def ensure_function_has_auth_set(
                     "Username is missing from auth info"
                 )
             secret_name = mlrun.api.crud.Secrets().store_auth_secret(
-                mlrun.api.schemas.AuthSecretData(
-                    provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                mlrun.common.schemas.AuthSecretData(
+                    provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                     username=auth_info.username,
                     access_key=function.metadata.credentials.access_key,
                 )
@@ -489,8 +651,8 @@ def ensure_function_has_auth_set(
                 mlrun.model.Credentials.secret_reference_prefix
             )
 
-        access_key_secret_key = mlrun.api.schemas.AuthSecretData.get_field_secret_key(
-            "access_key"
+        access_key_secret_key = (
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
         auth_env_vars = {
             mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
@@ -502,7 +664,7 @@ def ensure_function_has_auth_set(
             function.set_env_from_secret(env_key, secret_name, secret_key)
 
 
-def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
+def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
     if (
         mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.spec.disable_auto_mount
@@ -520,7 +682,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.api.schemas.AuthInfo):
 
 def process_function_service_account(function):
     # If we're not running inside k8s, skip this check as it's not relevant.
-    if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if not mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         return
 
     (
@@ -536,7 +700,7 @@ def process_function_service_account(function):
 def resolve_project_default_service_account(project_name: str):
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project_name,
-        SecretProviderName.kubernetes,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
         ),
@@ -551,7 +715,7 @@ def resolve_project_default_service_account(project_name: str):
 
     default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project_name,
-        SecretProviderName.kubernetes,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
         ),
@@ -578,7 +742,9 @@ def resolve_project_default_service_account(project_name: str):
     return allowed_service_accounts, default_service_account
 
 
-def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
+def ensure_function_security_context(
+    function, auth_info: mlrun.common.schemas.AuthInfo
+):
     """
     For iguazio we enforce that pods run with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
@@ -589,7 +755,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.disabled.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         # remote spark image currently requires running with user 1000 or root
@@ -605,7 +771,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     #  Enrichment with retain enrichment mode should occur on function creation only.
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.retain.value
+        == mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value
         and function.spec.security_context is not None
         and function.spec.security_context.run_as_user is not None
         and function.spec.security_context.run_as_group is not None
@@ -618,8 +784,8 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         return
 
     if mlrun.mlconf.function.spec.security_context.enrichment_mode in [
-        SecurityContextEnrichmentModes.override.value,
-        SecurityContextEnrichmentModes.retain.value,
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
+        mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
 
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
@@ -675,7 +841,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
 
 
 def submit_run_sync(
-    db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
     :return: Tuple with:
@@ -699,31 +865,60 @@ def submit_run_sync(
                 "Local runtimes can not be run through API (not locally)"
             )
         run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db, True)
+        fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
-        # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
-                cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
+                cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            get_scheduler().create_schedule(
-                db_session,
-                auth_info,
-                task["metadata"]["project"],
-                task["metadata"]["name"],
-                schemas.ScheduleKinds.job,
-                data,
-                cron_trigger,
-                schedule_labels,
-            )
+            created = False
+
+            # if the task is pointing to a remote function (hub://), we need to save it to the db
+            # and update the task to point to the saved function, so that the scheduler will be able to
+            # access the db version of the function, and not the remote one (which can be changed between runs)
+            if "://" in task["spec"]["function"]:
+                function_uri = fn.save(versioned=True)
+                data.pop("function", None)
+                data.pop("function_url", None)
+                task["spec"]["function"] = function_uri.replace("db://", "")
+
+            try:
+                get_scheduler().update_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "No existing schedule found, creating a new one",
+                    project=task["metadata"]["project"],
+                    name=task["metadata"]["name"],
+                )
+                get_scheduler().create_schedule(
+                    db_session,
+                    auth_info,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                    mlrun.common.schemas.ScheduleKinds.job,
+                    data,
+                    cron_trigger,
+                    schedule_labels,
+                )
+                created = True
             project = task["metadata"]["project"]
 
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
+                # indicate whether it was created or modified
+                "action": "created" if created else "modified",
             }
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
@@ -732,7 +927,7 @@ def submit_run_sync(
                 mlrun.api.crud.Secrets()
                 .list_project_secrets(
                     task["metadata"]["project"],
-                    mlrun.api.schemas.SecretProviderName.kubernetes,
+                    mlrun.common.schemas.SecretProviderName.kubernetes,
                     allow_secrets_from_k8s=True,
                 )
                 .secrets

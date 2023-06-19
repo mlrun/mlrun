@@ -232,6 +232,29 @@ class TestCollectRunSLogs:
         assert log_collector._call.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_start_log_for_run_success_dask_kind(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        project_name = "some-project"
+        uid = "my-uid"
+        function_name = "some-function"
+        function = f"{project_name}/{function_name}@{uid}"
+
+        _, _, uid, _, run = _create_new_run(
+            db, "some-project", kind="dask", function=function
+        )
+        run_uid = await mlrun.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
+        assert run_uid == uid
+        # not expected to call start log, because dask is not log collectable runtime
+        assert log_collector._call.call_count == 0
+
+    @pytest.mark.asyncio
     async def test_start_log_for_run_failure(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
@@ -301,16 +324,27 @@ class TestCollectRunSLogs:
         log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
-        run_uids = ["some_uid", "some_uid2", "some_uid3"]
-        for run_uid in run_uids:
+
+        # iterate over some runs, for each run assign different state
+        run_uids_to_state = [
+            ("some_uid", mlrun.runtimes.constants.RunStates.completed),
+            ("some_uid2", mlrun.runtimes.constants.RunStates.unknown),
+            ("some_uid3", mlrun.runtimes.constants.RunStates.completed),
+            ("some_uid4", mlrun.runtimes.constants.RunStates.completed),
+            # keep it last, as we later on omit it from the run_uids list
+            ("some_uid5", mlrun.runtimes.constants.RunStates.running),
+        ]
+        for run_uid, state in run_uids_to_state:
             _create_new_run(
                 db,
                 project_name,
                 uid=run_uid,
                 name=run_uid,
                 kind="job",
-                state=mlrun.runtimes.constants.RunStates.completed,
+                state=state,
             )
+
+        run_uids = [run_uid for run_uid, _ in run_uids_to_state]
 
         # update requested logs field to True
         mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs(
@@ -322,7 +356,7 @@ class TestCollectRunSLogs:
             requested_logs_modes=[True],
             only_uids=False,
         )
-        assert len(runs) == 3
+        assert len(runs) == 5
 
         log_collector._call = unittest.mock.AsyncMock(return_value=None)
 
@@ -332,7 +366,10 @@ class TestCollectRunSLogs:
         assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
-        assert len(stop_log_request.runUIDs) == 3
+
+        # one of the runs is in running state
+        run_uids = run_uids[: len(run_uids) - 1]
+        assert len(stop_log_request.runUIDs) == len(run_uids)
         assert (
             deepdiff.DeepDiff(
                 list(stop_log_request.runUIDs),
@@ -352,7 +389,7 @@ class TestCollectRunSLogs:
             requested_logs_modes=[True],
             only_uids=False,
         )
-        assert len(runs) == 2
+        assert len(runs) == 4
 
         await mlrun.api.main._verify_log_collection_stopped_on_startup()
 
@@ -360,7 +397,7 @@ class TestCollectRunSLogs:
         assert log_collector._call.call_args[0][0] == "StopLogs"
         stop_log_request = log_collector._call.call_args[0][1]
         assert stop_log_request.project == project_name
-        assert len(stop_log_request.runUIDs) == 2
+        assert len(stop_log_request.runUIDs) == 3
         assert (
             deepdiff.DeepDiff(
                 list(stop_log_request.runUIDs),
@@ -378,6 +415,7 @@ def _create_new_run(
     uid="run-uid",
     iteration=0,
     kind="",
+    function="",
     state=mlrun.runtimes.constants.RunStates.created,
     store: bool = True,
 ):
@@ -392,6 +430,8 @@ def _create_new_run(
         },
         "status": {"state": state},
     }
+    if function:
+        run["spec"] = {"function": function}
     if store:
         mlrun.api.crud.Runs().store_run(
             db_session, run, uid, iter=iteration, project=project

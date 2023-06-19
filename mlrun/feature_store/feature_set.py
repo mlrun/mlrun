@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import importlib
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -20,7 +19,7 @@ import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
-import mlrun.api.schemas
+import mlrun.common.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -119,7 +118,7 @@ class FeatureSetSpec(ModelObj):
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
-        self.relations: Dict[str, Entity] = relations or {}
+        self.relations: Dict[str, Union[Entity, str]] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -132,6 +131,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
+        self.with_default_targets = True
 
     @property
     def entities(self) -> List[Entity]:
@@ -186,7 +186,8 @@ class FeatureSetSpec(ModelObj):
     @engine.setter
     def engine(self, engine: str):
         engine_list = ["pandas", "spark", "storey"]
-        if engine and engine not in engine_list:
+        engine = engine if engine else "storey"
+        if engine not in engine_list:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"engine must be one of {','.join(engine_list)}"
             )
@@ -233,6 +234,9 @@ class FeatureSetSpec(ModelObj):
 
     @relations.setter
     def relations(self, relations: Dict[str, Entity]):
+        for col, ent in relations.items():
+            if isinstance(ent, str):
+                relations[col] = Entity(ent)
         self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
@@ -314,7 +318,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
 class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
-    kind = mlrun.api.schemas.ObjectKind.feature_set.value
+    kind = mlrun.common.schemas.ObjectKind.feature_set.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -325,7 +329,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Entity] = None,
+        relations: Dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
@@ -373,6 +377,7 @@ class FeatureSet(ModelObj):
         self.status = None
         self._last_state = ""
         self._aggregations = {}
+        self.set_targets()
 
     @property
     def spec(self) -> FeatureSetSpec:
@@ -405,7 +410,7 @@ class FeatureSet(ModelObj):
 
     @property
     def fullname(self) -> str:
-        """full name in the form {project}/{name}[:{tag}]"""
+        """full name in the form ``{project}/{name}[:{tag}]``"""
         fullname = (
             f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         )
@@ -471,10 +476,25 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
+            self.spec.with_default_targets = True
             targets.extend(get_default_targets())
+        else:
+            self.spec.with_default_targets = False
 
+        self.spec.targets = []
+        self.__set_targets_add_targets_helper(targets)
+
+        if default_final_step:
+            self.spec.graph.final_step = default_final_step
+
+    def __set_targets_add_targets_helper(self, targets):
+        """
+        Add the desired target list
+
+        :param targets: list of target type names ('csv', 'nosql', ..) or target objects
+                         CSVTarget(), ParquetTarget(), NoSqlTarget(), StreamTarget(), ..
+        """
         validate_target_list(targets=targets)
-
         for target in targets:
             kind = target.kind if hasattr(target, "kind") else target
             if kind not in TargetTypes.all():
@@ -486,10 +506,8 @@ class FeatureSet(ModelObj):
                     target, name=str(target), partitioned=(target == "parquet")
                 )
             self.spec.targets.update(target)
-        if default_final_step:
-            self.spec.graph.final_step = default_final_step
 
-    def validate_steps(self):
+    def validate_steps(self, namespace):
         if not self.spec:
             return
         if not self.spec.graph:
@@ -502,17 +520,20 @@ class FeatureSet(ModelObj):
             ):
                 #  we are not checking none class names or queue class names.
                 continue
-            module_path, class_name = step.class_name.rsplit(".", 1)
-            if not module_path or not class_name:
+            class_object, class_name = step.get_step_class_object(namespace=namespace)
+            if not hasattr(class_object, "validate_args"):
                 continue
-            module = importlib.import_module(module_path)
-            step_class = getattr(module, class_name)
-            if not hasattr(step_class, "validate"):
-                continue
-            step_object = step_class(
-                **(step.class_args if step.class_args is not None else {})
+            class_args = step.get_full_class_args(
+                namespace=namespace, class_object=class_object
             )
-            step_object.validate(self)
+            if class_name.startswith("storey"):
+                class_object.validate_args(
+                    **(class_args if class_args is not None else {})
+                )
+            else:
+                class_object.validate_args(
+                    self, **(class_args if class_args is not None else {})
+                )
 
     def purge_targets(self, target_names: List[str] = None, silent: bool = False):
         """Delete data of specific targets
@@ -520,7 +541,7 @@ class FeatureSet(ModelObj):
         :param silent: Fail silently if target doesn't exist in featureset status"""
 
         verify_feature_set_permissions(
-            self, mlrun.api.schemas.AuthorizationAction.delete
+            self, mlrun.common.schemas.AuthorizationAction.delete
         )
 
         purge_targets = self._reload_and_get_status_targets(
@@ -655,7 +676,7 @@ class FeatureSet(ModelObj):
         self._spec.analysis[name] = uri
 
     @property
-    def graph(self):
+    def graph(self) -> RootFlowStep:
         """feature set transformation graph/DAG"""
         return self.spec.graph
 
@@ -921,7 +942,17 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            return self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe(
+                columns=columns,
+                start_time=start_time,
+                end_time=end_time,
+                time_field=time_column,
+                **kwargs,
+            )
+            # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
+            if not isinstance(df, pd.DataFrame):
+                df = pd.concat(df)
+            return df
 
         target = get_offline_target(self, name=target_name)
         if not target:

@@ -23,8 +23,8 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
-import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
@@ -51,7 +51,7 @@ def db() -> Generator:
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
-    _init_engine(config.httpdb.dsn)
+    _init_engine(dsn=config.httpdb.dsn)
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
@@ -134,8 +134,10 @@ class K8sSecretsMock:
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
         return {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }
@@ -153,10 +155,10 @@ class K8sSecretsMock:
 
             return None, None
         username = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
         ]
         access_key = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         ]
         return username, access_key
 
@@ -206,8 +208,10 @@ class K8sSecretsMock:
                 )
                 expected_env_from_secrets[env_variable_name] = {global_secret: key}
 
-        secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
-            project
+        secret_name = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                project
+            )
         )
         for key in self.project_secrets_map.get(project, {}):
             if key.startswith("mlrun.") and not include_internal:
@@ -281,7 +285,7 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
 
     for mocked_function_name in mocked_function_names:
         monkeypatch.setattr(
-            mlrun.api.utils.singletons.k8s.get_k8s(),
+            mlrun.api.utils.singletons.k8s.get_k8s_helper(),
             mocked_function_name,
             getattr(k8s_secrets_mock, mocked_function_name),
         )
@@ -291,8 +295,8 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> kfp.Client:
-    mlrun.api.utils.singletons.k8s.get_k8s().is_running_inside_kubernetes_cluster = (
-        unittest.mock.Mock(return_value=True)
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
     )
     kfp_client_mock = unittest.mock.Mock()
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)

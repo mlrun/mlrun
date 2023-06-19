@@ -16,12 +16,13 @@ import json
 import os
 import typing
 
-import requests
+import aiohttp
 
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.lists
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class GitNotification(NotificationBase):
@@ -29,15 +30,18 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
-    def send(
+    async def push(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.common.schemas.NotificationSeverity, str
+        ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
+        git_merge_request = self.params.get("merge_request", None)
         token = (
             self.params.get("token", None)
             or self.params.get("GIT_TOKEN", None)
@@ -45,20 +49,22 @@ class GitNotification(NotificationBase):
         )
         server = self.params.get("server", None)
         gitlab = self.params.get("gitlab", False)
-        self._pr_comment(
+        await self._pr_comment(
             self._get_html(message, severity, runs, custom_html),
             git_repo,
             git_issue,
+            merge_request=git_merge_request,
             token=token,
             server=server,
             gitlab=gitlab,
         )
 
     @staticmethod
-    def _pr_comment(
+    async def _pr_comment(
         message: str,
         repo: str = None,
         issue: int = None,
+        merge_request: int = None,
         token: str = None,
         server: str = None,
         gitlab: bool = False,
@@ -86,12 +92,19 @@ class GitNotification(NotificationBase):
             headers = {"PRIVATE-TOKEN": token}
             repo = repo or os.environ.get("CI_PROJECT_ID")
             # auto detect GitLab pr id from the environment
-            issue = issue or os.environ.get("CI_MERGE_REQUEST_IID")
+            issue = issue or os.environ.get("CI_ISSUE_IID")
+            merge_request = merge_request or os.environ.get("CI_MERGE_REQUEST_IID")
             # replace slash with url encoded slash for GitLab to accept a repo name with slash
             repo = repo.replace("/", "%2F")
-            url = (
-                f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
-            )
+
+            if merge_request:
+                url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{merge_request}/notes"
+            elif issue:
+                url = f"https://{server}/api/v4/projects/{repo}/issues/{issue}/notes"
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "GitLab issue or merge request id not specified"
+                )
         else:
             server = server or "api.github.com"
             repo = repo or os.environ.get("GITHUB_REPOSITORY")
@@ -111,9 +124,13 @@ class GitNotification(NotificationBase):
                 "Authorization": f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-        resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
-        if not resp.ok:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Failed commenting on PR", response=resp.text, status=resp.status_code
-            )
-        return resp.json()["id"]
+
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post(url, headers=headers, json={"body": message})
+            if not resp.ok:
+                resp_text = await resp.text()
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Failed commenting on PR: {resp_text}"
+                )
+            data = await resp.json()
+            return data.get("id")

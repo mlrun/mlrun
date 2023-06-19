@@ -20,6 +20,7 @@ from typing import List, Union
 
 import numpy as np
 import yaml
+from dateutil import parser
 
 import mlrun
 from mlrun.artifacts import ModelArtifact
@@ -29,7 +30,6 @@ from mlrun.errors import MLRunInvalidArgumentError
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, extend_artifact_path
 from .datastore import store_manager
-from .db import get_run_db
 from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
@@ -80,6 +80,7 @@ class MLClientCtx(object):
         self._log_level = "info"
         self._matrics_db = None
         self._autocommit = autocommit
+        self._notifications = []
 
         self._labels = {}
         self._annotations = {}
@@ -231,7 +232,7 @@ class MLClientCtx(object):
     def _init_dbs(self, rundb):
         if rundb:
             if isinstance(rundb, str):
-                self._rundb = get_run_db(rundb, secrets=self._secrets_manager)
+                self._rundb = mlrun.db.get_run_db(rundb, secrets=self._secrets_manager)
             else:
                 self._rundb = rundb
         else:
@@ -299,11 +300,12 @@ class MLClientCtx(object):
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
+            self._notifications = spec.get("notifications", self._notifications)
 
         self._init_dbs(rundb)
 
-        if spec and not is_api:
-            # init data related objects (require DB & Secrets to be set first), skip when running in the api service
+        if spec:
+            # init data related objects (require DB & Secrets to be set first)
             self._data_stores.from_dict(spec)
             if inputs and isinstance(inputs, dict):
                 for k, v in inputs.items():
@@ -315,6 +317,7 @@ class MLClientCtx(object):
 
         start = get_in(attrs, "status.start_time")
         if start:
+            start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
         self._state = "running"
         if store_run:
@@ -377,7 +380,7 @@ class MLClientCtx(object):
 
     @property
     def inputs(self):
-        """dictionary of input data items (read-only)"""
+        """dictionary of input data item urls (read-only)"""
         return self._inputs
 
     @property
@@ -460,15 +463,25 @@ class MLClientCtx(object):
     def _load_project_object(self):
         if not self._project_object:
             if not self._project:
-                self.logger.warning("get_project_param called without a project name")
+                self.logger.warning(
+                    "Project cannot be loaded without a project name set in the context"
+                )
                 return None
             if not self._rundb:
                 self.logger.warning(
-                    "cannot retrieve project parameters - MLRun DB is not accessible"
+                    "Cannot retrieve project data - MLRun DB is not accessible"
                 )
                 return None
             self._project_object = self._rundb.get_project(self._project)
         return self._project_object
+
+    def get_project_object(self):
+        """
+        Get the MLRun project object by the project name set in the context.
+
+        :return: The project object or None if it couldn't be retrieved.
+        """
+        return self._load_project_object()
 
     def get_project_param(self, key: str, default=None):
         """get a parameter from the run's project's parameters"""
@@ -494,27 +507,34 @@ class MLClientCtx(object):
             url = key
         if self.in_path and is_relative_path(url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(
+        self._inputs[key] = url
+
+    def get_input(self, key: str, url: str = ""):
+        """
+        Get an input :py:class:`~mlrun.DataItem` object,
+        data objects have methods such as .get(), .download(), .url, .. to access the actual data.
+        Requires access to the data store secrets if configured.
+
+        Example::
+
+            data = context.get_input("my_data").get()
+
+        :param key:  The key name for the input url entry.
+        :param url:  The url of the input data (file, stream, ..) - optional, saved in the inputs dictionary
+                     if the key is not already present.
+
+        :return:     :py:class:`~mlrun.datastore.base.DataItem` object
+        """
+        if key not in self._inputs:
+            self._set_input(key, url)
+
+        url = self._inputs[key]
+        return self._data_stores.object(
             url,
             key,
             project=self._project,
             allow_empty_resources=self._allow_empty_resources,
         )
-        self._inputs[key] = obj
-        return obj
-
-    def get_input(self, key: str, url: str = ""):
-        """get an input :py:class:`~mlrun.DataItem` object, data objects have methods such as
-        .get(), .download(), .url, .. to access the actual data
-
-        example::
-
-            data = context.get_input("my_data").get()
-        """
-        if key not in self._inputs:
-            return self._set_input(key, url)
-        else:
-            return self._inputs[key]
 
     def log_result(self, key: str, value, commit=False):
         """log a scalar result value
@@ -890,7 +910,7 @@ class MLClientCtx(object):
 
         updates = {"status.last_update": now_date().isoformat()}
 
-        if error:
+        if error is not None:
             self._state = "error"
             self._error = str(error)
             updates["status.state"] = "error"
@@ -942,7 +962,8 @@ class MLClientCtx(object):
                 "handler": self._handler,
                 "outputs": self._outputs,
                 run_keys.output_path: self.artifact_path,
-                run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},
+                run_keys.inputs: self._inputs,
+                "notifications": self._notifications,
             },
             "status": {
                 "results": self._results,
@@ -976,6 +997,9 @@ class MLClientCtx(object):
         struct = {
             "metadata.labels": self._labels,
             "metadata.annotations": self._annotations,
+            "spec.parameters": self._parameters,
+            "spec.outputs": self._outputs,
+            "spec.inputs": self._inputs,
             "status.results": self._results,
             "status.start_time": to_date_str(self._start_time),
             "status.last_update": to_date_str(self._last_update),

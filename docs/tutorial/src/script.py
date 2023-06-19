@@ -199,32 +199,23 @@ params = {
     "scale_pos_weight": 1,
     "zero_as_missing": True,
     "seed": 0,
-    "num_rounds": 50000,
+    # "categorical_feature": "name:year,month,day,weekday",
 }
 
-train_set = lgbm.Dataset(
-    x_train,
-    y_train,
-    silent=False,
-    categorical_feature=["year", "month", "day", "weekday"],
-)
-valid_set = lgbm.Dataset(
-    x_test,
-    y_test,
-    silent=False,
-    categorical_feature=["year", "month", "day", "weekday"],
-)
+train_set = lgbm.Dataset(x_train, y_train)
+valid_set = lgbm.Dataset(x_test, y_test)
 
 # [MLRun] Apply MLRun on the LightGBM module:
 apply_mlrun(context=context)
 
 model = lgbm.train(
     params,
-    train_set=train_set,
     num_boost_round=10000,
-    early_stopping_rounds=500,
+    train_set=train_set,
     valid_sets=[valid_set],
+    callbacks=[lgbm.early_stopping(stopping_rounds=500)],
 )
+
 del x_train
 del y_train
 del x_test

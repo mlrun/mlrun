@@ -20,13 +20,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.db.sqldb.helpers
 import mlrun.api.initial_data
 from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     project = "project"
     run_name_1 = "run_name_1"
@@ -57,10 +52,48 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     assert len(runs) == 2
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
+def test_runs_with_notifications(db: DBInterface, db_session: Session):
+    project_name = "project"
+    run_uids = ["uid1", "uid2", "uid3"]
+    num_runs = len(run_uids)
+    # create several runs with different uids, each with a notification
+    for run_uid in run_uids:
+        _create_new_run(db, db_session, project=project_name, uid=run_uid)
+        notification = mlrun.model.Notification(
+            kind="slack",
+            when=["completed", "error"],
+            name=f"test-notification-{run_uid}",
+            message="test-message",
+            condition="blabla",
+            severity="info",
+            params={"some-param": "some-value"},
+        )
+        db.store_run_notifications(db_session, [notification], run_uid, project_name)
+
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == num_runs
+    for run in runs:
+        run_notifications = run["spec"]["notifications"]
+        assert len(run_notifications) == 1
+        assert (
+            run_notifications[0]["name"]
+            == f"test-notification-{run['metadata']['uid']}"
+        )
+
+    db.delete_run_notifications(db_session, run_uid=run_uids[0], project=project_name)
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == num_runs - 1
+
+    db.delete_run_notifications(db_session, project=project_name)
+    runs = db.list_runs(db_session, project=project_name, with_notifications=False)
+    assert len(runs) == num_runs
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == 0
+
+    db.del_runs(db_session, project=project_name)
+    db.verify_project_has_no_related_resources(db_session, project_name)
+
+
 def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     project_name = "project"
     uid = "run-uid"
@@ -108,10 +141,6 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     assert type(distinct_runs[0]) == dict
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     project = "project"
     run_uid_running = "run-running"
@@ -148,10 +177,6 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
     assert runs[0]["metadata"]["uid"] == run_uid_completed
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # First store - fills the start_time
     project, name, uid, iteration, run = _create_new_run(db, db_session)
@@ -178,10 +203,6 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     time_before_creation = datetime.now(tz=timezone.utc)
     # Create runs
@@ -214,10 +235,6 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
         _ensure_run_after_align_runs_migration(db, run, time_before_creation)
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_data_migration_align_runs_table_with_empty_run_body(
     db: DBInterface, db_session: Session
 ):
@@ -244,10 +261,6 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     _ensure_run_after_align_runs_migration(db, run)
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -272,10 +285,6 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -294,10 +303,6 @@ def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
     assert runs_after[0].updated > run_updated_time
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -315,10 +320,6 @@ def test_update_run_success(db: DBInterface, db_session: Session):
     assert run["spec"]["another-new-field"] == "value"
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
@@ -348,10 +349,6 @@ def test_store_and_update_run_update_name_failure(db: DBInterface, db_session: S
         )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,

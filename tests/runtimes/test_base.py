@@ -15,6 +15,8 @@
 import base64
 import json
 import os
+import shutil
+import tempfile
 
 import pytest
 
@@ -35,11 +37,15 @@ class TestAutoMount:
         self.name = "test-function"
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
+        self._temp_dir = tempfile.mkdtemp()
 
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
 
-    def _generate_runtime(self, disable_auto_mount=False):
+    def teardown_method(self, test_method):
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
+
+    def _generate_runtime(self, disable_auto_mount=False) -> KubejobRuntime:
         runtime = KubejobRuntime()
         runtime.spec.image = self.image_name
         runtime.spec.disable_auto_mount = disable_auto_mount
@@ -71,6 +77,111 @@ class TestAutoMount:
         runtime = self._generate_runtime(disable_auto_mount=True)
         self._execute_run(runtime)
         rundb_mock.assert_no_mount_or_creds_configured()
+
+    @pytest.mark.parametrize(
+        "requirements,encoded_requirements",
+        [
+            # strip spaces
+            (["pandas==1.0.0", "numpy==1.0.0 "], ["pandas==1.0.0", "numpy==1.0.0"]),
+            # handle ranges
+            (["pandas>=1.0.0, <2"], ["pandas>=1.0.0, <2"]),
+            (["pandas>=1.0.0,<2"], ["pandas>=1.0.0,<2"]),
+            # handle flags
+            (["-r somewhere/requirements.txt"], ["-r somewhere/requirements.txt"]),
+            # handle flags and specific
+            # handle escaping within specific
+            (
+                ["-r somewhere/requirements.txt", "pandas>=1.0.0, <2"],
+                ["-r somewhere/requirements.txt", "pandas>=1.0.0, <2"],
+            ),
+            # handle from git
+            (
+                ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
+                ["something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something"],
+            ),
+            # handle comments
+            (["# dont care", "faker"], ["faker"]),
+            (["faker # inline dontcare"], ["faker"]),
+            (["faker #inline dontcare2"], ["faker"]),
+            (
+                [
+                    "numpy==1.0.0 ",
+                    "pandas>=1.0.0, <2",
+                    "# dont care",
+                    "pandas2>=1.0.0,<2 # just an inline comment",
+                    "-r somewhere/requirements.txt",
+                    "something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something",
+                ],
+                [
+                    "numpy==1.0.0",
+                    "pandas>=1.0.0, <2",
+                    "pandas2>=1.0.0,<2",
+                    "-r somewhere/requirements.txt",
+                    "something @ git+https://somewhere.com/a/b.git@v0.0.0#egg=something",
+                ],
+            ),
+        ],
+    )
+    def test_resolve_requirements(self, requirements, encoded_requirements):
+        for requirements_as_file in [True, False]:
+            if requirements_as_file:
+
+                # create a temporary file with the requirements
+                requirements = self._create_temp_requirements_file(requirements)
+
+            encoded = self._generate_runtime().spec.build._resolve_requirements(
+                requirements
+            )
+            assert (
+                encoded == encoded_requirements
+            ), f"Failed to encode {requirements} as file {requirements_as_file}"
+
+    @pytest.mark.parametrize(
+        "requirements,requirements_in_file,encoded_requirements,requirements_as_file",
+        [
+            (
+                ["pandas==1.0.0", "numpy==1.0.0"],
+                ["something==1.0.0", "otherthing==1.0.0"],
+                [
+                    "something==1.0.0",
+                    "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
+                ],
+                False,
+            ),
+            (
+                ["pandas==1.0.0", "numpy==1.0.0"],
+                ["something==1.0.0", "otherthing==1.0.0"],
+                [
+                    "something==1.0.0",
+                    "otherthing==1.0.0",
+                    "pandas==1.0.0",
+                    "numpy==1.0.0",
+                ],
+                True,
+            ),
+        ],
+    )
+    def test_resolve_requirements_file(
+        self,
+        requirements,
+        requirements_in_file,
+        encoded_requirements,
+        requirements_as_file,
+    ):
+        # create requirements file
+        requirements_file = self._create_temp_requirements_file(requirements_in_file)
+
+        if requirements_as_file:
+            requirements = self._create_temp_requirements_file(requirements)
+
+        encoded = self._generate_runtime().spec.build._resolve_requirements(
+            requirements, requirements_file
+        )
+        assert (
+            encoded == encoded_requirements
+        ), f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
 
     def test_fill_credentials(self, rundb_mock):
         """
@@ -222,3 +333,12 @@ class TestAutoMount:
         rundb_mock.reset()
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
+
+    def _create_temp_requirements_file(self, requirements):
+        with tempfile.NamedTemporaryFile(
+            delete=False, dir=self._temp_dir, suffix=".txt"
+        ) as temp_file:
+            with open(temp_file.name, "w") as f:
+                for requirement in requirements:
+                    f.write(requirement + "\n")
+            return temp_file.name

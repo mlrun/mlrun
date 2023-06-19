@@ -59,18 +59,18 @@ def is_dbfs_configured():
 )
 class TestDBFSStore:
     def setup_class(self):
-        self._databricks_workspace = config["env"].get("DATABRICKS_HOST")
+        self._databricks_host = config["env"].get("DATABRICKS_HOST")
         self.test_root_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
         self._object_path = f"{self.test_root_dir}/{self._object_file}"
-        self._dbfs_url = "dbfs://" + self._databricks_workspace
+        self._dbfs_url = "dbfs://" + self._databricks_host
         self._object_url = self._dbfs_url + self._object_path
         self.secrets = {}
         token = config["env"].get("DATABRICKS_TOKEN", None)
         self.secrets["DATABRICKS_TOKEN"] = token
         self.parquets_dir = PARQUETS_DIR
         self.csv_dir = CSV_DIR
-        self.workspace = WorkspaceClient(host=self._databricks_workspace, token=token)
+        self.workspace = WorkspaceClient(host=self._databricks_host, token=token)
         logger.info(f"Object URL: {self._object_url}")
 
     @pytest.fixture(autouse=True)

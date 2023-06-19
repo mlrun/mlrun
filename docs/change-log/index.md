@@ -21,7 +21,54 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.4.0	
+## v1.4.0
+
+### New and updated features
+
+#### UI 
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-1248 | The engine type in the **Feature Set Overview** tab.  |
+| ML-2083 | The **Run on spot** value now displays on the **Jobs Overview** tab.
+ |
+
+###  APIs
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3375 | Two new APIs in the MlrunProject object: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`. [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
+
+###  Documentation
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). (move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`)|  
+| ML-3315 | how to aggregate aggregations |
+| ML-3373 | feature vector complex join |
+| ML-3375  | build an image directly through project API, without having to go through creating a function and building an image for it. |
+| ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](./runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
+| ML-3647 | Jobs can now be terminated with MLRun SDK. |
+| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
+| ML- | **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA... |
+
+ 
+
+#### New content
+- {ref}`git-repo-as-hub`
+- {ref}`notifications`
+
+
+### Breaking changes
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
+
+### Deprecations
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |
+
+
+
 
 ### Closed issues
 
@@ -57,51 +104,21 @@
 | ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/). 
 
-###  APIs
+
+
+
+
+
+
+## v1.3.3
+
+### Closed issues
+
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3375 | Two new APIs in the MlrunProject object: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`. [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-
-###  Documentation
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). (move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`)|  
-| ML-3315 | how to aggregate aggregations |
-| ML-3373 | feature vector complex join |
-| ML-3375  | build an image directly through project API, without having to go through creating a function and building an image for it. |
-| ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](./runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
-| ML-3647 | Jobs can now be terminated with MLRun SDK. |
-| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
-| ML- | **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA... |
-
- 
-
-#### New content
-- {ref}`git-repo-as-hub`
-
-
-
-### Deprecations
-| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |
-
-
-### Breaking changes
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
-
-
-### Future Deprecation
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
-old dashboards won't be supported in v1.5.0. |
-| | clear_context() will be deprecated in v1.6.0. |
-
-
-## v1.3.3	
-=======
 | ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+
+## v1.3.2
 
 ### Closed issues
 
@@ -110,7 +127,7 @@ old dashboards won't be supported in v1.5.0. |
 | ML-3896 | Fixed: MLRun API failed to get pod logs. [View in Git](https://github.com/mlrun/mlrun/pull/3649). |
 | ML-3865 | kubectl now returns logs as expected. [View in Git](https://github.com/mlrun/mlrun/pull/3660).  |
 | ML-3917 | Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674). |
-| ML-3934 | Logs are no longer collected for run pods in an unknown state [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
+| ML-3934 | Logs are no longer collected for run pods in an unknown state. [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
 
 ## v1.3.1
 
@@ -242,54 +259,7 @@ Improvements to [Set up your environment](../install/remote.html).
 
 <a id="api-130"></a>
 ### Deprecated and removed APIs
-Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code.
-
-**Deprecated and removed from v1.3.0 code**<br>
-These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
-
-| Deprecated/removed                   | Use instead                                   |
-| ------------------------------------ | --------------------------------------------- |
-| `project.functions`                  | `project.get_function`, `project.set_function`, `project.list_function` |
-| `project.artifacts`                  | `project.get_artifact`, `project.set_artifact`, `project.list_artifact` |
-| `project.func()`                     | `project.get_function()`                       |
-| `project.create_vault_secrets()`     | NA                                   |
-| `project.get_vault_secret()`         | NA                                   |
-| `MlrunProjectLegacy` class           | `MlrunProject`                                 |
-| Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step` |
-| `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
-| `NewTask`                            | `new_task()`                        |
-| Dask `with_limits`                   | `with_scheduler_limits` / `with_worker_limits`    |
-| Dask `with_requests`                 | `with_scheduler_requests` / `with_worker_requests`    |
-
-
-**Deprecated APIs, will be removed in v1.5.0**<br>
-These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
-| Deprecated / to be removed                       | Use instead                                   |
-| ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
-| `KubeResource.gpus`                              | `with_limits`                 |
-| Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
-| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
-| Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
-| `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
-| `mount_v3io_extended`                            | `mount_v3io`                   |
-| `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
-| `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
-| The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
-| `run_pipeline`                                   | `project.run`                                     |
-
-**REST APIs deprecated and removed from v1.3.0 code**
-
-- `pod_status header` from response to `get_log` REST API
-- `client-spec` from response to health API 
-- `submit_pipeline_legacy` REST API
-- `get_pipeline_legacy` REST API
-- Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
-- httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
-
-### Deprecated CLI
-
-The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
+Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code. See [Deprecations](#deprecations).
 
 ### Closed issues
 
@@ -655,7 +625,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
+| ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
+
  
 
 ## Deprecations
@@ -666,3 +638,70 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 |  NA | See [Deprecated APIs](#api-130).|
 | v1.4.0|     | FeatureSet(relations) is replaced by JoinSpec. See **ref to docs**
+
+### Deprecated APIs, removed from v1.3.0 code
+These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
+
+| Deprecated/removed                   | Use instead                                   |
+| ------------------------------------ | --------------------------------------------- |
+| `project.functions`                  | `project.get_function`, `project.set_function`, `project.list_function` |
+| `project.artifacts`                  | `project.get_artifact`, `project.set_artifact`, `project.list_artifact` |
+| `project.func()`                     | `project.get_function()`                       |
+| `project.create_vault_secrets()`     | NA                                   |
+| `project.get_vault_secret()`         | NA                                   |
+| `MlrunProjectLegacy` class           | `MlrunProject`                                 |
+| Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.  | `step` |
+| `mount_path` parameter in mount_v3io() | `volume_mounts`                        |
+| `NewTask`                            | `new_task()`                        |
+| Dask `with_limits`                   | `with_scheduler_limits` / `with_worker_limits`    |
+| Dask `with_requests`                 | `with_scheduler_requests` / `with_worker_requests`    |
+
+
+### Deprecated REST APIs, removed from v1.3.0 code
+
+- `pod_status header` from response to `get_log` REST API
+- `client-spec` from response to health API 
+- `submit_pipeline_legacy` REST API
+- `get_pipeline_legacy` REST API
+- Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
+- httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
+
+
+## Future Deprecations
+
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
+old dashboards won't be supported in v1.5.0. |
+
+
+
+
+### Deprecated APIs, will be removed in v1.5.0
+These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
+| `KubeResource.gpus`                              | `with_limits`                 |
+| Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
+| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
+| Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
+| `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
+| `mount_v3io_extended`                            | `mount_v3io`                   |
+| `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
+| `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
+| The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
+| `run_pipeline`                                   | `project.run`                                     |
+
+### Deprecated APIs, will be removed in v1.6.0
+These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.6.0.
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| clear_context() |  |
+
+
+
+### Deprecated CLI, will be removed in v1.5.0
+
+The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.

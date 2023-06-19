@@ -179,3 +179,5 @@ or in a Jupyter notebook with the` %env` magic command:
 ```
 %env SLACK_WEBHOOK=<slack webhook url>
 ```
+
+See the full description in {ref}`notifications`.

@@ -4223,11 +4223,11 @@ class TestFeatureStore(TestMLRunSystem):
         feature_vector = fstore.FeatureVector(
             name=name, features=[f"{self.project_name}/{name}.*"]
         )
-        training_data = fstore.get_offline_features(feature_vector).to_dataframe()
-        assert training_data.reset_index(drop=True).equals(
+        offline_feature_df = fstore.get_offline_features(feature_vector).to_dataframe()
+        assert offline_feature_df.reset_index(drop=True).equals(
             result.reset_index(drop=True)
         )
-        assert training_data.reset_index(drop=True).equals(
+        assert offline_feature_df.reset_index(drop=True).equals(
             expected_result.reset_index(drop=True)
         )
 

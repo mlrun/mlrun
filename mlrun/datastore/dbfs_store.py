@@ -24,7 +24,7 @@ from .base import DataStore, FileStats
 # dbfs objects will be represented with the following URL: dbfs://<path>
 
 
-class IguazDatabricksFile(DatabricksFile):
+class IguazioDatabricksFile(DatabricksFile):
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""
         self.buffer.seek(0)
@@ -59,7 +59,7 @@ class IguazDatabricksFile(DatabricksFile):
             yield data_start, data_end
 
 
-class IguazDatabricksFileSystem(DatabricksFileSystem):
+class IguazioDatabricksFileSystem(DatabricksFileSystem):
     root_marker = "/"
     protocol = "dbfs"
 
@@ -70,7 +70,7 @@ class IguazDatabricksFileSystem(DatabricksFileSystem):
 
         Only the default blocksize is allowed.
         """
-        return IguazDatabricksFile(
+        return IguazioDatabricksFile(
             self, path, mode=mode, block_size=block_size, **kwargs
         )
 

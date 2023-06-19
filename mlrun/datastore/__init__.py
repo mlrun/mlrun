@@ -29,8 +29,8 @@ __all__ = [
     "StreamSource",
     "KafkaSource",
     "RedisStore",
-    "IguazDatabricksFileSystem",
-    "IguazDatabricksFile",
+    "IguazioDatabricksFileSystem",
+    "IguazioDatabricksFile",
 ]
 
 import fsspec
@@ -46,7 +46,7 @@ from ..platforms.iguazio import (
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
-from .dbfs_store import IguazDatabricksFile, IguazDatabricksFileSystem
+from .dbfs_store import IguazioDatabricksFile, IguazioDatabricksFileSystem
 from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,
@@ -68,12 +68,12 @@ from .utils import parse_kafka_url
 store_manager = StoreManager()
 
 if hasattr(fsspec, "register_implementation"):
-    fsspec.register_implementation("dbfs", IguazDatabricksFileSystem, clobber=True)
+    fsspec.register_implementation("dbfs", IguazioDatabricksFileSystem, clobber=True)
 else:
     from fsspec.registry import known_implementations
 
     known_implementations["dbfs"] = {
-        "class": "mlrun.datastore.dbfs_store.IguazDatabricksFileSystem",
+        "class": "mlrun.datastore.dbfs_store.IguazioDatabricksFileSystem",
         "err": "Please make sure your fsspec version supports dbfs",
     }
 

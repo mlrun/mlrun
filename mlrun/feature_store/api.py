@@ -661,10 +661,10 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
-    # preview reads the source as a pandas df, which is not fully compatible with spark
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
+    # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
             "preview with spark engine is not supported"

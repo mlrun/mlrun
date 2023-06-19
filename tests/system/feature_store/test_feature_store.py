@@ -4208,7 +4208,7 @@ class TestFeatureStore(TestMLRunSystem):
         data = pd.read_csv(csv_path)
         expected_result = data.copy().rename(
             columns={"city of birth": "city_of_birth"}
-        )[["city_of_birth"]]
+        ).set_index('name')
         feature_set = fstore.FeatureSet(
             name=name,
             entities=[fstore.Entity("name")],
@@ -4223,13 +4223,10 @@ class TestFeatureStore(TestMLRunSystem):
         feature_vector = fstore.FeatureVector(
             name=name, features=[f"{self.project_name}/{name}.*"]
         )
-        offline_feature_df = fstore.get_offline_features(feature_vector).to_dataframe()
-        assert offline_feature_df.reset_index(drop=True).equals(
-            result.reset_index(drop=True)
-        )
-        assert offline_feature_df.reset_index(drop=True).equals(
-            expected_result.reset_index(drop=True)
-        )
+        feature_vector.spec.with_indexes = True
+        offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
+        assert offline_features_df.equals(result)
+        assert offline_features_df.equals(expected_result)
 
 
 def verify_purge(fset, targets):

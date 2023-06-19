@@ -473,11 +473,8 @@ class ImageBuilder(ModelObj):
         requirements = self.requirements or [] if not overwrite else []
 
         # make sure we don't append the same line twice
-        for requirement in resolved_requirements:
-            if requirement not in requirements:
-                requirements.append(requirement)
-
-        self.requirements = requirements
+        requirements += resolved_requirements
+        self.requirements = list(set(requirements))
 
     @staticmethod
     def _resolve_requirements(

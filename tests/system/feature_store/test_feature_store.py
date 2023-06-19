@@ -4206,9 +4206,7 @@ class TestFeatureStore(TestMLRunSystem):
         csv_path = str(self.assets_path / "fields_with_space.csv")
         name = f"test_ingest_with_rename_columns_{uuid.uuid4()}"
         data = pd.read_csv(csv_path)
-        expected_result = data.copy().rename(
-            columns={"city of birth": "city_of_birth"}
-        )
+        expected_result = data.copy().rename(columns={"city of birth": "city_of_birth"})
         expected_result.set_index("name", inplace=True)
         feature_set = fstore.FeatureSet(
             name=name,

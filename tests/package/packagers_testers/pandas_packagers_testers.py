@@ -65,13 +65,15 @@ _DATAFRAME_SAMPLES = [
         index=[i for i in range(1000)],
     ),
     pd.DataFrame(
-        data=np.random.randint(0, 256, (1000, 10)),
-        columns=[f"column_{i}" for i in range(10)],
-    ).set_index(keys=["column_1", "column_3", "column_4"]),
+        data={
+            **{f"column_{i}": np.random.randint(0, 256, 1000) for i in range(7)},
+            **{f"column_{i}": np.arange(0, 1000) for i in range(7, 10)},
+        },
+    ).set_index(keys=["column_7", "column_8", "column_9"]),
 ]
 
 
-def pack_dataframe(i: int) -> np.ndarray:
+def pack_dataframe(i: int) -> pd.DataFrame:
     return _DATAFRAME_SAMPLES[i]
 
 
@@ -82,6 +84,9 @@ def validate_dataframe(result: dict, i: int) -> bool:
 
 def unpack_dataframe(obj: pd.DataFrame, i: int):
     assert isinstance(obj, pd.DataFrame)
+    assert list(obj.columns) == list(_DATAFRAME_SAMPLES[i].columns)
+    assert obj.columns.names == _DATAFRAME_SAMPLES[i].columns.names
+    assert obj.index.names == _DATAFRAME_SAMPLES[i].index.names
     assert (obj == _DATAFRAME_SAMPLES[i]).all().all()
 
 
@@ -144,14 +149,35 @@ class PandasDataFramePackagerTester(PackagerTester):
                                 },
                                 expected_instructions={
                                     "file_format": file_format,
-                                    "indexes_names": list(
-                                        _DATAFRAME_SAMPLES[i].index.names
-                                    ),
+                                    "read_kwargs": {
+                                        "unflatten_kwargs": {
+                                            "columns": [
+                                                column
+                                                if not isinstance(column, tuple)
+                                                else list(column)
+                                                for column in _DATAFRAME_SAMPLES[
+                                                    i
+                                                ].columns
+                                            ],
+                                            "columns_levels": list(
+                                                _DATAFRAME_SAMPLES[i].columns.names
+                                            ),
+                                            "index_levels": list(
+                                                _DATAFRAME_SAMPLES[i].index.names
+                                            ),
+                                        }
+                                    }
+                                    if file_format
+                                    not in [
+                                        PandasSupportedFormat.PARQUET,
+                                        PandasSupportedFormat.H5,
+                                    ]
+                                    else {},
                                 },
                                 unpack_handler="unpack_dataframe",
                                 unpack_parameters={"i": i},
                             )
-                            for file_format in PandasSupportedFormat.get_all_formats()
+                            for file_format in ["parquet", "csv"]
                         ],
                     ]
                     for i in range(len(_DATAFRAME_SAMPLES))
@@ -168,8 +194,12 @@ _SERIES_SAMPLES = [
     pd.DataFrame(data=np.random.randint(0, 256, (10, 10)))[0],
     pd.DataFrame(data=np.random.randint(0, 256, (10, 3)), columns=["a", "b", "c"])["a"],
     pd.DataFrame(
-        data=np.random.randint(0, 256, (10, 4)), columns=["a", "b", "c", "d"]
-    ).set_index(keys=["b", "d"])["a"],
+        data=np.random.randint(0, 256, (10, 4)),
+        columns=["a", "b", "c", "d"],
+        index=pd.MultiIndex.from_product(
+            [[1, 2, 3, 4, 5], ["A", "B"]], names=["number", "letter"]
+        ),
+    )["a"],
 ]
 
 
@@ -191,6 +221,8 @@ def prepare_series_file(file_format: str, i: int) -> Tuple[str, str]:
 
 def unpack_series(obj: pd.Series, i: int):
     assert isinstance(obj, pd.Series)
+    assert obj.name == _SERIES_SAMPLES[i].name
+    assert obj.index.names == _SERIES_SAMPLES[i].index.names
     assert (obj == _SERIES_SAMPLES[i]).all()
 
 
@@ -230,7 +262,24 @@ class PandasSeriesPackagerTester(PackagerTester):
                             },
                             expected_instructions={
                                 "file_format": "parquet" if i in [1, 4, 5] else "csv",
-                                "indexes_names": list(_SERIES_SAMPLES[i].index.names),
+                                "read_kwargs": {
+                                    "unflatten_kwargs": {
+                                        # Unnamed series will have a column named 0 by default when cast to dataframe.
+                                        # Because we cast to dataframe before writing to file, 0 will be written for
+                                        # unnamed series samples:
+                                        "columns": [
+                                            _SERIES_SAMPLES[i].name
+                                            if _SERIES_SAMPLES[i].name is not None
+                                            else 0
+                                        ],
+                                        "columns_levels": [None],
+                                        "index_levels": list(
+                                            _SERIES_SAMPLES[i].index.names
+                                        ),
+                                    }
+                                }
+                                if i not in [1, 4, 5]
+                                else {},
                                 "column_name": _SERIES_SAMPLES[i].name,
                             },
                             unpack_handler="unpack_series",

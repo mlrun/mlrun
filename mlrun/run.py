@@ -106,6 +106,12 @@ class RunStatuses(object):
         ]
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.4.0",
+    reason="'run_local' will be removed in 1.6.0, use 'function.run(local=True)' instead",
+    category=FutureWarning,
+)
 def run_local(
     task=None,
     command="",

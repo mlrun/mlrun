@@ -555,6 +555,9 @@ def test_v2_model_ready():
     event = MockEvent("", path="/v2/models/m1/ready", method="GET")
     resp = context.mlrun_handler(context, event)
     assert resp.status_code == 200, f"didnt get proper ready resp {resp.body}"
+    event_body = json.loads(resp.body)
+    assert event_body["model_name"] == "m1"
+    assert event_body["status"] == "Model is ready"
 
 
 def test_v2_health():

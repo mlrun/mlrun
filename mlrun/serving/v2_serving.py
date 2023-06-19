@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import threading
 import time
 import traceback
@@ -259,7 +260,17 @@ class V2ModelServer(StepToDict):
             # get model health operation
             setattr(event, "terminated", True)
             if self.ready:
-                event.body = self.context.Response()
+                # Generate a response, confirming that the model is ready
+                data = {
+                    "id": event_id,
+                    "model_name": self.name,
+                    "status": "Model is ready",
+                }
+                event.body = self.context.Response(
+                    status_code=200,
+                    body=json.dumps(data),
+                    content_type="application/json",
+                )
             else:
                 event.body = self.context.Response(
                     status_code=408, body=b"model not ready"

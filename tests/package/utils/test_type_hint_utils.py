@@ -107,23 +107,28 @@ def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type
 
 
 @pytest.mark.parametrize(
-    "object_type, type_hint, include_subclasses, result",
+    "object_type, type_hint, include_subclasses, reduce_type_hint, result",
     [
-        (int, int, True, True),
-        (int, str, True, False),
-        (typing.Union[int, str], typing.Union[str, int], True, True),
-        (typing.Union[int, str, bool], typing.Union[str, int], True, False),
-        (int, typing.Union[int, str], True, False),
-        (AnotherClass, SomeClass, True, True),
-        (AnotherClass, SomeClass, False, False),
-        (SomeClass, AnotherClass, True, False),
-        (AnotherClass, {SomeClass, int, str}, True, True),
-        (AnotherClass, {SomeClass, int, str}, False, False),
-        (SomeClass, {AnotherClass, int, str}, True, False),
+        (int, int, True, False, True),
+        (int, str, True, True, False),
+        (typing.Union[int, str], typing.Union[str, int], True, True, True),
+        (typing.Union[int, str, bool], typing.Union[str, int], True, False, False),
+        (int, typing.Union[int, str], True, False, False),
+        (int, typing.Union[int, str], True, True, True),
+        (AnotherClass, SomeClass, True, False, True),
+        (AnotherClass, SomeClass, False, False, False),
+        (SomeClass, AnotherClass, True, False, False),
+        (AnotherClass, {SomeClass, int, str}, True, False, True),
+        (AnotherClass, {SomeClass, int, str}, False, False, False),
+        (SomeClass, {AnotherClass, int, str}, True, False, False),
     ],
 )
 def test_is_matching(
-    object_type: type, type_hint: type, include_subclasses: bool, result: bool
+    object_type: type,
+    type_hint: type,
+    include_subclasses: bool,
+    reduce_type_hint: bool,
+    result: bool,
 ):
     """
     Test the `TypeHintUtils.is_matching` function with multiple types.
@@ -131,6 +136,7 @@ def test_is_matching(
     :param object_type:        The type to match.
     :param type_hint:          The options to match to (the type hint of an object).
     :param include_subclasses: Whether subclasses considered a match.
+    :param reduce_type_hint:   Whether to reduce the type hint to match with its reduced hints.
     :param result:             Expected test result.
     """
     assert (
@@ -138,6 +144,7 @@ def test_is_matching(
             object_type=object_type,
             type_hint=type_hint,
             include_subclasses=include_subclasses,
+            reduce_type_hint=reduce_type_hint,
         )
         == result
     )

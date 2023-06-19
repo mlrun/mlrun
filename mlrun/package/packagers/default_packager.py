@@ -259,6 +259,7 @@ class DefaultPackager(Packager):
                 object_type=object_type,
                 type_hint=cls.PACKABLE_OBJECT_TYPE,
                 include_subclasses=cls.PACK_SUBCLASSES,
+                reduce_type_hint=False,
             ):
                 return False
 

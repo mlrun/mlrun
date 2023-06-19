@@ -328,7 +328,9 @@ class CustomNotificationPusher(object):
                     tasks.append(
                         notification.push(message, severity, runs, custom_html)
                     )
-            await asyncio.gather(*tasks)
+
+            # return exceptions to "best-effort" fire all notifications
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()

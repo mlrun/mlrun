@@ -95,7 +95,9 @@ class NotificationPusher(object):
                         db,
                     )
                 )
-            await asyncio.gather(*tasks)
+
+            # return exceptions to "best-effort" fire all notifications
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         logger.debug(
             "Pushing notifications",

@@ -51,7 +51,7 @@
 | ML-3731 | **Is it in release?** mlrun.db.list_pipelines() displays error=None [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3743 | Fix pushing to ECR [View in Git](https://github.com/mlrun/mlrun/pull/3407). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
-| ML-3763 |  **Also in docs - Gilad** [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | (Incorrect) naming of feature causes error when get the feature vector from the online feature service. Fix is an additional restriction in feature names. See [Aggregations](,/feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
 | ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
 | ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
@@ -65,21 +65,24 @@
 ###  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3381 | Support private repo as a marketplace hub
+| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). (move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`)|  
+| ML-3315 | how to aggregate aggregations |
+| ML-3373 | feature vector complex join |
+| ML-3375  | build an image directly through project API, without having to go through creating a function and building an image for it. |
+| ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](./runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
 | ML-3647 | Jobs can now be terminated with MLRun SDK. |
-| ML-3763 Gilad
-| ML-3375  build an image directly through project API, without having to go through creating a function and building an image for it. 
-| ML-2030:  add to docs: move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`
-| ML-3202 | 
-| ML-3373 | feature vector complex join
-| ML- **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA...
-| ML-3315 | how to aggregate aggregations
-| ML-3647 | terminate job in SDK
-| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). |   
+| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
+| ML- | **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA... |
+
+ 
+
+#### New content
+- {ref}`git-repo-as-hub`
+
 
 
 ### Deprecations
-| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |**
+| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |
 
 
 ### Breaking changes

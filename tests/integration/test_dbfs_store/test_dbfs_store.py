@@ -42,7 +42,7 @@ additional_csv_path = here / "additional_data.csv"
 with open(test_file_path, "r") as f:
     test_string = f.read()
 
-MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_WORKSPACE"]
+MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 
 def is_dbfs_configured():
@@ -59,7 +59,7 @@ def is_dbfs_configured():
 )
 class TestDBFSStore:
     def setup_class(self):
-        self._databricks_workspace = config["env"].get("DATABRICKS_WORKSPACE")
+        self._databricks_workspace = config["env"].get("DATABRICKS_HOST")
         self.test_root_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
         self._object_path = f"{self.test_root_dir}/{self._object_file}"

@@ -4204,8 +4204,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_ingest_with_rename_columns(self):
         csv_path = str(self.assets_path / "fields_with_space.csv")
-        run_id = str(uuid.uuid4())
-        name = f"test_ingest_with_rename_columns_{run_id}"
+        name = f"test_ingest_with_rename_columns_{uuid.uuid4()}"
         data = pd.read_csv(csv_path)
         expected_result = data.copy().rename(
             columns={"city of birth": "city_of_birth"}
@@ -4222,7 +4221,7 @@ class TestFeatureStore(TestMLRunSystem):
             feature_set, data, run_config=fstore.RunConfig(local=True)
         )
         feature_vector = fstore.FeatureVector(
-            name=run_id, features=[f"{self.project_name}/{name}.*"]
+            name=name, features=[f"{self.project_name}/{name}.*"]
         )
         training_data = fstore.get_offline_features(feature_vector).to_dataframe()
         assert training_data.reset_index(drop=True).equals(

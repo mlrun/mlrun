@@ -24,7 +24,7 @@ spec.max_replicas = 4
 ```
 
 ```{admonition} Note
-Replication algorithm, if a `target utilization`
+Scaling (replication) algorithm, if a `target utilization`
 (Target CPU%) value is set, the replication controller calculates the utilization
 value as a percentage of the equivalent `resource request` (CPU request) on
 the replicas and based on that provides horizontal scaling. 

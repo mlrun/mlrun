@@ -4208,7 +4208,8 @@ class TestFeatureStore(TestMLRunSystem):
         data = pd.read_csv(csv_path)
         expected_result = data.copy().rename(
             columns={"city of birth": "city_of_birth"}
-        ).set_index('name')
+        )
+        expected_result.set_index("name", inplace=True)
         feature_set = fstore.FeatureSet(
             name=name,
             entities=[fstore.Entity("name")],

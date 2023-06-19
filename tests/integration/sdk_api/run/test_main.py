@@ -255,7 +255,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "--some-arg",
                 ],
                 True,
-                "status=completed",
+                "'status': 'completed'",
             ],
         ],
     )
@@ -268,7 +268,6 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         if not raise_on_error:
             out = out.stderr.decode("utf-8")
 
-        print("!!!!!!!!!", out)
         assert out.find(expected_output) != -1, out
 
     def test_main_run_args_from_env(self):

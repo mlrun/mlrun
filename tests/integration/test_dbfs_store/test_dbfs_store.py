@@ -24,7 +24,6 @@ from databricks.sdk import WorkspaceClient
 
 import mlrun
 import mlrun.errors
-from mlrun.utils import logger
 
 PARQUETS_DIR = "/parquets"
 CSV_DIR = "/csv"

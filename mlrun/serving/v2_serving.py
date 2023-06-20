@@ -272,9 +272,19 @@ class V2ModelServer(StepToDict):
                     content_type="application/json",
                 )
             else:
+                # Generate a response, indicating that the model is yet to be ready
+                data = {
+                    "id": event_id,
+                    "model_name": self.name,
+                    "status": "Model not ready",
+                }
+
                 event.body = self.context.Response(
-                    status_code=408, body=b"model not ready"
+                    status_code=409,
+                    body=json.dumps(data),
+                    content_type="application/json",
                 )
+
             return event
 
         elif op == "" and event.method == "GET":

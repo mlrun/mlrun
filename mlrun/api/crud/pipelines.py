@@ -222,22 +222,8 @@ class Pipelines(
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
-            return {
-                k: str(v) if v is not None else v
-                for k, v in run.items()
-                if k
-                in [
-                    "id",
-                    "name",
-                    "project",
-                    "status",
-                    "error",
-                    "created_at",
-                    "scheduled_at",
-                    "finished_at",
-                    "description",
-                ]
-            }
+            return mlrun.utils.helpers.get_format_run(run, with_project=True)
+
         elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
             return run.get("name")
         elif format_ == mlrun.common.schemas.PipelinesFormat.summary:

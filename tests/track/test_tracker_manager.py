@@ -15,10 +15,10 @@
 
 import pytest
 
+import mlrun.track
+from mlrun.track import BaseTracker, Tracker
 from mlrun.track.tracker_manager import TrackerManager
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
-from mlrun.track import Tracker, BaseTracker
-import mlrun.track
 
 
 class TestTracker(Tracker):
@@ -47,8 +47,15 @@ class TestBaseTracker(BaseTracker):
 
 
 # see that the manager adds each tracker by themselves and then all together
-@pytest.mark.parametrize("tracker_list", [[MLFlowTracker, TestTracker, TestBaseTracker], [MLFlowTracker],
-                                          [TestTracker], [TestBaseTracker]])
+@pytest.mark.parametrize(
+    "tracker_list",
+    [
+        [MLFlowTracker, TestTracker, TestBaseTracker],
+        [MLFlowTracker],
+        [TestTracker],
+        [TestBaseTracker],
+    ],
+)
 def test_add_tracker(rundb_mock, tracker_list):
     trackers_manager = TrackerManager()
     for tracker in tracker_list:
@@ -67,4 +74,3 @@ def test_get_trackers_manager(rundb_mock):
         if MLFlowTracker.is_enabled()
         else len(trackers_manager._trackers) == 0
     )
-

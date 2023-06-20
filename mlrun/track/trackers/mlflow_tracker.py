@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import os
+import tempfile
 from typing import Union
+
 from mlrun.execution import MLClientCtx
 from mlrun.track.base_tracker import BaseTracker
 from mlrun.track.utils import (
@@ -21,7 +23,7 @@ from mlrun.track.utils import (
     schema_to_feature,
     zip_folder,
 )
-import tempfile
+
 
 class MLFlowTracker(BaseTracker):
     """
@@ -33,6 +35,7 @@ class MLFlowTracker(BaseTracker):
     def __init__(self):
         super().__init__()
         import mlflow
+
         self._client = mlflow.MlflowClient()
 
     def pre_run(self, context: MLClientCtx) -> dict:

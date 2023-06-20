@@ -62,6 +62,7 @@ class BaseTracker(Tracker):
         :param artifact:
         """
         artifact = context.log_artifact(
-            item=pathlib.Path(artifact.path).name.replace(".", "_"), local_path=full_path
+            item=pathlib.Path(artifact.path).name.replace(".", "_"),
+            local_path=full_path,
         )
         self._artifacts[artifact.key] = artifact

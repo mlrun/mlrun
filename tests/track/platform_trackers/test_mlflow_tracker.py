@@ -12,23 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
+import os
+import tempfile
+from random import randint, random
+
+import lightgbm as lgb
 import matplotlib as mpl
 import mlflow
 import mlflow.xgboost
+import pytest
 import xgboost as xgb
+from mlflow import log_artifacts, log_metric, log_param
 from sklearn import datasets
-from sklearn.metrics import accuracy_score, log_loss
+from sklearn.metrics import accuracy_score, f1_score, log_loss
 from sklearn.model_selection import train_test_split
-import lightgbm as lgb
-from sklearn.metrics import f1_score
+
 import mlrun
 from mlrun.config import config as mlconf
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
-import os
-from random import random, randint
-from mlflow import log_metric, log_param, log_artifacts
-import tempfile
+
 mpl.use("Agg")
 
 
@@ -104,15 +106,16 @@ def test_is_enabled(rundb_mock):
     # see if mlflow is in scope
     try:
         import mlflow
+
         relevant = True
     except:
         relevant = False
     mlflow_tracker = MLFlowTracker()
     # check all the stuff we check in is_enabled
     enabled = (
-            mlflow_tracker._tracked_platform is not None
-            and getattr(mlconf.tracking, "mlflow", {}).mode == "enabled"
-            and relevant
+        mlflow_tracker._tracked_platform is not None
+        and getattr(mlconf.tracking, "mlflow", {}).mode == "enabled"
+        and relevant
     )
 
     assert mlflow_tracker.is_enabled() == enabled
@@ -128,7 +131,6 @@ def test_run(rundb_mock, handler):
         image="mlrun/mlrun",
         handler=handler,
         requirements=["mlflow"],
-
     )
     try:
         trainer_run = trainer.run(local=True, artifact_path=test_directory.name)
@@ -137,19 +139,18 @@ def test_run(rundb_mock, handler):
     except:
         test_directory.cleanup()
 
+
 def _validate_run(run):
     client = mlflow.MlflowClient()
     runs = []
     # returns a list of mlflow.entities.Experiment
-    experiments = (
-        client.search_experiments()
-    )
+    experiments = client.search_experiments()
     for experiment in experiments:
         runs.append(client.search_runs(experiment.experiment_id))
     # find the right run
     for run_list in runs:
         for mlflow_run in run_list:
-            if mlflow_run.info.run_id == run.metadata.labels['mlflow-runid']:
+            if mlflow_run.info.run_id == run.metadata.labels["mlflow-runid"]:
                 run_to_comp = mlflow_run
 
     # check that values correspond
@@ -161,4 +162,3 @@ def _validate_run(run):
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
     assert num_artifacts == len(run.status.artifacts)
-

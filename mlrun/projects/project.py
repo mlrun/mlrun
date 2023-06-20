@@ -998,20 +998,23 @@ class MlrunProject(ModelObj):
         self.sync_functions()
 
     def get_artifact_uri(
-        self, key: str, category: str = "artifact", tag: str = None
+        self, key: str, category: str = "artifact", tag: str = None, iter: int = None
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         example::
 
-            uri = project.get_artifact_uri("my_model", category="model", tag="prod")
+            uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
         :param key:  artifact key/name
         :param category:  artifact category (artifact, model, feature-vector, ..)
         :param tag:  artifact version tag, default to latest version
+        :param iter:  iteration number, default to no iteration
         """
         uri = f"store://{category}s/{self.metadata.name}/{key}"
-        if tag:
+        if iter is not None:
+            uri = f"{uri}#{iter}"
+        if tag is not None:
             uri = f"{uri}:{tag}"
         return uri
 

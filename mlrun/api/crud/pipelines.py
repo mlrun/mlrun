@@ -163,7 +163,6 @@ class Pipelines(
             )
 
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-        print(str(data))
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

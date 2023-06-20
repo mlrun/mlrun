@@ -253,6 +253,8 @@ class PackagersManager:
         * As a data item: If the data item is not a package or the type hint provided is not equal to the one noted in
           the package.
 
+        If the type hint is a `mlrun.DataItem` then it won't be unpacked.
+
         Notice: It is not recommended to use a different packager than the one who originally packed the object to
         unpack it. A warning will be shown in that case.
 
@@ -261,6 +263,10 @@ class PackagersManager:
 
         :return: The unpacked object parsed as type hinted.
         """
+        # Check if `DataItem` is hinted - meaning the user can expect a data item and do not want to unpack it:
+        if TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
+            return data_item
+
         # Set variables to hold the manager notes and packager instructions:
         artifact_key = None
         packaging_instructions = None

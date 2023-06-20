@@ -268,6 +268,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
             if not TypeHintUtils.is_matching(
                 object_type=cls.PACKABLE_OBJECT_TYPE,
                 type_hint=type_hint,
+                reduce_type_hint=False,
             ):
                 return False
 

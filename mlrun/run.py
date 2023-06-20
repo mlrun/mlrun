@@ -106,6 +106,12 @@ class RunStatuses(object):
         ]
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.4.0",
+    reason="'run_local' will be removed in 1.6.0, use 'function.run(local=True)' instead",
+    category=FutureWarning,
+)
 def run_local(
     task=None,
     command="",
@@ -157,6 +163,7 @@ def run_local(
                                     (allows to have function which don't depend on having targets,
                                     e.g a function which accepts a feature vector uri and generate
                                      the offline vector e.g. parquet_ for it if it doesn't exist)
+    :param notifications:   list of notifications to push when the run is completed
     :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
                      results). The list's length must be equal to the amount of returning objects. A configuration may
                      be given as:

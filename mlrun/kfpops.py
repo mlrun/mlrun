@@ -18,6 +18,7 @@ import os.path
 from copy import deepcopy
 from typing import Dict, List, Union
 
+import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 
@@ -712,6 +713,14 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
         record = {
             k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
         }
+
+        # snake case
+        # align kfp fields to mlrun snake case convention
+        # create snake_case for consistency.
+        # retain the camelCase for compatibility
+        for key in list(record.keys()):
+            record[inflection.underscore(key)] = record[key]
+
         record["parent"] = node.get("boundaryID", "")
         record["name"] = name
         record["children"] = node.get("children", [])
@@ -746,17 +755,6 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
             error = get_in(run, "status.error")
             if error:
                 dag[step]["error"] = error
-
-    # align kfp fields to mlrun snake case convention
-    for step in dag:
-        # create snake_case for consistency.
-        # retain the camelCase for compatibility
-        for camelcase_field, snakecase_field in [
-            ("startedAt", "started_at"),
-            ("finishedAt", "finished_at"),
-        ]:
-            if camelcase_field in dag[step]:
-                dag[step][snakecase_field] = dag[step][camelcase_field]
 
     short_run = {
         "graph": dag,

@@ -14,9 +14,6 @@
 
 import os
 from typing import Union
-
-import mlflow
-
 from mlrun.execution import MLClientCtx
 from mlrun.track.base_tracker import BaseTracker
 from mlrun.track.utils import (
@@ -24,7 +21,7 @@ from mlrun.track.utils import (
     schema_to_feature,
     zip_folder,
 )
-
+import tempfile
 
 class MLFlowTracker(BaseTracker):
     """
@@ -35,6 +32,7 @@ class MLFlowTracker(BaseTracker):
 
     def __init__(self):
         super().__init__()
+        import mlflow
         self._client = mlflow.MlflowClient()
 
     def pre_run(self, context: MLClientCtx) -> dict:
@@ -113,7 +111,8 @@ class MLFlowTracker(BaseTracker):
     ):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
-        model_zip = f"{model_uri}.zip"
+        tmp_dir = tempfile.TemporaryDirectory()
+        model_zip = f"{tmp_dir.name}model.zip"
         zip_folder(model_uri, model_zip)
         key = model_info.artifact_path
         inputs = outputs = None
@@ -127,22 +126,25 @@ class MLFlowTracker(BaseTracker):
                 outputs = schema_to_feature(
                     model_info.signature.outputs, get_convert_np_dtype_to_value_type()
                 )
-
-        context.log_model(
-            key,
-            framework="mlflow",
-            model_file=model_zip,
-            metrics=context.results,
-            parameters=model_info.flavors,
-            labels={
-                "mlflow_run_id": model_info.run_id,
-                "mlflow_version": model_info.mlflow_version,
-                "model_uuid": model_info.model_uuid,
-            },
-            extra_data=self._artifacts,
-            inputs=inputs,
-            outputs=outputs,
-        )
+        try:
+            context.log_model(
+                key,
+                framework="mlflow",
+                model_file=model_zip,
+                metrics=context.results,
+                parameters=model_info.flavors,
+                labels={
+                    "mlflow_run_id": model_info.run_id,
+                    "mlflow_version": model_info.mlflow_version,
+                    "model_uuid": model_info.model_uuid,
+                },
+                extra_data=self._artifacts,
+                inputs=inputs,
+                outputs=outputs,
+            )
+            tmp_dir.cleanup()
+        except:
+            tmp_dir.cleanup()
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         experiment = "mlflow_experiment"

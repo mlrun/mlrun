@@ -177,7 +177,12 @@ class DataStore:
                     )
 
                 partitions_time_attributes = find_partitions(url, file_system)
-                set_filters(partitions_time_attributes, kwargs)
+                set_filters(
+                    partitions_time_attributes,
+                    start_time,
+                    end_time,
+                    kwargs,
+                )
                 try:
                     return df_module.read_parquet(*args, **kwargs)
                 except pyarrow.lib.ArrowInvalid as ex:

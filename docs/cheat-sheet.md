@@ -268,7 +268,7 @@ fn.with_limits(mem="2G", cpu=2, gpus=1)
 # Nuclio/serving scaling
 fn.spec.replicas = 2
 fn.spec.min_replicas = 1
-fn.spec.min_replicas = 4
+fn.spec.max_replicas = 4
 ```
 
 #### Mount persistent storage

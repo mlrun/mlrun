@@ -1265,18 +1265,19 @@ def is_legacy_artifact(artifact):
     else:
         return not hasattr(artifact, "metadata")
 
+
 def get_format_run(run: list, with_project=False):
     fields = [
-                "id",
-                "name",
-                "status",
-                "error",
-                "created_at",
-                "scheduled_at",
-                "finished_at",
-                "description",
-                "project" if with_project else ""
-            ]
+        "id",
+        "name",
+        "status",
+        "error",
+        "created_at",
+        "scheduled_at",
+        "finished_at",
+        "description",
+        "project" if with_project else "",
+    ]
 
     # create a run object that contains all fields,
     run = {

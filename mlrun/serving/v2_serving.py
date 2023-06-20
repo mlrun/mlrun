@@ -280,7 +280,7 @@ class V2ModelServer(StepToDict):
                 }
 
                 event.body = self.context.Response(
-                    status_code=409,
+                    status_code=408,
                     body=json.dumps(data),
                     content_type="application/json",
                 )

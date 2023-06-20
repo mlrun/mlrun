@@ -21,8 +21,6 @@ import mlrun.errors
 
 from .base import DataStore, FileStats
 
-# dbfs objects will be represented with the following URL: dbfs://<path>
-
 
 class IguazioDatabricksFile(DatabricksFile):
     def _upload_chunk(self, final=False):
@@ -79,6 +77,7 @@ class IguazioDatabricksFileSystem(DatabricksFileSystem):
         pass
 
 
+# dbfs objects will be represented with the following URL: dbfs://<path>
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)

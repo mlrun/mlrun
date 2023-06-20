@@ -30,8 +30,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-1248 | The engine type in the **Feature Set Overview** tab.  |
-| ML-2083 | The **Run on spot** value now displays on the **Jobs Overview** tab.
- |
+| ML-2083 | The **Run on spot** value now displays on the **Jobs Overview** tab. |
 
 ###  APIs
 | ID   | Description                                                    |

@@ -127,7 +127,7 @@ class TestDBFSStore:
             self._dbfs_url + self.test_root_dir,
         )
         dir_list = dir_dataitem.listdir()
-        assert object_url.split('/')[-1] in dir_list
+        assert object_url.split("/")[-1] in dir_list
 
     def test_upload(self):
         data_item, _ = self._get_data_item()
@@ -142,22 +142,21 @@ class TestDBFSStore:
         data_item.delete()
         with pytest.raises(FileNotFoundError) as file_not_found_error:
             data_item.stat()
-        assert (
-                "No file or directory exists on path" in str(file_not_found_error.value)
-        )
+        assert "No file or directory exists on path" in str(file_not_found_error.value)
 
     @pytest.mark.parametrize(
         "file_extension, local_file_path, reader",
         [
-            ("parquet", parquet_path, pd.read_parquet,),
+            (
+                "parquet",
+                parquet_path,
+                pd.read_parquet,
+            ),
             ("csv", csv_path, pd.read_csv),
             ("json", json_path, pd.read_json),
         ],
     )
-    def test_as_df(self,
-                   file_extension: str,
-                   local_file_path: Path,
-                   reader: callable):
+    def test_as_df(self, file_extension: str, local_file_path: Path, reader: callable):
 
         source = reader(str(local_file_path))
         upload_file_path = (
@@ -174,39 +173,35 @@ class TestDBFSStore:
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    PARQUETS_DIR,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    pd.read_parquet,
+                PARQUETS_DIR,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                pd.read_parquet,
             ),
             (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
         ],
     )
     def test_check_read_df_dir(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = str(files_paths[0])
         second_file_path = str(files_paths[1])
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
-        uploaded_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + uploaded_file_path
-        )
+        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(first_file_path)
 
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
-        uploaded_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + uploaded_file_path
-        )
+        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(second_file_path)
 
         dir_data_item = mlrun.run.get_dataitem(

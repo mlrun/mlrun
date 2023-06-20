@@ -1266,7 +1266,7 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
-def get_format_run(run: list, with_project=False):
+def get_format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1276,8 +1276,10 @@ def get_format_run(run: list, with_project=False):
         "scheduled_at",
         "finished_at",
         "description",
-        "project" if with_project else "",
     ]
+
+    if with_project:
+        fields.append("project")
 
     # create a run object that contains all fields,
     run = {
@@ -1288,11 +1290,12 @@ def get_format_run(run: list, with_project=False):
 
     # if the time_keys values is from 1970, this indicates that the field has not yet been specified yet,
     # and we want to return a None value instead
-    time_keys = ["scheduled_at", "finished_at"]
-    run = {
-        key: None if (key in time_keys and "1970" in value) else value
-        for key, value in run.items()
-    }
+    time_keys = ["scheduled_at", "finished_at", "created_at"]
+
+    for key, value in run.items():
+        if key in time_keys and isinstance(value, (str, datetime)) and parser.parse(str(value)).year == 1970:
+            run[key] = None
+
     return run
 
 

@@ -22,7 +22,7 @@ import mlrun.errors
 from .base import DataStore, FileStats
 
 
-class IguazioDatabricksFile(DatabricksFile):
+class DatabricksFileBugFixed(DatabricksFile):
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""
         self.buffer.seek(0)
@@ -57,7 +57,7 @@ class IguazioDatabricksFile(DatabricksFile):
             yield data_start, data_end
 
 
-class IguazioDatabricksFileSystem(DatabricksFileSystem):
+class DatabricksFileSystemDisableCache(DatabricksFileSystem):
     root_marker = "/"
     protocol = "dbfs"
 
@@ -68,7 +68,7 @@ class IguazioDatabricksFileSystem(DatabricksFileSystem):
 
         Only the default blocksize is allowed.
         """
-        return IguazioDatabricksFile(
+        return DatabricksFileBugFixed(
             self, path, mode=mode, block_size=block_size, **kwargs
         )
 

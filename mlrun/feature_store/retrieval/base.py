@@ -102,6 +102,9 @@ class BaseMerger(abc.ABC):
             # update the feature vector objects with refreshed stats
             self.vector.save()
 
+        if self._drop_indexes and entity_timestamp_column:
+            self._append_drop_column(entity_timestamp_column)
+
         for feature_set in feature_set_objects.values():
             if self._drop_indexes:
                 self._append_drop_column(feature_set.spec.timestamp_key)

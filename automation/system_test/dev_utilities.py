@@ -275,7 +275,6 @@ def uninstall(redis, kafka, mysql, redisinsight):
             cmd = "kubectl delete ingress -n devtools redisinsight"
             subprocess.run(cmd.split(), check=True)
     except Exception as e:  # !!!
-        pass
         print(e)
     try:
         for service in services:

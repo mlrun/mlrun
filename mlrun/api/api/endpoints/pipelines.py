@@ -211,8 +211,13 @@ async def get_pipeline(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    pipeline = mlrun.api.crud.Pipelines().get_pipeline(
-        db_session, run_id, project, namespace, format_
+    pipeline = await run_in_threadpool(
+        mlrun.api.crud.Pipelines().get_pipeline,
+        db_session,
+        run_id,
+        project,
+        namespace,
+        format_,
     )
     if project == "*":
         # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for

@@ -747,21 +747,32 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
             if error:
                 dag[step]["error"] = error
 
-    short_run = {"graph": dag}
-    short_run["run"] = {
-        k: str(v)
-        for k, v in kfp_run["run"].items()
-        if k
-        in [
-            "id",
-            "name",
-            "status",
-            "error",
-            "created_at",
-            "scheduled_at",
-            "finished_at",
-            "description",
-        ]
+    # align kfp fields to mlrun snake case convention
+    for step in dag:
+        # create snake_case for consistency.
+        # retain the camelCase for compatibility
+        if "startedAt" in dag[step]:
+            dag[step]["started_at"] = dag[step]["startedAt"]
+        if "finishedAt" in dag[step]:
+            dag[step]["finished_at"] = dag[step]["finishedAt"]
+
+    short_run = {
+        "graph": dag,
+        "run": {
+            k: str(v) if v is not None else v
+            for k, v in kfp_run["run"].items()
+            if k
+            in [
+                "id",
+                "name",
+                "status",
+                "error",
+                "created_at",
+                "scheduled_at",
+                "finished_at",
+                "description",
+            ]
+        },
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message

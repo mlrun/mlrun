@@ -504,12 +504,7 @@ class OnlineVectorService:
         for future in futures:
             result = future.await_result()
             data = result.body
-            for key in self._index_columns:
-                if data and key in data:
-                    del data[key]
-            if not data:
-                data = None
-            else:
+            if data:
                 actual_columns = data.keys()
                 for column in self._requested_columns:
                     if (
@@ -518,14 +513,18 @@ class OnlineVectorService:
                     ):
                         data[column] = None
 
-            if self._impute_values and data:
-                for name in data.keys():
-                    v = data[name]
-                    if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
-                        data[name] = self._impute_values.get(name, v)
-            if data:
-                for name in list(self.vector.spec.entity_fields.keys()):
-                    data.pop(name, None)
+                if self._impute_values:
+                    for name in data.keys():
+                        v = data[name]
+                        if v is None or (
+                            type(v) == float and (np.isinf(v) or np.isnan(v))
+                        ):
+                            data[name] = self._impute_values.get(name, v)
+                if not self.vector.spec.with_indexes:
+                    for name in list(self.vector.spec.entity_fields.keys()):
+                        data.pop(name, None)
+                if not any(data.values()):
+                    data = None
 
             if as_list and data:
                 data = [

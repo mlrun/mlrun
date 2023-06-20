@@ -31,7 +31,11 @@ from ..feature_vector import OfflineVectorResponse
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
 
+    # In order to be an online merger, the merger should implement `init_online_vector_service` function.
     support_online = False
+
+    # In order to be an offline merger, the merger should implement
+    # `_order_by`, `_filter`, `_drop_columns_from_result`, `_rename_columns_and_select`, `_get_engine_df` functions.
     support_offline = False
     engine = None
 
@@ -130,7 +134,6 @@ class BaseMerger(abc.ABC):
         )
 
     def _write_to_offline_target(self):
-        self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -143,7 +146,7 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
-        if self.vector.spec.with_indexes:
+        if not self._drop_indexes:
             self.vector.spec.entity_fields = [
                 Feature(name=feature, value_type=self._result_df[feature].dtype)
                 if self._result_df[feature].dtype.name != "object"
@@ -678,7 +681,7 @@ class BaseMerger(abc.ABC):
 
             if all([ent in entity_rows_keys for ent in feature_set_entity_list_names]):
                 # add to the link list feature set according to indexes match,
-                # only if all entities in the feature set exist in
+                # only if all entities in the feature set exist in the entity rows
                 keys = feature_set_entity_list_names
                 entity_rows_relation.add_last(
                     BaseMerger._Node(

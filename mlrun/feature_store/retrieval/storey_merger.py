@@ -31,7 +31,7 @@ class StoreyFeatureMerger(BaseMerger):
 
     def _generate_online_feature_vector_graph(
         self,
-        entity_rows_keys,
+        entity_keys,
         feature_set_fields,
         feature_set_objects,
         fixed_window_type,
@@ -43,11 +43,12 @@ class StoreyFeatureMerger(BaseMerger):
         next = graph
 
         fs_link_list = self._create_linked_relation_list(
-            feature_set_objects, feature_set_fields, entity_rows_keys
+            feature_set_objects, feature_set_fields, entity_keys
         )
 
         all_columns = []
         save_column = []
+        entity_keys = []
         end_aliases = {}
         for node in fs_link_list:
             name = node.name
@@ -67,6 +68,9 @@ class StoreyFeatureMerger(BaseMerger):
             entity_list = node.data["right_keys"] or list(
                 featureset.spec.entities.keys()
             )
+            if not entity_keys:
+                # if entity_keys not provided by the user we will set it to be the entity of the first feature set
+                entity_keys = entity_list
             end_aliases.update(
                 {
                     k: v
@@ -111,10 +115,10 @@ class StoreyFeatureMerger(BaseMerger):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "the graph doesnt have an explicit final step to respond on"
             )
-        return graph, all_columns
+        return graph, all_columns, entity_keys
 
     def init_online_vector_service(
-        self, entity_rows_keys, fixed_window_type, update_stats=False
+        self, entity_keys, fixed_window_type, update_stats=False
     ):
         try:
             from storey import SyncEmitSource
@@ -124,8 +128,12 @@ class StoreyFeatureMerger(BaseMerger):
         feature_set_objects, feature_set_fields = self.vector.parse_features(
             offline=False, update_stats=update_stats
         )
-        graph, requested_columns = self._generate_online_feature_vector_graph(
-            entity_rows_keys,
+        (
+            graph,
+            requested_columns,
+            entity_keys,
+        ) = self._generate_online_feature_vector_graph(
+            entity_keys,
             feature_set_fields,
             feature_set_objects,
             fixed_window_type,
@@ -134,7 +142,6 @@ class StoreyFeatureMerger(BaseMerger):
         server = create_graph_server(graph=graph, parameters={})
 
         cache = ResourceCache()
-        index_columns = []
         for featureset in feature_set_objects.values():
             driver = get_online_target(featureset)
             if not driver:
@@ -143,8 +150,6 @@ class StoreyFeatureMerger(BaseMerger):
                 )
             cache.cache_table(featureset.uri, driver.get_table_object())
             for key in featureset.spec.entities.keys():
-                if not self.vector.spec.with_indexes and key not in index_columns:
-                    index_columns.append(key)
                 if (
                     not self.vector.spec.with_indexes
                     and key not in self.vector.spec.entity_fields.keys()
@@ -157,7 +162,7 @@ class StoreyFeatureMerger(BaseMerger):
         service = OnlineVectorService(
             self.vector,
             graph,
-            entity_rows_keys or index_columns,
+            entity_keys,
             impute_policy=self.impute_policy,
             requested_columns=requested_columns,
         )

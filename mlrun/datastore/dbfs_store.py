@@ -110,10 +110,9 @@ class DBFSStore(DataStore):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "size cannot be negative or zero"
             )
-        if not size and not offset:
-            return self._filesystem.cat_file(key)
+        start = offset or None
         end = offset + size if size is not None else None
-        return self._filesystem.cat_file(key, start=offset, end=end)
+        return self._filesystem.cat_file(key, start=start, end=end)
 
     def put(self, key, data, append=False):
 

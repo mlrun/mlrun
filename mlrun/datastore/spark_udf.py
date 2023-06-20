@@ -32,8 +32,8 @@ def _redis_stringify_key(*args):
         key_list = list(args)
     suffix = "}:static"
     if isinstance(key_list, list):
-        if len(key_list) >= 2:
-            return str(key_list[0]) + "." + _hash_list(key_list[1:]) + suffix
+        if len(key_list) >= 3:
+            return str(key_list[0]) + "." + _hash_list(*key_list[1:]) + suffix
         if len(key_list) == 2:
             return str(key_list[0]) + "." + str(key_list[1]) + suffix
         return str(key_list[0]) + suffix

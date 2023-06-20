@@ -3161,6 +3161,7 @@ class HTTPRunDB(RunDBInterface):
         :param secrets:         Secrets to store in project in order to load it from the provided url.
                                 For more information see :py:func:`mlrun.load_project` function.
         :param save_secrets:    Whether to store secrets in the loaded project.
+                                Setting to False will cause waiting for the process completion.
 
         :returns:      A BackgroundTask object, with details on execution process and its status.
         """
@@ -3187,11 +3188,13 @@ class HTTPRunDB(RunDBInterface):
                 bg_task = self.get_project_background_task(
                     project=name, name=bg_task.metadata.name
                 )
-            if (
-                bg_task.status.state
-                != mlrun.common.schemas.BackgroundTaskState.succeeded
-            ):
-                logger.error("Load project task failed")
+            if bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
+                logger.error("Load project task failed, deleting project")
+                response = self.delete_project(
+                    name, mlrun.common.schemas.DeletionStrategy.cascade
+                )
+                if response.status_code != http.HTTPStatus.ACCEPTED:
+                    logger.error("Failed to delete project")
                 return bg_task
             self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
             return bg_task

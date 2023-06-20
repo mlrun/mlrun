@@ -1053,3 +1053,16 @@ class TestProject(TestMLRunSystem):
             assert "secret1" in secrets.secret_keys
         else:
             assert "secret1" not in secrets.secret_keys
+
+    def test_load_project_remotely_with_secrets_failed(self):
+        name = "failed-to-load"
+        db = self._run_db
+        bg_task = db.load_project(
+            name=name,
+            url="git://github.com/some/wrong/uri.git",
+            secrets={"secret1": "1234"},
+            save_secrets=False,
+        )
+        assert bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_project(name)

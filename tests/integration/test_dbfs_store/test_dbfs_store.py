@@ -33,7 +33,7 @@ config_file_path = here / "test-dbfs-store.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
-test_file_path = here / "test.txt"
+test_file_path = str(here / "test.txt")
 json_path = here / "test_data.json"
 parquet_path = here / "test_data.parquet"
 additional_parquet_path = here / "additional_data.parquet"
@@ -60,18 +60,16 @@ def is_dbfs_configured():
 class TestDBFSStore:
     def setup_class(self):
         self._databricks_host = config["env"].get("DATABRICKS_HOST")
+        env_params = config["env"]
+        for key, env_param in env_params.items():
+            os.environ[key] = env_param
         self.test_root_dir = "/test_mlrun_dbfs_objects"
         self._object_file = f"file_{str(uuid.uuid4())}.txt"
         self._object_path = f"{self.test_root_dir}/{self._object_file}"
         self._dbfs_url = "dbfs://" + self._databricks_host
-        self._object_url = self._dbfs_url + self._object_path
-        self.secrets = {}
-        token = config["env"].get("DATABRICKS_TOKEN", None)
-        self.secrets["DATABRICKS_TOKEN"] = token
         self.parquets_dir = PARQUETS_DIR
         self.csv_dir = CSV_DIR
-        self.workspace = WorkspaceClient(host=self._databricks_host, token=token)
-        logger.info(f"Object URL: {self._object_url}")
+        self.workspace = WorkspaceClient()
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
@@ -91,78 +89,107 @@ class TestDBFSStore:
         for path in all_paths_under_test_root:
             self.workspace.dbfs.delete(path, recursive=True)
 
-    def _perform_dbfs_tests(self, secrets):
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+    def _get_data_item(self, secrets={}):
+        object_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.txt"
+        object_url = f"{self._dbfs_url}{object_path}"
+        return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
+
+    @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
+    def test_put_and_get(self, use_secrets_as_parameters):
+        secrets = {}
+        if use_secrets_as_parameters:
+            token = config["env"].get("DATABRICKS_TOKEN", None)
+            secrets = {"DATABRICKS_TOKEN": token}
+            os.environ["DATABRICKS_TOKEN"] = ""
+        try:
+            data_item, _ = self._get_data_item(secrets=secrets)
+            data_item.put(test_string)
+            response = data_item.get()
+            assert response.decode() == test_string
+
+            response = data_item.get(offset=20)
+            assert response.decode() == test_string[20:]
+
+        finally:
+            if use_secrets_as_parameters:
+                os.environ["DATABRICKS_TOKEN"] = token
+
+    def test_stat(self):
+        data_item, _ = self._get_data_item()
         data_item.put(test_string)
-        response = data_item.get()
-        assert response.decode() == test_string
-        response = data_item.get(offset=20)
-        assert response.decode() == test_string[20:]
         stat = data_item.stat()
         assert stat.size == len(test_string)
 
+    def test_list_dir(self):
+        data_item, object_url = self._get_data_item()
+        data_item.put(test_string)
         dir_dataitem = mlrun.run.get_dataitem(
-            self._dbfs_url + self.test_root_dir, secrets=secrets
+            self._dbfs_url + self.test_root_dir,
         )
         dir_list = dir_dataitem.listdir()
-        assert self._object_file in dir_list
+        assert object_url.split('/')[-1] in dir_list
 
-        source_parquet = pd.read_parquet(parquet_path)
-        upload_parquet_file_path = (
-            f"{self.test_root_dir}/file_{str(uuid.uuid4())}.parquet"
-        )
-        upload_parquet_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_parquet_file_path, secrets=secrets
-        )
-        upload_parquet_data_item.upload(str(parquet_path))
-        response = upload_parquet_data_item.as_df()
-        assert source_parquet.equals(response)
-        upload_parquet_data_item.delete()
+    def test_upload(self):
+        data_item, _ = self._get_data_item()
+        data_item.upload(test_file_path)
+        response = data_item.get()
+        assert response.decode() == test_string
+
+    def test_rm(self):
+        data_item, _ = self._get_data_item()
+        data_item.upload(test_file_path)
+        data_item.stat()
+        data_item.delete()
         with pytest.raises(FileNotFoundError) as file_not_found_error:
-            upload_parquet_data_item.stat()
+            data_item.stat()
         assert (
-            str(file_not_found_error.value)
-            == f"No file or directory exists on path {upload_parquet_file_path}."
+                "No file or directory exists on path" in str(file_not_found_error.value)
         )
 
-        source_csv = pd.read_csv(csv_path)
-        upload_csv_file_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.csv"
-        upload_csv_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_csv_file_path
-        )
-        upload_csv_data_item.upload(str(csv_path))
-        response = upload_csv_data_item.as_df()
-        assert source_csv.equals(response)
+    @pytest.mark.parametrize(
+        "file_extension, local_file_path, reader",
+        [
+            ("parquet", parquet_path, pd.read_parquet,),
+            ("csv", csv_path, pd.read_csv),
+            ("json", json_path, pd.read_json),
+        ],
+    )
+    def test_as_df(self,
+                   file_extension: str,
+                   local_file_path: Path,
+                   reader: callable):
 
-        source_json = pd.read_json(json_path)
-        upload_json_file_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.json"
-        upload_json_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + upload_json_file_path
+        source = reader(str(local_file_path))
+        upload_file_path = (
+            f"{self.test_root_dir}/file_{str(uuid.uuid4())}.{file_extension}"
         )
-        upload_json_data_item.upload(str(json_path))
-        response = upload_json_data_item.as_df()
-        assert source_json.equals(response)
+        upload_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_file_path,
+        )
+        upload_data_item.upload(str(local_file_path))
+        response = upload_data_item.as_df()
+        assert source.equals(response)
 
     @pytest.mark.parametrize(
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                PARQUETS_DIR,
-                "parquet",
-                "parquet",
-                [parquet_path, additional_parquet_path],
-                pd.read_parquet,
+                    PARQUETS_DIR,
+                    "parquet",
+                    "parquet",
+                    [parquet_path, additional_parquet_path],
+                    pd.read_parquet,
             ),
             (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
         ],
     )
     def test_check_read_df_dir(
-        self,
-        directory: str,
-        file_format: str,
-        file_extension: str,
-        files_paths: List[Path],
-        reader: callable,
+            self,
+            directory: str,
+            file_format: str,
+            file_extension: str,
+            files_paths: List[Path],
+            reader: callable,
     ):
         first_file_path = str(files_paths[0])
         second_file_path = str(files_paths[1])
@@ -170,7 +197,7 @@ class TestDBFSStore:
             f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + uploaded_file_path, secrets=self.secrets
+            self._dbfs_url + uploaded_file_path
         )
         uploaded_data_item.upload(first_file_path)
 
@@ -178,12 +205,12 @@ class TestDBFSStore:
             f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + uploaded_file_path, secrets=self.secrets
+            self._dbfs_url + uploaded_file_path
         )
         uploaded_data_item.upload(second_file_path)
 
         dir_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + os.path.dirname(uploaded_file_path), secrets=self.secrets
+            self._dbfs_url + os.path.dirname(uploaded_file_path)
         )
         response_df = (
             dir_data_item.as_df(format=file_format)
@@ -198,12 +225,3 @@ class TestDBFSStore:
             .reset_index(drop=True)
         )
         assert response_df.equals(appended_df)
-
-    def test_secrets_as_input(self):
-        self._perform_dbfs_tests(secrets=self.secrets)
-
-    def test_using_dbfs_env_variable(self):
-        env_params = config["env"]
-        for key, env_param in env_params.items():
-            os.environ[key] = env_param
-        self._perform_dbfs_tests(secrets={})

@@ -72,7 +72,7 @@ class IguazioDatabricksFileSystem(DatabricksFileSystem):
             self, path, mode=mode, block_size=block_size, **kwargs
         )
 
-    #  _ls_from_cache is not working properly, so we are going to disable it and use an API request instead.
+    #  _ls_from_cache is not working properly, so we disable it.
     def _ls_from_cache(self, path):
         pass
 

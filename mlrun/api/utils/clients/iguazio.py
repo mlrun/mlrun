@@ -328,7 +328,9 @@ class Client(
         Emit a manual event to Iguazio
         """
         client = self._get_igz_client(access_key)
-        igz_mgmt.ManualEvents.emit(http_client=client, event=event, audit_tenant_id=client.tenant_id)
+        igz_mgmt.ManualEvents.emit(
+            http_client=client, event=event, audit_tenant_id=client.tenant_id
+        )
 
     def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
         if not self._igz_clients.get(access_key):

@@ -751,10 +751,12 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     for step in dag:
         # create snake_case for consistency.
         # retain the camelCase for compatibility
-        if "startedAt" in dag[step]:
-            dag[step]["started_at"] = dag[step]["startedAt"]
-        if "finishedAt" in dag[step]:
-            dag[step]["finished_at"] = dag[step]["finishedAt"]
+        for camelcase_field, snakecase_field in [
+            ("startedAt", "started_at"),
+            ("finishedAt", "finished_at"),
+        ]:
+            if camelcase_field in dag[step]:
+                dag[step][snakecase_field] = dag[step][camelcase_field]
 
     short_run = {
         "graph": dag,

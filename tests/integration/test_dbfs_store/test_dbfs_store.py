@@ -33,11 +33,11 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_file_path = str(here / "test.txt")
-json_path = here / "test_data.json"
-parquet_path = here / "test_data.parquet"
-additional_parquet_path = here / "additional_data.parquet"
-csv_path = here / "test_data.csv"
-additional_csv_path = here / "additional_data.csv"
+json_path = str(here / "test_data.json")
+parquet_path = str(here / "test_data.parquet")
+additional_parquet_path = str(here / "additional_data.parquet")
+csv_path = str(here / "test_data.csv")
+additional_csv_path = str(here / "additional_data.csv")
 with open(test_file_path, "r") as f:
     test_string = f.read()
 
@@ -63,23 +63,19 @@ class TestDBFSStore:
         for key, env_param in env_params.items():
             os.environ[key] = env_param
         self.test_root_dir = "/test_mlrun_dbfs_objects"
-        self._object_file = f"file_{str(uuid.uuid4())}.txt"
-        self._object_path = f"{self.test_root_dir}/{self._object_file}"
         self._dbfs_url = "dbfs://" + self._databricks_host
-        self.parquets_dir = PARQUETS_DIR
-        self.csv_dir = CSV_DIR
         self.workspace = WorkspaceClient()
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
         all_paths = [file_info.path for file_info in self.workspace.dbfs.list("/")]
         if self.test_root_dir not in all_paths:
-            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
-            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{PARQUETS_DIR}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{CSV_DIR}")
         else:
             self.workspace.dbfs.delete(self.test_root_dir, recursive=True)
-            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.parquets_dir}")
-            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{self.csv_dir}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{PARQUETS_DIR}")
+            self.workspace.dbfs.mkdirs(f"{self.test_root_dir}{CSV_DIR}")
 
     def teardown_class(self):
         all_paths_under_test_root = [
@@ -155,16 +151,16 @@ class TestDBFSStore:
             ("json", json_path, pd.read_json),
         ],
     )
-    def test_as_df(self, file_extension: str, local_file_path: Path, reader: callable):
+    def test_as_df(self, file_extension: str, local_file_path: str, reader: callable):
 
-        source = reader(str(local_file_path))
+        source = reader(local_file_path)
         upload_file_path = (
             f"{self.test_root_dir}/file_{str(uuid.uuid4())}.{file_extension}"
         )
         upload_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_file_path,
         )
-        upload_data_item.upload(str(local_file_path))
+        upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df()
         assert source.equals(response)
 
@@ -189,8 +185,8 @@ class TestDBFSStore:
         files_paths: List[Path],
         reader: callable,
     ):
-        first_file_path = str(files_paths[0])
-        second_file_path = str(files_paths[1])
+        first_file_path = files_paths[0]
+        second_file_path = files_paths[1]
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
         )

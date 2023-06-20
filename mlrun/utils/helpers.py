@@ -1293,7 +1293,11 @@ def get_format_run(run: dict, with_project=False) -> dict:
     time_keys = ["scheduled_at", "finished_at", "created_at"]
 
     for key, value in run.items():
-        if key in time_keys and isinstance(value, (str, datetime)) and parser.parse(str(value)).year == 1970:
+        if (
+            key in time_keys
+            and isinstance(value, (str, datetime))
+            and parser.parse(str(value)).year == 1970
+        ):
             run[key] = None
 
     return run

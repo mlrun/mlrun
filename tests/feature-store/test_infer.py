@@ -140,9 +140,7 @@ def test_check_permissions(rundb_mock, monkeypatch):
     features = ["fs1.*"]
     feature_vector = fstore.FeatureVector("test", features)
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        fstore.get_offline_features(
-            feature_vector, entity_timestamp_column="time_stamp"
-        )
+        fstore.get_offline_features(feature_vector)
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.get_online_feature_service(feature_vector)

@@ -223,7 +223,7 @@ class Pipelines(
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
             return {
-                k: str(v)
+                k: str(v) if v is not None else v
                 for k, v in run.items()
                 if k
                 in [

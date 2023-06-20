@@ -158,8 +158,8 @@ def get_offline_features(
     :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
                                     dictionary ({<feature set name>: <timestamp column name>, ...})
                                     that indicates the timestamp column name for each feature set. Optional.
-                                    By default, the filter executed on the timestamp_key of each feature set.
-                                    Note: the time filtering preformed on each feature set before the
+                                    By default, the filter executes on the timestamp_key of each feature set.
+                                    Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
 
     """

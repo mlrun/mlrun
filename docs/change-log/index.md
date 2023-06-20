@@ -55,6 +55,7 @@
 #### New content
 - {ref}`git-repo-as-hub`
 - {ref}`notifications`
+- {ref}`ci-cd-automate`
 
 
 ### Breaking changes

@@ -117,7 +117,7 @@ fn = project.set_function(
 
 #### Overview
 
-Docs: [CI/CD integration](./projects/ci-integration.html)
+Docs: {ref}`ci-cd-automate`, {ref}`ci-integration`
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
 - **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.

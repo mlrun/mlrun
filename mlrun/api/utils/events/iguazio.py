@@ -15,7 +15,6 @@
 import typing
 
 import igz_mgmt.schemas.manual_events
-import semver
 
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.events.base
@@ -41,6 +40,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
 
     def emit(self, event: igz_mgmt.schemas.manual_events.ManualEventSchema):
         try:
+            logger.debug("Emitting event", event=event)
             mlrun.api.utils.clients.iguazio.Client().emit_manual_event(
                 self.access_key, event
             )
@@ -79,66 +79,28 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
     def generate_project_auth_secret_created_event(
         self, username: str, secret_name: str
     ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
-        # specify a more detailed event
-        if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.4-b1"
-        ):
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_AUTH_SECRET_CREATED,
-                parameters_text=[
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="username", value=username
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_name", value=secret_name
-                    ),
-                ],
-            )
-        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
-        else:
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_AUTH_SECRET_CREATED,
-                description=f"User {username} created secret {secret_name}",
-                severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.security,
-                system_event=False,
-                visibility=igz_mgmt.constants.EventVisibility.external,
-            )
+        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+            source=self.source,
+            kind=PROJECT_AUTH_SECRET_CREATED,
+            description=f"User {username} created secret {secret_name}",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
 
     def generate_project_auth_secret_updated_event(
         self, username: str, secret_name: str
     ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
-        # specify a more detailed event
-        if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.4-b1"
-        ):
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_AUTH_SECRET_UPDATED,
-                parameters_text=[
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="username", value=username
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_name", value=secret_name
-                    ),
-                ],
-            )
-        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
-        else:
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_AUTH_SECRET_UPDATED,
-                description=f"User {username} updated secret {secret_name}",
-                severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.security,
-                system_event=False,
-                visibility=igz_mgmt.constants.EventVisibility.external,
-            )
+        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+            source=self.source,
+            kind=PROJECT_AUTH_SECRET_UPDATED,
+            description=f"User {username} updated secret {secret_name}",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
 
     def generate_project_secret_event(
         self,
@@ -171,114 +133,46 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
     def generate_project_secret_created_event(
         self, project: str, secret_name: str, secret_keys: typing.List[str]
     ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
-        # specify a more detailed event
         normalized_secret_keys = self._list_to_string(secret_keys)
-        if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.4-b1"
-        ):
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_CREATED,
-                parameters_text=[
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="project", value=project
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_name", value=secret_name
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_keys", value=normalized_secret_keys
-                    ),
-                ],
-            )
-        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
-        else:
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_CREATED,
-                description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
-                f" for project {project}",
-                severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.security,
-                system_event=False,
-                visibility=igz_mgmt.constants.EventVisibility.external,
-            )
+        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+            source=self.source,
+            kind=PROJECT_SECRET_CREATED,
+            description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
+            f" for project {project}",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
 
     def generate_project_secret_updated_event(
         self,
         project: str,
         secret_name: str,
         secret_keys: typing.List[str],
-        updated: bool = True,
     ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
-        # specify a more detailed event
-        action = "Updated" if updated else "Deleted"
         normalized_secret_keys = self._list_to_string(secret_keys)
-        if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.4-b1"
-        ):
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_UPDATED,
-                parameters_text=[
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="project", value=project
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_name", value=secret_name
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_keys", value=normalized_secret_keys
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="action", value=action
-                    ),
-                ],
-            )
-        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
-        else:
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_UPDATED,
-                description=f"{action} secret keys {normalized_secret_keys} of project secret {secret_name} "
-                f"for project {project}",
-                severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.security,
-                system_event=False,
-                visibility=igz_mgmt.constants.EventVisibility.external,
-            )
+        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+            source=self.source,
+            kind=PROJECT_SECRET_UPDATED,
+            description=f"Updated secret keys {normalized_secret_keys} of project secret {secret_name} "
+            f"for project {project}",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
 
     def generate_project_secret_deleted_event(self, project: str, secret_name: str):
-        # adding condition as old iguazio versions doesn't contain the configured events, therefore we need to
-        # specify a more detailed event
-        if mlrun.mlconf.get_parsed_igz_version() >= semver.VersionInfo.parse(
-            "3.5.4-b1"
-        ):
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_DELETED,
-                parameters_text=[
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="project", value=project
-                    ),
-                    igz_mgmt.schemas.manual_events.ParametersText(
-                        name="secret_name", value=secret_name
-                    ),
-                ],
-            )
-        # TODO: remove this else when we drop support for iguazio < 3.5.4-b1
-        else:
-            return igz_mgmt.schemas.manual_events.ManualEventSchema(
-                source=self.source,
-                kind=PROJECT_SECRET_DELETED,
-                description=f"Deleted project secret {secret_name} for project {project}",
-                severity=igz_mgmt.constants.EventSeverity.info,
-                classification=igz_mgmt.constants.EventClassification.security,
-                system_event=False,
-                visibility=igz_mgmt.constants.EventVisibility.external,
-            )
+        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+            source=self.source,
+            kind=PROJECT_SECRET_DELETED,
+            description=f"Deleted project secret {secret_name} for project {project}",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
 
     @staticmethod
     def _list_to_string(list_to_convert: typing.List[str]) -> str:

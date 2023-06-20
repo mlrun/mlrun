@@ -152,7 +152,7 @@ class DBFSStore(DataStore):
             return key
         remote_path = f"{key}/*"
         files = self._filesystem.glob(remote_path)
-        #  Get only the files and directories under key path, without the key path itself.
+        # Get only the files and directories under key path, without the key path itself.
         # for example for /test_mlrun_dbfs_objects/test.txt the function will return ['test.txt'].
         files = [pathlib.Path(file).name for file in files if "/" in file]
         return files

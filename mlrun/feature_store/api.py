@@ -142,14 +142,14 @@ def get_offline_features(
     :param drop_columns:            list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
                                     only if param entity_rows was specified.
-                                    this column will drop from the result dataframe if
-                                    `feature_vector.spec.with_indexes`is false with all the other timestamp keys
-                                    of the feature sets.
     :param run_config:              function and/or run configuration
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+    :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature sets
+                                    and with/without entity_timestamp_column and timestamp_for_filtering columns.
+                                    This property can be specified also in the feature vector spec
+                                    (feature_vector.spec.with_indexes)
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.
                                     (default False).

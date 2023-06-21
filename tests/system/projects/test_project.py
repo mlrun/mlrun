@@ -77,6 +77,8 @@ class TestProject(TestMLRunSystem):
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
+        self.custom_project_names_to_delete = []
+
     @property
     def assets_path(self):
         return (

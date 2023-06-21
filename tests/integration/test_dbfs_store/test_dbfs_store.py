@@ -152,7 +152,6 @@ class TestDBFSStore:
         ],
     )
     def test_as_df(self, file_extension: str, local_file_path: str, reader: callable):
-
         source = reader(local_file_path)
         upload_file_path = (
             f"{self.test_root_dir}/file_{str(uuid.uuid4())}.{file_extension}"

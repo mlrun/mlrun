@@ -355,7 +355,6 @@ class ModelArtifact(Artifact):
             self.spec.target_path, model_spec_filename
         )
         store_manager.object(url=spec_target_path).put(spec_body)
-        self.spec.extra_data[model_spec_filename] = spec_target_path
 
     def _get_file_body(self):
         body = self.spec.get_body()

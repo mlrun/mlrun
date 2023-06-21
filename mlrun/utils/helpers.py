@@ -1266,7 +1266,7 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
-def get_format_run(run: dict, with_project=False) -> dict:
+def compile_format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
         "name",

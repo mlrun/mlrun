@@ -37,7 +37,7 @@ class BaseTracker(Tracker):
             importlib.import_module(cls.TRACKED_MODULE_NAME)
 
             module_in_area = True
-        except:
+        except Exception:
             module_in_area = False
 
         # Check for user configuration - defaulted to False if not configured:

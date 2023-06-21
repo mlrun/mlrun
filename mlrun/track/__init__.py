@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .base_tracker import BaseTracker
 from .tracker import Tracker
 from .tracker_manager import TrackerManager
-from .trackers.mlflow_tracker import MLFlowTracker
+from .trackers import MLFlowTracker
 
 
 def get_trackers_manager():

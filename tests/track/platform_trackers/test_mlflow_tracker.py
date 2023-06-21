@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import importlib
 import os
 import tempfile
 from random import randint, random
@@ -61,7 +62,7 @@ def lgb_run():
     regressor = lgb.LGBMClassifier(n_estimators=20, reg_lambda=1.0)
     regressor.fit(X_train, y_train, eval_set=[(X_test, y_test)])
     y_pred = regressor.predict(X_test)
-    f1 = f1_score(y_test, y_pred, average="micro")
+    f1_score(y_test, y_pred, average="micro")
     run_id = mlflow.last_active_run().info.run_id
     print("Logged data and model in run {}".format(run_id))
 
@@ -105,10 +106,10 @@ def xgb_run():
 def test_is_enabled(rundb_mock):
     # see if mlflow is in scope
     try:
-        import mlflow
+        importlib.import_module("mlflow")
 
         relevant = True
-    except:
+    except Exception:
         relevant = False
     mlflow_tracker = MLFlowTracker()
     # check all the stuff we check in is_enabled
@@ -136,7 +137,7 @@ def test_run(rundb_mock, handler):
         trainer_run = trainer.run(local=True, artifact_path=test_directory.name)
         _validate_run(trainer_run)
         test_directory.cleanup()
-    except:
+    except Exception:
         test_directory.cleanup()
 
 

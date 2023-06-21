@@ -146,7 +146,7 @@ class MLFlowTracker(BaseTracker):
                 outputs=outputs,
             )
             tmp_dir.cleanup()
-        except:
+        except Exception:
             tmp_dir.cleanup()
 
     def post_run(self, context: Union[MLClientCtx, dict]):

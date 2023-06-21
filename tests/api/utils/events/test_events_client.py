@@ -16,7 +16,6 @@ import unittest.mock
 
 import fastapi.testclient
 import pytest
-import semver
 import sqlalchemy.orm
 
 import mlrun.api.crud

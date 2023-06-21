@@ -57,10 +57,6 @@ stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 
 ## Create a feature set without ingesting its data
 
-```{admonition} Note
-`passthrough` is in Tech Preview.
-```
-
 You can define and register a feature set (and use it in a feature vector) without ingesting its data into MLRun offline targets. This supports all batch sources.
 
 The use-case for this is when you have a large amount of data in a remote storage that is ready to be consumed by a model-training pipeline.

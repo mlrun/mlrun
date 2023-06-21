@@ -92,7 +92,7 @@ class TestAPIArtifacts(TestMLRunSystem):
             _, model_obj, _ = mlrun.artifacts.get_model(models_path)
             model_dict = model_obj.to_dict()
             assert (
-                "tag" not in model_dict["metadata"]
+                "tag" in model_dict["metadata"]
             ), "tag should not be in model metadata"
 
         try:

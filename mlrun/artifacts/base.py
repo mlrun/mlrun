@@ -35,7 +35,7 @@ from ..utils import (
 
 
 class ArtifactMetadata(ModelObj):
-    _dict_fields = ["key", "project", "iter", "tree", "description", "hash"]
+    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag"]
     _extra_fields = ["updated", "labels"]
 
     def __init__(
@@ -46,6 +46,7 @@ class ArtifactMetadata(ModelObj):
         tree=None,
         description=None,
         hash=None,
+        tag=None,
     ):
         self.key = key
         self.project = project
@@ -55,6 +56,7 @@ class ArtifactMetadata(ModelObj):
         self.hash = hash
         self.labels = {}
         self.updated = None
+        self.tag = tag  # temp store of the tag
 
     def base_dict(self):
         return super().to_dict()

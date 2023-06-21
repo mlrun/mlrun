@@ -351,6 +351,9 @@ class ModelArtifact(Artifact):
             # the model_file doesn't represent the actual target file name of the model, so we need to update it
             self.spec.model_target_file = target_model_path.split("/")[-1]
 
+        # remove the tag from the model spec, as it is not needed there
+        spec_body = _remove_tag_from_spec_yaml(self)
+
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
         )
@@ -611,6 +614,12 @@ def _get_extra(target, extra_data, is_dir=False):
     return extra_dataitems
 
 
+def _remove_tag_from_spec_yaml(model_spec):
+    spec_dict = model_spec.to_dict()
+    spec_dict.pop("tag", None)
+    return yaml.dump(spec_dict)
+
+
 def update_model(
     model_artifact,
     parameters: dict = None,
@@ -689,7 +698,10 @@ def update_model(
 
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
-        store_manager.object(url=spec_path).put(model_spec.to_yaml())
+
+        # remove tag from spec before writing to file
+        spec_body = _remove_tag_from_spec_yaml(model_spec)
+        store_manager.object(url=spec_path).put(spec_body)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:

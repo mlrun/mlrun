@@ -29,7 +29,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 RUN python -m pip install torch==1.13.0+cpu torchvision==0.14.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.9.0
+ARG TENSORFLOW_VERSION=2.11.1
 
 RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
 

@@ -70,7 +70,7 @@ _last_notification_push_time: typing.Optional[datetime.datetime] = None
 
 # https://fastapi.tiangolo.com/advanced/events/
 @contextlib.asynccontextmanager
-def lifespan(app_: fastapi.FastAPI):
+async def lifespan(app_: fastapi.FastAPI):
     await setup_api()
 
     # Let the api run

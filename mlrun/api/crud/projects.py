@@ -23,6 +23,7 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
+import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -134,7 +135,7 @@ class Projects(
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
         if (
-            mlrun.utils.capabilities.Capabilities.k8s()
+            mlrun.mlconf.is_api_running_on_k8s()
             and mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
                 project
             )
@@ -177,8 +178,16 @@ class Projects(
 
         # delete project secrets - passing None will delete all secrets
         if mlrun.utils.capabilities.Capabilities.k8s():
-            mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
-                name, None
+            secrets = None
+            (
+                secret_name,
+                _,
+            ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
+                name, secrets
+            )
+            events_client = events_factory.EventsFactory().get_events_client()
+            events_client.emit(
+                events_client.generate_project_secret_deleted_event(name, secret_name)
             )
 
     def get_project(

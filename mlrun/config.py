@@ -554,6 +554,16 @@ default_config = {
         # logging multiple returned items.
         "pack_tuples": False,
     },
+    # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
+    "events": {
+        # supported modes "enabled", "disabled".
+        # "enabled" - events are emitted.
+        # "disabled" - a nop client is used (aka doing nothing).
+        "mode": "enabled",
+        "verbose": False,
+        # used for igz client when emitting events
+        "access_key": "",
+    },
     "capabilities": {
         # declare what capabilities are enabled in this environment
         # resolved by the API and passes to the api clients (e.g. UI, SDK)
@@ -1122,7 +1132,6 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
-    config.resolve_capabilities()
 
 
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

@@ -377,7 +377,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert "ticker" not in default_df.columns
 
         # with_indexes = False, entity_timestamp_column = "time"
-        resp = fstore.get_offline_features(vector, entity_timestamp_column="time")
+        resp = fstore.get_offline_features(vector)
         df_no_time = resp.to_dataframe()
 
         tmpdir = tempfile.mkdtemp()

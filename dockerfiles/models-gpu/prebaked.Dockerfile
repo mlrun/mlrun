@@ -63,10 +63,11 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cython \
         make \
         nccl \
-        pytorch=1.13 \
+        pytorch=1.13.1 \
         rapids=22.10 \
-        tensorflow=2.9 \
-        torchvision=0.14 \
+        tensorflow=2.11.1 \
+        torchvision=0.14.1 \
+        mpi4py=3.1.4 \
         openmpi-mpicc=${OMPI_VERSION} \
     && conda clean -aqy
 

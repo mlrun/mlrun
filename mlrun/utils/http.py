@@ -143,11 +143,13 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                     raise exc
 
-                self._logger.warning("Error during request handling, retrying",
-                                     exc=str(exc),
-                                     retry_count=retry_count,
-                                     url=url,
-                                     method=method)
+                self._logger.warning(
+                    "Error during request handling, retrying",
+                    exc=str(exc),
+                    retry_count=retry_count,
+                    url=url,
+                    method=method,
+                )
                 if self.verbose:
                     self._log_exception(
                         "debug",

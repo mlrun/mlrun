@@ -880,6 +880,17 @@ def test_project_ops():
     assert run.output("y") == 4  # = x * 2
 
 
+def test_set_workflow_with_unvalid_path():
+    proj = mlrun.new_project("proj", save=False)
+    with pytest.raises(
+        ValueError,
+        match=str(
+            "The supplied workflow_path is invalid, please provide a path to a python file"
+        ),
+    ):
+        proj.set_workflow("main", "./")
+
+
 def test_clear_context():
     proj = mlrun.new_project("proj", save=False)
     proj_with_subpath = mlrun.new_project(

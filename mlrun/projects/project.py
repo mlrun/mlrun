@@ -1119,6 +1119,11 @@ class MlrunProject(ModelObj):
         """
         if not workflow_path:
             raise ValueError("valid workflow_path must be specified")
+
+        if not (os.path.isfile(workflow_path) and workflow_path.endswith(".py")):
+            raise ValueError(
+                "The supplied workflow_path is invalid, please provide a path to a python file"
+            )
         if embed:
             if (
                 self.context

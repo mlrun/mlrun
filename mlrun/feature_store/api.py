@@ -140,8 +140,8 @@ def get_offline_features(
     :param entity_rows:             dataframe with entity rows to join with
     :param target:                  where to write the results to
     :param drop_columns:            list of columns to drop from the final result
-    :param entity_timestamp_column: timestamp column name in the entity rows dataframe (can be passed
-                                    only with valid entity_rows).
+    :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                    only if param entity_rows was specified.
                                     this column will drop from the result dataframe if
                                     `feature_vector.spec.with_indexes`is false with all the other timestamp keys
                                     of the feature sets.

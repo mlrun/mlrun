@@ -79,6 +79,7 @@ class HTTPSessionWithRetry(requests.Session):
         self.retry_backoff_factor = retry_backoff_factor
         self.retry_on_exception = retry_on_exception
         self.verbose = verbose
+        self._logger = logger.get_child("http-client")
 
         if retry_on_status:
             http_adapter = requests.adapters.HTTPAdapter(
@@ -142,6 +143,11 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                     raise exc
 
+                self._logger.warning("Error during request handling, retrying",
+                                     exc=str(exc),
+                                     retry_count=retry_count,
+                                     url=url,
+                                     method=method)
                 if self.verbose:
                     self._log_exception(
                         "debug",
@@ -159,11 +165,11 @@ class HTTPSessionWithRetry(requests.Session):
             # setting to False in order to retry on all methods, otherwise every method except POST.
             False
             if retry_on_post
-            else urllib3.util.retry.Retry.DEFAULT_METHOD_WHITELIST
+            else urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
         )
 
     def _log_exception(self, level, exc, message, retry_count):
-        getattr(logger, level)(
+        getattr(self._logger, level)(
             message,
             exception_type=type(exc),
             exception_message=err_to_str(exc),

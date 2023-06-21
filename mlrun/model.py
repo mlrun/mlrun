@@ -105,9 +105,9 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self) -> str:
+    def to_yaml(self, exclude=None) -> str:
         """convert the object to yaml"""
-        return dict_to_yaml(self.to_dict())
+        return dict_to_yaml(self.to_dict(exclude=exclude))
 
     def to_json(self):
         """convert the object to json"""

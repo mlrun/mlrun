@@ -69,17 +69,25 @@ class TestAPIArtifacts(TestMLRunSystem):
         tag_2 = "tag_2"
         models_path = f"v3io:///projects/{project_name}/artifacts/{model_name}/"
 
-        def _validate_artifact(expected_tags):
+        def _validate_artifact_tags(expected_tags):
 
-            # get the model from api, and check that the tags are as expected
+            # get the model from api
             response = self._run_db.api_call(
                 "GET",
                 f"projects/{project_name}/artifacts?category=model&format=full&best-iteration=true",
             )
             assert response.status_code == 200, "failed to get artifacts"
-            for artifact in response.json().get("artifacts", []):
+
+            # we should have 1 artifact per tag
+            artifacts = response.json().get("artifacts", [])
+            assert len(artifacts) == len(expected_tags), "wrong number of artifacts"
+
+            for artifact in artifacts:
                 tag = artifact.get("metadata").get("tag")
                 assert tag in expected_tags, "given tag is not in expected tags"
+
+                # remove the tag from the expected tags
+                expected_tags.remove(tag)
 
                 # make sure artifact doesn't have the model_spec.yaml in spec.extra_data
                 extra_data = artifact.get("spec", {}).get("extra_data")
@@ -88,12 +96,8 @@ class TestAPIArtifacts(TestMLRunSystem):
                         "model_spec.yaml" not in extra_data
                     ), "model spec should not be in extra data"
 
-            # get the model spec via sdk, and check that the tag is there
-            _, model_obj, _ = mlrun.artifacts.get_model(models_path)
-            model_dict = model_obj.to_dict()
-            assert (
-                "tag" in model_dict["metadata"]
-            ), "tag should not be in model metadata"
+            # make sure we found all expected tags
+            assert len(expected_tags) == 0, "not all expected tags were found"
 
         try:
             pickle_filename = "my_model.pkl"
@@ -101,7 +105,6 @@ class TestAPIArtifacts(TestMLRunSystem):
                 pickle.dump({"obj": "my-model"}, file)
 
             # create a project and log the model
-            mlrun.set_environment(project=project_name)
             project = mlrun.get_or_create_project(project_name, context="./")
 
             project.set_model_monitoring_credentials(os.environ.get("V3IO_ACCESS_KEY"))
@@ -112,7 +115,7 @@ class TestAPIArtifacts(TestMLRunSystem):
                 tag=tag_1,
             )
 
-            _validate_artifact(["latest", tag_1])
+            _validate_artifact_tags(["latest", tag_1])
 
             # tag the model with another tag
             _, model_obj, _ = mlrun.artifacts.get_model(models_path)
@@ -124,7 +127,7 @@ class TestAPIArtifacts(TestMLRunSystem):
                 replace=False,
             )
 
-            _validate_artifact(["latest", tag_1, tag_2])
+            _validate_artifact_tags(["latest", tag_1, tag_2])
 
         finally:
             self._delete_test_project(project_name)

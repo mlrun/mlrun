@@ -329,7 +329,7 @@ class ModelArtifact(Artifact):
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
 
-        spec_body = self.to_yaml()
+        spec_body = self.to_yaml(exclude=["tag"])
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -350,9 +350,6 @@ class ModelArtifact(Artifact):
             # target path dir, and because we generated the target path of the model from the artifact hash,
             # the model_file doesn't represent the actual target file name of the model, so we need to update it
             self.spec.model_target_file = target_model_path.split("/")[-1]
-
-        # remove the tag from the model spec, as it is not needed there
-        spec_body = _remove_tag_from_spec_yaml(self)
 
         spec_target_path = spec_target_path or path.join(
             self.spec.target_path, model_spec_filename
@@ -699,9 +696,8 @@ def update_model(
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
 
-        # remove tag from spec before writing to file
-        spec_body = _remove_tag_from_spec_yaml(model_spec)
-        store_manager.object(url=spec_path).put(spec_body)
+        # update the model spec without the tag
+        store_manager.object(url=spec_path).put(model_spec.to_yaml(exclude=["tag"]))
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:

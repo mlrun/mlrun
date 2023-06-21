@@ -4216,15 +4216,15 @@ class TestFeatureStore(TestMLRunSystem):
             feature_set,
             data,
         )
-        result = fstore.ingest(
-            feature_set, data, run_config=fstore.RunConfig(local=True)
+        inspect_result = fstore.ingest(
+            feature_set, data
         )
         feature_vector = fstore.FeatureVector(
             name=name, features=[f"{self.project_name}/{name}.*"]
         )
         feature_vector.spec.with_indexes = True
         offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
-        assert offline_features_df.equals(result)
+        assert offline_features_df.equals(inspect_result)
         assert offline_features_df.equals(expected_result)
 
 

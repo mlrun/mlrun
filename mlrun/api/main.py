@@ -16,6 +16,7 @@ import asyncio
 import concurrent.futures
 import datetime
 import traceback
+import contextlib
 import typing
 
 import fastapi
@@ -64,7 +65,18 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 # and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
-_last_notification_push_time: datetime.datetime = None
+_last_notification_push_time: typing.Optional[datetime.datetime] = None
+
+
+# https://fastapi.tiangolo.com/advanced/events/
+@contextlib.asynccontextmanager
+def lifespan(app_: fastapi.FastAPI):
+    await setup_api()
+
+    # Let the api run
+    yield
+
+    await teardown_api()
 
 
 app = fastapi.FastAPI(
@@ -77,6 +89,7 @@ app = fastapi.FastAPI(
     docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
     redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
+    lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
@@ -124,8 +137,7 @@ async def http_status_error_handler(
     )
 
 
-@app.on_event("startup")
-async def startup_event():
+async def setup_api():
     logger.info(
         "On startup event handler called",
         config=config.dump_yaml(),
@@ -153,8 +165,7 @@ async def startup_event():
         await move_api_to_online()
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
+async def teardown_api():
     if get_project_member():
         get_project_member().shutdown()
     cancel_all_periodic_functions()
@@ -166,7 +177,7 @@ async def move_api_to_online():
     logger.info("Moving api to online")
     await initialize_scheduler()
 
-    # In general it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
+    # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
     initialize_project_member()

@@ -163,7 +163,6 @@ class Pipelines(
             )
 
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-        print(str(data))
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:
@@ -224,7 +223,7 @@ class Pipelines(
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
             return {
-                k: str(v)
+                k: str(v) if v is not None else v
                 for k, v in run.items()
                 if k
                 in [

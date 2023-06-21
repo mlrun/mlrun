@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import tempfile
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ import mlrun
 RETURNS_LOG_HINTS = [
     "my_array",
     "my_df",
+    "my_file: path",
     {"key": "my_dict", "artifact_type": "object"},
     "my_list:  file",
     "my_int",
@@ -36,7 +38,7 @@ RETURNS_LOG_HINTS = [
 
 
 def log_artifacts_and_results() -> Tuple[
-    np.ndarray, pd.DataFrame, dict, list, int, str, Pipeline
+    np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline
 ]:
     encoder_to_imputer = Pipeline(
         steps=[
@@ -48,12 +50,18 @@ def log_artifacts_and_results() -> Tuple[
         ]
     )
     encoder_to_imputer.fit([["A"], ["B"], ["C"]])
-    mlrun.get_or_create_ctx(name="ctx").log_result(
-        key="manually_logged_result", value=10
-    )
+
+    context = mlrun.get_or_create_ctx(name="ctx")
+    context.log_result(key="manually_logged_result", value=10)
+
+    file_path = os.path.join(context.artifact_path, "my_file.txt")
+    with open(file_path, "w") as file:
+        file.write("123")
+
     return (
         np.ones((10, 20)),
         pd.DataFrame(np.zeros((20, 10))),
+        file_path,
         {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]},
         [["A"], ["B"], [""]],
         3,
@@ -65,6 +73,7 @@ def log_artifacts_and_results() -> Tuple[
 def _assert_parsing(
     my_array: np.ndarray,
     my_df: mlrun.DataItem,
+    my_file: Union[int, mlrun.DataItem],
     my_dict: dict,
     my_list: list,
     my_object: Pipeline,
@@ -78,6 +87,12 @@ def _assert_parsing(
     my_df = my_df.as_df()
     assert my_df.shape == (20, 10)
     assert my_df.sum().sum() == 0
+
+    assert isinstance(my_file, mlrun.DataItem)
+    my_file = my_file.local()
+    with open(my_file, "r") as file:
+        file_content = file.read()
+    assert file_content == "123"
 
     assert isinstance(my_dict, dict)
     assert my_dict == {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]}
@@ -94,6 +109,7 @@ def _assert_parsing(
 def parse_inputs_from_type_annotations(
     my_array: np.ndarray,
     my_df: mlrun.DataItem,
+    my_file: Union[int, mlrun.DataItem],
     my_dict: dict,
     my_list: list,
     my_object: Pipeline,
@@ -103,6 +119,7 @@ def parse_inputs_from_type_annotations(
     _assert_parsing(
         my_array=my_array,
         my_df=my_df,
+        my_file=my_file,
         my_dict=my_dict,
         my_list=my_list,
         my_object=my_object,
@@ -112,11 +129,12 @@ def parse_inputs_from_type_annotations(
 
 
 def parse_inputs_from_mlrun_function(
-    my_array, my_df, my_dict, my_list, my_object, my_int, my_str
+    my_array, my_df, my_file, my_dict, my_list, my_object, my_int, my_str
 ):
     _assert_parsing(
         my_array=my_array,
         my_df=my_df,
+        my_file=my_file,
         my_dict=my_dict,
         my_list=my_list,
         my_object=my_object,
@@ -183,15 +201,12 @@ def test_parse_inputs_from_type_annotations(rundb_mock):
     mlrun_function.run(
         handler="parse_inputs_from_type_annotations",
         inputs={
-            "my_list:list": log_artifacts_and_results_run.outputs["my_list"],
-            "my_array : numpy.ndarray": log_artifacts_and_results_run.outputs[
-                "my_array"
-            ],
+            "my_list": log_artifacts_and_results_run.outputs["my_list"],
+            "my_array": log_artifacts_and_results_run.outputs["my_array"],
             "my_df": log_artifacts_and_results_run.outputs["my_df"],
-            "my_object: sklearn.pipeline.Pipeline": log_artifacts_and_results_run.outputs[
-                "my_object"
-            ],
-            "my_dict: dict": log_artifacts_and_results_run.outputs["my_dict"],
+            "my_file": log_artifacts_and_results_run.outputs["my_file"],
+            "my_object": log_artifacts_and_results_run.outputs["my_object"],
+            "my_dict": log_artifacts_and_results_run.outputs["my_dict"],
         },
         params={
             "my_int": log_artifacts_and_results_run.outputs["my_int"],
@@ -233,6 +248,7 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
                 "my_array"
             ],
             "my_df": log_artifacts_and_results_run.outputs["my_df"],
+            "my_file": log_artifacts_and_results_run.outputs["my_file"],
             "my_object: sklearn.pipeline.Pipeline": log_artifacts_and_results_run.outputs[
                 "my_object"
             ],

@@ -29,6 +29,7 @@ import pandas as pd
 import pyarrow
 import pyarrow.parquet as pq
 import pytest
+import pytz
 import requests
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
@@ -376,7 +377,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert "ticker" not in default_df.columns
 
         # with_indexes = False, entity_timestamp_column = "time"
-        resp = fstore.get_offline_features(vector, entity_timestamp_column="time")
+        resp = fstore.get_offline_features(vector)
         df_no_time = resp.to_dataframe()
 
         tmpdir = tempfile.mkdtemp()
@@ -763,7 +764,8 @@ class TestFeatureStore(TestMLRunSystem):
             verify_ingest(data, key, targets=[TargetTypes.nosql])
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
-    def test_filtering_parquet_by_time(self):
+    @pytest.mark.parametrize("with_tz", [False, True])
+    def test_filtering_parquet_by_time(self, with_tz):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements", entities=[Entity(key)], timestamp_key="timestamp"
@@ -771,8 +773,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time="2020-12-01 17:33:16",
+            start_time=datetime(
+                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(
@@ -786,8 +790,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2022, 12, 1, 17, 33, 15),
-            end_time="2022-12-01 17:33:16",
+            start_time=datetime(
+                2022, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2022-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(

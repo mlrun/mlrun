@@ -1411,7 +1411,14 @@ class SQLDB(DBInterface):
     def store_project(
         self, session: Session, name: str, project: mlrun.common.schemas.Project
     ):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug(
+            "Storing project in DB",
+            name=name,
+            project_metadata=project.metadata,
+            project_owner=project.spec.owner,
+            project_desired_state=project.spec.desired_state,
+            project_status=project.status,
+        )
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1743,7 +1750,7 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
-    ) -> Project:
+    ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
@@ -2916,7 +2923,7 @@ class SQLDB(DBInterface):
         return self._add_labels_filter(session, query, Run, labels)
 
     def _get_db_notifications(
-        self, session, cls, name: str = None, parent_id: int = None, project: str = None
+        self, session, cls, name: str = None, parent_id: str = None, project: str = None
     ):
         return self._query(
             session, cls.Notification, name=name, parent_id=parent_id, project=project
@@ -3685,6 +3692,12 @@ class SQLDB(DBInterface):
             )
         }
         notifications = []
+        logger.debug(
+            "Storing notifications",
+            notifications_length=len(notification_objects),
+            parent_id=parent_id,
+            project=project,
+        )
         for notification_model in notification_objects:
             new_notification = False
             notification = db_notifications.get(notification_model.name, None)
@@ -3709,6 +3722,7 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
                 notification_name=notification.name,
+                notification_status=notification.status,
                 parent_id=parent_id,
                 project=project,
             )

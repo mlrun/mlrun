@@ -758,7 +758,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
 
     short_run = {
         "graph": dag,
-        "run": mlrun.utils.helpers.compile_format_run(kfp_run["run"]),
+        "run": mlrun.utils.helpers.format_run(kfp_run["run"]),
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message

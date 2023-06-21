@@ -222,7 +222,7 @@ class Pipelines(
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
-            return mlrun.utils.helpers.compile_format_run(run, with_project=True)
+            return mlrun.utils.helpers.format_run(run, with_project=True)
 
         elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
             return run.get("name")

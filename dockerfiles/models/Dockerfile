@@ -26,7 +26,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # pytorch caused cuda download, this guarantees cpu version:
-RUN python -m pip install torch==1.13.0+cpu torchvision==0.14.0+cpu \
+RUN python -m pip install torch==1.13.1+cpu torchvision==0.14.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
 ARG TENSORFLOW_VERSION=2.11.1

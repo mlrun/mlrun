@@ -170,7 +170,7 @@ def get_offline_features(
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "entity_timestamp_column param "
-            "can not be pass when entity_rows param is None"
+            "can not be specified without entity_rows param"
         )
 
     if isinstance(feature_vector, FeatureVector):

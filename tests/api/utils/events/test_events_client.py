@@ -113,11 +113,6 @@ class TestEventClient:
     def _assert_client_was_called(self, iguazio_version: str):
         self.client.emit.assert_called_once()
         if iguazio_version:
-            if iguazio_version >= semver.VersionInfo.parse("3.5.4-b1"):
-                # if equal or greater than 3.5.4-b1, then we expect the event to exist in the events.yaml of the system
-                # and therefor we send the minimized event (without the description)
-                assert not self.client.emit.call_args[0][0].description
-            else:
-                assert self.client.emit.call_args[0][0].description
+            assert self.client.emit.call_args[0][0].description
         else:
             assert self.client.emit.call_args[0][0] is None

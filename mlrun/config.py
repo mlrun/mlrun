@@ -554,6 +554,26 @@ default_config = {
         # logging multiple returned items.
         "pack_tuples": False,
     },
+    "capabilities": {
+        # declare what capabilities are enabled in this environment
+        # resolved by the API and passes to the api clients (e.g. UI, SDK)
+        # supported modes are "enabled", "disabled
+        "k8s": {
+            "mode": None,
+        },
+        "iguazio": {
+            "mode": None,
+        },
+        "nuclio": {
+            "mode": None,
+        },
+        "ce": {
+            "mode": None,
+        },
+        "kfp": {
+            "mode": None,
+        },
+    },
 }
 
 _is_running_as_api = None
@@ -1102,6 +1122,7 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+    config.resolve_capabilities()
 
 
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

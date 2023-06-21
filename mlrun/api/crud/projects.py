@@ -29,6 +29,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.capabilities
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
@@ -133,7 +134,7 @@ class Projects(
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
         if (
-            mlrun.mlconf.is_api_running_on_k8s()
+            mlrun.utils.capabilities.Capabilities.k8s()
             and mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
                 project
             )
@@ -175,7 +176,7 @@ class Projects(
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
         # delete project secrets - passing None will delete all secrets
-        if mlrun.mlconf.is_api_running_on_k8s():
+        if mlrun.utils.capabilities.Capabilities.k8s():
             mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                 name, None
             )
@@ -326,7 +327,7 @@ class Projects(
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
-        if not mlrun.mlconf.resolve_kfp_url():
+        if not mlrun.utils.capabilities.Capabilities.kfp():
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
             return project_to_running_pipelines_count
 

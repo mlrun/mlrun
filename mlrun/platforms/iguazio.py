@@ -28,6 +28,7 @@ import v3io
 from deprecated import deprecated
 
 import mlrun.errors
+import mlrun.utils.capabilities
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json
@@ -199,7 +200,10 @@ def mount_v3iod(namespace, v3io_config_configmap):
 
         # path to shared memory for daemon was changed in Iguazio 3.2.3-b1
         igz_version = mlrun.mlconf.get_parsed_igz_version()
-        if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3-b1"):
+        if (
+            mlrun.utils.capabilities.Capabilities.iguazio()
+            and igz_version >= semver.VersionInfo.parse("3.2.3-b1")
+        ):
             host_path = "/var/run/iguazio/dayman-shm/"
         add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
 

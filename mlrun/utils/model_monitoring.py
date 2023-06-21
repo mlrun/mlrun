@@ -21,6 +21,7 @@ import mlrun
 import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.model
 import mlrun.platforms.iguazio
+import mlrun.utils.capabilities
 from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.config import is_running_as_api
 
@@ -196,7 +197,9 @@ def get_stream_path(project: str = None):
         # Add topic to stream kafka uri
         stream_uri += f"?topic=monitoring_stream_{project}"
 
-    elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
+    elif (
+        stream_uri.startswith("v3io://") and mlrun.utils.capabilities.Capabilities.ce()
+    ):
         # V3IO is not supported in CE mode, generating a default http stream path
         stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
 

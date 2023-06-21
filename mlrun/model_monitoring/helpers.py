@@ -29,6 +29,7 @@ import mlrun.config
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
+import mlrun.utils.capabilities
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 from mlrun.api.api import deps
@@ -135,7 +136,7 @@ def get_model_monitoring_batch_function(
     # Set the project to the job function
     function.metadata.project = project
 
-    if not mlrun.mlconf.is_ce_mode():
+    if not mlrun.utils.capabilities.Capabilities.ce():
         function = _apply_access_key_and_mount_function(
             project=project,
             function=function,
@@ -183,7 +184,7 @@ def _apply_stream_trigger(
         )
         function = stream_source.add_nuclio_trigger(function)
 
-    if not mlrun.mlconf.is_ce_mode():
+    if not mlrun.utils.capabilities.Capabilities.ce():
         function = _apply_access_key_and_mount_function(
             project=project,
             function=function,

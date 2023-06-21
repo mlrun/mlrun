@@ -28,6 +28,7 @@ import mlrun.api.api.utils
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.kfpops
+import mlrun.utils.capabilities
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.errors import err_to_str
@@ -59,11 +60,11 @@ class Pipelines(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Summary format is not supported for list pipelines, use get instead"
             )
-        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-        if not kfp_url:
+        if not mlrun.utils.capabilities.Capabilities.kfp():
             raise mlrun.errors.MLRunNotFoundError(
                 "KubeFlow Pipelines is not configured"
             )
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
         kfp_client = kfp.Client(host=kfp_url)
         if project != "*":
             run_dicts = []
@@ -110,11 +111,11 @@ class Pipelines(
         namespace: typing.Optional[str] = None,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.summary,
     ):
-        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-        if not kfp_url:
+        if not mlrun.utils.capabilities.Capabilities.kfp():
             raise mlrun.errors.MLRunBadRequestError(
                 "KubeFlow Pipelines is not configured"
             )
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
         kfp_client = kfp.Client(host=kfp_url)
         run = None
         try:
@@ -176,11 +177,11 @@ class Pipelines(
         )
 
         try:
-            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-            if not kfp_url:
+            if not mlrun.utils.capabilities.Capabilities.kfp():
                 raise mlrun.errors.MLRunBadRequestError(
                     "KubeFlow Pipelines is not configured"
                 )
+            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
             kfp_client = kfp.Client(host=kfp_url)
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(

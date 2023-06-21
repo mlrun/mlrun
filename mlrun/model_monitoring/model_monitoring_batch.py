@@ -35,6 +35,7 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.stores
 import mlrun.run
+import mlrun.utils.capabilities
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
@@ -529,7 +530,7 @@ class BatchProcessor:
             project=project
         )
 
-        if not mlrun.mlconf.is_ce_mode():
+        if not mlrun.utils.capabilities.Capabilities.ce():
             # TODO: Once there is a time series DB alternative in a non-CE deployment, we need to update this if
             #  statement to be applied only for V3IO TSDB
             self._initialize_v3io_configurations()
@@ -590,7 +591,7 @@ class BatchProcessor:
         Preprocess of the batch processing.
         """
 
-        if not mlrun.mlconf.is_ce_mode():
+        if not mlrun.utils.capabilities.Capabilities.ce():
             # Create v3io stream based on the input stream
             response = self.v3io.create_stream(
                 container=self.stream_container,
@@ -794,7 +795,7 @@ class BatchProcessor:
                 attributes=attributes,
             )
 
-            if not mlrun.mlconf.is_ce_mode():
+            if not mlrun.utils.capabilities.Capabilities.ce():
                 # Update drift results in TSDB
                 self._update_drift_in_input_stream(
                     endpoint_id=endpoint[

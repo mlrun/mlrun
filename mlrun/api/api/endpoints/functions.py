@@ -45,6 +45,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
+import mlrun.utils.capabilities
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
@@ -691,7 +692,7 @@ def _build_function(
 
                         # Generating model monitoring access key
                         model_monitoring_access_key = None
-                        if not mlrun.mlconf.is_ce_mode():
+                        if not mlrun.utils.capabilities.Capabilities.ce():
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,

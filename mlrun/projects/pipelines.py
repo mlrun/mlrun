@@ -28,6 +28,7 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.utils.capabilities
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -226,7 +227,7 @@ class _PipelineContext:
             return local
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
-            force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
+            force_run_local = not mlrun.utils.capabilities.Capabilities.k8s()
             kfp_url = mlrun.mlconf.resolve_kfp_url()
             if not kfp_url:
                 force_run_local = True

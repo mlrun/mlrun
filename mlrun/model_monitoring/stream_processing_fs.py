@@ -27,6 +27,7 @@ import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.utils
+import mlrun.utils.capabilities
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.model_monitoring import (
@@ -80,7 +81,7 @@ class EventStreamProcessor:
         )
 
         self.storage_options = None
-        if not mlrun.mlconf.is_ce_mode():
+        if not mlrun.utils.capabilities.Capabilities.ce():
             self._initialize_v3io_configurations(
                 model_monitoring_access_key=model_monitoring_access_key
             )
@@ -291,7 +292,7 @@ class EventStreamProcessor:
 
         # Steps 11-18 - TSDB branch (not supported in CE environment at the moment)
 
-        if not mlrun.mlconf.is_ce_mode():
+        if not mlrun.utils.capabilities.Capabilities.ce():
             # Step 11 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
             # stats and details about the events
             def apply_process_before_tsdb():

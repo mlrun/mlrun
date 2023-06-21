@@ -26,6 +26,7 @@ import mlrun.api.crud.model_monitoring.grafana
 import mlrun.api.utils.auth.verifier
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
+import mlrun.utils.capabilities
 from mlrun.api.api import deps
 
 router = APIRouter(prefix="/grafana-proxy/model-endpoints")
@@ -52,7 +53,7 @@ def grafana_proxy_model_endpoints_check_connection(
     Root of grafana proxy for the model-endpoints API, used for validating the model-endpoints data source
     connectivity.
     """
-    if not mlrun.mlconf.is_ce_mode():
+    if not mlrun.utils.capabilities.Capabilities.ce():
         mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     return Response(status_code=HTTPStatus.OK.value)
 
@@ -76,7 +77,7 @@ async def grafana_proxy_model_endpoints_search(
 
     :return: List of results. e.g. list of available project names.
     """
-    if not mlrun.mlconf.is_ce_mode():
+    if not mlrun.utils.capabilities.Capabilities.ce():
         mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(

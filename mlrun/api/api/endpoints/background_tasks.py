@@ -22,6 +22,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 import mlrun.common.schemas
+import mlrun.utils.capabilities
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -74,7 +75,10 @@ async def get_internal_background_task(
     # authorization
     # we also skip Iguazio 3.6 for now, until it will add support for it (still in development)
     igz_version = mlrun.mlconf.get_parsed_igz_version()
-    if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
+    if (
+        mlrun.utils.capabilities.Capabilities.iguazio()
+        and igz_version >= semver.VersionInfo.parse("3.7.0-b1")
+    ):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.background_task,
             name,

@@ -30,6 +30,7 @@ from .background_task import (
     BackgroundTaskState,
     BackgroundTaskStatus,
 )
+from .capabilities import CapabilitiesModes
 from .client_spec import ClientSpec
 from .clusterization_spec import (
     ClusterizationSpec,

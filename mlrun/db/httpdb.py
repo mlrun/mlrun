@@ -394,6 +394,7 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
+            config.capabilities = server_cfg.get("capabilities") or config.capabilities
 
         except Exception as exc:
             logger.warning(

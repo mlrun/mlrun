@@ -554,6 +554,16 @@ default_config = {
         # logging multiple returned items.
         "pack_tuples": False,
     },
+    # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
+    "events": {
+        # supported modes "enabled", "disabled".
+        # "enabled" - events are emitted.
+        # "disabled" - a nop client is used (aka doing nothing).
+        "mode": "enabled",
+        "verbose": False,
+        # used for igz client when emitting events
+        "access_key": "",
+    },
 }
 
 _is_running_as_api = None

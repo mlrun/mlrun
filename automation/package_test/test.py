@@ -215,10 +215,14 @@ class PackageTester:
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
                 if vulnerability["package_name"] in ignored_vulnerabilities:
-                    ignored_vulnerability = ignored_vulnerabilities[vulnerability["package_name"]]
+                    ignored_vulnerability = ignored_vulnerabilities[
+                        vulnerability["package_name"]
+                    ]
                     ignore_vulnerability = False
                     for ignored_pattern in ignored_vulnerability:
-                        if re.search(ignored_pattern["pattern"], vulnerability["advisory"]):
+                        if re.search(
+                            ignored_pattern["pattern"], vulnerability["advisory"]
+                        ):
                             self._logger.debug(
                                 "Ignoring vulnerability",
                                 vulnerability=vulnerability,

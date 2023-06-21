@@ -4216,9 +4216,7 @@ class TestFeatureStore(TestMLRunSystem):
             feature_set,
             data,
         )
-        inspect_result = fstore.ingest(
-            feature_set, data
-        )
+        inspect_result = fstore.ingest(feature_set, data)
         feature_vector = fstore.FeatureVector(
             name=name, features=[f"{self.project_name}/{name}.*"]
         )

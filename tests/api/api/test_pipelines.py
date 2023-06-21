@@ -162,6 +162,37 @@ def test_get_pipeline_specific_project(
         importlib.reload(mlrun.api.crud)
 
 
+def test_list_pipelines_time_fields_default(
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        kfp_client_mock: kfp.Client,
+) -> None:
+    created_at = datetime.datetime.now()
+    workflow_manifest = _generate_workflow_manifest()
+    runs = [kfp_server_api.models.api_run.ApiRun(
+            id="id1",
+            name="run",
+            description="desc",
+            created_at=created_at,
+            finished_at="1970-01-01 00:00:00+00:00",
+            scheduled_at="1970-01-01 00:00:00+00:00",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id",
+                workflow_manifest=workflow_manifest,
+            ),
+        )]
+
+    _mock_list_runs(kfp_client_mock, runs)
+    response = client.get(
+        "projects/*/pipelines",
+        params={"format": mlrun.common.schemas.PipelinesFormat.metadata_only},
+    )
+    response = response.json()["runs"][0]
+
+    assert response["created_at"] == str(created_at)
+    assert not response["finished_at"]
+    assert not response["scheduled_at"]
+
 def test_list_pipelines_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,

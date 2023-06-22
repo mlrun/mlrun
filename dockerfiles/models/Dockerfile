@@ -19,7 +19,7 @@ FROM ${MLRUN_BASE_IMAGE}
 ARG OMPI_VERSION=4.1.4
 
 # Install Open MPI
-RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} mpi4py=3.1.4 && \
+RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} mpi4py=3.1.2 && \
     conda clean -aqy
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
@@ -29,7 +29,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 RUN python -m pip install torch==1.13.1+cpu torchvision==0.14.1+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.11.1
+ARG TENSORFLOW_VERSION=2.11.0
 
 RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
 

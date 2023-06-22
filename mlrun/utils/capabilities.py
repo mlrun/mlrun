@@ -41,7 +41,7 @@ class Capabilities:
     @staticmethod
     def _is_enabled(capability_name: str):
         return (
-            mlrun.mlconf.capabilities[capability_name].mode
+            getattr(mlrun.mlconf.capabilities, capability_name).mode
             == capabilities.CapabilitiesModes.enabled
         )
 
@@ -50,5 +50,5 @@ class Capabilities:
         capability_name: str,
         capability_mode: capabilities.CapabilitiesModes = capabilities.CapabilitiesModes.enabled,
     ):
-        if capability_name in mlrun.mlconf.capabilities:
-            mlrun.mlconf.capabilities[capability_name].mode = capability_mode.value
+        capability_config = getattr(mlrun.mlconf.capabilities, capability_name)
+        capability_config.mode = capability_mode.value

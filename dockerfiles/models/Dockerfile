@@ -19,7 +19,7 @@ FROM ${MLRUN_BASE_IMAGE}
 ARG OMPI_VERSION=4.1.4
 
 # Install Open MPI
-RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} mpi4py=3.1.2 && \
+RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} "mpi4py>=3.1" && \
     conda clean -aqy
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1

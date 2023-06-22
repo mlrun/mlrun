@@ -290,7 +290,7 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 	} {
 		// not using suite.Run because when the test cases run in parallel the fake client set is shared between them
 		// and it causes conflicts
-		suite.logger.InfoWith("Running test case", testCase.name)
+		suite.logger.InfoWith("Running test case", "testName", testCase.name)
 
 		runUidIndex++
 

@@ -107,7 +107,6 @@ def test_is_enabled(rundb_mock):
     # see if mlflow is in scope
     try:
         importlib.import_module("mlflow")
-
         relevant = True
     except Exception:
         relevant = False

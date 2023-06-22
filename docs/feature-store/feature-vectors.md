@@ -90,8 +90,9 @@ Defaults to return as a return value to the caller.
 - **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)
 - **order_by** &mdash; Name or list of names to order by. The name or the names in the list can be the feature name or the alias of the 
 feature you pass in the feature list.
-- **timestamp_for_filtering** &mdash; (optional) By default, the filter executes on the timestamp_key of each feature set. when `timestamp_for_filtering` is configured, the time filtering is performed on each feature set before the merge process using the 
-`start_time` and `end_time` params.
+- **timestamp_for_filtering** &mdash; (optional) Used to configure the columns that a time-based filter filters by. By default, the time-based filter is executed using the timestamp_key of each feature set.
+Specifying the `timestamp_for_filtering` param overwrites this default: if it's str it specifies the timestamp column to use in all the feature sets. If it's a dictionary ({<feature set name>: <timestamp column name>, …}) it indicates the timestamp column name 
+for each feature set. The time filtering is performed on each feature set (using `start_time` and `end_time`) before the merge process.
 
 You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. 
 For example:
@@ -132,7 +133,7 @@ task = mlrun.new_task('training',
 run = fn.run(task)
 ```
 
-You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
+See a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
 
 You can use `get_offline_features` for a feature vector whose data is not ingested. See 
 [Create a feature set without ingesting its data](./feature-sets.html#create-a-feature-set-without-ingesting-its-data).

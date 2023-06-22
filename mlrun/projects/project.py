@@ -358,7 +358,7 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will excute `git init` on the context dir
+    :param init_git:     if True, will execute `git init` on the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current username to the project name (for db:// prefixes)
@@ -367,6 +367,8 @@ def get_or_create_project(
     :returns: project object
     """
     context = context or "./"
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -382,45 +384,52 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"Loaded project {name} from MLRun DB")
+        logger.info("Project loaded successfully", project_name=name)
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath or "", "project.yaml")
-        if url or path.isfile(spec_path):
-            # load project from archive or local project.yaml
-            project = load_project(
-                context,
-                url,
-                name,
-                secrets=secrets,
-                init_git=init_git,
-                subpath=subpath,
-                clone=clone,
-                user_project=user_project,
-                save=save,
-            )
-            message = f"Loaded project {name} from {url or context}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
-        else:
-            # create a new project
-            project = new_project(
-                name,
-                context,
-                init_git=init_git,
-                user_project=user_project,
-                from_template=from_template,
-                secrets=secrets,
-                subpath=subpath,
-                save=save,
-            )
-            message = f"Created project {name}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
+        logger.debug("Project not found in db", project_name=name)
+        pass
+
+    # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
+    if load_from_path:
+        # loads a project from archive or local project.yaml
+        logger.debug(
+            "Loading project from path", project_name=name, path=url or context
+        )
+        project = load_project(
+            context,
+            url,
+            name,
+            secrets=secrets,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+            user_project=user_project,
+            save=save,
+        )
+
+        logger.info(
+            "Project loaded successfully",
+            project_name=name,
+            path=url or context,
+            stored_in_db=save,
+        )
         return project
+
+    # create a new project
+    project = new_project(
+        name,
+        context,
+        init_git=init_git,
+        user_project=user_project,
+        from_template=from_template,
+        secrets=secrets,
+        subpath=subpath,
+        save=save,
+    )
+    logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    return project
 
 
 def _load_project_dir(context, name="", subpath=""):

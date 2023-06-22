@@ -37,6 +37,7 @@ import (
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
+	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -209,8 +210,7 @@ func (s *Server) StartLog(ctx context.Context,
 		return s.successfulBaseResponse(), nil
 	}
 
-	var pods *v1.PodList
-	var err error
+	var pod v1.Pod
 
 	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
 
@@ -219,7 +219,7 @@ func (s *Server) StartLog(ctx context.Context,
 		s.startLogsFindingPodsTimeout,
 		s.startLogsFindingPodsInterval,
 		func() (bool, error) {
-			pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+			pods, err := s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: request.Selector,
 			})
 
@@ -230,7 +230,15 @@ func (s *Server) StartLog(ctx context.Context,
 				return true, errors.Errorf("No pods found for run uid '%s'", request.RunUID)
 			}
 
-			// if pods were found, stop retrying
+			// found pods. we take the first pod because each run has a single pod.
+			pod = pods.Items[0]
+
+			// make sure pod's state is valid for log collection
+			if !lo.Contains([]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, pod.Status.Phase) {
+				return true, errors.Errorf("Pod '%s' is in %s state", pod.Name, string(pod.Status.Phase))
+			}
+
+			// all good, stop retrying
 			return false, nil
 		}); err != nil {
 
@@ -265,9 +273,6 @@ func (s *Server) StartLog(ctx context.Context,
 			ErrorMessage: err.Error(),
 		}, err
 	}
-
-	// found a pod. for now, we only assume each run has a single pod.
-	pod := pods.Items[0]
 
 	// write log item in progress to state store
 	if err := s.stateManifest.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {

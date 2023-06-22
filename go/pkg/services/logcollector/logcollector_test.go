@@ -38,7 +38,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 type LogCollectorTestSuite struct {
@@ -254,6 +256,81 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 	response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to start log")
 	suite.Require().True(response.Success, "Failed to start log")
+}
+
+func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
+	selector := "app=some-app"
+	var runUidIndex int
+
+	for _, testCase := range []struct {
+		name            string
+		podPhase        v1.PodPhase
+		expectedFailure bool
+	}{
+		{
+			name:            "pod is running",
+			podPhase:        v1.PodRunning,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is succeeded",
+			podPhase:        v1.PodSucceeded,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is failed",
+			podPhase:        v1.PodFailed,
+			expectedFailure: true,
+		},
+		{
+			name:            "pod is pending",
+			podPhase:        v1.PodPending,
+			expectedFailure: true,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+			runUidIndex++
+
+			returnedPod := v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					Labels: map[string]string{
+						"app": "some-app",
+					},
+				},
+				Status: v1.PodStatus{
+					Phase: testCase.podPhase,
+				},
+			}
+			suite.kubeClientSet.PrependReactor("list",
+				"pods",
+				func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+					obj := action.(k8stesting.ListAction)
+					if obj.GetListRestrictions().Labels.String() == selector {
+						return true, &v1.PodList{
+							Items: []v1.Pod{returnedPod},
+						}, nil
+					}
+					return false, nil, nil
+				})
+
+			// call start log
+			request := &log_collector.StartLogRequest{
+				RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
+				ProjectName: "some-project",
+				Selector:    selector,
+			}
+
+			response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
+			if testCase.expectedFailure {
+				suite.Require().Error(err, "Start log should have failed")
+				suite.Require().False(response.Success, "Start log should not have succeeded")
+			} else {
+				suite.Require().NoError(err, "Start log should not have failed")
+				suite.Require().True(response.Success, "Start log should have succeeded")
+			}
+		})
+	}
 }
 
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {

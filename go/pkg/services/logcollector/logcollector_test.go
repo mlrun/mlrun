@@ -288,48 +288,51 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 			expectedFailure: true,
 		},
 	} {
-		suite.Run(testCase.name, func() {
-			runUidIndex++
+		// not using suite.Run because when the test cases run in parallel the fake client set is shared between them
+		// and it causes conflicts
+		suite.logger.InfoWith("Running test case", testCase.name)
 
-			returnedPod := v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-pod",
-					Labels: map[string]string{
-						"app": "some-app",
-					},
+		runUidIndex++
+
+		fakePod := v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("test-pod-%d", runUidIndex),
+				Labels: map[string]string{
+					"app": "some-app",
 				},
-				Status: v1.PodStatus{
-					Phase: testCase.podPhase,
-				},
-			}
-			suite.kubeClientSet.PrependReactor("list",
-				"pods",
-				func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-					obj := action.(k8stesting.ListAction)
-					if obj.GetListRestrictions().Labels.String() == selector {
-						return true, &v1.PodList{
-							Items: []v1.Pod{returnedPod},
-						}, nil
-					}
-					return false, nil, nil
-				})
+			},
+			Status: v1.PodStatus{
+				Phase: testCase.podPhase,
+			},
+		}
 
-			// call start log
-			request := &log_collector.StartLogRequest{
-				RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
-				ProjectName: "some-project",
-				Selector:    selector,
-			}
+		suite.kubeClientSet.PrependReactor("list",
+			"pods",
+			func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+				obj := action.(k8stesting.ListAction)
+				if obj.GetListRestrictions().Labels.String() == selector {
+					return true, &v1.PodList{
+						Items: []v1.Pod{fakePod},
+					}, nil
+				}
+				return false, nil, nil
+			})
 
-			response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
-			if testCase.expectedFailure {
-				suite.Require().Error(err, "Start log should have failed")
-				suite.Require().False(response.Success, "Start log should not have succeeded")
-			} else {
-				suite.Require().NoError(err, "Start log should not have failed")
-				suite.Require().True(response.Success, "Start log should have succeeded")
-			}
-		})
+		// call start log
+		request := &log_collector.StartLogRequest{
+			RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
+			ProjectName: "some-project",
+			Selector:    selector,
+		}
+
+		response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
+		if testCase.expectedFailure {
+			suite.Require().Error(err, "Start log should have failed")
+			suite.Require().False(response.Success, "Start log should not have succeeded")
+		} else {
+			suite.Require().NoError(err, "Start log should not have failed")
+			suite.Require().True(response.Success, "Start log should have succeeded")
+		}
 	}
 }
 

@@ -15,7 +15,6 @@
 
 import asyncio
 import logging
-import platform
 import typing
 from typing import List, Optional
 
@@ -140,7 +139,7 @@ class _CustomRequestContext(_RequestContext):
                 # will help traceability and debugging
                 headers[
                     aiohttp.hdrs.USER_AGENT
-                ] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version} hostname/{platform.node()}"
+                ] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
 
                 response: typing.Optional[
                     aiohttp.ClientResponse

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import platform
+
 import time
 
 import requests
@@ -105,7 +105,7 @@ class HTTPSessionWithRetry(requests.Session):
         kwargs.setdefault("headers", {})
         kwargs["headers"][
             "User-Agent"
-        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version} hostname/{platform.node()}"
+        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
         while True:
             try:
                 response = super().request(method, url, **kwargs)

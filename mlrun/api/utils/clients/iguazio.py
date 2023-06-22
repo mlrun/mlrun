@@ -90,6 +90,7 @@ class Client(
             [[1, 10], [5, None]]
         )
         self._wait_for_project_terminal_state_retry_interval = 5
+        self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
 
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
@@ -97,7 +98,7 @@ class Client(
         Try to find a ready grafana app service, and return its URL
         If nothing found, returns None
         """
-        logger.debug("Getting grafana service url from Iguazio")
+        self._logger.debug("Getting grafana service url from Iguazio")
         response = self._send_request_to_api(
             "GET",
             "app_services_manifests",
@@ -185,7 +186,7 @@ class Client(
             json=body,
         )
         if response.status_code == http.HTTPStatus.CREATED.value:
-            logger.debug("Created access key in Iguazio", planes=planes)
+            self._logger.debug("Created access key in Iguazio", planes=planes)
         return response.json()["data"]["id"]
 
     def create_project(
@@ -194,7 +195,7 @@ class Client(
         project: mlrun.common.schemas.Project,
         wait_for_completion: bool = True,
     ) -> bool:
-        logger.debug("Creating project in Iguazio", project=project)
+        self._logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(
             session, project.metadata.name, body, wait_for_completion
@@ -206,7 +207,7 @@ class Client(
         name: str,
         project: mlrun.common.schemas.Project,
     ):
-        logger.debug("Updating project in Iguazio", name=name)
+        self._logger.debug("Updating project in Iguazio", name=name)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         self._put_project_to_iguazio(session, name, body)
 
@@ -217,7 +218,7 @@ class Client(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         wait_for_completion: bool = True,
     ) -> bool:
-        logger.debug(
+        self._logger.debug(
             "Deleting project in Iguazio",
             name=name,
             deletion_strategy=deletion_strategy,
@@ -242,7 +243,7 @@ class Client(
         except requests.HTTPError as exc:
             if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
                 raise
-            logger.debug(
+            self._logger.debug(
                 "Project not found in Iguazio. Considering deletion as successful",
                 name=name,
                 deletion_strategy=deletion_strategy,
@@ -251,7 +252,7 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
-                logger.debug(
+                self._logger.debug(
                     "Waiting for project deletion job in Iguazio",
                     name=name,
                     job_id=job_id,
@@ -397,13 +398,18 @@ class Client(
     ) -> bool:
         _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
-            logger.debug(
+            self._logger.debug(
                 "Waiting for project creation job in Iguazio",
                 name=name,
                 job_id=job_id,
             )
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
+            )
+            self._logger.debug(
+                "Successfully created project in Iguazio",
+                name=name,
+                job_id=job_id,
             )
             return False
         return True
@@ -466,7 +472,7 @@ class Client(
         job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
             360,
-            logger,
+            self._logger,
             False,
             _verify_job_in_terminal_state,
         )
@@ -483,6 +489,7 @@ class Client(
             if not status_code:
                 raise mlrun.errors.MLRunRuntimeError(error_message)
             raise mlrun.errors.raise_for_status_code(status_code, error_message)
+        self._logger.debug("Job completed successfully", job_id=job_id)
 
     def _send_request_to_api(
         self, method, path, error_message: str, session=None, **kwargs
@@ -748,7 +755,7 @@ class Client(
             if errors or ctx:
                 log_kwargs.update({"ctx": ctx, "errors": errors})
 
-        logger.warning("Request to iguazio failed", **log_kwargs)
+        self._logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)
 
 

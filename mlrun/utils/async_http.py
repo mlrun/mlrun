@@ -15,6 +15,7 @@
 
 import asyncio
 import logging
+import platform
 import typing
 from typing import List, Optional
 
@@ -134,6 +135,13 @@ class _CustomRequestContext(_RequestContext):
                     params = self._params_list[-1]
 
                 headers = {k: v for k, v in params.headers.items() if v is not None}
+
+                # enrich user agent
+                # will help traceability and debugging
+                headers[
+                    aiohttp.hdrs.USER_AGENT
+                ] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version} hostname/{platform.node()}"
+
                 response: typing.Optional[
                     aiohttp.ClientResponse
                 ] = await self._request_func(

@@ -62,6 +62,28 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
+| ML=3474 | Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From 1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. |
+
+```
+ # Set 2 functions:
+func1 = project.set_function(...)
+func2 = project.set_function(...)
+
+# Run the first function:
+run1 = func1.run(...)
+# In the function  `func1` we logged a model "my_model" and an artifact "my_artifact"
+run1.outputs  
+{
+    "my_model": "store://...",
+    "my_artifact": "store://...",  # Instead of target path: "/User/.../data.csv"
+}
+
+# The function `func2` expects a `DataItem` for the logged artifact so passing it through inputs will work as `DataItem` can work with store paths:
+run2 = func2.run(..., inputs={"artifact": run1.outputs["my_artifact"]})
+
+# But passing it through a parameter won't work as the string value is now a store path and not a target path:
+run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
+```
 
 ### Deprecations
 | ID   | Description                                                    |

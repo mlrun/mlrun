@@ -24,6 +24,7 @@ import urllib.parse
 
 import aiohttp
 import fastapi
+import igz_mgmt.schemas.manual_events
 import requests.adapters
 from fastapi.concurrency import run_in_threadpool
 
@@ -89,6 +90,7 @@ class Client(
             [[1, 10], [5, None]]
         )
         self._wait_for_project_terminal_state_retry_interval = 5
+        self._igz_clients = {}
 
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
@@ -318,6 +320,25 @@ class Client(
         False because client is synchronous
         """
         return True
+
+    def emit_manual_event(
+        self, access_key: str, event: igz_mgmt.schemas.manual_events.ManualEventSchema
+    ):
+        """
+        Emit a manual event to Iguazio
+        """
+        client = self._get_igz_client(access_key)
+        igz_mgmt.ManualEvents.emit(
+            http_client=client, event=event, audit_tenant_id=client.tenant_id
+        )
+
+    def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
+        if not self._igz_clients.get(access_key):
+            self._igz_clients[access_key] = igz_mgmt.Client(
+                endpoint=self._api_url,
+                access_key=access_key,
+            )
+        return self._igz_clients[access_key]
 
     def _list_project_names(
         self,

@@ -47,6 +47,12 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .events import (
+    AuthSecretEventActions,
+    EventClientKinds,
+    EventsModes,
+    SecretEventActions,
+)
 from .feature_store import (
     EntitiesOutput,
     Entity,

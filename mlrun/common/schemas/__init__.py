@@ -47,6 +47,12 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .events import (
+    AuthSecretEventActions,
+    EventClientKinds,
+    EventsModes,
+    SecretEventActions,
+)
 from .feature_store import (
     EntitiesOutput,
     Entity,
@@ -107,7 +113,13 @@ from .model_endpoints import (
     ModelEndpointStatus,
     ModelMonitoringStoreKinds,
 )
-from .notification import NotificationSeverity, NotificationStatus
+from .notification import (
+    Notification,
+    NotificationKind,
+    NotificationSeverity,
+    NotificationStatus,
+    SetNotificationRequest,
+)
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
 from .project import (
@@ -124,6 +136,7 @@ from .project import (
     ProjectSummariesOutput,
     ProjectSummary,
 )
+from .runs import RunIdentifier
 from .runtime_resource import (
     GroupedByJobRuntimeResourcesOutput,
     GroupedByProjectRuntimeResourcesOutput,
@@ -135,6 +148,7 @@ from .runtime_resource import (
 )
 from .schedule import (
     ScheduleCronTrigger,
+    ScheduleIdentifier,
     ScheduleInput,
     ScheduleKinds,
     ScheduleOutput,

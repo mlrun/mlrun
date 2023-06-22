@@ -35,33 +35,6 @@ from mlrun.api.utils.asyncio import maybe_coroutine
 from tests.common_fixtures import aioresponses_mock
 
 
-@pytest.fixture()
-async def api_url() -> str:
-    api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config._iguazio_api_url = api_url
-    return api_url
-
-
-@pytest.fixture()
-async def iguazio_client(
-    api_url: str,
-    request,
-) -> mlrun.api.utils.clients.iguazio.Client:
-    if request.param == "async":
-        client = mlrun.api.utils.clients.iguazio.AsyncClient()
-    else:
-        client = mlrun.api.utils.clients.iguazio.Client()
-
-    # force running init again so the configured api url will be used
-    client.__init__()
-    client._wait_for_job_completion_retry_interval = 0
-    client._wait_for_project_terminal_state_retry_interval = 0
-
-    # inject the request param into client, so we can use it in tests
-    setattr(client, "mode", request.param)
-    return client
-
-
 def patch_restful_request(
     is_client_sync: bool,
     requests_mock: requests_mock_package.Mocker,

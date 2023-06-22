@@ -29,6 +29,7 @@ import pandas as pd
 import pyarrow
 import pyarrow.parquet as pq
 import pytest
+import pytz
 import requests
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
@@ -370,17 +371,13 @@ class TestFeatureStore(TestMLRunSystem):
 
         # with_indexes = False, entity_timestamp_column = None
         default_df = fstore.get_offline_features(vector).to_dataframe()
-        assert isinstance(
-            default_df.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
-        assert default_df.index.name is None, "index column is not of default type"
-        assert "time" not in default_df.columns, "'time' column shouldn't be present"
-        assert (
-            "ticker" not in default_df.columns
-        ), "'ticker' column shouldn't be present"
+        assert isinstance(default_df.index, pd.core.indexes.range.RangeIndex)
+        assert default_df.index.name is None
+        assert "time" not in default_df.columns
+        assert "ticker" not in default_df.columns
 
         # with_indexes = False, entity_timestamp_column = "time"
-        resp = fstore.get_offline_features(vector, entity_timestamp_column="time")
+        resp = fstore.get_offline_features(vector)
         df_no_time = resp.to_dataframe()
 
         tmpdir = tempfile.mkdtemp()
@@ -393,33 +390,21 @@ class TestFeatureStore(TestMLRunSystem):
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
         assert read_back_df.equals(df_no_time)
 
-        assert isinstance(
-            df_no_time.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
-        assert df_no_time.index.name is None, "index column is not of default type"
-        assert "time" not in df_no_time.columns, "'time' column should not be present"
-        assert (
-            "ticker" not in df_no_time.columns
-        ), "'ticker' column shouldn't be present"
-        assert (
-            "another_time" in df_no_time.columns
-        ), "'another_time' column should be present"
+        assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
+        assert df_no_time.index.name is None
+        assert "time" not in df_no_time.columns
+        assert "ticker" not in df_no_time.columns
+        assert "another_time" in df_no_time.columns
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
-        df_with_time = fstore.get_offline_features(
-            vector, entity_timestamp_column="another_time"
-        ).to_dataframe()
+        df_without_time_and_indexes = fstore.get_offline_features(vector).to_dataframe()
         assert isinstance(
-            df_with_time.index, pd.core.indexes.range.RangeIndex
-        ), "index column is not of default type"
-        assert df_with_time.index.name is None, "index column is not of default type"
-        assert (
-            "ticker" not in df_with_time.columns
-        ), "'ticker' column shouldn't be present"
-        assert "time" in df_with_time.columns, "'time' column should be present"
-        assert (
-            "another_time" not in df_with_time.columns
-        ), "'another_time' column should not be present"
+            df_without_time_and_indexes.index, pd.core.indexes.range.RangeIndex
+        )
+        assert df_without_time_and_indexes.index.name is None
+        assert "ticker" not in df_without_time_and_indexes.columns
+        assert "time" not in df_without_time_and_indexes.columns
+        assert "another_time" in df_without_time_and_indexes.columns
 
         vector.spec.with_indexes = True
         df_with_index = fstore.get_offline_features(vector).to_dataframe()
@@ -779,7 +764,8 @@ class TestFeatureStore(TestMLRunSystem):
             verify_ingest(data, key, targets=[TargetTypes.nosql])
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
-    def test_filtering_parquet_by_time(self):
+    @pytest.mark.parametrize("with_tz", [False, True])
+    def test_filtering_parquet_by_time(self, with_tz):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements", entities=[Entity(key)], timestamp_key="timestamp"
@@ -787,8 +773,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time="2020-12-01 17:33:16",
+            start_time=datetime(
+                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(
@@ -802,8 +790,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2022, 12, 1, 17, 33, 15),
-            end_time="2022-12-01 17:33:16",
+            start_time=datetime(
+                2022, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2022-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(
@@ -847,9 +837,7 @@ class TestFeatureStore(TestMLRunSystem):
             f"{name}.*",
         ]
         vector = fstore.FeatureVector("myvector", features)
-        resp2 = fstore.get_offline_features(
-            vector, entity_timestamp_column="timestamp", with_indexes=True
-        )
+        resp2 = fstore.get_offline_features(vector, with_indexes=True)
         resp2 = resp2.to_dataframe().to_dict()
 
         assert resp1 == resp2
@@ -896,7 +884,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             start_time=datetime(2020, 12, 1, 17, 33, 15),
             end_time="2020-12-01 17:33:16",
-            entity_timestamp_column="timestamp",
+            timestamp_for_filtering="timestamp",
         )
         resp2 = resp.to_dataframe()
         assert len(resp2) == 10
@@ -923,6 +911,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected = source.to_dataframe().set_index("patient_id")
 
+        # The file is sorted by time. 10 is just an arbitrary number.
+        start_time = expected["timestamp"][10]
+
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
                 measurements_set,
@@ -941,11 +932,12 @@ class TestFeatureStore(TestMLRunSystem):
         # verify that get_offline (and preview) equals the source
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
         resp = fstore.get_offline_features(
-            vector, entity_timestamp_column="timestamp", with_indexes=True
+            vector, with_indexes=True, start_time=start_time
         )
         get_offline_pd = resp.to_dataframe()
-        get_offline_pd["timestamp"] = pd.to_datetime(get_offline_pd["timestamp"])
 
+        # check time filter with passthrough
+        expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
         # assert get_online correctness
@@ -1052,9 +1044,7 @@ class TestFeatureStore(TestMLRunSystem):
         feature_vector = fstore.FeatureVector(
             "test_fv", features, description="test FV"
         )
-        res = fstore.get_offline_features(
-            feature_vector, entity_timestamp_column="time"
-        )
+        res = fstore.get_offline_features(feature_vector)
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
@@ -1072,9 +1062,7 @@ class TestFeatureStore(TestMLRunSystem):
         feature_vector = fstore.FeatureVector(
             "test_fv", features, description="test FV"
         )
-        res = fstore.get_offline_features(
-            feature_vector, entity_timestamp_column="time"
-        )
+        res = fstore.get_offline_features(feature_vector)
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
@@ -1092,9 +1080,7 @@ class TestFeatureStore(TestMLRunSystem):
         feature_vector = fstore.FeatureVector(
             "test_fv", features, description="test FV"
         )
-        res = fstore.get_offline_features(
-            feature_vector, entity_timestamp_column="time"
-        )
+        res = fstore.get_offline_features(feature_vector)
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
@@ -1224,7 +1210,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp = fstore.get_offline_features(
             vector,
-            entity_timestamp_column="time_stamp",
+            timestamp_for_filtering="time_stamp",
             start_time="2021-06-09 09:30",
             end_time=datetime(2021, 6, 9, 10, 30),
         )
@@ -1285,7 +1271,7 @@ class TestFeatureStore(TestMLRunSystem):
         vector = fstore.FeatureVector("vector", features)
         resp = fstore.get_offline_features(
             vector,
-            entity_timestamp_column="time_stamp",
+            timestamp_for_filtering="time_stamp",
             start_time=datetime(2021, 6, 9, 9, 30),
             end_time=None,  # will translate to now()
         )
@@ -4049,6 +4035,143 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_as_of_join_different_ts(self, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_worker_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
+
+        df_left = pd.DataFrame(
+            {
+                "ent": ["a", "b"],
+                "f1": ["a-val", "b-val"],
+                "ts_l": [test_base_time, test_base_time],
+            }
+        )
+
+        df_right = pd.DataFrame(
+            {
+                "ent": ["a", "a", "a", "b"],
+                "ts_r": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                ],
+                "f2": ["newest", "middle", "oldest", "only-value"],
+            }
+        )
+
+        expected_df = pd.DataFrame(
+            {
+                "f1": ["a-val", "b-val"],
+                "f2": ["newest", "only-value"],
+            }
+        )
+
+        fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts_l")
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts_r")
+
+        fstore.ingest(fset1, df_left)
+        fstore.ingest(fset2, df_right)
+
+        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
+
+        resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
+        res_df = resp.to_dataframe().sort_index(axis=1)
+
+        assert_frame_equal(expected_df, res_df)
+
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    @pytest.mark.parametrize(
+        "timestamp_for_filtering",
+        [None, "other_ts", "bad_ts", {"fs1": "other_ts"}, {"fs1": "bad_ts"}],
+    )
+    def test_time_and_columns_filter(self, engine, timestamp_for_filtering):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_worker_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00")
+
+        df = pd.DataFrame(
+            {
+                "ent": ["a", "b", "c", "d"],
+                "ts_key": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=4),
+                ],
+                "other_ts": [
+                    test_base_time - pd.Timedelta(minutes=4),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=1),
+                ],
+                "val": [1, 2, 3, 4],
+            }
+        )
+
+        fset1 = fstore.FeatureSet("fs1", entities=["ent"], timestamp_key="ts_key")
+
+        fstore.ingest(fset1, df)
+
+        vec = fstore.FeatureVector("vec1", ["fs1.val"])
+        if isinstance(timestamp_for_filtering, dict):
+            timestamp_for_filtering_str = timestamp_for_filtering["fs1"]
+        else:
+            timestamp_for_filtering_str = timestamp_for_filtering
+        if timestamp_for_filtering_str != "bad_ts":
+            resp = fstore.get_offline_features(
+                vec,
+                start_time=test_base_time - pd.Timedelta(minutes=3),
+                end_time=test_base_time,
+                timestamp_for_filtering=timestamp_for_filtering,
+                engine=engine,
+                engine_args=engine_args,
+            )
+            res_df = resp.to_dataframe().sort_index(axis=1)
+
+            if not timestamp_for_filtering_str:
+                assert res_df["val"].tolist() == [1, 2]
+            elif timestamp_for_filtering_str == "other_ts":
+                assert res_df["val"].tolist() == [3, 4]
+            assert res_df.columns == ["val"]
+        else:
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="Feature set `fs1` does not have a column named `bad_ts` to filter on.",
+            ):
+                fstore.get_offline_features(
+                    vec,
+                    start_time=test_base_time - pd.Timedelta(minutes=3),
+                    end_time=test_base_time,
+                    timestamp_for_filtering=timestamp_for_filtering,
+                    engine=engine,
+                    engine_args=engine_args,
+                )
+
     # ML-3900
     def test_get_online_features_after_ingest_without_inference(self):
         feature_set = fstore.FeatureSet(
@@ -4084,6 +4207,29 @@ class TestFeatureStore(TestMLRunSystem):
             fstore.get_online_feature_service(
                 f"store://feature-vectors/{self.project_name}/my-vector:latest"
             )
+
+    def test_ingest_with_rename_columns(self):
+        csv_path = str(self.assets_path / "fields_with_space.csv")
+        name = f"test_ingest_with_rename_columns_{uuid.uuid4()}"
+        data = pd.read_csv(csv_path)
+        expected_result = data.copy().rename(columns={"city of birth": "city_of_birth"})
+        expected_result.set_index("name", inplace=True)
+        feature_set = fstore.FeatureSet(
+            name=name,
+            entities=[fstore.Entity("name")],
+        )
+        fstore.preview(
+            feature_set,
+            data,
+        )
+        inspect_result = fstore.ingest(feature_set, data)
+        feature_vector = fstore.FeatureVector(
+            name=name, features=[f"{self.project_name}/{name}.*"]
+        )
+        feature_vector.spec.with_indexes = True
+        offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
+        assert offline_features_df.equals(inspect_result)
+        assert offline_features_df.equals(expected_result)
 
 
 def verify_purge(fset, targets):

@@ -40,7 +40,7 @@ from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import Response
-from ..utils import get_caller_globals, logger, normalize_name, str_to_timestamp
+from ..utils import get_caller_globals, logger, normalize_name
 from .common import (
     RunConfig,
     get_feature_set_by_uri,
@@ -105,6 +105,7 @@ def get_offline_features(
     query: str = None,
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
+    timestamp_for_filtering: Union[str, Dict[str, str]] = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -134,27 +135,44 @@ def get_offline_features(
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
-                            permissions
-    :param entity_rows:    dataframe with entity rows to join with
-    :param target:         where to write the results to
-    :param drop_columns:   list of columns to drop from the final result
-    :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-    :param run_config:     function and/or run configuration
-                           see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
-    :param engine:          processing engine kind ("local", "dask", or "spark")
-    :param engine_args:     kwargs for the processing engine
-    :param query:           The query string used to filter rows
-    :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
-    :param order_by:        Name or list of names to order by. The name or the names in the list can be the feature name
-                            or the alias of the feature you pass in the feature list.
+    :param feature_vector:          feature vector uri or FeatureVector object. passing feature vector obj requires
+                                    update permissions
+    :param entity_rows:             dataframe with entity rows to join with
+    :param target:                  where to write the results to
+    :param drop_columns:            list of columns to drop from the final result
+    :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                    only if param entity_rows was specified.
+    :param run_config:              function and/or run configuration
+                                    see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+    :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+    :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature sets
+                                    and with/without entity_timestamp_column and timestamp_for_filtering columns.
+                                    This property can be specified also in the feature vector spec
+                                    (feature_vector.spec.with_indexes)
+                                    (default False)
+    :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                    (default False).
+    :param engine:                  processing engine kind ("local", "dask", or "spark")
+    :param engine_args:             kwargs for the processing engine
+    :param query:                   The query string used to filter rows on the output
+    :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
+    :param order_by:                Name or list of names to order by. The name or the names in the list can be the
+                                    feature name or the alias of the feature you pass in the feature list.
+    :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
+                                    dictionary ({<feature set name>: <timestamp column name>, ...})
+                                    that indicates the timestamp column name for each feature set. Optional.
+                                    By default, the filter executes on the timestamp_key of each feature set.
+                                    Note: the time filtering is performed on each feature set before the
+                                    merge process using start_time and end_time params.
+
     """
+    if entity_rows is None and entity_timestamp_column is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "entity_timestamp_column param "
+            "can not be specified without entity_rows param"
+        )
+
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
 
@@ -177,23 +195,17 @@ def get_offline_features(
             engine_args,
             spark_service,
             entity_rows,
-            timestamp_column=entity_timestamp_column,
+            entity_timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,
             query=query,
             order_by=order_by,
+            start_time=start_time,
+            end_time=end_time,
+            timestamp_for_filtering=timestamp_for_filtering,
         )
 
-    start_time = str_to_timestamp(start_time)
-    end_time = str_to_timestamp(end_time)
-    if (start_time or end_time) and not entity_timestamp_column:
-        raise TypeError(
-            "entity_timestamp_column or feature_vector.spec.timestamp_field is required when passing start/end time"
-        )
-    if start_time and not end_time:
-        # if end_time is not specified set it to now()
-        end_time = pd.Timestamp.now()
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
@@ -202,6 +214,7 @@ def get_offline_features(
         drop_columns=drop_columns,
         start_time=start_time,
         end_time=end_time,
+        timestamp_for_filtering=timestamp_for_filtering,
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,
@@ -658,6 +671,9 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -870,7 +886,6 @@ def _ingest_with_spark(
             df = source
         else:
             df = source.to_spark_df(spark, time_field=timestamp_key)
-            df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 
@@ -976,11 +991,15 @@ def _infer_from_static_df(
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
+        if hasattr(df, "time_field"):
+            time_field = df.time_field or featureset.spec.timestamp_key
+        else:
+            time_field = featureset.spec.timestamp_key
         if df.is_iterator():
             # todo: describe over multiple chunks
-            df = next(df.to_dataframe())
+            df = next(df.to_dataframe(time_field=time_field))
         else:
-            df = df.to_dataframe()
+            df = df.to_dataframe(time_field=time_field)
     inferer = get_infer_interface(df)
     if InferOptions.get_common_options(options, InferOptions.schema()):
         featureset.spec.timestamp_key = inferer.infer_schema(

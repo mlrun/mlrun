@@ -1458,7 +1458,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     if isinstance(attribute, dict):
         if attribute_config["not_sanitized_class"] != dict:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
+                f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
         if _resolve_if_type_sanitized(attribute_name, attribute):
             return attribute
@@ -1468,7 +1468,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     ):
         if attribute_config["not_sanitized_class"] != list:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+                f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )
         if _resolve_if_type_sanitized(attribute_name, attribute[0]):
             return attribute

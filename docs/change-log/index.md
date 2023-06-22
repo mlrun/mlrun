@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.3](#v1-3-3)
 - [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
@@ -18,7 +19,15 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.3.2	
+## v1.3.3	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+
+## v1.3.2
 
 ### Closed issues
 
@@ -66,7 +75,7 @@ To install on a **Python 3.7** environment (and optionally upgrade to python 3.9
 
 ```
 $CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip
+$CONDA_HOME/bin/conda install -y 'pip>=22.0'
 ```
 3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
 ```

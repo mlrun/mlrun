@@ -20,6 +20,7 @@ import traceback
 import typing
 
 import kfp
+import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
@@ -129,6 +130,8 @@ class Pipelines(
                 run = self._format_run(
                     db_session, run, format_, api_run_detail.to_dict()
                 )
+        except kfp_server_api.ApiException as exc:
+            mlrun.errors.raise_for_status_code(int(exc.status), err_to_str(exc))
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
@@ -160,7 +163,6 @@ class Pipelines(
             )
 
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-        print(str(data))
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:
@@ -221,7 +223,7 @@ class Pipelines(
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
             return {
-                k: str(v)
+                k: str(v) if v is not None else v
                 for k, v in run.items()
                 if k
                 in [

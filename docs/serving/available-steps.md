@@ -57,7 +57,7 @@ The following table lists the available data-transformation steps. The next tabl
 | [mlrun.datastore.DataItem](../api/mlrun.datastore.html#mlrun.datastore.DataItem) | Data input/output class abstracting access to various local/remote data sources. |
 | [storey.transformations.JoinWithTable](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.  |
 | JoinWithV3IOTable | Joins each event with a V3IO table. Used for event augmentation.  | 
-| [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.QueryByKey) | Similar to to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
+| [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.QueryByKey) | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
 | [RemoteStep](../api/mlrun.serving.html#mlrun.serving.remote.RemoteStep) | Class for calling remote endpoints. | 
 | [storey.transformations.SendToHttp](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SendToHttp) | Joins each event with data from any HTTP source. Used for event augmentation. |
  

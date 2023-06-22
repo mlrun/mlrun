@@ -186,7 +186,8 @@ class FeatureSetSpec(ModelObj):
     @engine.setter
     def engine(self, engine: str):
         engine_list = ["pandas", "spark", "storey"]
-        if engine and engine not in engine_list:
+        engine = engine if engine else "storey"
+        if engine not in engine_list:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"engine must be one of {','.join(engine_list)}"
             )
@@ -941,7 +942,13 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            df = self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe(
+                columns=columns,
+                start_time=start_time,
+                end_time=end_time,
+                time_field=time_column,
+                **kwargs,
+            )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)

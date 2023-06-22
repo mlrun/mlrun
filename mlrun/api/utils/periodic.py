@@ -34,9 +34,12 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
                 await function(*args, **kwargs)
             else:
                 await run_in_threadpool(function, *args, **kwargs)
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                f"Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}"
+                "Failed during periodic function execution",
+                func_name=function.__name__,
+                exc=mlrun.errors.err_to_str(exc),
+                tb=traceback.format_exc(),
             )
         await asyncio.sleep(interval)
 

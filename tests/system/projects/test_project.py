@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
 import pathlib
 import re
 import shutil
 import sys
-import warnings
 from sys import executable
 
 import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path
@@ -59,17 +60,24 @@ def pipe_test():
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
     custom_project_names_to_delete = []
+    _logger_redirected = False
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        if self._logger_redirected:
+            mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
+            self._logger_redirected = False
+
         self._logger.debug(
             "Deleting custom projects",
             num_projects_to_delete=len(self.custom_project_names_to_delete),
         )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
+
+        self.custom_project_names_to_delete = []
 
     @property
     def assets_path(self):
@@ -134,20 +142,27 @@ class TestProject(TestMLRunSystem):
             kind="job",
             image="mlrun/mlrun",
         )
-        with warnings.catch_warnings(record=True) as w:
-            self.project.build_function(
-                fn,
-                image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
-                base_image="mlrun/mlrun",
-                commands=["echo 1"],
-            )
-            assert len(w) == 2
-            assert (
-                "The image has an unexpected protocol prefix ('http://' or 'https://'),"
-                " if you wish to use the default configured registry, no protocol prefix is required "
-                "(note that you can also simply use '.' instead of the full URL). "
-                in str(w[-1].message)
-            )
+
+        # redirect logger to capture logs and check for warnings
+        self._logger_redirected = True
+        _stdout = io.StringIO()
+        mlrun.utils.logger.replace_handler_stream("default", _stdout)
+
+        # build function with image that has a protocol prefix
+        self.project.build_function(
+            fn,
+            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            base_image="mlrun/mlrun",
+            commands=["echo 1"],
+        )
+        out = _stdout.getvalue()
+        assert (
+            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL "
+            "where <image-name> is a placeholder). "
+            "Removing protocol prefix from image." in out
+        )
 
     def test_run(self):
         name = "pipe0"
@@ -518,6 +533,15 @@ class TestProject(TestMLRunSystem):
                 workflow_name="newflow",
                 engine="remote",
                 local=True,
+            )
+
+    def test_non_existent_run_id_in_pipeline(self):
+        project_name = "default"
+        db = mlrun.get_run_db()
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_pipeline(
+                "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
             )
 
     def test_remote_from_archive(self):
@@ -892,6 +916,72 @@ class TestProject(TestMLRunSystem):
             name=project_name,
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])
+    def test_abort_step_in_workflow(self, pull_state_mode):
+        project_name = "test-abort-step"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.new_project(project_name, context=str(self.assets_path))
+
+        # when pull_state mode is enabled it simulates the flow of wait_for_completion
+        mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = pull_state_mode
+
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "workflow.py")
+
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        project.set_function(
+            name="func-2",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+
+        def _assert_workflow_status(workflow, status):
+            assert workflow.state == status
+
+        # set and run a two-step workflow in the project
+        project.set_workflow("main", workflow_path)
+        workflow = project.run("main", engine="kfp")
+
+        mlrun.utils.retry_until_successful(
+            1,
+            20,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.running,
+        )
+
+        # obtain the first run in the workflow when it began running
+        runs = []
+        while len(runs) != 1:
+            runs = project.list_runs(
+                labels=[f"workflow={workflow.run_id}"], state="running"
+            )
+
+        # abort the first workflow step
+        db = mlrun.get_run_db()
+        db.abort_run(runs.to_objects()[0].uid())
+
+        # when a step is aborted, assert that the entire workflow failed and did not continue
+        mlrun.utils.retry_until_successful(
+            5,
+            60,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.failed,
+        )
 
     def test_project_build_image(self):
         name = "test-build-image"

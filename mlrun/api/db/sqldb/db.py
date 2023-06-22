@@ -2293,7 +2293,8 @@ class SQLDB(DBInterface):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
-
+        print(f"new_feature_set_dict: {new_feature_set_dict}")
+        print(f"feature_set: {feature_set}")
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 

@@ -329,7 +329,9 @@ class ModelArtifact(Artifact):
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
 
-        spec_body = self.to_yaml(exclude=["tag"])
+        # the model spec yaml should not include the tag, as the same model can be used with different tags,
+        # and the tag is not part of the model spec but the metadata of the model artifact
+        spec_body = _remove_tag_from_spec_yaml(self)
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -613,7 +615,7 @@ def _get_extra(target, extra_data, is_dir=False):
 
 def _remove_tag_from_spec_yaml(model_spec):
     spec_dict = model_spec.to_dict()
-    spec_dict.pop("tag", None)
+    spec_dict["metadata"].pop("tag", None)
     return yaml.dump(spec_dict)
 
 
@@ -696,8 +698,10 @@ def update_model(
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
 
-        # update the model spec without the tag
-        store_manager.object(url=spec_path).put(model_spec.to_yaml(exclude=["tag"]))
+        # the model spec yaml should not include the tag, as the same model can be used with different tags,
+        # and the tag is not part of the model spec but the metadata of the model artifact
+        model_spec_yaml = _remove_tag_from_spec_yaml(model_spec)
+        store_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
     if store_object:

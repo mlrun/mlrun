@@ -407,7 +407,7 @@ class Client(
                 session, job_id, "Project creation job failed"
             )
             self._logger.debug(
-                "Waiting for project creation job in Iguazio",
+                "Successfully created project in Iguazio",
                 name=name,
                 job_id=job_id,
             )

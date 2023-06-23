@@ -15,6 +15,7 @@ import datetime
 import getpass
 import glob
 import http
+import importlib.util as imputil
 import json
 import os.path
 import pathlib
@@ -423,9 +424,29 @@ def get_or_create_project(
         return project
 
 
+def _run_project_setup(project: "MlrunProject", setup_file_path: str):
+    """Run the project setup file if found"""
+    if not path.exists(setup_file_path):
+        return project
+    spec = imputil.spec_from_file_location("workflow", setup_file_path)
+    if spec is None:
+        raise ImportError(f"cannot import project setup file in {setup_file_path}")
+    mod = imputil.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    if hasattr(mod, "setup"):
+        project = getattr(mod, "setup")(project)
+    else:
+        logger.warn(
+            "skipping setup, setup() handler was not found in project_setup.py"
+        )
+    return project
+
+
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
     fpath = path.join(context, subpath_str, "project.yaml")
+    setup_file_path = path.join(context, subpath_str, "project_setup.py")
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -445,6 +466,8 @@ def _load_project_dir(context, name="", subpath=""):
                 },
             }
         )
+    elif path.exists(setup_file_path):
+        project = MlrunProject()
     else:
         raise mlrun.errors.MLRunNotFoundError(
             "project or function YAML not found in path"
@@ -453,7 +476,7 @@ def _load_project_dir(context, name="", subpath=""):
     project.spec.context = context
     project.metadata.name = name or project.metadata.name
     project.spec.subpath = subpath
-    return project
+    return _run_project_setup(project, setup_file_path)
 
 
 def _add_username_to_project_name_if_needed(name, user_project):

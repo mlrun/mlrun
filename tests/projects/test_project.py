@@ -338,6 +338,21 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
+def test_load_project_with_setup(context):
+    url = (
+        pathlib.Path(tests.conftest.tests_root_directory)
+        / "projects"
+        / "assets"
+        / "proj-setup.zip"
+    )
+    project = mlrun.load_project(context=context, url=url)
+    assert project.name == "projset"
+    assert project.spec.context == context
+    assert project.spec.source == str(url)
+    assert project.spec.params == {"label_column": "label", "test123": "456"}
+    print(project.to_yaml())
+
+
 @pytest.mark.parametrize(
     "sync,expected_num_of_funcs, save",
     [

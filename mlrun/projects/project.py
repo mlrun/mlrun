@@ -198,7 +198,9 @@ def new_project(
 
     if save and mlrun.mlconf.dbpath:
         if overwrite:
-            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            logger.info(
+                "Overwriting project (by deleting and then creating)", name=name
+            )
             _delete_project_from_db(
                 name, secrets, mlrun.common.schemas.DeletionStrategy.cascade
             )
@@ -211,7 +213,8 @@ def new_project(
                 "Use overwrite=True to overwrite the existing project."
             ) from exc
         logger.info(
-            f"Created and saved project {name}",
+            "Created and saved project",
+            name=name,
             from_template=from_template,
             overwrite=overwrite,
             context=context,
@@ -389,14 +392,11 @@ def get_or_create_project(
 
     except mlrun.errors.MLRunNotFoundError:
         logger.debug("Project not found in db", project_name=name)
-        pass
 
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
-        logger.debug(
-            "Loading project from path", project_name=name, path=url or context
-        )
+        logger.info("Loading project from path", project_name=name, path=url or context)
         project = load_project(
             context,
             url,

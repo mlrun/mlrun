@@ -277,7 +277,7 @@ def get_online_feature_service(
     :param update_stats:        update features statistics from the requested feature sets on the vector.
                                 Default: False.
     :param entity_keys:         Entity list of the first feature_set in the vector.
-                                The indexes that are used in the get function.
+                                The indexes that are used to query the online service.
     :return:                    Initialize the `OnlineVectorService`.
                                 Will be used in subclasses where `support_online=True`.
     """

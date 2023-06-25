@@ -205,11 +205,10 @@ class BaseMerger(abc.ABC):
             column_names = [name for name, _ in columns]
 
             for column in node.data["save_cols"]:
-                if column not in column_names and column not in self._index_columns:
-                    self._append_drop_column(column)
+                if column not in column_names:
                     column_names.append(column)
-                elif column not in column_names:
-                    column_names.append(column)
+                    if column not in self._index_columns:                   
+                        self._append_drop_column(column)
 
             if isinstance(timestamp_for_filtering, dict):
                 time_column = timestamp_for_filtering.get(

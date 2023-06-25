@@ -245,7 +245,7 @@ def get_online_feature_service(
 
             Example::
 
-                svc = get_online_feature_service(vector_uri, ['ticker'])
+                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)

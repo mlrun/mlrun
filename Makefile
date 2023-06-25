@@ -42,6 +42,7 @@ MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0
+MLRUN_CONDA_VERSION ?= 23.5
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -247,6 +248,7 @@ base-core: pull-cache update-version-file ## Build base core docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_CONDA_VERSION=$(MLRUN_CONDA_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) .

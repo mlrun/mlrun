@@ -38,9 +38,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
-	k8stesting "k8s.io/client-go/testing"
 )
 
 type LogCollectorTestSuite struct {
@@ -313,17 +311,8 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 			},
 		}
 
-		suite.kubeClientSet.PrependReactor("list",
-			"pods",
-			func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-				obj := action.(k8stesting.ListAction)
-				if obj.GetListRestrictions().Labels.String() == selector {
-					return true, &v1.PodList{
-						Items: []v1.Pod{fakePod},
-					}, nil
-				}
-				return false, nil, nil
-			})
+		pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
+		suite.Require().NoError(err, "Failed to create pod")
 
 		// call start log
 		request := &log_collector.StartLogRequest{
@@ -340,6 +329,10 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 			suite.Require().NoError(err, "Start log should not have failed")
 			suite.Require().True(response.Success, "Start log should have succeeded")
 		}
+
+		// delete pod when test is done
+		err = suite.kubeClientSet.CoreV1().Pods(suite.namespace).Delete(suite.ctx, pod.Name, metav1.DeleteOptions{})
+		suite.Require().NoError(err, "Failed to delete pod")
 	}
 }
 

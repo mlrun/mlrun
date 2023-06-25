@@ -160,15 +160,22 @@ def verify_field_regex(
                 field_value=field_value,
                 pattern=pattern,
             )
-            if raise_on_failure and mode == mlrun.common.schemas.RegexMatchModes.all:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
-                )
-            else:
+            if mode == mlrun.common.schemas.RegexMatchModes.all:
+                if raise_on_failure:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                    )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
             return True
-    return True
+    if mode == mlrun.common.schemas.RegexMatchModes.all:
+        return True
+    elif mode == mlrun.common.schemas.RegexMatchModes.any:
+        if raise_on_failure:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Field '{field_name}' is malformed. {field_value} does not match any of the required patterns: {patterns}"
+            )
+        return False
 
 
 def validate_builder_source(

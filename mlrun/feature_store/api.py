@@ -257,7 +257,7 @@ def get_online_feature_service(
 
             Example with imputing::
 
-                svc = get_online_feature_service(vector_uri, ['id'], impute_policy={"*": "$mean", "amount": 0))
+                svc = get_online_feature_service(vector_uri, entity_keys=['id'], impute_policy={"*": "$mean", "amount": 0))
                 try:
                     resp = svc.get([{"id": "C123487"}])
                 except Exception as e:

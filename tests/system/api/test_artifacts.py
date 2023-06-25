@@ -17,6 +17,7 @@ import pathlib
 
 import pytest
 
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.errors
 from tests.system.base import TestMLRunSystem

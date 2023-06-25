@@ -37,7 +37,6 @@ import (
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
-	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -233,9 +232,9 @@ func (s *Server) StartLog(ctx context.Context,
 			// found pods. we take the first pod because each run has a single pod.
 			pod = pods.Items[0]
 
-			// make sure pod's state is valid for log collection
-			if !lo.Contains([]v1.PodPhase{v1.PodRunning, v1.PodSucceeded}, pod.Status.Phase) {
-				return true, errors.Errorf("Pod '%s' is in %s state", pod.Name, string(pod.Status.Phase))
+			// fail if pod is pending, as we cannot stream logs from a pending pod
+			if pod.Status.Phase == v1.PodPending {
+				return true, errors.Errorf("Pod '%s' is in pending state", pod.Name)
 			}
 
 			// all good, stop retrying

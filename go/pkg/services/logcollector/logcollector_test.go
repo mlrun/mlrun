@@ -285,7 +285,7 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 		{
 			name:            "pod is failed",
 			podPhase:        v1.PodFailed,
-			expectedFailure: true,
+			expectedFailure: false,
 		},
 		{
 			name:            "pod is pending",

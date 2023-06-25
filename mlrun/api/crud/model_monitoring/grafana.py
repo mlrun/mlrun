@@ -128,7 +128,11 @@ async def grafana_list_endpoints(
 
     table = mlrun.common.schemas.GrafanaTable(columns=columns)
     for endpoint in endpoint_list.endpoints:
-        if filter_router and endpoint.status.endpoint_type == 2:
+        if (
+            filter_router
+            and endpoint.status.endpoint_type
+            == mlrun.common.model_monitoring.EndpointType.ROUTER
+        ):
             continue
         row = [
             endpoint.metadata.uid,

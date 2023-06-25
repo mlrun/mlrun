@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 
+# pipeline param format which is passed when running a pipeline (e.g. {{pipelineparam:op=;name=mem}})
+# this is expected to be resolved on runtime
+pipeline_param = [r"\{\{pipelineparam:op=([^;]*);name=([^}]+)\}\}"]
+
 # k8s character limit is for 63 characters
 k8s_character_limit = [r"^.{0,63}$"]
 

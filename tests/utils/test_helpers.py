@@ -95,6 +95,19 @@ def test_run_name_regex(value, expected):
 
 
 @pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("{{pipelineparam:op=;name=mem}}", does_not_raise()),
+        ("{{pipelineparam:op=2;name=mem}}", does_not_raise()),
+        ("{{pipelineparam:op=10Mb;name=mem}}", does_not_raise()),
+    ],
+)
+def test_pipeline_param(value, expected):
+    with expected:
+        verify_field_regex("test_field", value, mlrun.utils.regex.pipeline_param)
+
+
+@pytest.mark.parametrize(
     "value,expected",
     [
         ("asd", does_not_raise()),

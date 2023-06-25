@@ -599,6 +599,9 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
+    def has_pipeline_param(self) -> bool:
+        return self.to_json().find("{{pipelineparam:op") > 0
+
     def full_image_path(
         self, image=None, client_version: str = None, client_python_version: str = None
     ):
@@ -678,10 +681,9 @@ class BaseRuntime(ModelObj):
         :return: KubeFlow containerOp
         """
 
-        # if self.spec.image and not image:
-        #     image = self.full_image_path()
-
-        if use_db:
+        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
+        # ContainerOp this way KFP will substitute the params with previous step outputs
+        if (use_db or use_db is None) and not self.has_pipeline_param():
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status
             versioned = False if hasattr(self, "_build_in_pipeline") else True

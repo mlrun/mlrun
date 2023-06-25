@@ -260,7 +260,14 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 
 func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 	selector := "app=some-app"
+	projectName := "some-project"
 	var runUidIndex int
+
+	// remove project from in-progress cache when test is done
+	defer func() {
+		err := suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		suite.Require().NoError(err, "Failed to remove project from state manifest")
+	}()
 
 	for _, testCase := range []struct {
 		name            string
@@ -321,7 +328,7 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 		// call start log
 		request := &log_collector.StartLogRequest{
 			RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
-			ProjectName: "some-project",
+			ProjectName: projectName,
 			Selector:    selector,
 		}
 

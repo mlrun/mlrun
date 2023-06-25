@@ -813,7 +813,7 @@ class RemoteRuntime(KubeResource):
             or use_function_from_db is None
             # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
             # ContainerOp this way KFP will substitute the params with previous step outputs
-            and not self.has_pipeline_param()
+            and not self._has_pipeline_param()
         ):
             url = self.save(versioned=True, refresh=True)
         else:

@@ -14,6 +14,7 @@
 #
 
 import time
+import typing
 
 import requests
 import requests.adapters
@@ -82,6 +83,7 @@ class HTTPSessionWithRetry(requests.Session):
         self.retry_on_exception = retry_on_exception
         self.verbose = verbose
         self._logger = logger.get_child("http-client")
+        self._retry_methods = self._resolve_retry_methods(retry_on_post)
 
         if retry_on_status:
             self._http_adapter = requests.adapters.HTTPAdapter(
@@ -89,7 +91,7 @@ class HTTPSessionWithRetry(requests.Session):
                     total=self.max_retries,
                     backoff_factor=self.retry_backoff_factor,
                     status_forcelist=config.http_retry_defaults.status_codes,
-                    method_whitelist=self._get_retry_methods(retry_on_post),
+                    method_whitelist=self._retry_methods,
                     # we want to retry but not to raise since we do want that last response (to parse details on the
                     # error from response body) we'll handle raising ourselves
                     raise_on_status=False,
@@ -123,11 +125,12 @@ class HTTPSessionWithRetry(requests.Session):
 
                 # if the response is not retryable, return it.
                 # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
-                if self._method_retryable(method):
+                if not self._method_retryable(method):
                     self._log_exception(
                         "warning",
                         exc,
                         f"{method} {url} request failed, http retries disabled for {method} method.",
+                        retry_count,
                     )
                     raise exc
 
@@ -178,18 +181,15 @@ class HTTPSessionWithRetry(requests.Session):
                 time.sleep(self.retry_backoff_factor)
 
     def _method_retryable(self, method: str):
-        if self._http_adapter.max_retries.allowed_methods is False:
-            return True
-        return method.upper() in self._http_adapter.max_retries.allowed_methods
+        return method in self._retry_methods
 
-    @staticmethod
-    def _get_retry_methods(retry_on_post=False):
-        return (
-            # setting to False in order to retry on all methods, otherwise every method except POST.
-            False
-            if retry_on_post
-            else urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
-        )
+    def _resolve_retry_methods(
+        self, retry_on_post: bool = False
+    ) -> typing.FrozenSet[str]:
+        methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
+        if retry_on_post:
+            methods = methods.union({"POST"})
+        return frozenset(methods)
 
     def _log_exception(self, level, exc, message, retry_count):
         getattr(self._logger, level)(

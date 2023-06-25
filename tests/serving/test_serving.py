@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -555,6 +555,8 @@ def test_v2_model_ready():
     event = MockEvent("", path="/v2/models/m1/ready", method="GET")
     resp = context.mlrun_handler(context, event)
     assert resp.status_code == 200, f"didnt get proper ready resp {resp.body}"
+    resp_body = resp.body.decode("utf-8")
+    assert resp_body == f"Model m1 is ready (event_id = {event.id})"
 
 
 def test_v2_health():

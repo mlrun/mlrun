@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -108,6 +108,9 @@ class BaseMerger(abc.ABC):
         if update_stats:
             # update the feature vector objects with refreshed stats
             self.vector.save()
+
+        if self._drop_indexes and entity_timestamp_column:
+            self._append_drop_column(entity_timestamp_column)
 
         for feature_set in feature_set_objects.values():
             if self._drop_indexes:
@@ -229,6 +232,8 @@ class BaseMerger(abc.ABC):
                     f"does not have a column named `{time_column}` to filter on."
                 )
 
+            if self._drop_indexes:
+                self._append_drop_column(time_column)
             if (start_time or end_time) and time_column:
                 filtered = True
 

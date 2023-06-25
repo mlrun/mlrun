@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 from mlrun import mlconf
@@ -124,12 +125,14 @@ class K8sSecretsMock:
     def get_auth_secret_name(username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
 
-    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+    def store_auth_secret(
+        self, username: str, access_key: str, namespace=""
+    ) -> (str, bool):
         secret_ref = self.get_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
-        return secret_ref
+        return secret_ref, True
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -162,8 +165,10 @@ class K8sSecretsMock:
         ]
         return username, access_key
 
-    def store_project_secrets(self, project, secrets, namespace=""):
+    def store_project_secrets(self, project, secrets, namespace="") -> (str, bool):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
+        secret_name = project
+        return secret_name, True
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         if not secrets:
@@ -171,6 +176,7 @@ class K8sSecretsMock:
         else:
             for key in secrets:
                 self.project_secrets_map.get(project, {}).pop(key, None)
+        return "", True
 
     def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secret_keys = list(self.project_secrets_map.get(project, {}).keys())
@@ -302,3 +308,30 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     return kfp_client_mock
+
+
+@pytest.fixture()
+async def api_url() -> str:
+    api_url = "http://iguazio-api-url:8080"
+    mlrun.config.config._iguazio_api_url = api_url
+    return api_url
+
+
+@pytest.fixture()
+async def iguazio_client(
+    api_url: str,
+    request: pytest.FixtureRequest,
+) -> mlrun.api.utils.clients.iguazio.Client:
+    if request.param == "async":
+        client = mlrun.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = mlrun.api.utils.clients.iguazio.Client()
+
+    # force running init again so the configured api url will be used
+    client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
+    client._wait_for_project_terminal_state_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
+    return client

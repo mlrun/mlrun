@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -630,7 +630,7 @@ class Scheduler:
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f"Cron trigger too frequent. no more then one job "
+                    f"Cron trigger too frequent. no more than one job "
                     f"per {self._min_allowed_interval} is allowed"
                 )
 

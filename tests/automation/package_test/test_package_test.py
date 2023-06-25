@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,17 +26,25 @@ def test_test_requirements_vulnerabilities():
     cases = [
         {
             "output": """
-[
-    [
-        "fastapi",
-        "<0.75.2",
-        "0.67.0",
-        "Fastapi 0.75.2 updates its dependency 'ujson' ranges to include a security fix.",
-        "48159",
-        null,
-        null
-    ]
-]""",
+    {
+        "vulnerabilities": [
+            {
+                "vulnerability_id": "44716",
+                "package_name": "numpy",
+                "vulnerable_spec": "<1.22.0",
+                "all_vulnerable_specs": [
+                    "<1.22.0"
+                ],
+                "analyzed_version": "1.21.6",
+                "advisory": "Numpy 1.22.0 includes a fix for CVE-2021-41496",
+                "CVE": "CVE-2021-41496",
+                "severity": null,
+                "affected_versions": [],
+                "more_info_url": "https://pyup.io/v/44716/f17"
+            }
+        ]
+    }
+""",
             "expected_to_fail": True,
         },
         {

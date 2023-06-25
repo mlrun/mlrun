@@ -9,7 +9,7 @@ You can write your code on a local machine while running your functions on a rem
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
    - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites

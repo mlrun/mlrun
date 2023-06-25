@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -198,7 +198,9 @@ def new_project(
 
     if save and mlrun.mlconf.dbpath:
         if overwrite:
-            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            logger.info(
+                "Overwriting project (by deleting and then creating)", name=name
+            )
             _delete_project_from_db(
                 name, secrets, mlrun.common.schemas.DeletionStrategy.cascade
             )
@@ -211,7 +213,8 @@ def new_project(
                 "Use overwrite=True to overwrite the existing project."
             ) from exc
         logger.info(
-            f"Created and saved project {name}",
+            "Created and saved project",
+            name=name,
             from_template=from_template,
             overwrite=overwrite,
             context=context,
@@ -358,7 +361,7 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will excute `git init` on the context dir
+    :param init_git:     if True, will execute `git init` on the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current username to the project name (for db:// prefixes)
@@ -367,6 +370,8 @@ def get_or_create_project(
     :returns: project object
     """
     context = context or "./"
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -382,45 +387,49 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"Loaded project {name} from MLRun DB")
+        logger.info("Project loaded successfully", project_name=name)
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath or "", "project.yaml")
-        if url or path.isfile(spec_path):
-            # load project from archive or local project.yaml
-            project = load_project(
-                context,
-                url,
-                name,
-                secrets=secrets,
-                init_git=init_git,
-                subpath=subpath,
-                clone=clone,
-                user_project=user_project,
-                save=save,
-            )
-            message = f"Loaded project {name} from {url or context}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
-        else:
-            # create a new project
-            project = new_project(
-                name,
-                context,
-                init_git=init_git,
-                user_project=user_project,
-                from_template=from_template,
-                secrets=secrets,
-                subpath=subpath,
-                save=save,
-            )
-            message = f"Created project {name}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
+        logger.debug("Project not found in db", project_name=name)
+
+    # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
+    if load_from_path:
+        # loads a project from archive or local project.yaml
+        logger.info("Loading project from path", project_name=name, path=url or context)
+        project = load_project(
+            context,
+            url,
+            name,
+            secrets=secrets,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+            user_project=user_project,
+            save=save,
+        )
+
+        logger.info(
+            "Project loaded successfully",
+            project_name=name,
+            path=url or context,
+            stored_in_db=save,
+        )
         return project
+
+    # create a new project
+    project = new_project(
+        name,
+        context,
+        init_git=init_git,
+        user_project=user_project,
+        from_template=from_template,
+        secrets=secrets,
+        subpath=subpath,
+        save=save,
+    )
+    logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    return project
 
 
 def _load_project_dir(context, name="", subpath=""):
@@ -998,20 +1007,23 @@ class MlrunProject(ModelObj):
         self.sync_functions()
 
     def get_artifact_uri(
-        self, key: str, category: str = "artifact", tag: str = None
+        self, key: str, category: str = "artifact", tag: str = None, iter: int = None
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         example::
 
-            uri = project.get_artifact_uri("my_model", category="model", tag="prod")
+            uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
         :param key:  artifact key/name
         :param category:  artifact category (artifact, model, feature-vector, ..)
         :param tag:  artifact version tag, default to latest version
+        :param iter:  iteration number, default to no iteration
         """
         uri = f"store://{category}s/{self.metadata.name}/{key}"
-        if tag:
+        if iter is not None:
+            uri = f"{uri}#{iter}"
+        if tag is not None:
             uri = f"{uri}:{tag}"
         return uri
 

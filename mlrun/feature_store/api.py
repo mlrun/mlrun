@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -140,12 +140,16 @@ def get_offline_features(
     :param entity_rows:             dataframe with entity rows to join with
     :param target:                  where to write the results to
     :param drop_columns:            list of columns to drop from the final result
-    :param entity_timestamp_column: timestamp column name in the entity rows dataframe
+    :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                    only if param entity_rows was specified.
     :param run_config:              function and/or run configuration
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+    :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature sets
+                                    and with/without entity_timestamp_column and timestamp_for_filtering columns.
+                                    This property can be specified also in the feature vector spec
+                                    (feature_vector.spec.with_indexes)
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.
                                     (default False).
@@ -158,11 +162,17 @@ def get_offline_features(
     :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
                                     dictionary ({<feature set name>: <timestamp column name>, ...})
                                     that indicates the timestamp column name for each feature set. Optional.
-                                    By default, the filter executed on the timestamp_key of each feature set.
-                                    Note: the time filtering preformed on each feature set before the
+                                    By default, the filter executes on the timestamp_key of each feature set.
+                                    Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
 
     """
+    if entity_rows is None and entity_timestamp_column is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "entity_timestamp_column param "
+            "can not be specified without entity_rows param"
+        )
+
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
 
@@ -666,6 +676,9 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(

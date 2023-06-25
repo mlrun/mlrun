@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import tempfile
 import urllib.parse
 from base64 import b64encode
 from os import path, remove
-from typing import Union
+from typing import Optional, Union
 
 import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
+import pyarrow
+import pytz
 import requests
 import urllib3
 
@@ -69,6 +70,17 @@ class DataStore:
         return True
 
     @staticmethod
+    def _sanitize_url(url):
+        """
+        Extract only the schema, netloc, and path from an input URL if they exist,
+        excluding parameters, query, or fragments.
+        """
+        parsed_url = urllib.parse.urlparse(url)
+        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
+        return f"{scheme}{netloc}{parsed_url.path}"
+
+    @staticmethod
     def uri_to_kfp(endpoint, subpath):
         raise ValueError("data store doesnt support KFP URLs")
 
@@ -76,7 +88,7 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self, silent=True) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -140,6 +152,64 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
+    @staticmethod
+    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
+        from storey.utils import find_filters, find_partitions
+
+        def set_filters(
+            partitions_time_attributes, start_time_inner, end_time_inner, kwargs
+        ):
+            filters = []
+            find_filters(
+                partitions_time_attributes,
+                start_time_inner,
+                end_time_inner,
+                filters,
+                time_column,
+            )
+            kwargs["filters"] = filters
+
+        def reader(*args, **kwargs):
+            if start_time or end_time:
+                if time_column is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "When providing start_time or end_time, must provide time_column"
+                    )
+
+                partitions_time_attributes = find_partitions(url, file_system)
+                set_filters(
+                    partitions_time_attributes,
+                    start_time,
+                    end_time,
+                    kwargs,
+                )
+                try:
+                    return df_module.read_parquet(*args, **kwargs)
+                except pyarrow.lib.ArrowInvalid as ex:
+                    if not str(ex).startswith(
+                        "Cannot compare timestamp with timezone to timestamp without timezone"
+                    ):
+                        raise ex
+
+                    if start_time.tzinfo:
+                        start_time_inner = start_time.replace(tzinfo=None)
+                        end_time_inner = end_time.replace(tzinfo=None)
+                    else:
+                        start_time_inner = start_time.replace(tzinfo=pytz.utc)
+                        end_time_inner = end_time.replace(tzinfo=pytz.utc)
+
+                    set_filters(
+                        partitions_time_attributes,
+                        start_time_inner,
+                        end_time_inner,
+                        kwargs,
+                    )
+                    return df_module.read_parquet(*args, **kwargs)
+            else:
+                return df_module.read_parquet(*args, **kwargs)
+
+        return reader
+
     def as_df(
         self,
         url,
@@ -153,10 +223,10 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        parsed_url = urllib.parse.urlparse(url)
-        filepath = parsed_url.path
+        file_url = self._sanitize_url(url)
         is_csv, is_json, drop_time_column = False, False, False
-        if filepath.endswith(".csv") or format == "csv":
+        file_system = self.get_filesystem()
+        if file_url.endswith(".csv") or format == "csv":
             is_csv = True
             drop_time_column = False
             if columns:
@@ -170,13 +240,12 @@ class DataStore:
                 kwargs["usecols"] = columns
 
             reader = df_module.read_csv
-            filesystem = self.get_filesystem()
-            if filesystem:
-                if filesystem.isdir(filepath):
+            if file_system:
+                if file_system.isdir(file_url):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
-                        file_entries = filesystem.listdir(base_path)
+                        file_entries = file_system.listdir(base_path)
                         filenames = []
                         for file_entry in file_entries:
                             if (
@@ -195,51 +264,26 @@ class DataStore:
                         return pd.concat(dfs)
 
         elif (
-            filepath.endswith(".parquet")
-            or filepath.endswith(".pq")
+            file_url.endswith(".parquet")
+            or file_url.endswith(".pq")
             or format == "parquet"
         ):
             if columns:
                 kwargs["columns"] = columns
 
-            def reader(*args, **kwargs):
-                if start_time or end_time:
-                    if sys.version_info < (3, 7):
-                        raise ValueError(
-                            f"feature not supported for python version {sys.version_info}"
-                        )
+            reader = self._parquet_reader(
+                df_module, url, file_system, time_column, start_time, end_time
+            )
 
-                    if time_column is None:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "When providing start_time or end_time, must provide time_column"
-                        )
-
-                    from storey.utils import find_filters, find_partitions
-
-                    filters = []
-                    partitions_time_attributes = find_partitions(url, file_system)
-
-                    find_filters(
-                        partitions_time_attributes,
-                        start_time,
-                        end_time,
-                        filters,
-                        time_column,
-                    )
-                    kwargs["filters"] = filters
-
-                return df_module.read_parquet(*args, **kwargs)
-
-        elif filepath.endswith(".json") or format == "json":
+        elif file_url.endswith(".json") or format == "json":
             is_json = True
             reader = df_module.read_json
 
         else:
             raise Exception(f"file type unhandled {url}")
 
-        file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -154,6 +154,8 @@ jobs:
         #          about this issue online as this isn't how github expect you to use mysql in workflows - the worker
         #          has a mysql server installed directly on it and should be enabled and used as the DB. So we might
         #          want in the future to use that instead, unless the mysql will be able to come up without crashing.
+        # 
+        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         python automation/deployment/ce.py deploy \
             --verbose \
             --minikube \
@@ -165,7 +167,9 @@ jobs:
             --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
 
     - name: Prepare system tests env
       run: |

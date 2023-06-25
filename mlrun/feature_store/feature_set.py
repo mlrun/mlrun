@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -186,7 +186,8 @@ class FeatureSetSpec(ModelObj):
     @engine.setter
     def engine(self, engine: str):
         engine_list = ["pandas", "spark", "storey"]
-        if engine and engine not in engine_list:
+        engine = engine if engine else "storey"
+        if engine not in engine_list:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"engine must be one of {','.join(engine_list)}"
             )

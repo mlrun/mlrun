@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import time
 
 import requests
 import requests.adapters
+import requests.utils
 import urllib3.exceptions
 import urllib3.util.retry
 
@@ -79,6 +81,7 @@ class HTTPSessionWithRetry(requests.Session):
         self.retry_backoff_factor = retry_backoff_factor
         self.retry_on_exception = retry_on_exception
         self.verbose = verbose
+        self._logger = logger.get_child("http-client")
 
         if retry_on_status:
             http_adapter = requests.adapters.HTTPAdapter(
@@ -99,6 +102,10 @@ class HTTPSessionWithRetry(requests.Session):
 
     def request(self, method, url, **kwargs):
         retry_count = 0
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][
+            "User-Agent"
+        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
         while True:
             try:
                 response = super().request(method, url, **kwargs)
@@ -142,6 +149,13 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                     raise exc
 
+                self._logger.warning(
+                    "Error during request handling, retrying",
+                    exc=str(exc),
+                    retry_count=retry_count,
+                    url=url,
+                    method=method,
+                )
                 if self.verbose:
                     self._log_exception(
                         "debug",
@@ -159,11 +173,11 @@ class HTTPSessionWithRetry(requests.Session):
             # setting to False in order to retry on all methods, otherwise every method except POST.
             False
             if retry_on_post
-            else urllib3.util.retry.Retry.DEFAULT_METHOD_WHITELIST
+            else urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
         )
 
     def _log_exception(self, level, exc, message, retry_count):
-        getattr(logger, level)(
+        getattr(self._logger, level)(
             message,
             exception_type=type(exc),
             exception_message=err_to_str(exc),

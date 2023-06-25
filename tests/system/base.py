@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -291,10 +291,13 @@ class TestMLRunSystem:
         iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
-        assert run_outputs["model"].startswith(str(output_path))
-        assert run_outputs["html_result"].startswith(str(output_path))
         assert run_outputs["chart"].startswith(str(output_path))
         assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf:{uid}"
+        assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model:{uid}"
+        assert (
+            run_outputs["html_result"]
+            == f"store://artifacts/{project}/{name}_html_result:{uid}"
+        )
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
         if loss:

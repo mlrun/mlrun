@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -3398,7 +3398,7 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "d_id": [i for i in range(1, 11, 2)],
                 "name": [f"dept{num}" for num in range(1, 11, 2)],
-                "manager_id": [i for i in range(10, 15)],
+                "m_id": [i for i in range(10, 15)],
             }
         )
 
@@ -3444,7 +3444,7 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            left_on=["manager_id"],
+            left_on=["m_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
         )
@@ -3546,7 +3546,7 @@ class TestFeatureStore(TestMLRunSystem):
         departments_set = fstore.FeatureSet(
             "departments",
             entities=[departments_set_entity],
-            relations={"manager_id": managers_set_entity},
+            relations={"m_id": managers_set_entity},
         )
         departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fstore.ingest(departments_set, departments)

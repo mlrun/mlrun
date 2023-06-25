@@ -163,7 +163,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;filter=endpoint_type!='2';",
           "type": "table"
         }
       ],
@@ -248,7 +248,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;",
+          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=metrics;filter=endpoint_type!='2';",
           "type": "table"
         }
       ],
@@ -738,7 +738,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;filter=endpoint_type!='2';",
           "type": "timeserie"
         }
       ],
@@ -842,7 +842,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;filter=endpoint_type!='2';",
           "type": "timeserie"
         }
       ],

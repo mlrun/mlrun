@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import time
 
 import requests
 import requests.adapters
+import requests.utils
 import urllib3.exceptions
 import urllib3.util.retry
 
@@ -100,6 +102,10 @@ class HTTPSessionWithRetry(requests.Session):
 
     def request(self, method, url, **kwargs):
         retry_count = 0
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][
+            "User-Agent"
+        ] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
         while True:
             try:
                 response = super().request(method, url, **kwargs)

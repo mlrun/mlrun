@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1390,7 +1390,7 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
-        logger.debug("Creating project in DB", project=project)
+        logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.utcnow()
         project.metadata.created = created
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately

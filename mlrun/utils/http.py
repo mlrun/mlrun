@@ -123,8 +123,8 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                     raise exc
 
-                # if the response is not retryable, return it.
-                # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
+                # if the response is not retryable, stop retrying
+                # this is done to prevent the retry logic from running on non-idempotent methods (such as POST).
                 if not self._method_retryable(method):
                     self._log_exception(
                         "warning",

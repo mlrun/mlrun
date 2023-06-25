@@ -55,8 +55,7 @@ def grafana_list_projects(
     return projects_output.projects
 
 
-# TODO: remove in 1.5.0 the following functions: grafana_list_endpoints, grafana_individual_feature_analysis,
-#  grafana_overall_feature_analysis, grafana_income_features, parse_query_parameters, drop_grafana_escape_chars,
+# The following functions were not removed due to backward compatibility that is related to iguazio version <= 3.5.2
 
 
 async def grafana_list_endpoints(
@@ -79,6 +78,9 @@ async def grafana_list_endpoints(
     # Time range for metrics
     start = body.get("rangeRaw", {}).get("start", "now-1h")
     end = body.get("rangeRaw", {}).get("end", "now")
+
+    # Endpoint type filter - will be used to filter the router models
+    filter_router = query_parameters.get("filter_router", None)
 
     if project:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -126,6 +128,12 @@ async def grafana_list_endpoints(
 
     table = mlrun.common.schemas.GrafanaTable(columns=columns)
     for endpoint in endpoint_list.endpoints:
+        if (
+            filter_router
+            and endpoint.status.endpoint_type
+            == mlrun.common.model_monitoring.EndpointType.ROUTER
+        ):
+            continue
         row = [
             endpoint.metadata.uid,
             endpoint.spec.function_uri,

@@ -156,7 +156,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "project=$PROJECT;target_endpoint=list_endpoints",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints;filter_router=True;",
           "type": "table"
         }
       ],
@@ -233,7 +233,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "project=$PROJECT;target_endpoint=list_endpoints",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints;filter_router=True;",
           "type": "table"
         }
       ],
@@ -570,7 +570,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;filter=endpoint_type!='2';",
           "type": "timeserie"
         }
       ],
@@ -667,7 +667,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_1h;filter=endpoint_type!='2';",
           "type": "timeserie"
         }
       ],

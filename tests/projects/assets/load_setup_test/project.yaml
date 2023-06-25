@@ -1,0 +1,11 @@
+kind: project
+metadata:
+  name:
+spec:
+  description: test
+  params:
+    p1: xyz
+  artifacts:
+  - kind: ''
+    target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
+    key: data

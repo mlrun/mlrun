@@ -2293,8 +2293,6 @@ class SQLDB(DBInterface):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
-        print(f"new_feature_set_dict: {new_feature_set_dict}")
-        print(f"feature_set: {feature_set.__dict__}")
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 
@@ -2323,6 +2321,8 @@ class SQLDB(DBInterface):
         common_object_dict: dict,
         uid,
     ):
+        if isinstance(db_object, FeatureSet):
+            common_object_dict["spec"]["engine"] = common_object_dict["spec"].get("engine", "storey")
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
         db_object.updated = updated_datetime
@@ -2459,8 +2459,6 @@ class SQLDB(DBInterface):
         )
 
         db_feature_set = FeatureSet(project=project)
-        feature_set_dict["spec"]["engine"] = feature_set_dict.get("engine", "storey")
-        print("engine changed to storey part 2")
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 

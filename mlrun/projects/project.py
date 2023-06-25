@@ -289,6 +289,10 @@ def load_project(
             if not path.isdir(context):
                 makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
+            setup_file_path = path.join(
+                context, project.spec.subpath or "", "project_setup.py"
+            )
+            project = _run_project_setup(project, setup_file_path)
             from_db = True
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -437,9 +441,7 @@ def _run_project_setup(project: "MlrunProject", setup_file_path: str):
     if hasattr(mod, "setup"):
         project = getattr(mod, "setup")(project)
     else:
-        logger.warn(
-            "skipping setup, setup() handler was not found in project_setup.py"
-        )
+        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
     return project
 
 

@@ -84,7 +84,7 @@ class HTTPSessionWithRetry(requests.Session):
         self._logger = logger.get_child("http-client")
 
         if retry_on_status:
-            http_adapter = requests.adapters.HTTPAdapter(
+            self._http_adapter = requests.adapters.HTTPAdapter(
                 max_retries=urllib3.util.retry.Retry(
                     total=self.max_retries,
                     backoff_factor=self.retry_backoff_factor,
@@ -97,8 +97,8 @@ class HTTPSessionWithRetry(requests.Session):
                 pool_maxsize=int(config.httpdb.max_workers),
             )
 
-            self.mount("http://", http_adapter)
-            self.mount("https://", http_adapter)
+            self.mount("http://", self._http_adapter)
+            self.mount("https://", self._http_adapter)
 
     def request(self, method, url, **kwargs):
         retry_count = 0
@@ -118,6 +118,16 @@ class HTTPSessionWithRetry(requests.Session):
                         f"{method} {url} request failed, http retries disabled,"
                         f" raising exception: {err_to_str(exc)}",
                         retry_count,
+                    )
+                    raise exc
+
+                # if the response is not retryable, return it.
+                # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
+                if self._method_retryable(method):
+                    self._log_exception(
+                        "warning",
+                        exc,
+                        f"{method} {url} request failed, http retries disabled for {method} method.",
                     )
                     raise exc
 
@@ -166,6 +176,11 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                 retry_count += 1
                 time.sleep(self.retry_backoff_factor)
+
+    def _method_retryable(self, method: str):
+        if self._http_adapter.max_retries.allowed_methods is False:
+            return True
+        return method.upper() in self._http_adapter.max_retries.allowed_methods
 
     @staticmethod
     def _get_retry_methods(retry_on_post=False):

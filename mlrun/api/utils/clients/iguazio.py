@@ -743,6 +743,9 @@ class Client(
         self, method, path, response, response_body, error_message, kwargs
     ):
         log_kwargs = copy.deepcopy(kwargs)
+
+        # this can be big and spammy
+        log_kwargs.pop("json", None)
         log_kwargs.update({"method": method, "path": path})
         try:
             ctx = response_body.get("meta", {}).get("ctx")

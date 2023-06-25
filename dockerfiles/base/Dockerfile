@@ -53,8 +53,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH /opt/conda/bin:$PATH
 
-ARG MLRUN_CONDA_VERSION=23.5
-RUN conda update -n base -c defaults conda~=${MLRUN_CONDA_VERSION} && \
+RUN conda update -n base -c defaults conda && \
     conda clean -aqy
 
 ARG MLRUN_PIP_VERSION=22.3.0

@@ -2321,10 +2321,6 @@ class SQLDB(DBInterface):
         common_object_dict: dict,
         uid,
     ):
-        if isinstance(db_object, FeatureSet):
-            common_object_dict["spec"]["engine"] = common_object_dict["spec"].get(
-                "engine", "storey"
-            )
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
         db_object.updated = updated_datetime

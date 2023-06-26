@@ -263,7 +263,7 @@ def unmask_notification_params_secret_on_task(
             )
         except Exception as exc:
             logger.warning(
-                "Failed to unmask notification params, notification will be ignored",
+                "Failed to unmask notification params, notification will not be sent",
                 project=run.metadata.project,
                 run_uid=run.metadata.uid,
                 notification=notification.name,

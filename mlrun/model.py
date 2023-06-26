@@ -544,7 +544,7 @@ class Notification(ModelObj):
         self.message = message
         self.severity = severity
         self.when = when
-        self.condition = condition or ""
+        self.condition = condition
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time

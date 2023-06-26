@@ -195,7 +195,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             when=when or ["completed"],
             name=name or "test-notification",
             message=message or "test-notification-message",
-            condition=condition,
+            condition=condition or "",
             severity=severity or "info",
             params=params or {},
         )

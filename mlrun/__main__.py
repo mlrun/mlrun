@@ -1096,7 +1096,7 @@ def project(
     if git_issue:
         parameters["git_issue"] = git_issue
     commit = environ.get("GITHUB_SHA") or environ.get("CI_COMMIT_SHA")
-    if commit:
+    if commit and not parameters.get("commit_id"):
         parameters["commit_id"] = commit
 
     proj = load_project(

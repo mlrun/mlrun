@@ -20,7 +20,7 @@ def prep_data(context, source_url: mlrun.DataItem, label_column="label"):
     print("data url:", source_url.url)
     df[label_column] = df[label_column].astype("category").cat.codes
 
-    # Record the DataFrane length after the run
+    # Record the DataFrame length after the run
     context.log_result("num_rows", df.shape[0])
 
     # Store the data set in your artifacts database

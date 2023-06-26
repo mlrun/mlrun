@@ -500,7 +500,11 @@ def _run_project_setup(
         try:
             project = getattr(mod, "setup")(project)
         except Exception as exc:
-            logger.error(f"Failed to run project_setup script {setup_file_path}, {exc}")
+            logger.error(
+                "Failed to run project_setup script",
+                setup_file_path=setup_file_path,
+                exc=mlrun.errors.err_to_str(exc),
+            )
             raise exc
         if save:
             project.save()

@@ -944,8 +944,8 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                start_time=start_time,
-                end_time=end_time,
+                start_time=start_time or datetime.min,
+                end_time=end_time or datetime.max,
                 time_field=time_column,
                 **kwargs,
             )

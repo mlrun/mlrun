@@ -808,7 +808,10 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
     )
 
     _assert_diff_as_expected_except_for_specific_metadata(
-        feature_set, feature_set_response, allowed_added_fields
+        feature_set,
+        feature_set_response,
+        allowed_added_fields,
+        allowed_spec_fields=["engine"],
     )
     assert feature_set_response["metadata"]["uid"] is None
 

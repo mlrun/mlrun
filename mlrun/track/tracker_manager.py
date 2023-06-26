@@ -46,13 +46,14 @@ class TrackerManager:
         goes over all trackers and calls there post_run function
         :param context: current mlrun context
         """
+        if isinstance(context, dict):
+            context = MLClientCtx.from_dict(context)
+
         for tracker in self._trackers:
             if tracker.is_enabled():
-                if isinstance(context, dict):
-                    context = MLClientCtx.from_dict(context)
                 tracker.post_run(context)
 
         if isinstance(context, dict):
             return context
-        context.commit()
+        # context.commit()
         return context.to_dict()

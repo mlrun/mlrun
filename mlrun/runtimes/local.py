@@ -256,6 +256,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
+        # TODO: add comment why we do it
         environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.rundb:
             environ["MLRUN_DBPATH"] = self.spec.rundb
@@ -343,14 +344,12 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     runobj_dict = json.loads(resp)
                     # If trackers where used, this is where we log all data collected to MLRun
                     TRACKERS_MANAGER.post_run(runobj_dict)
-                    return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
             runobj_dict = runobj.to_dict()
             # If trackers where used, this is where we log all data collected to MLRun
             return TRACKERS_MANAGER.post_run(runobj_dict)
-
 
 def load_module(file_name, handler, context):
     """Load module from file name"""

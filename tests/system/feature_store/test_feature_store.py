@@ -1402,11 +1402,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        source = ParquetSource(
-            "myparquet",
-            path=path,
-            schedule="mock",
-        )
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fstore.FeatureSet(
             name=name,
@@ -3531,7 +3527,7 @@ class TestFeatureStore(TestMLRunSystem):
             "managers",
             entities=[managers_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(managers_set, managers)
 
         classes_set_entity = fstore.Entity("c_id")
@@ -3539,7 +3535,7 @@ class TestFeatureStore(TestMLRunSystem):
             "classes",
             entities=[classes_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(classes_set, classes)
 
         departments_set_entity = fstore.Entity("d_id")
@@ -3548,7 +3544,7 @@ class TestFeatureStore(TestMLRunSystem):
             entities=[departments_set_entity],
             relations={"m_id": managers_set_entity},
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        departments_set.set_targets()
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -3557,7 +3553,7 @@ class TestFeatureStore(TestMLRunSystem):
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
         )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        employees_set.set_targets()
         fstore.ingest(employees_set, employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
@@ -3568,7 +3564,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "class_id": classes_set_entity,
             },
         )
-        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        mini_employees_set.set_targets()
         fstore.ingest(mini_employees_set, employees_with_class)
 
         features = ["employees.name"]
@@ -3595,6 +3591,11 @@ class TestFeatureStore(TestMLRunSystem):
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
             )
+
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"name": "employee100"}
+
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
@@ -3610,6 +3611,10 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "n2": "dept1"}
 
         features = [
             "employees.name as n",
@@ -3631,6 +3636,14 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
+        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "man_name": "manager10",
+            }
+
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
@@ -3646,6 +3659,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
 
         features = [
             "employees.name as n",
@@ -3667,6 +3683,15 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
+
+        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "mini_name": "employee100",
+                "name_cls": "class20",
+            }
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

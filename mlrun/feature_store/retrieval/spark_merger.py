@@ -23,6 +23,7 @@ from .base import BaseMerger
 
 class SparkFeatureMerger(BaseMerger):
     engine = "spark"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)

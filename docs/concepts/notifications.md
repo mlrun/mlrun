@@ -86,6 +86,12 @@ magic command:
 %env SLACK_WEBHOOK=<slack webhook url>
 ```
 
+Editing and removing notifications is done similarly with the following methods:
+```python
+project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
+project.notifiers.remove_notification(notification_type="slack")
+```
+
 ## Setting Notifications on Live Runs
 You can set notifications on live runs via the `set_run_notifications` method. For example:
 

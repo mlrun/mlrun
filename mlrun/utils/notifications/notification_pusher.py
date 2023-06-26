@@ -359,6 +359,22 @@ class CustomNotificationPusher(object):
             else:
                 self._sync_notifications[notification_type] = notification
 
+    def remove_notification(self, notification_type: str):
+        if notification_type in self._async_notifications:
+            del self._async_notifications[notification_type]
+
+        elif notification_type in self._sync_notifications:
+            del self._sync_notifications[notification_type]
+
+        else:
+            logger.warning(f"No notification of type {notification_type} in project")
+
+    def edit_notification(
+        self, notification_type: str, params: typing.Dict[str, str] = None
+    ):
+        self.remove_notification(notification_type)
+        self.add_notification(notification_type, params)
+
     def should_push_notification(self, notification_type):
         notifications = {}
         notifications.update(self._sync_notifications)

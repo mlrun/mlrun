@@ -1266,6 +1266,43 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def format_run(run: dict, with_project=False) -> dict:
+    fields = [
+        "id",
+        "name",
+        "status",
+        "error",
+        "created_at",
+        "scheduled_at",
+        "finished_at",
+        "description",
+    ]
+
+    if with_project:
+        fields.append("project")
+
+    # create a run object that contains all fields,
+    run = {
+        key: str(value) if value is not None else value
+        for key, value in run.items()
+        if key in fields
+    }
+
+    # if the time_keys values is from 1970, this indicates that the field has not yet been specified yet,
+    # and we want to return a None value instead
+    time_keys = ["scheduled_at", "finished_at", "created_at"]
+
+    for key, value in run.items():
+        if (
+            key in time_keys
+            and isinstance(value, (str, datetime))
+            and parser.parse(str(value)).year == 1970
+        ):
+            run[key] = None
+
+    return run
+
+
 def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
     if is_legacy_artifact(artifact):

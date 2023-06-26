@@ -187,13 +187,13 @@ class TestDBFSStore:
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
         uploaded_file_path = (
-            f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
+             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(first_file_path)
 
         uploaded_file_path = (
-            f"{self.test_root_dir}{directory}/file_{str(uuid.uuid4())}.{file_extension}"
+             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(second_file_path)

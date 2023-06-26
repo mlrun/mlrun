@@ -3725,6 +3725,8 @@ class SQLDB(DBInterface):
                 notification_status=notification.status,
                 parent_id=parent_id,
                 project=project,
+                condition=notification.condition,
+                notification=notification,
             )
             notifications.append(notification)
 

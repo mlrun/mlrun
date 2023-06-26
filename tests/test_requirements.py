@@ -131,7 +131,7 @@ def test_requirement_specifiers_convention():
         "importlib_metadata": {">=3.6"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "orjson": {"~=3.3, <3.8.12"},
-        "pydantic": {'~=1.10, >=1.10.8'},
+        "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding

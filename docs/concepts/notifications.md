@@ -79,6 +79,7 @@ For pipelines, you configure the notifications on the project notifiers. For exa
 
 ```python
 project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})
+project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"})
 ```
 Instead of passing the webhook in the notification params, it is also possible in a Jupyter notebook to use the ` %env` 
 magic command:

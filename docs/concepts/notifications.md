@@ -35,6 +35,8 @@ These cases are:
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent.
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
+> **Disclaimer:** Local notifications aren't persisted in mlrun API
+
 ## Notification Params and Secrets
 The notification parameters might contain sensitive information (slack webhook, git token, etc.). For this reason, 
 when a notification is created its params are masked in a kubernetes secret. The secret is named 

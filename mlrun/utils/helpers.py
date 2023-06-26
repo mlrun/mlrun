@@ -173,7 +173,8 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. {field_value} does not match any of the required patterns: {patterns}"
+                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f" required patterns: {patterns}"
             )
         return False
 

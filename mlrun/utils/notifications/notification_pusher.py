@@ -352,7 +352,7 @@ class CustomNotificationPusher(object):
             self._sync_notifications[notification_type].load_notification(params)
         else:
             notification = NotificationTypes(notification_type).get_notification()(
-                params
+                params=params,
             )
             if notification.is_async:
                 self._async_notifications[notification_type] = notification

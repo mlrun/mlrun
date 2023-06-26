@@ -113,53 +113,7 @@ class HTTPSessionWithRetry(requests.Session):
                 response = super().request(method, url, **kwargs)
                 return response
             except Exception as exc:
-                if not self.retry_on_exception:
-                    self._log_exception(
-                        "warning",
-                        exc,
-                        f"{method} {url} request failed, http retries disabled,"
-                        f" raising exception: {err_to_str(exc)}",
-                        retry_count,
-                    )
-                    raise exc
-
-                # if the response is not retryable, stop retrying
-                # this is done to prevent the retry logic from running on non-idempotent methods (such as POST).
-                if not self._method_retryable(method):
-                    self._log_exception(
-                        "warning",
-                        exc,
-                        f"{method} {url} request failed, http retries disabled for {method} method.",
-                        retry_count,
-                    )
-                    raise exc
-
-                if retry_count >= self.max_retries:
-                    self._log_exception(
-                        "warning",
-                        exc,
-                        f"{method} {url} request failed, max retries reached,"
-                        f" raising exception: {err_to_str(exc)}",
-                        retry_count,
-                    )
-                    raise exc
-
-                # only retryable exceptions
-                exception_is_retryable = any(
-                    msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
-                ) or any(
-                    isinstance(exc, retryable_exc)
-                    for retryable_exc in self.HTTP_RETRYABLE_EXCEPTIONS
-                )
-
-                if not exception_is_retryable:
-                    self._log_exception(
-                        "warning",
-                        exc,
-                        f"{method} {url} request failed on non-retryable exception,"
-                        f" raising exception: {err_to_str(exc)}",
-                        retry_count,
-                    )
+                if not self._error_is_retryable(url, method, exc, retry_count):
                     raise exc
 
                 self._logger.warning(
@@ -179,6 +133,57 @@ class HTTPSessionWithRetry(requests.Session):
                     )
                 retry_count += 1
                 time.sleep(self.retry_backoff_factor)
+
+    def _error_is_retryable(self, url, method, exc, retry_count):
+        if not self.retry_on_exception:
+            self._log_exception(
+                "warning",
+                exc,
+                f"{method} {url} request failed, http retries disabled,"
+                f" raising exception: {err_to_str(exc)}",
+                retry_count,
+            )
+            return False
+
+        # if the response is not retryable, stop retrying
+        # this is done to prevent the retry logic from running on non-idempotent methods (such as POST).
+        if not self._method_retryable(method):
+            self._log_exception(
+                "warning",
+                exc,
+                f"{method} {url} request failed, http retries disabled for {method} method.",
+                retry_count,
+            )
+            return False
+
+        if retry_count >= self.max_retries:
+            self._log_exception(
+                "warning",
+                exc,
+                f"{method} {url} request failed, max retries reached,"
+                f" raising exception: {err_to_str(exc)}",
+                retry_count,
+            )
+            return False
+
+        # only retryable exceptions
+        exception_is_retryable = any(
+            msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
+        ) or any(
+            isinstance(exc, retryable_exc)
+            for retryable_exc in self.HTTP_RETRYABLE_EXCEPTIONS
+        )
+
+        if not exception_is_retryable:
+            self._log_exception(
+                "warning",
+                exc,
+                f"{method} {url} request failed on non-retryable exception,"
+                f" raising exception: {err_to_str(exc)}",
+                retry_count,
+            )
+            return False
+        return True
 
     def _method_retryable(self, method: str):
         return method in self._retry_methods

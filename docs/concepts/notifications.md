@@ -35,6 +35,8 @@ These cases are:
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent.
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
+> **Disclaimer:** Local notifications aren't persisted in mlrun API
+
 ## Notification Params and Secrets
 The notification parameters might contain sensitive information (slack webhook, git token, etc.). For this reason, 
 when a notification is created its params are masked in a kubernetes secret. The secret is named 
@@ -85,6 +87,12 @@ Instead of passing the webhook in the notification params, it is also possible i
 magic command:
 ```
 %env SLACK_WEBHOOK=<slack webhook url>
+```
+
+Editing and removing notifications is done similarly with the following methods:
+```python
+project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
+project.notifiers.remove_notification(notification_type="slack")
 ```
 
 ## Setting Notifications on Live Runs

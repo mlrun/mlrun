@@ -880,15 +880,43 @@ def test_project_ops():
     assert run.output("y") == 4  # = x * 2
 
 
-def test_set_workflow_with_unvalid_path():
-    proj = mlrun.new_project("proj", save=False)
-    with pytest.raises(
-        ValueError,
-        match=str(
-            "The supplied workflow_path is invalid, please provide a path to a python file"
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    "Invalid workflow_path, please provide a valid path to a python file"
+                ),
+            ),
         ),
-    ):
-        proj.set_workflow("main", "./")
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    "Invalid workflow_path, please provide a valid path to a python file"
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    "Invalid workflow_path, please provide a valid path to a python file"
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+    ],
+)
+def test_set_workflow_with_unvalid_path(workflow_path, exception):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_clear_context():

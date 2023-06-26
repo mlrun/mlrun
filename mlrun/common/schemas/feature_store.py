@@ -48,7 +48,7 @@ class Entity(BaseModel):
 class FeatureSetSpec(ObjectSpec):
     entities: List[Entity] = []
     features: List[Feature] = []
-    engine: Optional[str]
+    engine: Optional[str] = "storey"
 
 
 class FeatureSet(BaseModel):

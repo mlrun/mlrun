@@ -389,7 +389,7 @@ def runs_to_html(
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df["artifacts", "output_path"].apply(_artifacts_html, axis=1)
+        df["artifacts"] = df[["artifacts", "output_path"]].apply(_artifacts_html, axis=1)
 
     def expand_error(x):
         if x["state"] == "error":

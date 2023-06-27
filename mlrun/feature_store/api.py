@@ -630,14 +630,6 @@ def ingest(
             ):
                 # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
                 # in the next scheduled run, we will have the same start time
-                max_time = max(df[featureset.spec.timestamp_key])
-                if not max_time:
-                    # if max_time is None(no data), next scheduled run should be with same start_time
-                    max_time = source.start_time
-                for target in featureset.status.targets:
-                    featureset.status.update_last_written_for_target(
-                        target.get_path().get_absolute_path(), max_time
-                    )
                 target.last_written = source.start_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)

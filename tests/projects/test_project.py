@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -888,7 +889,9 @@ def test_project_ops():
             pytest.raises(
                 ValueError,
                 match=str(
-                    "Invalid workflow_path, please provide a valid path to a python file"
+                    re.escape(
+                        f"Invalid 'workflow_path': (./), please provide a valid URL/path to a python file."
+                    )
                 ),
             ),
         ),
@@ -897,7 +900,9 @@ def test_project_ops():
             pytest.raises(
                 ValueError,
                 match=str(
-                    "Invalid workflow_path, please provide a valid path to a python file"
+                    re.escape(
+                        "Invalid 'workflow_path': (https://test), please provide a valid URL/path to a python file."
+                    )
                 ),
             ),
         ),
@@ -906,11 +911,17 @@ def test_project_ops():
             pytest.raises(
                 ValueError,
                 match=str(
-                    "Invalid workflow_path, please provide a valid path to a python file"
+                    re.escape(
+                        "Invalid 'workflow_path': (), please provide a valid URL/path to a python file."
+                    )
                 ),
             ),
         ),
         ("https://test.py", does_not_raise()),
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
     ],
 )
 def test_set_workflow_with_unvalid_path(workflow_path, exception):

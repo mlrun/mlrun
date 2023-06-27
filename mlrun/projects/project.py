@@ -1122,7 +1122,7 @@ class MlrunProject(ModelObj):
             and workflow_path.endswith(".py")
         ):
             raise ValueError(
-                "Invalid workflow_path, please provide a valid path to a python file"
+                f"Invalid 'workflow_path': ({workflow_path}), please provide a valid URL/path to a python file."
             )
 
         if embed:

@@ -498,10 +498,16 @@ def ingest(
             featureset.reload(update_spec=False)
 
     if isinstance(source, DataSource) and source.schedule:
+        mlrun_context.logger.info(
+            f"DAVID in isinstance(source, DataSource) and source.schedule"
+        )
         if not featureset.spec.timestamp_key:
             pass
         min_time = datetime.max
         for target in featureset.status.targets:
+            mlrun_context.logger.info(
+                f"DAVID target.last_written = {target.last_written}"
+            )
             if target.last_written:
                 cur_last_written = target.last_written
                 if isinstance(cur_last_written, str):
@@ -641,11 +647,12 @@ def ingest(
                 and df[featureset.spec.timestamp_key].shape
                 else None
             )
+            mlrun_context.logger.info(
+                f"DAVID max_time = {max_time}"
+            )
             # if max_time is None(no data), next scheduled run should be with same start_time
             max_time = max_time or source.start_time
-            featureset.status.update_last_written_for_target(
-                target.get_path().get_absolute_path(), max_time
-            )
+            target.last_written = max_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
     if return_df:

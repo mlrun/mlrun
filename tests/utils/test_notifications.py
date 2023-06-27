@@ -35,15 +35,17 @@ import mlrun.utils.notifications
 def test_load_notification(notification_kind):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
-    when_state = "completed"
-    notification = mlrun.model.Notification.from_dict(
-        {
-            "kind": notification_kind,
-            "when": when_state,
-            "status": "pending",
-            "name": notification_name,
-        }
+    when_state = ["completed"]
+    print("!!!!!before")
+    notification = mlrun.model.Notification(
+        kind=notification_kind,
+        when=["completed"],
+        status=mlrun.common.schemas.notification.NotificationStatus.PENDING,
+        severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+        message="completed",
+        name=notification_name,
     )
+    print(notification, "!!!!!")
     run = mlrun.model.RunObject.from_dict(
         {
             "metadata": {"uid": run_uid},
@@ -51,6 +53,7 @@ def test_load_notification(notification_kind):
             "status": {"state": when_state},
         }
     )
+    print(run, "!!!!!")
 
     notification_pusher = (
         mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
@@ -102,12 +105,14 @@ def test_notification_should_notify(
     run = mlrun.model.RunObject.from_dict(
         {"status": {"state": run_state, "results": {"val": 5}}}
     )
-    notification = mlrun.model.Notification.from_dict(
-        {
-            "when": when,
-            "condition": condition,
-            "status": "pending" if not notification_previously_sent else "sent",
-        }
+    notification = mlrun.model.Notification(
+        kind="console",
+        severity="info",
+        message="completed",
+        when=when,
+        condition=condition,
+        status="pending" if not notification_previously_sent else "sent",
+
     )
 
     notification_pusher = (
@@ -130,8 +135,13 @@ def test_condition_evaluation_timeout():
     run = mlrun.model.RunObject.from_dict(
         {"status": {"state": "completed", "results": {"val": 5}}}
     )
-    notification = mlrun.model.Notification.from_dict(
-        {"when": ["completed"], "condition": condition, "status": "pending"}
+    notification = mlrun.model.Notification(
+        kind="console",
+        severity="info",
+        message="completed",
+        when=["completed"],
+        condition=condition,
+        status="pending"
     )
 
     notification_pusher = (
@@ -449,36 +459,57 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
     (
         {
             "kind": "invalid-kind",
+            "message": "valid",
+            "severity": "info",
+            "when": ["completed"]
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
     (
         {
             "kind": mlrun.common.schemas.notification.NotificationKind.slack,
+            "message": "valid",
+            "severity": "info",
+            "when": ["completed"]
         },
         does_not_raise(),
     ),
     (
         {
             "severity": "invalid-severity",
+            "message": "valid",
+            "when": ["completed"],
+            "kind": "console"
+
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
     (
         {
             "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
+            "kind": "console",
+            "message": "valid",
+            "when": ["completed"]
         },
         does_not_raise(),
     ),
     (
         {
             "status": "invalid-status",
+            "kind": "console",
+            "message": "valid",
+            "severity": "info",
+            "when": ["completed"]
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
     (
         {
             "status": mlrun.common.schemas.notification.NotificationStatus.PENDING,
+            "kind": "console",
+            "message": "valid",
+            "severity": "info",
+            "when": ["completed"]
         },
         does_not_raise(),
     ),
@@ -502,7 +533,7 @@ def test_notification_validation_on_object(
 )
 def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification", when=["completed"], kind="console", severity="info", message="completed"
     )
     for key, value in notification_kwargs.items():
         setattr(notification, key, value)
@@ -534,7 +565,11 @@ def test_notification_sent_on_handler_run(monkeypatch):
         context.log_result("multiplier", p1 * p2)
 
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification",
+        message="completed",
+        when=["completed"],
+        kind="console",
+        severity="info",
     )
 
     grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
@@ -555,7 +590,7 @@ def test_notification_sent_on_dask_run(monkeypatch):
     monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
 
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification", when=["completed"], kind="console", severity="info", message="completed"
     )
 
     function = mlrun.new_function(
@@ -587,10 +622,10 @@ def test_notification_name_uniqueness_validation(
     notification1_name, notification2_name, expectation
 ):
     notification1 = mlrun.model.Notification(
-        name=notification1_name, when=["completed"]
+        name=notification1_name, when=["completed"], kind="console", severity="info", message="completed"
     )
     notification2 = mlrun.model.Notification(
-        name=notification2_name, when=["completed"]
+        name=notification2_name, when=["completed"], kind="console", severity="info", message="completed"
     )
     function = mlrun.new_function(
         "function-from-module",

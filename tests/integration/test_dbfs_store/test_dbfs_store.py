@@ -242,26 +242,26 @@ class TestDBFSStore:
         )
         assert response_df.equals(appended_df)
 
-@pytest.mark.parametrize(
+    @pytest.mark.parametrize(
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    PARQUETS_DIR,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    dd.read_parquet,
+                PARQUETS_DIR,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                dd.read_parquet,
             ),
             (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
         ],
     )
     def test_check_read_df_dir_dd(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]

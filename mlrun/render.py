@@ -353,7 +353,8 @@ def runs_to_html(
         except ValueError:
             return ""
 
-    def _artifacts_html(artifact_dict, output_path):
+    def _artifacts_html(artifact_tuple):
+        artifact_dict, output_path = artifact_tuple
         if config.artifacts.generate_target_path_from_artifact_hash:
             artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
             return artifact.resolve_target_path(artifact_path=output_path)
@@ -388,8 +389,7 @@ def runs_to_html(
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = list(zip(df["artifacts"], df["output_path"]))
-        df["artifacts"] = df["artifacts"].apply(_artifacts_html)
+        df["artifacts"] = df["artifacts", "output_path"].apply(_artifacts_html, axis=1)
 
     def expand_error(x):
         if x["state"] == "error":

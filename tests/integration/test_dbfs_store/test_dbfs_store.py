@@ -190,7 +190,9 @@ class TestDBFSStore:
         response = upload_data_item.as_df(df_module=dd)
         assert dd.assert_eq(source, response)
 
-    def _setup_df_dir(self, first_file_path, second_file_path, file_extension, directory):
+    def _setup_df_dir(
+        self, first_file_path, second_file_path, file_extension, directory
+    ):
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
@@ -208,30 +210,32 @@ class TestDBFSStore:
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    PARQUETS_DIR,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    pd.read_parquet,
+                PARQUETS_DIR,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                pd.read_parquet,
             ),
             (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
         ],
     )
     def test_check_read_df_dir(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
-        df_dir = self._setup_df_dir(first_file_path=first_file_path, second_file_path=second_file_path,
-                                    file_extension=file_extension, directory=directory)
-        dir_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + df_dir
+        df_dir = self._setup_df_dir(
+            first_file_path=first_file_path,
+            second_file_path=second_file_path,
+            file_extension=file_extension,
+            directory=directory,
         )
+        dir_data_item = mlrun.run.get_dataitem(self._dbfs_url + df_dir)
         response_df = (
             dir_data_item.as_df(format=file_format)
             .sort_values("Name")
@@ -250,30 +254,32 @@ class TestDBFSStore:
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    PARQUETS_DIR,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    dd.read_parquet,
+                PARQUETS_DIR,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                dd.read_parquet,
             ),
             (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
         ],
     )
     def test_check_read_df_dir_dd(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
-        df_dir = self._setup_df_dir(first_file_path=first_file_path, second_file_path=second_file_path,
-                                    file_extension=file_extension, directory=directory)
-        dir_data_item = mlrun.run.get_dataitem(
-            self._dbfs_url + df_dir
+        df_dir = self._setup_df_dir(
+            first_file_path=first_file_path,
+            second_file_path=second_file_path,
+            file_extension=file_extension,
+            directory=directory,
         )
+        dir_data_item = mlrun.run.get_dataitem(self._dbfs_url + df_dir)
         response_df = (
             dir_data_item.as_df(format=file_format, df_module=dd)
             .sort_values("Name")

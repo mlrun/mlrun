@@ -398,6 +398,7 @@ def runs_to_html(
         df["artifacts"] = df[["artifacts", "output_path"]].apply(
             lambda x: artifacts_html(x, "target_path"), axis=1
         )
+        df.drop("output_path", axis=1, inplace=True)
 
     def expand_error(x):
         if x["state"] == "error":

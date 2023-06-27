@@ -62,8 +62,8 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
 
     html = runs.show(display=False)
     for expected_target_path in expected_target_paths:
-        expected_title, _ = mlrun.render.link_to_ipython(expected_target_path)
-        assert expected_title in html
+        expected_link, _ = mlrun.render.link_to_ipython(expected_target_path)
+        assert expected_link in html
 
 
 # FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and

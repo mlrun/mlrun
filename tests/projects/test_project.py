@@ -890,7 +890,7 @@ def test_project_ops():
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': (./), please provide a valid URL/path to a python file."
+                        "Invalid 'workflow_path': './', please provide a valid URL/path to a python file."
                     )
                 ),
             ),
@@ -901,7 +901,7 @@ def test_project_ops():
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': (https://test), please provide a valid URL/path to a python file."
+                        "Invalid 'workflow_path': 'https://test', please provide a valid URL/path to a python file."
                     )
                 ),
             ),
@@ -912,7 +912,7 @@ def test_project_ops():
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': (), please provide a valid URL/path to a python file."
+                        "Invalid 'workflow_path': '', please provide a valid URL/path to a python file."
                     )
                 ),
             ),
@@ -924,7 +924,7 @@ def test_project_ops():
         ),
     ],
 )
-def test_set_workflow_with_unvalid_path(workflow_path, exception):
+def test_set_workflow_with_invalid_path(workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
     with exception:
         proj.set_workflow("main", workflow_path)

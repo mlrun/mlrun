@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 import uuid
 from os import environ, path
 
 import pandas as pd
+
+import mlrun.artifacts
 
 from .config import config
 from .datastore import uri_to_ipython
@@ -338,12 +341,24 @@ def get_tblframe(df, display, classes=None):
 uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank" >...{}</a></div>'
 
 
-def runs_to_html(df, display=True, classes=None, short=False):
+def runs_to_html(
+    df: pd.DataFrame,
+    display: bool = True,
+    classes: typing.Optional[typing.Union[str, list, tuple]] = None,
+    short: bool = False,
+):
     def time_str(x):
         try:
             return x.strftime("%b %d %H:%M:%S")
         except ValueError:
             return ""
+
+    def _artifacts_html(artifact_dict, output_path):
+        if config.artifacts.generate_target_path_from_artifact_hash:
+            artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
+            return artifact.resolve_target_path(artifact_path=output_path)
+
+        return artifacts_html(artifact_dict, "target_path")
 
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
@@ -373,9 +388,8 @@ def runs_to_html(df, display=True, classes=None, short=False):
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df["artifacts"].apply(
-            lambda x: artifacts_html(x, "target_path")
-        )
+        df["artifacts"] = list(zip(df["artifacts"], df["output_path"]))
+        df["artifacts"] = df["artifacts"].apply(_artifacts_html)
 
     def expand_error(x):
         if x["state"] == "error":

@@ -381,6 +381,42 @@ class Artifact(ModelObj):
             source_path
         )
 
+    def resolve_target_path(self, artifact_path: str = None):
+        """
+        Resolve the target path for the artifact,
+        if the user didn't specify a target path, and mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is
+        True, the target path will be resolved from the artifact hash
+        if the artifact has a body, the target path will be resolved from
+        the body, otherwise it will be resolved from the source path
+
+        :param artifact_path:   the artifact path to use when generating the target path
+        :return:                the target path
+        """
+        if self.spec.target_path:
+            return self.spec.target_path
+
+        if not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to resolve target path, no target path is defined and "
+                "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
+            )
+
+        body = self.spec.get_body()
+        if body:
+            (self.metadata.hash, target_path,) = self.resolve_body_target_hash_path(
+                body=body, artifact_path=artifact_path
+            )
+
+        else:
+            if not os.path.isfile(self.src_path):
+                raise ValueError(f"artifact file {self.src_path} not found")
+
+            (self.metadata.hash, target_path,) = self.resolve_file_target_hash_path(
+                source_path=self.src_path, artifact_path=artifact_path
+            )
+
+        return target_path
+
     def resolve_body_target_hash_path(
         self, body: typing.Union[bytes, str], artifact_path: str
     ) -> (str, str):

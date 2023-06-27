@@ -38,6 +38,7 @@ list_header = [
     "results",
     "artifacts",
     "error",
+    "output_path",
 ]
 
 iter_index = list_header.index("iter")
@@ -65,6 +66,7 @@ class RunList(list):
                 get_in(run, "status.results", ""),
                 get_in(run, "status.artifacts", []),
                 get_in(run, "status.error", ""),
+                get_in(run, "spec.output_path", ""),
             ]
             if extend_iterations and iterations:
                 parameters_dict = {
@@ -92,7 +94,9 @@ class RunList(list):
 
         return [list_header] + rows
 
-    def to_df(self, flat=False, extend_iterations=False, cache=True):
+    def to_df(
+        self, flat: bool = False, extend_iterations: bool = False, cache: bool = True
+    ) -> pd.DataFrame:
         """convert the run list to a dataframe"""
         if hasattr(self, "_df") and cache:
             return self._df

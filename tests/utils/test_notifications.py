@@ -112,7 +112,6 @@ def test_notification_should_notify(
         when=when,
         condition=condition,
         status="pending" if not notification_previously_sent else "sent",
-
     )
 
     notification_pusher = (
@@ -141,7 +140,7 @@ def test_condition_evaluation_timeout():
         message="completed",
         when=["completed"],
         condition=condition,
-        status="pending"
+        status="pending",
     )
 
     notification_pusher = (
@@ -461,7 +460,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "kind": "invalid-kind",
             "message": "valid",
             "severity": "info",
-            "when": ["completed"]
+            "when": ["completed"],
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
@@ -470,7 +469,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "kind": mlrun.common.schemas.notification.NotificationKind.slack,
             "message": "valid",
             "severity": "info",
-            "when": ["completed"]
+            "when": ["completed"],
         },
         does_not_raise(),
     ),
@@ -479,8 +478,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "severity": "invalid-severity",
             "message": "valid",
             "when": ["completed"],
-            "kind": "console"
-
+            "kind": "console",
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
@@ -489,7 +487,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
             "kind": "console",
             "message": "valid",
-            "when": ["completed"]
+            "when": ["completed"],
         },
         does_not_raise(),
     ),
@@ -499,7 +497,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "kind": "console",
             "message": "valid",
             "severity": "info",
-            "when": ["completed"]
+            "when": ["completed"],
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
     ),
@@ -509,7 +507,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
             "kind": "console",
             "message": "valid",
             "severity": "info",
-            "when": ["completed"]
+            "when": ["completed"],
         },
         does_not_raise(),
     ),
@@ -533,7 +531,11 @@ def test_notification_validation_on_object(
 )
 def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"], kind="console", severity="info", message="completed"
+        name="test-notification",
+        when=["completed"],
+        kind="console",
+        severity="info",
+        message="completed",
     )
     for key, value in notification_kwargs.items():
         setattr(notification, key, value)
@@ -590,7 +592,11 @@ def test_notification_sent_on_dask_run(monkeypatch):
     monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
 
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"], kind="console", severity="info", message="completed"
+        name="test-notification",
+        when=["completed"],
+        kind="console",
+        severity="info",
+        message="completed",
     )
 
     function = mlrun.new_function(
@@ -622,10 +628,18 @@ def test_notification_name_uniqueness_validation(
     notification1_name, notification2_name, expectation
 ):
     notification1 = mlrun.model.Notification(
-        name=notification1_name, when=["completed"], kind="console", severity="info", message="completed"
+        name=notification1_name,
+        when=["completed"],
+        kind="console",
+        severity="info",
+        message="completed",
     )
     notification2 = mlrun.model.Notification(
-        name=notification2_name, when=["completed"], kind="console", severity="info", message="completed"
+        name=notification2_name,
+        when=["completed"],
+        kind="console",
+        severity="info",
+        message="completed",
     )
     function = mlrun.new_function(
         "function-from-module",

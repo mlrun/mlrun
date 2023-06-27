@@ -14,6 +14,8 @@
 
 import asyncio
 import builtins
+import copy
+import json
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -393,6 +395,54 @@ def test_notification_params_masking_on_run(monkeypatch):
         run["spec"]["notifications"][0]["params"]["secret"]
         == f"mlrun.notifications.{run_uid}"
     )
+
+
+def test_notification_params_unmasking_on_run(monkeypatch):
+
+    secret_value = {"sensitive": "sensitive-value"}
+    run = {
+        "metadata": {"uid": "test-run-uid", "project": "test-project"},
+        "spec": {
+            "notifications": [
+                {
+                    "name": "test-notification",
+                    "when": ["completed"],
+                    "params": {"secret": "secret-name"},
+                },
+            ],
+        },
+    }
+
+    def _get_valid_project_secret(*args, **kwargs):
+        return json.dumps(secret_value)
+
+    def _get_invalid_project_secret(*args, **kwargs):
+        return json.dumps(secret_value)[:5]
+
+    db_mock = unittest.mock.Mock()
+    db_session_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(
+        mlrun.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
+    )
+
+    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+        db_mock, db_session_mock, copy.deepcopy(run)
+    )
+    assert "sensitive" in unmasked_run.spec.notifications[0].params
+    assert "secret" not in unmasked_run.spec.notifications[0].params
+    assert unmasked_run.spec.notifications[0].params == secret_value
+
+    monkeypatch.setattr(
+        mlrun.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
+    )
+    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+        db_mock, db_session_mock, copy.deepcopy(run)
+    )
+    assert len(unmasked_run.spec.notifications) == 0
+    db_mock.store_run_notifications.assert_called_once()
+    args, _ = db_mock.store_run_notifications.call_args
+    assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
 
 
 NOTIFICATION_VALIDATION_PARMETRIZE = [

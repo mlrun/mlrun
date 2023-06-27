@@ -241,3 +241,55 @@ class TestDBFSStore:
             .reset_index(drop=True)
         )
         assert response_df.equals(appended_df)
+
+@pytest.mark.parametrize(
+        "directory, file_format, file_extension, files_paths, reader",
+        [
+            (
+                    PARQUETS_DIR,
+                    "parquet",
+                    "parquet",
+                    [parquet_path, additional_parquet_path],
+                    dd.read_parquet,
+            ),
+            (CSV_DIR, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
+        ],
+    )
+    def test_check_read_df_dir_dd(
+            self,
+            directory: str,
+            file_format: str,
+            file_extension: str,
+            files_paths: List[Path],
+            reader: callable,
+    ):
+        first_file_path = files_paths[0]
+        second_file_path = files_paths[1]
+        uploaded_file_path = (
+            f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
+        )
+        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
+        uploaded_data_item.upload(first_file_path)
+
+        uploaded_file_path = (
+            f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
+        )
+        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
+        uploaded_data_item.upload(second_file_path)
+
+        dir_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + os.path.dirname(uploaded_file_path)
+        )
+        response_df = (
+            dir_data_item.as_df(format=file_format, df_module=dd)
+            .sort_values("Name")
+            .reset_index(drop=True)
+        )
+        df = reader(first_file_path)
+        additional_df = reader(second_file_path)
+        appended_df = (
+            dd.concat([df, additional_df], axis=0)
+            .sort_values("Name")
+            .reset_index(drop=True)
+        )
+        assert dd.assert_eq(appended_df, response_df)

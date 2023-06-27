@@ -569,7 +569,7 @@ class Notification(ModelObj):
                 " The following fields are required: 'when', 'severity', 'kind', and 'message'."
                 " Please make sure to provide values for these fields."
             ) from exc
-\
+
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
         """Validate that all notifications in the list are unique by name"""

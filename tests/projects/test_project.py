@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -908,6 +909,55 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
+
+
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': './', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': 'https://test', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_workflow_with_invalid_path(workflow_path, exception):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_clear_context():

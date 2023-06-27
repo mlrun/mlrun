@@ -497,6 +497,9 @@ def ingest(
         if source.schedule:
             featureset.reload(update_spec=False)
 
+    mlrun_context.logger.info(
+        f"DAVID {source}"
+    )
     if isinstance(source, DataSource) and source.schedule:
         mlrun_context.logger.info(
             f"DAVID in isinstance(source, DataSource) and source.schedule"

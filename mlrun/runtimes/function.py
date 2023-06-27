@@ -811,7 +811,7 @@ class RemoteRuntime(KubeResource):
         if (
             use_function_from_db
             or use_function_from_db is None
-            # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
+            # if the function contain KFP PipelineParams (futures) pass the full spec to the
             # ContainerOp this way KFP will substitute the params with previous step outputs
             and not self._has_pipeline_param()
         ):

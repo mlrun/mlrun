@@ -502,7 +502,7 @@ class TestProject(TestMLRunSystem):
         )
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
-        project.run("paramflow", engine="kfp", watch=True)
+        project.run("paramflow", engine="kfp", arguments={"memory": "11Mi"}, watch=True)
 
     def _test_remote_pipeline_from_github(
         self, name, workflow_name, engine=None, local=None, watch=False

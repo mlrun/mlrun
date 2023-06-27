@@ -890,7 +890,7 @@ def test_project_ops():
                 ValueError,
                 match=str(
                     re.escape(
-                        f"Invalid 'workflow_path': (./), please provide a valid URL/path to a python file."
+                        "Invalid 'workflow_path': (./), please provide a valid URL/path to a python file."
                     )
                 ),
             ),

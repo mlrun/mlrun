@@ -99,20 +99,33 @@ def link_html(text, link=""):
 
 
 def artifacts_html(x, pathcol="path"):
-    if not x:
+    artifact_dicts, output_path = x
+    if not artifact_dicts:
         return ""
     html = ""
-    for i in x:
-        # support legacy format
-        if pathcol in i:
-            link, ref = link_to_ipython(i[pathcol])
-        else:
-            link, ref = link_to_ipython(i["spec"][pathcol])
 
-        if "key" in i:
-            key = i["key"]
+    for artifact_dict in artifact_dicts:
+        # if generate_target_path_from_artifact_hash is True, we need to resolve the target path from the artifact
+        # hash, otherwise we can use the pathcol as is
+        if (
+            pathcol == "target_path"
+            and config.artifacts.generate_target_path_from_artifact_hash
+        ):
+            artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
+            target_path = artifact.resolve_target_path(artifact_path=output_path)
+            link, ref = link_to_ipython(target_path)
+
         else:
-            key = i["metadata"]["key"]
+            # TODO: remove this in 1.5.0 once we no longer support legacy format
+            if pathcol in artifact_dict:
+                link, ref = link_to_ipython(artifact_dict[pathcol])
+            else:
+                link, ref = link_to_ipython(artifact_dict["spec"][pathcol])
+
+        if "key" in artifact_dict:
+            key = artifact_dict["key"]
+        else:
+            key = artifact_dict["metadata"]["key"]
 
         html += f'<div {ref}title="{link}">{key}</div>'
     return html
@@ -353,14 +366,6 @@ def runs_to_html(
         except ValueError:
             return ""
 
-    def _artifacts_html(artifact_tuple):
-        artifact_dict, output_path = artifact_tuple
-        if config.artifacts.generate_target_path_from_artifact_hash:
-            artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
-            return artifact.resolve_target_path(artifact_path=output_path)
-
-        return artifacts_html(artifact_dict, "target_path")
-
     df["results"] = df["results"].apply(dict_html)
     df["start"] = df["start"].apply(time_str)
     df["parameters"] = df["parameters"].apply(dict_html)
@@ -386,10 +391,13 @@ def runs_to_html(
         df.drop("labels", axis=1, inplace=True)
         df.drop("inputs", axis=1, inplace=True)
         df.drop("artifacts", axis=1, inplace=True)
+        df.drop("output_path", axis=1, inplace=True)
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df[["artifacts", "output_path"]].apply(_artifacts_html, axis=1)
+        df["artifacts"] = df[["artifacts", "output_path"]].apply(
+            lambda x: artifacts_html(x, "target_path"), axis=1
+        )
 
     def expand_error(x):
         if x["state"] == "error":

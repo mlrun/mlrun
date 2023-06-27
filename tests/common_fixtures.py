@@ -14,10 +14,11 @@
 #
 import shutil
 import unittest
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable, Generator, List, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -274,6 +275,33 @@ class RunDBMock:
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
+
+    def list_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, List[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> mlrun.lists.RunList:
+        return mlrun.lists.RunList(self._runs.values())
 
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:

@@ -17,6 +17,7 @@ import uuid
 from pathlib import Path
 from typing import List
 
+import dask.dataframe as dd
 import pandas as pd
 import pytest
 import yaml
@@ -164,6 +165,32 @@ class TestDBFSStore:
         assert source.equals(response)
 
     @pytest.mark.parametrize(
+        "file_extension, local_file_path, reader",
+        [
+            (
+                "parquet",
+                parquet_path,
+                dd.read_parquet,
+            ),
+            ("csv", csv_path, dd.read_csv),
+            ("json", json_path, dd.read_json),
+        ],
+    )
+    def test_as_df_dd(
+        self, file_extension: str, local_file_path: str, reader: callable
+    ):
+        source = reader(local_file_path)
+        upload_file_path = (
+            f"{self.test_root_dir}/file_{str(uuid.uuid4())}.{file_extension}"
+        )
+        upload_data_item = mlrun.run.get_dataitem(
+            self._dbfs_url + upload_file_path,
+        )
+        upload_data_item.upload(local_file_path)
+        response = upload_data_item.as_df(df_module=dd)
+        assert dd.assert_eq(source, response)
+
+    @pytest.mark.parametrize(
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
@@ -187,13 +214,13 @@ class TestDBFSStore:
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
         uploaded_file_path = (
-             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
+            f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(first_file_path)
 
         uploaded_file_path = (
-             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
+            f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
         uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_url + uploaded_file_path)
         uploaded_data_item.upload(second_file_path)

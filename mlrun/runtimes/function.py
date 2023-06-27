@@ -133,6 +133,7 @@ class NuclioSpec(KubeResourceSpec):
         "source",
         "function_kind",
         "readiness_timeout",
+        "readiness_timeout_before_failure",
         "function_handler",
         "nuclio_runtime",
         "base_image_pull",
@@ -164,6 +165,7 @@ class NuclioSpec(KubeResourceSpec):
         build=None,
         service_account=None,
         readiness_timeout=None,
+        readiness_timeout_before_failure=None,
         default_handler=None,
         node_name=None,
         node_selector=None,
@@ -219,6 +221,7 @@ class NuclioSpec(KubeResourceSpec):
         self.nuclio_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
+        self.readiness_timeout_before_failure = readiness_timeout_before_failure
         self.service_type = service_type
         self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 

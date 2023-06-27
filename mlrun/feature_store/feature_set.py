@@ -944,7 +944,8 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                start_time=start_time or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
+                start_time=start_time
+                or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
                 end_time=end_time,
                 time_field=time_column,
                 **kwargs,

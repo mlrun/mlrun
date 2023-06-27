@@ -550,7 +550,7 @@ class Notification(ModelObj):
         sent_time=None,
     ):
         self.kind = kind
-        self.name = name
+        self.name = name or ""
         self.message = message
         self.severity = severity
         self.when = when
@@ -558,7 +558,6 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
-
         self.validate_notification()
 
     def validate_notification(self):
@@ -566,9 +565,11 @@ class Notification(ModelObj):
             mlrun.common.schemas.notification.Notification(**self.to_dict())
         except pydantic.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid notification object"
+                "Invalid notification object."
+                " The following fields are required: 'when', 'severity', 'kind', and 'message'."
+                " Please make sure to provide values for these fields."
             ) from exc
-
+\
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
         """Validate that all notifications in the list are unique by name"""

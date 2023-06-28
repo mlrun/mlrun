@@ -18,7 +18,7 @@ from os import environ, path
 
 import pandas as pd
 
-import mlrun.artifacts
+import mlrun.utils
 
 from .config import config
 from .datastore import uri_to_ipython
@@ -134,7 +134,7 @@ def artifacts_html(
 
         if not attribute_value:
             mlrun.utils.logger.warning(
-                f"Artifact is incomplete, omitting from output (most likely due to a failed artifact logging).",
+                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging).",
                 artifact_key=key,
             )
             continue

@@ -29,12 +29,17 @@ PROJECT_SECRET_DELETED = "Security.Project.Secret.Deleted"
 
 
 class Client(mlrun.api.utils.events.base.BaseEventClient):
-    def __init__(self, access_key: str = None, verbose: bool = None):
+    def __init__(
+        self, access_key: str = None, username: str = None, verbose: bool = None
+    ):
         self.access_key = (
             access_key
             or mlrun.mlconf.events.access_key
             or mlrun.mlconf.get_v3io_access_key()
         )
+        # if username was not provided or configured in the config,
+        # the igz client will try to get it from the environment (V3IO_USERNAME)
+        self.username = username or mlrun.mlconf.events.username or None
         self.verbose = verbose if verbose is not None else mlrun.mlconf.events.verbose
         self.source = "mlrun-api"
 
@@ -42,7 +47,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         try:
             logger.debug("Emitting event", event=event)
             mlrun.api.utils.clients.iguazio.Client().emit_manual_event(
-                self.access_key, event
+                self.access_key, event, self.username
             )
         except Exception as exc:
             if self.verbose:

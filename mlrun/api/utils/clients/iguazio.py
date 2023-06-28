@@ -327,21 +327,25 @@ class Client(
         return True
 
     def emit_manual_event(
-        self, access_key: str, event: igz_mgmt.schemas.manual_events.ManualEventSchema
+        self,
+        access_key: str,
+        event: igz_mgmt.schemas.manual_events.ManualEventSchema,
+        username: str = None,
     ):
         """
         Emit a manual event to Iguazio
         """
-        client = self._get_igz_client(access_key)
+        client = self._get_igz_client(access_key, username)
         igz_mgmt.ManualEvents.emit(
             http_client=client, event=event, audit_tenant_id=client.tenant_id
         )
 
-    def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
+    def _get_igz_client(self, access_key: str, username: str = None) -> igz_mgmt.Client:
         if not self._igz_clients.get(access_key):
             self._igz_clients[access_key] = igz_mgmt.Client(
                 endpoint=self._api_url,
                 access_key=access_key,
+                username=username,
             )
         return self._igz_clients[access_key]
 

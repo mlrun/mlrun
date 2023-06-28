@@ -502,7 +502,16 @@ class TestProject(TestMLRunSystem):
         )
         # set and run a two-step workflow in the project
         project.set_workflow("paramflow", workflow_path)
-        project.run("paramflow", engine="kfp", arguments={"memory": "11Mi"}, watch=True)
+
+        arguments = {"memory": "11Mi"}
+        pipeline_status = project.run(
+            "paramflow", engine="kfp", arguments=arguments, watch=True
+        )
+        assert pipeline_status.workflow.args == arguments
+
+        # get the function from the db
+        function = project.get_function("func-1", ignore_cache=True)
+        assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def _test_remote_pipeline_from_github(
         self, name, workflow_name, engine=None, local=None, watch=False

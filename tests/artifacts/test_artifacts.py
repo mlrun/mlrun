@@ -90,55 +90,61 @@ class FakeProducer:
         self.name = name
 
 
-def test_generate_target_path():
-    Artifact = mlrun.artifacts.Artifact
-    Model = mlrun.artifacts.ModelArtifact
-    cases = [
-        # artifact_path, artifact, src_path, iter, producer, expected
-        ("x", Artifact("k1"), None, FakeProducer("j1"), "x/j1/0/k1"),
+@pytest.mark.parametrize(
+    "artifact_path,artifact,iter,producer,expected",
+    [
+        ("x", mlrun.artifacts.Artifact("k1"), None, FakeProducer("j1"), "x/j1/0/k1"),
         (
             None,
-            Artifact("k2", format="html"),
+            mlrun.artifacts.Artifact("k2", format="html"),
             1,
             FakeProducer("j1"),
             "j1/1/k2.html",
         ),
         (
             "",
-            Artifact("k3", src_path="model.pkl"),
+            mlrun.artifacts.Artifact("k3", src_path="model.pkl"),
             0,
             FakeProducer("j1"),
             "j1/0/k3.pkl",
         ),
         (
             "x",
-            Artifact("k4", src_path="a.b"),
+            mlrun.artifacts.Artifact("k4", src_path="a.b"),
             None,
             FakeProducer(kind="project"),
             "x/k4.b",
         ),
         (
             "",
-            Model("k5", model_dir="y", model_file="model.pkl"),
+            mlrun.artifacts.ModelArtifact("k5", model_dir="y", model_file="model.pkl"),
             0,
             FakeProducer("j1"),
             "j1/0/k5/",
         ),
         (
             "x",
-            Model("k6", model_file="a.b"),
+            mlrun.artifacts.ModelArtifact("k6", model_file="a.b"),
             None,
             FakeProducer(kind="project"),
             "x/k6/",
         ),
-    ]
-    for artifact_path, artifact, iter, producer, expected in cases:
-        artifact.iter = iter
-        target = mlrun.artifacts.base.generate_target_path(
-            artifact, artifact_path, producer
-        )
-        print(f"\ntarget:   {target}\nexpected: {expected}")
-        assert target == expected
+        (
+            "",
+            mlrun.artifacts.Artifact("k7", src_path="a.tar.gz"),
+            None,
+            FakeProducer(kind="project"),
+            "k7.tar.gz",
+        ),
+    ],
+)
+def test_generate_target_path(artifact_path, artifact, iter, producer, expected):
+    artifact.iter = iter
+    target = mlrun.artifacts.base.generate_target_path(
+        artifact, artifact_path, producer
+    )
+    print(f"\ntarget:   {target}\nexpected: {expected}")
+    assert target == expected
 
 
 def assets_path():

@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import argparse
 import json
 import logging
 import os.path
+import re
 import subprocess
 import sys
 
@@ -48,6 +50,23 @@ def create_or_update_version_file(mlrun_version):
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
+
+    # Check if the provided version is a semver and followed by a "-"
+    semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-
+    rc_semver_pattern = rf"{semver_pattern}-(a|b|rc)[0-9]+$"
+
+    # In case of semver - do nothing
+    if re.match(semver_pattern, mlrun_version):
+        pass
+
+    # In case of semver - replace the first occurrence of "-" with "+" to align with PEP 440
+    # https://peps.python.org/pep-0440/
+    elif re.match(rc_semver_pattern, mlrun_version):
+        mlrun_version = mlrun_version.replace("-", "+", 1)
+
+    # In case of some free text - check if the provided version matches the semver pattern
+    elif not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+.*$", mlrun_version):
+        mlrun_version = "0.0.0+" + mlrun_version
 
     version_info = {
         "version": mlrun_version,

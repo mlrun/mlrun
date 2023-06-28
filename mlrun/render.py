@@ -105,44 +105,41 @@ def link_html(text, link=""):
 
 
 def artifacts_html(
-    artifacts_tuple: typing.Tuple[dict, str],
+    artifacts: typing.List[dict],
     attribute_name: str = "path",
 ):
     """
     Generate HTML for a list of artifacts. The HTML will be a list of links to the artifacts to be presented in the
     jupyter notebook. The links will be clickable and will open the artifact in a new tab.
 
-    :param artifacts_tuple: contains a list of artifact dictionaries and the output path of the run
+    :param artifacts:       contains a list of artifact dictionaries
     :param attribute_name:  the attribute of the artifact to use as the link text
     :return:                the generated HTML
     """
-    artifact_dicts, output_path = artifacts_tuple
-    if not artifact_dicts:
+    if not artifacts:
         return ""
     html = ""
 
-    for artifact_dict in artifact_dicts:
-        # if generate_target_path_from_artifact_hash is True, we need to resolve the target path from the artifact
-        # hash, otherwise we can use the attribute_name as is
-        if (
-            attribute_name == "target_path"
-            and config.artifacts.generate_target_path_from_artifact_hash
-        ):
-            artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
-            target_path = artifact.resolve_target_path(artifact_path=output_path)
-            link, ref = link_to_ipython(target_path)
-
+    for artifact in artifacts:
+        # TODO: remove this in 1.5.0 once we no longer support legacy format
+        if mlrun.utils.is_legacy_artifact(artifact):
+            attribute_value = artifact.get(attribute_name)
         else:
-            # TODO: remove this in 1.5.0 once we no longer support legacy format
-            if mlrun.utils.is_legacy_artifact(artifact_dict):
-                link, ref = link_to_ipython(artifact_dict[attribute_name])
-            else:
-                link, ref = link_to_ipython(artifact_dict["spec"][attribute_name])
+            attribute_value = artifact["spec"].get(attribute_name)
 
-        if mlrun.utils.is_legacy_artifact(artifact_dict):
-            key = artifact_dict["key"]
+        if mlrun.utils.is_legacy_artifact(artifact):
+            key = artifact["key"]
         else:
-            key = artifact_dict["metadata"]["key"]
+            key = artifact["metadata"]["key"]
+
+        if not attribute_value:
+            mlrun.utils.logger.warning(
+                f"Artifact is incomplete, omitting from output (most likely due to a failed artifact logging).",
+                artifact_key=key,
+            )
+            continue
+
+        link, ref = link_to_ipython(attribute_value)
 
         html += f'<div {ref}title="{link}">{key}</div>'
     return html
@@ -408,16 +405,12 @@ def runs_to_html(
         df.drop("labels", axis=1, inplace=True)
         df.drop("inputs", axis=1, inplace=True)
         df.drop("artifacts", axis=1, inplace=True)
-        df.drop("output_path", axis=1, inplace=True)
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df[["artifacts", "output_path"]].apply(
-            lambda artifacts_tuple: artifacts_html(artifacts_tuple, "target_path"),
-            axis=1,
+        df["artifacts"] = df["artifacts"].apply(
+            lambda artifacts: artifacts_html(artifacts, "target_path"),
         )
-        # no need for the output path to be displayed (there is a link to the artifacts)
-        df.drop("output_path", axis=1, inplace=True)
 
     def expand_error(x):
         if x["state"] == "error":

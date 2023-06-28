@@ -38,7 +38,6 @@ list_header = [
     "results",
     "artifacts",
     "error",
-    "output_path",
 ]
 
 iter_index = list_header.index("iter")
@@ -66,7 +65,6 @@ class RunList(list):
                 get_in(run, "status.results", ""),
                 get_in(run, "status.artifacts", []),
                 get_in(run, "status.error", ""),
-                get_in(run, "spec.output_path", ""),
             ]
             if extend_iterations and iterations:
                 parameters_dict = {

@@ -563,7 +563,6 @@ default_config = {
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",
-        "username": "",
     },
 }
 

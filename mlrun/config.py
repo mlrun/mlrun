@@ -559,7 +559,7 @@ default_config = {
         # supported modes "enabled", "disabled".
         # "enabled" - events are emitted.
         # "disabled" - a nop client is used (aka doing nothing).
-        "mode": "enabled",
+        "mode": "disabled",
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",

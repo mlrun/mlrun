@@ -87,7 +87,7 @@ def make_tag_v2(table):
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
         obj_name = Column(
             String(255, collation=SQLCollationUtil.collation()),
-            ForeignKey(f"{table}.name"),
+            # ForeignKey(f"{table}.name"),
         )
 
     return Tag
@@ -154,6 +154,45 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         labels = relationship(Label)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.key}/{self.uid}"
+
+    class ArtifactV2(Base, mlrun.utils.db.HasStruct):
+        __tablename__ = "artifacts_v2"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
+        )
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
+        iteration = Column(Integer)
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        hash = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        _full_object = Column("object", JSON)
+
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
+        # body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"

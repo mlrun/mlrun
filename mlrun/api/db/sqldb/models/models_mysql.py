@@ -139,6 +139,8 @@ def make_notification(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
+    # deprecated, use ArtifactV2 instead
+    # TODO: remove in 1.6.0
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -158,6 +160,51 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.key}/{self.uid}"
+
+    class ArtifactV2(Base, mlrun.utils.db.HasStruct):
+        __tablename__ = "artifacts_v2"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+        )
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
+        iteration = Column(Integer)
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        hash = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        _full_object = Column("object", JSON)
+
+        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
+        # body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"

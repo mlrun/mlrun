@@ -241,6 +241,84 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
     _add_data_version(db, db_session)
 
 
+def _perform_version_1_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _enrich_project_state(db, db_session)
+    _fix_artifact_tags_duplications(db, db_session)
+    _fix_datasets_large_previews(db, db_session)
+
+
+def _enrich_project_state(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Enriching projects state")
+    projects = db.list_projects(db_session)
+    for project in projects.projects:
+        changed = False
+        if not project.spec.desired_state:
+            changed = True
+            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
+        if not project.status.state:
+            changed = True
+            project.status.state = project.spec.desired_state
+        if changed:
+            logger.debug(
+                "Found project without state data. Enriching",
+                name=project.metadata.name,
+            )
+            db.store_project(db_session, project.metadata.name, project)
+
+
+def _fix_artifact_tags_duplications(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Fixing artifact tags duplications")
+    # get all artifacts
+    artifacts = db._find_artifacts(db_session, None, "*")
+    # get all artifact tags
+    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
+    # artifact record id -> artifact
+    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
+    tags_to_delete = []
+    projects = {artifact.project for artifact in artifacts}
+    for project in projects:
+        artifact_keys = {
+            artifact.key for artifact in artifacts if artifact.project == project
+        }
+        for artifact_key in artifact_keys:
+            artifact_key_tags = []
+            for tag in tags:
+                # sanity
+                if tag.obj_id not in artifact_record_id_map:
+                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
+                if artifact_record_id_map[tag.obj_id].key == artifact_key:
+                    artifact_key_tags.append(tag)
+            tag_name_tags_map = collections.defaultdict(list)
+            for tag in artifact_key_tags:
+                tag_name_tags_map[tag.name].append(tag)
+            for tag_name, _tags in tag_name_tags_map.items():
+                if len(_tags) == 1:
+                    continue
+                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
+                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
+                for tag in _tags:
+                    if tag.obj_id != last_updated_artifact.id:
+                        tags_to_delete.append(tag)
+    if tags_to_delete:
+        logger.info(
+            "Found duplicated artifact tags. Removing duplications",
+            tags_to_delete=[
+                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
+            ],
+            tags=[tag.to_dict() for tag in tags],
+            artifacts=[artifact.to_dict() for artifact in artifacts],
+        )
+        for tag in tags_to_delete:
+            db_session.delete(tag)
+        db_session.commit()
+
+
 def _fix_datasets_large_previews(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
@@ -353,55 +431,6 @@ def _fix_datasets_large_previews(
             )
 
 
-def _fix_artifact_tags_duplications(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Fixing artifact tags duplications")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    # get all artifact tags
-    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
-    # artifact record id -> artifact
-    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
-    tags_to_delete = []
-    projects = {artifact.project for artifact in artifacts}
-    for project in projects:
-        artifact_keys = {
-            artifact.key for artifact in artifacts if artifact.project == project
-        }
-        for artifact_key in artifact_keys:
-            artifact_key_tags = []
-            for tag in tags:
-                # sanity
-                if tag.obj_id not in artifact_record_id_map:
-                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
-                if artifact_record_id_map[tag.obj_id].key == artifact_key:
-                    artifact_key_tags.append(tag)
-            tag_name_tags_map = collections.defaultdict(list)
-            for tag in artifact_key_tags:
-                tag_name_tags_map[tag.name].append(tag)
-            for tag_name, _tags in tag_name_tags_map.items():
-                if len(_tags) == 1:
-                    continue
-                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
-                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
-                for tag in _tags:
-                    if tag.obj_id != last_updated_artifact.id:
-                        tags_to_delete.append(tag)
-    if tags_to_delete:
-        logger.info(
-            "Found duplicated artifact tags. Removing duplications",
-            tags_to_delete=[
-                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
-            ],
-            tags=[tag.to_dict() for tag in tags],
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        for tag in tags_to_delete:
-            db_session.delete(tag)
-        db_session.commit()
-
-
 def _find_last_updated_artifact(
     artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact],
 ):
@@ -506,35 +535,6 @@ def _rename_marketplace_kind_to_hub(
         # save the object back to the db
         hub.full_object = hub_dict
         db._upsert(db_session, [hub], ignore=True)
-
-
-def _perform_version_1_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _enrich_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
-
-
-def _enrich_project_state(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Enriching projects state")
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        changed = False
-        if not project.spec.desired_state:
-            changed = True
-            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
-        if not project.status.state:
-            changed = True
-            project.status.state = project.spec.desired_state
-        if changed:
-            logger.debug(
-                "Found project without state data. Enriching",
-                name=project.metadata.name,
-            )
-            db.store_project(db_session, project.metadata.name, project)
 
 
 def _add_default_hub_source_if_needed(

@@ -455,7 +455,7 @@ default_config = {
             "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
-        "default_job_image": "mlrun/mlrun",
+        "default_job_image": "quay.io/eyaligu/mlrun-api:ml4107",
         "flush_interval": 300,
     },
     "ui": {

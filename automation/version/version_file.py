@@ -51,6 +51,23 @@ def create_or_update_version_file(mlrun_version):
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
 
+    # get feature branch name from git branch
+    git_branch = ""
+    try:
+        out = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"])
+        git_branch = out.strip()
+        logger.debug("Found git branch: {}".format(git_branch))
+    except Exception as exc:
+        logger.warning("Failed to get git branch", exc_info=exc)
+
+    # Enrich the version with the feature name
+    if git_branch and git_branch.startswith("feature/"):
+        feature_name = git_branch.replace("feature/", "")
+        feature_name = feature_name.lower()
+        feature_name = re.sub(r"\+\./\\", "-", feature_name)
+        if not mlrun_version.endswith(feature_name):
+            mlrun_version = f"{mlrun_version}+{feature_name}"
+
     # Check if the provided version is a semver and followed by a "-"
     semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-
     rc_semver_pattern = rf"{semver_pattern}-(a|b|rc)[0-9]+$"

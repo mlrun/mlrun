@@ -75,7 +75,13 @@ def dict_html(x):
     return "".join([f'<div class="dictlist">{i}</div>' for i in dict_to_list(x)])
 
 
-def link_to_ipython(link):
+def link_to_ipython(link: str):
+    """
+    Convert a link (e.g. v3io path) to a jupyter notebook local link.
+
+    :param link: the link to convert
+    :return:     the converted link and ref for expanding the file in the notebook
+    """
     valid = pathlib.Path(link).suffix in supported_viewers
     ref = 'class="artifact" onclick="expandPanel(this)" paneName="result" '
     if "://" not in link:
@@ -98,17 +104,25 @@ def link_html(text, link=""):
     return f'<div {ref}title="{link}">{text}</div>'
 
 
-def artifacts_html(x, pathcol="path"):
-    artifact_dicts, output_path = x
+def artifacts_html(artifacts_tuple: typing.Tuple, attribute_name: str = "path"):
+    """
+    Generate HTML for a list of artifacts. The HTML will be a list of links to the artifacts to be presented in the
+    jupyter notebook. The links will be clickable and will open the artifact in a new tab.
+
+    :param artifacts_tuple: contains a list of artifact dictionaries and the output path of the run
+    :param attribute_name:  the attribute of the artifact to use as the link text
+    :return:                the generated HTML
+    """
+    artifact_dicts, output_path = artifacts_tuple
     if not artifact_dicts:
         return ""
     html = ""
 
     for artifact_dict in artifact_dicts:
         # if generate_target_path_from_artifact_hash is True, we need to resolve the target path from the artifact
-        # hash, otherwise we can use the pathcol as is
+        # hash, otherwise we can use the attribute_name as is
         if (
-            pathcol == "target_path"
+            attribute_name == "target_path"
             and config.artifacts.generate_target_path_from_artifact_hash
         ):
             artifact = mlrun.artifacts.dict_to_artifact(artifact_dict)
@@ -117,12 +131,12 @@ def artifacts_html(x, pathcol="path"):
 
         else:
             # TODO: remove this in 1.5.0 once we no longer support legacy format
-            if pathcol in artifact_dict:
-                link, ref = link_to_ipython(artifact_dict[pathcol])
+            if mlrun.utils.is_legacy_artifact(artifact_dict):
+                link, ref = link_to_ipython(artifact_dict[attribute_name])
             else:
-                link, ref = link_to_ipython(artifact_dict["spec"][pathcol])
+                link, ref = link_to_ipython(artifact_dict["spec"][attribute_name])
 
-        if "key" in artifact_dict:
+        if mlrun.utils.is_legacy_artifact(artifact_dict):
             key = artifact_dict["key"]
         else:
             key = artifact_dict["metadata"]["key"]
@@ -396,7 +410,8 @@ def runs_to_html(
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
         df["artifacts"] = df[["artifacts", "output_path"]].apply(
-            lambda x: artifacts_html(x, "target_path"), axis=1
+            lambda artifacts_tuple: artifacts_html(artifacts_tuple, "target_path"),
+            axis=1,
         )
         df.drop("output_path", axis=1, inplace=True)
 

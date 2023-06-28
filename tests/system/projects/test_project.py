@@ -485,6 +485,34 @@ class TestProject(TestMLRunSystem):
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
 
+    def test_kfp_pipeline_with_resource_param_passed(self):
+        project_name = "test-pipeline-with-resource-param"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.new_project(project_name, context=str(self.assets_path))
+
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
+
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        # set and run a two-step workflow in the project
+        project.set_workflow("paramflow", workflow_path)
+
+        arguments = {"memory": "11Mi"}
+        pipeline_status = project.run(
+            "paramflow", engine="kfp", arguments=arguments, watch=True
+        )
+        assert pipeline_status.workflow.args == arguments
+
+        # get the function from the db
+        function = project.get_function("func-1", ignore_cache=True)
+        assert function.spec.resources["requests"]["memory"] == arguments["memory"]
+
     def _test_remote_pipeline_from_github(
         self, name, workflow_name, engine=None, local=None, watch=False
     ):

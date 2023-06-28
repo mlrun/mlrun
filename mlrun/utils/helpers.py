@@ -39,6 +39,7 @@ from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
@@ -148,6 +149,7 @@ def verify_field_regex(
     patterns,
     raise_on_failure: bool = True,
     log_message: str = "Field is malformed. Does not match required pattern",
+    mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
@@ -158,13 +160,23 @@ def verify_field_regex(
                 field_value=field_value,
                 pattern=pattern,
             )
-            if raise_on_failure:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-                )
-            else:
+            if mode == mlrun.common.schemas.RegexMatchModes.all:
+                if raise_on_failure:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                    )
                 return False
-    return True
+        elif mode == mlrun.common.schemas.RegexMatchModes.any:
+            return True
+    if mode == mlrun.common.schemas.RegexMatchModes.all:
+        return True
+    elif mode == mlrun.common.schemas.RegexMatchModes.any:
+        if raise_on_failure:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f" required patterns: {patterns}"
+            )
+        return False
 
 
 def validate_builder_source(

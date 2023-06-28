@@ -808,13 +808,12 @@ class RemoteRuntime(KubeResource):
         # verify auto mount is applied (with the client credentials)
         self.try_auto_mount_based_on_config()
 
-        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
-        # ContainerOp this way KFP will substitute the params with previous step outputs
-        func_has_pipeline_params = self.to_json().find("{{pipelineparam:op") > 0
         if (
             use_function_from_db
             or use_function_from_db is None
-            and not func_has_pipeline_params
+            # if the function contain KFP PipelineParams (futures) pass the full spec to the
+            # ContainerOp this way KFP will substitute the params with previous step outputs
+            and not self._has_pipeline_param()
         ):
             url = self.save(versioned=True, refresh=True)
         else:

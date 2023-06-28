@@ -59,7 +59,7 @@ def create_or_update_version_file(mlrun_version):
     if re.match(semver_pattern, mlrun_version):
         pass
 
-    # In case of semver - replace the first occurrence of "-" with "+" to align with PEP 440
+    # In case of rc semver - replace the first occurrence of "-" with "+" to align with PEP 440
     # https://peps.python.org/pep-0440/
     elif re.match(rc_semver_pattern, mlrun_version):
         mlrun_version = mlrun_version.replace("-", "+", 1)

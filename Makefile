@@ -20,7 +20,6 @@ MLRUN_VERSION ?= unstable
 # version for the python package with 0.0.0+
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
-MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -164,7 +163,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
+	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

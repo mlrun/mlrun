@@ -285,8 +285,8 @@ def uninstall(redis, kafka, mysql, redisinsight):
         print(e)
     try:
         print("namespace deleteted")
-        delns = "kubectl delete namespace  devtools"
-        subprocess.run(delns.split(), check=True)
+        cmd = "kubectl delete namespace  devtools"
+        subprocess.run(cmd.split(), check=True)
     except Exception as e:  # !!!
         print(e)
         pass

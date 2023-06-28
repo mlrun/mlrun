@@ -408,9 +408,6 @@ def ingest(
                           False for scheduled ingest - does not delete the target)
     :return:              if return_df is True, a dataframe will be returned based on the graph
     """
-    mlrun_context.logger.info(
-        f"DAVID start with source = {source}"
-    )
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -504,14 +501,14 @@ def ingest(
         f"DAVID {source}"
     )
     if isinstance(source, DataSource) and source.schedule:
-        mlrun_context.logger.info(
+        print(
             f"DAVID in isinstance(source, DataSource) and source.schedule"
         )
         if not featureset.spec.timestamp_key:
             pass
         min_time = datetime.max
         for target in featureset.status.targets:
-            mlrun_context.logger.info(
+            print(
                 f"DAVID target.last_written = {target.last_written}"
             )
             if target.last_written:
@@ -531,7 +528,7 @@ def ingest(
 
         if mlrun_context:
             mlrun_context.logger.info(
-                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}!!!"
             )
 
         return_df = False
@@ -653,7 +650,7 @@ def ingest(
                 and df[featureset.spec.timestamp_key].shape
                 else None
             )
-            mlrun_context.logger.info(
+            print(
                 f"DAVID max_time = {max_time}"
             )
             # if max_time is None(no data), next scheduled run should be with same start_time

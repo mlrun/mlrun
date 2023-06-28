@@ -1089,25 +1089,30 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(context, url, name, init_git=init_git, clone=clone, save=save)
+    # set the CLI/GIT parameters in load_project() so they can be used by project setup scripts
+    parameters = fill_params(param) if param else {}
+    if git_repo:
+        parameters["git_repo"] = git_repo
+    if git_issue:
+        parameters["git_issue"] = git_issue
+    commit = environ.get("GITHUB_SHA") or environ.get("CI_COMMIT_SHA")
+    if commit and not parameters.get("commit_id"):
+        parameters["commit_id"] = commit
+
+    proj = load_project(
+        context,
+        url,
+        name,
+        init_git=init_git,
+        clone=clone,
+        save=save,
+        parameters=parameters,
+    )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
     if is_relative_path(artifact_path):
         artifact_path = path.abspath(artifact_path)
-    if param:
-        proj.spec.params = fill_params(param, proj.spec.params)
-    if git_repo:
-        proj.spec.params["git_repo"] = git_repo
-    if git_issue:
-        proj.spec.params["git_issue"] = git_issue
-    commit = (
-        proj.get_param("commit_id")
-        or environ.get("GITHUB_SHA")
-        or environ.get("CI_COMMIT_SHA")
-    )
-    if commit:
-        proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         secret_store = SecretsStore.from_list(secrets)

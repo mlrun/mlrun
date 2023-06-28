@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -336,6 +337,36 @@ def test_load_project(
     assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
+
+
+def test_load_project_with_setup(context):
+    # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
+    project_path = (
+        pathlib.Path(tests.conftest.tests_root_directory)
+        / "projects"
+        / "assets"
+        / "load_setup_test"
+    )
+    project = mlrun.load_project(
+        context=project_path, name="projset", save=False, parameters={"p2": "123"}
+    )
+    mlrun.utils.logger.info(f"Project: {project}")
+
+    # see assets/load_setup_test/project_setup.py for extra project settings
+    # test that a function was added and its metadata was set from param[p2]
+    prep_func = project.get_function("prep-data")
+    assert prep_func.metadata.labels == {"tst1": "123"}  # = p2
+
+    # test that a serving function was set with a graph element (model)
+    srv_func = project.get_function("serving")
+    assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
+
+    # test that the project metadata was set correctly
+    assert project.name == "projset"
+    assert project.spec.context == project_path
+
+    # test that the params contain all params from the yaml, the load, and the setup script
+    assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
 @pytest.mark.parametrize(
@@ -878,6 +909,55 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
+
+
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': './', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': 'https://test', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': '', please provide a valid URL/path to a python file."
+                    )
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_workflow_with_invalid_path(workflow_path, exception):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_clear_context():

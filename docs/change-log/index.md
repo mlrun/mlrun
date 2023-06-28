@@ -203,6 +203,7 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
+| `user_project`                                   | Use `get_or_create_project` or `load_project` to configure the active project. |
 
 **REST APIs deprecated and removed from v1.3.0 code**
 

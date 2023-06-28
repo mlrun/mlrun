@@ -403,11 +403,7 @@ def runs_to_html(
     def expand_error(x):
         if x["state"] == "error":
             title = str(x["error"])
-            state = f'<div style="color: red;" title="{title}">'
-
-            # TODO: is this replacement needed?
-            state.replace('"', "'")
-            state += f'{x["state"]}</div>'
+            state = f'<div style="color: red;" title="{title}">{x["state"]}</div>'
             x["state"] = state
         return x
 

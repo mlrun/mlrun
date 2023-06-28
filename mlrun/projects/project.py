@@ -15,6 +15,7 @@ import datetime
 import getpass
 import glob
 import http
+import importlib.util as imputil
 import json
 import os.path
 import pathlib
@@ -114,6 +115,7 @@ def new_project(
     subpath: str = None,
     save: bool = True,
     overwrite: bool = False,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -152,6 +154,7 @@ def new_project(
     :param save:         whether to save the created project in the DB
     :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
                          if project with name exists
+    :param parameters:   key/value pairs to add to the project.spec.params
 
     :returns: project object
     """
@@ -193,6 +196,10 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
+    if parameters:
+        # Enable setting project parameters at load time, can be used to customize the project_setup
+        for key, val in parameters.items():
+            project.spec.params[key] = val
 
     _set_as_current_default_project(project)
 
@@ -220,6 +227,11 @@ def new_project(
             context=context,
             save=save,
         )
+        if from_template:
+            # Hook for initializing the project using a project_setup script
+            setup_file_path = path.join(context, "project_setup.py")
+            project = _run_project_setup(project, setup_file_path, save)
+
     return project
 
 
@@ -234,6 +246,7 @@ def load_project(
     user_project: bool = False,
     save: bool = True,
     sync_functions: bool = False,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -260,6 +273,7 @@ def load_project(
     :param user_project:    add the current user name to the project name (for db:// prefixes)
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
+    :param parameters:      key/value pairs to add to the project.spec.params
 
     :returns: project object
     """
@@ -306,6 +320,12 @@ def load_project(
 
     if not project.metadata.name:
         raise ValueError("project name must be specified")
+
+    if parameters:
+        # Enable setting project parameters at load time, can be used to customize the project_setup
+        for key, val in parameters.items():
+            project.spec.params[key] = val
+
     if not from_db:
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
@@ -320,8 +340,15 @@ def load_project(
         except Exception:
             pass
 
-    if save and mlrun.mlconf.dbpath:
+    to_save = save and mlrun.mlconf.dbpath
+    if to_save:
         project.save()
+
+    # Hook for initializing the project using a project_setup script
+    setup_file_path = path.join(context, project.spec.subpath or "", "project_setup.py")
+    project = _run_project_setup(project, setup_file_path, to_save)
+
+    if to_save:
         project.register_artifacts()
         if sync_functions:
             project.sync_functions(names=project.get_function_names(), save=True)
@@ -345,6 +372,7 @@ def get_or_create_project(
     user_project: bool = False,
     from_template: str = None,
     save: bool = True,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -367,6 +395,8 @@ def get_or_create_project(
     :param user_project: add the current username to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
+    :param parameters:   key/value pairs to add to the project.spec.params
+
     :returns: project object
     """
     context = context or "./"
@@ -386,6 +416,7 @@ def get_or_create_project(
             user_project=user_project,
             # only loading project from db so no need to save it
             save=False,
+            parameters=parameters,
         )
         logger.info("Project loaded successfully", project_name=name)
         return project
@@ -407,6 +438,7 @@ def get_or_create_project(
             clone=clone,
             user_project=user_project,
             save=save,
+            parameters=parameters,
         )
 
         logger.info(
@@ -427,14 +459,64 @@ def get_or_create_project(
         secrets=secrets,
         subpath=subpath,
         save=save,
+        parameters=parameters,
     )
     logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    return project
+
+
+def _run_project_setup(
+    project: "MlrunProject", setup_file_path: str, save: bool = False
+):
+    """Run the project setup file if found
+
+    When loading a project MLRun will look for a project_setup.py file, if it is found
+    it will execute the setup(project) handler, which can enrich the project with additional
+    objects, functions, artifacts, etc.
+
+    Example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
+    """
+    if not path.exists(setup_file_path):
+        return project
+    spec = imputil.spec_from_file_location("workflow", setup_file_path)
+    if spec is None:
+        raise ImportError(f"cannot import project setup file in {setup_file_path}")
+    mod = imputil.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    if hasattr(mod, "setup"):
+        try:
+            project = getattr(mod, "setup")(project)
+        except Exception as exc:
+            logger.error(
+                "Failed to run project_setup script",
+                setup_file_path=setup_file_path,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise exc
+        if save:
+            project.save()
+    else:
+        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
     return project
 
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
     fpath = path.join(context, subpath_str, "project.yaml")
+    setup_file_path = path.join(context, subpath_str, "project_setup.py")
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -454,6 +536,9 @@ def _load_project_dir(context, name="", subpath=""):
                 },
             }
         )
+    elif path.exists(setup_file_path):
+        # If there is a setup script do not force having project.yaml file
+        project = MlrunProject()
     else:
         raise mlrun.errors.MLRunNotFoundError(
             "project or function YAML not found in path"
@@ -1126,8 +1211,14 @@ class MlrunProject(ModelObj):
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
-        if not workflow_path:
-            raise ValueError("valid workflow_path must be specified")
+        if not workflow_path or not (
+            (os.path.isfile(workflow_path) or "://" in workflow_path)
+            and workflow_path.endswith(".py")
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}', please provide a valid URL/path to a python file."
+            )
+
         if embed:
             if (
                 self.context

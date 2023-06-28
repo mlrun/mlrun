@@ -416,6 +416,7 @@ def runs_to_html(
             lambda artifacts_tuple: artifacts_html(artifacts_tuple, "target_path"),
             axis=1,
         )
+        # no need for the output path to be displayed (there is a link to the artifacts)
         df.drop("output_path", axis=1, inplace=True)
 
     def expand_error(x):

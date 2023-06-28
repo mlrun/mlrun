@@ -104,7 +104,10 @@ def link_html(text, link=""):
     return f'<div {ref}title="{link}">{text}</div>'
 
 
-def artifacts_html(artifacts_tuple: typing.Tuple, attribute_name: str = "path"):
+def artifacts_html(
+    artifacts_tuple: typing.Tuple[dict, str],
+    attribute_name: str = "path",
+):
     """
     Generate HTML for a list of artifacts. The HTML will be a list of links to the artifacts to be presented in the
     jupyter notebook. The links will be clickable and will open the artifact in a new tab.

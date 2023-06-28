@@ -49,11 +49,6 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
-        sa.Column(
-            "hash",
-            sa.String(length=255, collation=SQLCollationUtil.collation()),
-            nullable=True,
-        ),
         sa.Column("_full_object", sa.JSON(), nullable=True),
         sa.Column("created", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),

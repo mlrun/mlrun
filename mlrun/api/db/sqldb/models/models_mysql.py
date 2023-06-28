@@ -164,7 +164,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
-    class ArtifactV2(Base, mlrun.utils.db.HasStruct):
+    class ArtifactV2(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
@@ -180,7 +180,6 @@ with warnings.catch_warnings():
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
         iteration = Column(Integer)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
-        hash = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),

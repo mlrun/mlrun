@@ -37,7 +37,7 @@ from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.utils import fill_object_hash, is_legacy_artifact, logger
 
 
 def init_data(
@@ -123,7 +123,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 3
+latest_data_version = 4
 
 
 def _resolve_needed_operations(
@@ -230,6 +230,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_2_data_migrations(db, db_session)
             if current_data_version < 3:
                 _perform_version_3_data_migrations(db, db_session)
+            if current_data_version < 4:
+                _perform_version_4_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -484,8 +486,8 @@ def _align_runs_table(
         run.start_time = (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
-        # in case no start time was in the body, we took the time from thecolumn, let's make sure the body will have it
-        # as well
+        # in case no start time was in the body, we took the time from the column, let's make sure the body will have
+        # it as well
         run_dict.setdefault("status", {})["start_time"] = (
             db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
         )
@@ -535,6 +537,87 @@ def _rename_marketplace_kind_to_hub(
         # save the object back to the db
         hub.full_object = hub_dict
         db._upsert(db_session, [hub], ignore=True)
+
+
+def _perform_version_4_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_artifacts_table_v2(db, db_session)
+    # TODO
+    # _migrate_legacy_artifacts(db, db_session)
+
+
+def _migrate_artifacts_table_v2(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    """
+    Migrate the old artifacts table to the new one, which contains the following columns:
+    uid, key, project, iteration, kind, producer_id, created, updated, and full_object
+
+    Also migrate the artifact labels and tags to the new tables
+    """
+    logger.info("Aligning artifacts")
+    artifact_keys_to_ids = {}
+    artifacts = db._find_artifacts(db_session, None, "*").all()
+    for artifact in artifacts:
+        new_artifact = mlrun.api.db.sqldb.models.Artifact()
+        artifact_dict = artifact.struct
+
+        artifact_metadata = artifact.get("metadata", None)
+        artifact_metadata_dict = (
+            artifact_metadata.to_dict() if artifact_metadata else {}
+        )
+
+        # uid - calculate as the hash of the artifact object
+        uid = fill_object_hash(
+            artifact_dict, "uid", artifact_metadata_dict.get("tag", "")
+        )
+        artifact.uid = uid
+
+        # project - copy as is
+        new_artifact.project = artifact_metadata_dict.get("project", "")
+
+        # key - the artifact's key, without iteration if it is attached to it
+        # TODO: does the key include the iteration when its in the metadata?
+        key = artifact_metadata_dict.get("key", "")
+        new_artifact.key = key
+
+        # iter - the artifact's iteration
+        iteration = artifact_metadata_dict.get("iter", 1)
+        new_artifact.iteration = int(iteration)
+
+        # kind - doesn't exist in v1, will be set to "artifact" by default
+        new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
+
+        # producer_id - the current uid value,
+        new_artifact.producer_id = artifact_metadata_dict.get("uid", "")
+
+        # updated - the artifact's updated time
+        updated = artifact_metadata_dict.get("updated", datetime.datetime.now())
+        new_artifact.updated = updated
+
+        # created - the artifact's created time
+        # since this is a new field, we just take the updated time
+        created = updated
+        new_artifact.created = created
+
+        # _full_object - the artifact dict
+        new_artifact._full_object = artifact_dict
+
+        # save the new object to the db
+        db._upsert(db_session, [new_artifact], ignore=True)
+
+        # save artifact id to be used later for migrating labels and tags
+        artifact_keys_to_ids[key] = artifact.id
+
+        # delete the old object from the db
+        db.del_artifact(db_session, artifact.key, project=artifact.project)
+
+    # # migrate artifact labels to the new table ("artifact_v2_labels")
+    # _migrate_artifact_labels(db, db_session, artifact_keys_to_ids)
+    #
+    # # migrate artifact tags to the new table ("artifact_v2_tags")
+    # _migrate_artifact_tags(db, db_session, artifact_keys_to_ids)
 
 
 def _add_default_hub_source_if_needed(

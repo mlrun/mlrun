@@ -28,7 +28,6 @@ def upgrade():
         sa.Column("kind", sa.String(length=255), nullable=True),
         sa.Column("producer_id", sa.String(length=255), nullable=True),
         sa.Column("iteration", sa.Integer(), nullable=True),
-        sa.Column("hash", sa.String(length=255), nullable=True),
         sa.Column("_full_object", sa.JSON(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),

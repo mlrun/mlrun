@@ -519,12 +519,12 @@ def _handle_job_deploy_status(
         pod_name=pod,
     )
 
-    normalized_build_pod_state = (
+    normalized_pod_function_state = (
         mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
             build_pod_state
         )
     )
-    if normalized_build_pod_state == mlrun.common.schemas.FunctionState.ready:
+    if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
         logger.info(
             "Build completed successfully",
             function_name=name,
@@ -539,9 +539,10 @@ def _handle_job_deploy_status(
     if (
         (
             logs
-            and normalized_build_pod_state != mlrun.common.schemas.FunctionState.pending
+            and normalized_pod_function_state
+            != mlrun.common.schemas.FunctionState.pending
         )
-        or normalized_build_pod_state
+        or normalized_pod_function_state
         in mlrun.common.schemas.FunctionState.terminal_states()
     ):
         try:
@@ -550,14 +551,14 @@ def _handle_job_deploy_status(
             logger.warning(
                 "Failed to get build logs",
                 function_name=name,
-                function_state=normalized_build_pod_state,
+                function_state=normalized_pod_function_state,
                 pod=pod,
                 exc_info=exc,
             )
             resp = ""
 
         if (
-            normalized_build_pod_state
+            normalized_pod_function_state
             in mlrun.common.schemas.FunctionState.terminal_states()
         ):
             # TODO: move to log collector
@@ -571,11 +572,11 @@ def _handle_job_deploy_status(
 
     # check if the previous function state is different from the current build pod state, it that is the case then
     # update the function and store to the database
-    if function_state != normalized_build_pod_state:
-        update_in(fn, "status.state", normalized_build_pod_state)
+    if function_state != normalized_pod_function_state:
+        update_in(fn, "status.state", normalized_pod_function_state)
 
         versioned = False
-        if normalized_build_pod_state == mlrun.common.schemas.FunctionState.ready:
+        if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
             update_in(fn, "spec.image", image)
             versioned = True
 
@@ -592,8 +593,8 @@ def _handle_job_deploy_status(
         content=out,
         media_type="text/plain",
         headers={
-            "x-mlrun-function-status": normalized_build_pod_state,
-            "function_status": normalized_build_pod_state,
+            "x-mlrun-function-status": normalized_pod_function_state,
+            "function_status": normalized_pod_function_state,
             "function_image": image,
             "builder_pod": pod,
         },

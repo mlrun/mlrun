@@ -473,7 +473,7 @@ class SystemTestPreparer:
                 "info",
                 f"Command {command_name} timeout passed and not finished, failing...",
             )
-            raise mlrun.errors.MLRunTimeoutError()
+            raise RuntimeError("Command timeout passed and not finished")
         total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
         self._logger.log(
             "info",

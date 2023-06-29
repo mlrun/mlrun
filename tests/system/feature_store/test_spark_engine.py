@@ -822,9 +822,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector("my-vec", features)
-        resp = fstore.get_offline_features(
-            vector, entity_timestamp_column="time", with_indexes=True
-        )
+        resp = fstore.get_offline_features(vector, with_indexes=True)
 
         # We can't count on the order when reading the results back
         result_records = (

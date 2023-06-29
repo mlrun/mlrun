@@ -271,7 +271,7 @@ jobs:
       run: |
         gpg \
           --batch \
-          --passphrase ${{ env.GPG_PASSPHRASE }} \
+          --passphrase "${{ env.GPG_PASSPHRASE }}" \
           --output "${{ github.workspace }}/env.yaml.gpg" \
           --symmetric "${{ github.workspace }}/env.yaml"
       env:
@@ -324,9 +324,9 @@ jobs:
       run: |
         gpg \
           --batch \
-          --passphrase ${{ env.GPG_PASSPHRASE }} \
-          --output ${{ github.workspace }}/tests/system/env.yaml \
-          --decrypt ${{ github.workspace }}/tests/system/env.yaml.gpg
+          --passphrase "${{ env.GPG_PASSPHRASE }}" \
+          --output "${{ github.workspace }}/tests/system/env.yaml" \
+          --decrypt "${{ github.workspace }}/tests/system/env.yaml.gpg"
 
         # ensure file created
         test -f ${{ github.workspace }}/tests/system/env.yaml

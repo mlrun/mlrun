@@ -118,10 +118,10 @@ class SystemTestPreparer:
         self._prepare_env_local(save_to_path)
 
     def connect_to_remote(self):
-        self._logger.info(
-            "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
-        )
         if not self._debug and self._data_cluster_ip:
+            self._logger.info(
+                "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
+            )
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(

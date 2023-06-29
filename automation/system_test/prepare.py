@@ -120,7 +120,7 @@ class SystemTestPreparer:
         self._logger.info(
             "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
         )
-        if not self._debug:
+        if not self._debug and self._data_cluster_ip:
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(
@@ -647,7 +647,7 @@ class SystemTestPreparer:
             raise RuntimeError(
                 f"Failed getting {ingress_name} ingress host. Error: {stderr}"
             )
-        return host
+        return host.strip()
 
     def _get_service_name(self, label_selector):
         service_name, stderr = self._run_kubectl_command(
@@ -664,7 +664,7 @@ class SystemTestPreparer:
         )
         if stderr:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
-        return service_name
+        return service_name.strip()
 
 
 @click.group()
@@ -800,6 +800,9 @@ def env(
     github_access_token: str,
 ):
     system_test_preparer = SystemTestPreparer(
+        data_cluster_ip=data_cluster_ip,
+        data_cluster_ssh_password=data_cluster_ssh_password,
+        data_cluster_ssh_username=data_cluster_ssh_username,
         mlrun_dbpath=mlrun_dbpath,
         username=username,
         access_key=access_key,
@@ -809,8 +812,7 @@ def env(
         github_access_token=github_access_token,
     )
     try:
-        if data_cluster_ip:
-            system_test_preparer.connect_to_remote()
+        system_test_preparer.connect_to_remote()
         system_test_preparer.prepare_local_env()
     except Exception as exc:
         logger.error("Failed preparing local system test environment", exc=exc)

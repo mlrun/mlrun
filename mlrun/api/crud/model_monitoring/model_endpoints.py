@@ -554,7 +554,6 @@ class ModelEndpoints:
         )
 
         for endpoint_dict in endpoint_dictionary_list:
-
             # Convert to `ModelEndpoint` object
             endpoint_obj = self._convert_into_model_endpoint_object(
                 endpoint=endpoint_dict
@@ -639,7 +638,6 @@ class ModelEndpoints:
 
         # If feature analysis was applied, add feature stats and current stats to the model endpoint result
         if feature_analysis and endpoint_obj.spec.feature_names:
-
             endpoint_features = self.get_endpoint_features(
                 feature_names=endpoint_obj.spec.feature_names,
                 feature_stats=endpoint_obj.status.feature_stats,
@@ -829,6 +827,9 @@ class ModelEndpoints:
             auth_info=auth_info,
             parquet_target=parquet_target,
         )
+
+        # Adding label to the function - will be used to identify the stream pod
+        fn.metadata.labels = {"type": "model-monitoring"}
 
         mlrun.api.api.endpoints.functions._build_function(
             db_session=db_session, auth_info=auth_info, function=fn

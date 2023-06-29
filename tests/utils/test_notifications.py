@@ -557,7 +557,6 @@ def test_notification_validation_defaults(monkeypatch):
 
     for field, expected_value in notification_fields.items():
         value = getattr(notification, field)
-        assert value is not None, f"{field} field in the notification object is None"
         assert (
             value == expected_value
         ), f"{field} field value is {value}, expected {expected_value}"

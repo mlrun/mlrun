@@ -405,7 +405,7 @@ class CustomNotificationPusher(object):
         pipeline_id: str = None,
         has_workflow_url: bool = False,
     ):
-        message = f"Pipeline started in project {project}"
+        message = f"Workflow started in project {project}"
         if pipeline_id:
             message += f" id={pipeline_id}"
         commit_id = (

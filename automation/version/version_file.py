@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import argparse
 import json
 import logging
 import os.path
+import re
 import subprocess
 import sys
 
@@ -48,6 +50,40 @@ def create_or_update_version_file(mlrun_version):
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
+
+    # get feature branch name from git branch
+    git_branch = ""
+    try:
+        out = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"])
+        git_branch = out.strip()
+        logger.debug("Found git branch: {}".format(git_branch))
+    except Exception as exc:
+        logger.warning("Failed to get git branch", exc_info=exc)
+
+    # Enrich the version with the feature name
+    if git_branch and git_branch.startswith("feature/"):
+        feature_name = git_branch.replace("feature/", "")
+        feature_name = feature_name.lower()
+        feature_name = re.sub(r"\+\./\\", "-", feature_name)
+        if not mlrun_version.endswith(feature_name):
+            mlrun_version = f"{mlrun_version}+{feature_name}"
+
+    # Check if the provided version is a semver and followed by a "-"
+    semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"  # e.g. 0.6.0-
+    rc_semver_pattern = rf"{semver_pattern}-(a|b|rc)[0-9]+$"
+
+    # In case of semver - do nothing
+    if re.match(semver_pattern, mlrun_version):
+        pass
+
+    # In case of rc semver - replace the first occurrence of "-" with "+" to align with PEP 440
+    # https://peps.python.org/pep-0440/
+    elif re.match(rc_semver_pattern, mlrun_version):
+        mlrun_version = mlrun_version.replace("-", "+", 1)
+
+    # In case of some free text - check if the provided version matches the semver pattern
+    elif not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+.*$", mlrun_version):
+        mlrun_version = "0.0.0+" + mlrun_version
 
     version_info = {
         "version": mlrun_version,

@@ -251,7 +251,8 @@ class SystemTestPreparer:
         else:
             if verbose:
                 self._logger.log(
-                    "debug" f"Successfully ran command {log_command_location}",
+                    "debug",
+                    f"Successfully ran command {log_command_location}",
                     command=command,
                     stdout=stdout,
                     stderr=stderr,
@@ -794,7 +795,7 @@ def run(
     try:
         system_test_preparer.run()
     except Exception as exc:
-        logger.error("Failed running system test automation", exc=exc)
+        logger.log("error", "Failed running system test automation", exc=exc)
         raise
 
 
@@ -852,7 +853,7 @@ def env(
         system_test_preparer.connect_to_remote()
         system_test_preparer.prepare_local_env(save_to_path)
     except Exception as exc:
-        logger.error("Failed preparing local system test environment", exc=exc)
+        logger.log("error", "Failed preparing local system test environment", exc=exc)
         raise
 
 

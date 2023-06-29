@@ -1211,8 +1211,22 @@ class MlrunProject(ModelObj):
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
-        if not workflow_path:
-            raise ValueError("valid workflow_path must be specified")
+
+        abs_workflow_path = (
+            os.path.join(self.spec.get_code_path(), workflow_path.removeprefix("./"))
+            if workflow_path.startswith("./")
+            else workflow_path
+        )
+
+        if (
+            not workflow_path
+            or not (os.path.isfile(abs_workflow_path) or "://" in workflow_path)
+            or not pathlib.Path(workflow_path).suffix
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
+            )
+
         if embed:
             if (
                 self.context

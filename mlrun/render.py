@@ -134,13 +134,12 @@ def artifacts_html(
 
         if not attribute_value:
             mlrun.utils.logger.warning(
-                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging).",
+                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging)",
                 artifact_key=key,
             )
             continue
 
         link, ref = link_to_ipython(attribute_value)
-
         html += f'<div {ref}title="{link}">{key}</div>'
     return html
 

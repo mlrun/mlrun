@@ -3612,7 +3612,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "n2": "dept1"}
 
@@ -3636,7 +3636,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {
                 "n": "employee100",
@@ -3659,7 +3659,7 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
 
@@ -3684,7 +3684,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {
                 "n": "employee100",

@@ -269,7 +269,11 @@ jobs:
 
     - name: Encrypt file
       run: |
-        gpg --batch --output "${{ github.workspace }}/env.yaml.gpg" --passphrase ${{ GPG_PASSPHRASE }} --symmetric "${{ github.workspace }}/env.yaml"
+        gpg \
+          --batch \
+          --passphrase ${{ env.GPG_PASSPHRASE }} \
+          --output "${{ github.workspace }}/env.yaml.gpg" \
+          --symmetric "${{ github.workspace }}/env.yaml"
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
@@ -310,7 +314,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: env
-        path: "${{ github.workspace }}/env.yaml.gpg"
+        path: "${{ github.workspace }}/tests/system"
 
     - name: Install GPG
       run: |
@@ -318,8 +322,12 @@ jobs:
 
     - name: Decrypt file
       run: |
-        gpg --batch --output ${{ github.workspace }}/tests/system/env.yaml --passphrase ${{ GPG_PASSPHRASE }} --decrypt ${{ github.workspace }}/env.yaml.gpg
-        
+        gpg \
+          --batch \
+          --passphrase ${{ env.GPG_PASSPHRASE }} \
+          --output ${{ github.workspace }}/tests/system/env.yaml \
+          --decrypt ${{ github.workspace }}/tests/system/env.yaml.gpg
+
         # ensure file created
         test -f ${{ github.workspace }}/tests/system/env.yaml
       env:

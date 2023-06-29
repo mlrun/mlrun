@@ -31,13 +31,13 @@ def get_db():
 @pytest.mark.parametrize(
     "generate_artifact_hash_mode, expected_target_paths",
     [
-        # (
-        #     False,
-        #     [
-        #         f"{results}/log-function-log-dataset/0/feature_1.csv",
-        #         f"{results}/log-function-log-dataset/0/feature_2.csv",
-        #     ],
-        # ),
+        (
+            False,
+            [
+                f"{results}/log-function-log-dataset/0/feature_1.csv",
+                f"{results}/log-function-log-dataset/0/feature_2.csv",
+            ],
+        ),
         (
             True,
             [

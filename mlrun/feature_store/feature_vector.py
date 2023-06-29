@@ -507,6 +507,7 @@ class OnlineVectorService:
             if data:
                 actual_columns = data.keys()
                 if all([col in self._index_columns for col in actual_columns]):
+                    # didn't get any data from the graph
                     results.append(None)
                     continue
                 for column in self._requested_columns:

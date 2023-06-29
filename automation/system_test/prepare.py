@@ -114,8 +114,8 @@ class SystemTestPreparer:
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
 
-    def prepare_local_env(self):
-        self._prepare_env_local()
+    def prepare_local_env(self, save_to_path: str = ""):
+        self._prepare_env_local(save_to_path)
 
     def connect_to_remote(self):
         self._logger.info(
@@ -290,8 +290,8 @@ class SystemTestPreparer:
             workdir=str(self.Constants.homedir),
         )
 
-    def _prepare_env_local(self):
-        filepath = str(self.Constants.system_tests_env_yaml)
+    def _prepare_env_local(self, save_to_path: str = ""):
+        filepath = save_to_path or str(self.Constants.system_tests_env_yaml)
         backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
 
@@ -788,6 +788,10 @@ def run(
     "--github-access-token",
     help="Github access token to use for fetching private functions",
 )
+@click.option(
+    "--save-to-path",
+    help="Path to save the compiled env file to",
+)
 def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
@@ -799,6 +803,7 @@ def env(
     debug: bool,
     branch: str,
     github_access_token: str,
+    save_to_path: str,
 ):
     system_test_preparer = SystemTestPreparer(
         data_cluster_ip=data_cluster_ip,
@@ -814,7 +819,7 @@ def env(
     )
     try:
         system_test_preparer.connect_to_remote()
-        system_test_preparer.prepare_local_env()
+        system_test_preparer.prepare_local_env(save_to_path)
     except Exception as exc:
         logger.error("Failed preparing local system test environment", exc=exc)
         raise

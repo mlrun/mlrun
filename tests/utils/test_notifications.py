@@ -482,6 +482,42 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
         },
         does_not_raise(),
     ),
+    (
+        {
+            "when": "invalid-when",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "when": ["completed", "error"],
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "message": {"my-message": "invalid"},
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "message": "completed",
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "condition": ["invalid-condition"],
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "condition": "valid-condition",
+        },
+        does_not_raise(),
+    ),
 ]
 
 
@@ -494,6 +530,24 @@ def test_notification_validation_on_object(
 ):
     with expectation:
         mlrun.model.Notification(**notification_kwargs)
+
+
+def test_notification_validation_defaults(monkeypatch):
+    notification = mlrun.model.Notification()
+    notification_fields = {
+        "kind": mlrun.common.schemas.notification.NotificationKind.slack,
+        "message": "",
+        "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
+        "when": ["completed"],
+        "condition": "",
+        "name": "",
+    }
+
+    for field, expected_value in notification_fields.items():
+        value = getattr(notification, field)
+        assert (
+            value == expected_value
+        ), f"{field} field value is {value}, expected {expected_value}"
 
 
 @pytest.mark.parametrize(

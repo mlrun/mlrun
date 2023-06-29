@@ -42,12 +42,12 @@ class NotificationStatus(mlrun.common.types.StrEnum):
 
 
 class Notification(pydantic.BaseModel):
-    kind: NotificationKind = None
-    name: str = None
-    message: str = None
-    severity: NotificationSeverity = None
-    when: typing.List[str] = None
-    condition: str = None
+    kind: NotificationKind
+    name: str
+    message: str
+    severity: NotificationSeverity
+    when: typing.List[str]
+    condition: str
     params: typing.Dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None

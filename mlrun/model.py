@@ -549,11 +549,13 @@ class Notification(ModelObj):
         status=None,
         sent_time=None,
     ):
-        self.kind = kind
-        self.name = name
-        self.message = message
-        self.severity = severity
-        self.when = when
+        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.name = name or ""
+        self.message = message or ""
+        self.severity = (
+            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
+        )
+        self.when = when or ["completed"]
         self.condition = condition or ""
         self.params = params or {}
         self.status = status

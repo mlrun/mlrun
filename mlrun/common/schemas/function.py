@@ -45,6 +45,23 @@ class FunctionState:
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
 
+    @classmethod
+    def get_function_state_from_pod_state(cls, pod_state: str):
+        if pod_state == "succeeded":
+            return cls.ready
+        if pod_state in ["failed", "error"]:
+            return cls.error
+        if pod_state in ["running", "pending"]:
+            return getattr(cls, pod_state)
+        return cls.unknown
+
+    @classmethod
+    def terminal_states(cls):
+        return [
+            cls.ready,
+            cls.error,
+        ]
+
 
 class PreemptionModes(mlrun.common.types.StrEnum):
     # makes function pods be able to run on preemptible nodes

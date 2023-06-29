@@ -300,7 +300,10 @@ class SystemTestPreparer:
                 "Backing up existing env.yml", destination=backup_filepath
             )
             shutil.copy(filepath, backup_filepath)
-        self._enrich_env()
+
+        # enrichment can be done only if ssh client is initialized
+        if self._ssh_client:
+            self._enrich_env()
         serialized_env_config = self._serialize_env_config()
         with open(filepath, "w") as f:
             f.write(serialized_env_config)
@@ -764,6 +767,9 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
+@click.option("--data-cluster-ip", required=True)
+@click.option("--data-cluster-ssh-username", required=True)
+@click.option("--data-cluster-ssh-password", required=True)
 @click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
 @click.option("--username", help="Iguazio running username")
 @click.option("--access-key", help="Iguazio running user access key")
@@ -782,6 +788,9 @@ def run(
     help="Github access token to use for fetching private functions",
 )
 def env(
+    data_cluster_ip: str,
+    data_cluster_ssh_username: str,
+    data_cluster_ssh_password: str,
     mlrun_dbpath: str,
     username: str,
     access_key: str,
@@ -800,7 +809,8 @@ def env(
         github_access_token=github_access_token,
     )
     try:
-        system_test_preparer.connect_to_remote()
+        if data_cluster_ip:
+            system_test_preparer.connect_to_remote()
         system_test_preparer.prepare_local_env()
     except Exception as exc:
         logger.error("Failed preparing local system test environment", exc=exc)

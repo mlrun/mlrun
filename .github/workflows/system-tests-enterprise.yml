@@ -162,7 +162,7 @@ jobs:
       with:
         python-version: 3.9
         cache: pip
-    - name: Install automation scripts dependencies and add mlrun to dev packages
+    - name: Install automation scripts dependencies
       run: |
         pip install -r automation/requirements.txt
         sudo apt-get install curl jq gnupg

@@ -2145,10 +2145,18 @@ class TestFeatureStore(TestMLRunSystem):
             api = None
             if config.v3io_api:
                 api = config.v3io_api
+
+                # strip protocol
                 if "//" in api:
                     api = api[api.find("//") + 2 :]
+
+                # strip port
                 if ":" in api:
                     api = api[: api.find(":")]
+
+                # ensure webapi prefix
+                if not api.startswith("webapi."):
+                    api = f"webapi.{api}"
             return api
 
         key = "patient_id"
@@ -2166,7 +2174,7 @@ class TestFeatureStore(TestMLRunSystem):
             ),
             NoSqlTarget(
                 name="fullpath",
-                path=f"v3io://webapi.{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
+                path=f"v3io://{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
             ),
         ]
 

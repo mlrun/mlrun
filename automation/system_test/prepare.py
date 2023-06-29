@@ -30,11 +30,27 @@ import click
 import paramiko
 import yaml
 
-# TODO: remove and use local logger
-import mlrun.utils
+
+class Logger:
+    def __init__(self, name, **kwargs):
+        self._logger = logging.getLogger(name)
+        level = kwargs.get("level", logging.INFO)
+        self._logger.setLevel(level)
+        if not self._logger.handlers:
+            ch = logging.StreamHandler()
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            ch.setFormatter(formatter)
+            self._logger.addHandler(ch)
+
+    def log(self, level: str, message: str, **kwargs: typing.Any) -> None:
+        more = f": {kwargs}" if kwargs else ""
+        self._logger.log(logging.getLevelName(level.upper()), f"{message}{more}")
+
 
 project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
-logger = mlrun.utils.create_logger(level="debug", name="automation")
+logger = Logger(level=logging.DEBUG, name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
 
@@ -119,8 +135,10 @@ class SystemTestPreparer:
 
     def connect_to_remote(self):
         if not self._debug and self._data_cluster_ip:
-            self._logger.info(
-                "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
+            self._logger.log(
+                "info",
+                "Connecting to data-cluster",
+                data_cluster_ip=self._data_cluster_ip,
             )
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
@@ -134,11 +152,13 @@ class SystemTestPreparer:
         self.connect_to_remote()
 
         try:
-            logger.debug("installing dev utilities")
+            logger.log("debug", "installing dev utilities")
             self._install_dev_utilities()
-            logger.debug("installing dev utilities - done")
+            logger.log("debug", "installing dev utilities - done")
         except Exception as exp:
-            self._logger.error("error on install dev utilities", exception=str(exp))
+            self._logger.log(
+                "error", "error on install dev utilities", exception=str(exp)
+            )
 
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
@@ -160,8 +180,8 @@ class SystemTestPreparer:
         self._patch_mlrun()
 
     def clean_up_remote_workdir(self):
-        self._logger.info(
-            "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
+        self._logger.log(
+            "info", "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
         )
         self._run_command(
             f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
@@ -185,7 +205,8 @@ class SystemTestPreparer:
         log_command_location = "locally" if local else "on data cluster"
 
         if verbose:
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 f"Running command {log_command_location}",
                 command=command,
                 args=args,
@@ -221,15 +242,16 @@ class SystemTestPreparer:
             if verbose:
                 err_log_kwargs["command"] = command
 
-            self._logger.error(
+            self._logger.log(
+                "error",
                 f"Failed running command {log_command_location}",
                 **err_log_kwargs,
             )
             raise
         else:
             if verbose:
-                self._logger.debug(
-                    f"Successfully ran command {log_command_location}",
+                self._logger.log(
+                    "debug" f"Successfully ran command {log_command_location}",
                     command=command,
                     stdout=stdout,
                     stderr=stderr,
@@ -257,7 +279,9 @@ class SystemTestPreparer:
         if detach:
             command = f"screen -d -m bash -c '{command}'"
             if verbose:
-                self._logger.debug("running command in detached mode", command=command)
+                self._logger.log(
+                    "debug", "running command in detached mode", command=command
+                )
 
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
@@ -293,12 +317,12 @@ class SystemTestPreparer:
     def _prepare_env_local(self, save_to_path: str = ""):
         filepath = save_to_path or str(self.Constants.system_tests_env_yaml)
         backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
-        self._logger.debug("Populating system tests env.yml", filepath=filepath)
+        self._logger.log("debug", "Populating system tests env.yml", filepath=filepath)
 
         # if filepath exists, backup the file first (to avoid overriding it)
         if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
-            self._logger.debug(
-                "Backing up existing env.yml", destination=backup_filepath
+            self._logger.log(
+                "debug", "Backing up existing env.yml", destination=backup_filepath
             )
             shutil.copy(filepath, backup_filepath)
 
@@ -394,7 +418,8 @@ class SystemTestPreparer:
             bucket_name = parsed_url.netloc.split(".")[0]
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 "Downloading provctl",
                 bucket_name=bucket_name,
                 object_name=object_name,
@@ -407,7 +432,8 @@ class SystemTestPreparer:
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
             # upload provctl to data node
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 "Uploading provctl to datanode",
                 remote_path=str(self.Constants.provctl_path),
                 local_path=local_provctl_path.name,
@@ -434,7 +460,8 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception:
-                self._logger.debug(
+                self._logger.log(
+                    "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
                     retry_number=retries,
                 )
@@ -442,19 +469,21 @@ class SystemTestPreparer:
                 time.sleep(interval)
 
         if retries >= max_retries and not finished:
-            self._logger.info(
-                f"Command {command_name} timeout passed and not finished, failing..."
+            self._logger.log(
+                "info",
+                f"Command {command_name} timeout passed and not finished, failing...",
             )
             raise mlrun.errors.MLRunTimeoutError()
         total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
-        self._logger.info(
-            f"Command {command_name} took {total_seconds_took} seconds to finish"
+        self._logger.log(
+            "info",
+            f"Command {command_name} took {total_seconds_took} seconds to finish",
         )
 
     def _patch_mlrun(self):
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        self._logger.debug(
-            "Creating mlrun patch archive", mlrun_version=self._mlrun_version
+        self._logger.log(
+            "debug", "Creating mlrun patch archive", mlrun_version=self._mlrun_version
         )
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
@@ -489,7 +518,9 @@ class SystemTestPreparer:
         # print provctl create patch log
         self._run_command(f"cat {provctl_create_patch_log}")
 
-        self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
+        self._logger.log(
+            "info", "Patching MLRun version", mlrun_version=self._mlrun_version
+        )
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             str(self.Constants.provctl_path),
@@ -522,15 +553,15 @@ class SystemTestPreparer:
     def _resolve_iguazio_version(self):
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
-            self._logger.info("Resolving iguazio version")
+            self._logger.log("info", "Resolving iguazio version")
             self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
             )
             self._iguazio_version = self._iguazio_version.strip().decode()
-        self._logger.info(
-            "Resolved iguazio version", iguazio_version=self._iguazio_version
+        self._logger.log(
+            "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
 
     def _purge_mlrun_db(self):
@@ -541,7 +572,7 @@ class SystemTestPreparer:
         self._scale_down_mlrun_deployments()
 
     def _delete_mlrun_db(self):
-        self._logger.info("Deleting mlrun db")
+        self._logger.log("info", "Deleting mlrun db")
 
         mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
@@ -550,11 +581,11 @@ class SystemTestPreparer:
             },
         )
         if not mlrun_db_pod_name_cmd:
-            self._logger.info("No mlrun db pod found")
+            self._logger.log("info", "No mlrun db pod found")
             return
 
-        self._logger.info(
-            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
+        self._logger.log(
+            "info", "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
         )
 
         password = ""
@@ -600,7 +631,7 @@ class SystemTestPreparer:
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures
-        self._logger.info("scaling down mlrun deployments")
+        self._logger.log("info", "scaling down mlrun deployments")
         self._run_kubectl_command(
             args=[
                 "scale",

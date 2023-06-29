@@ -424,6 +424,11 @@ def _set_misc_specs(function, nuclio_spec):
         nuclio_spec.set_config(
             "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
         )
+    if function.spec.readiness_timeout_before_failure:
+        nuclio_spec.set_config(
+            "spec.waitReadinessTimeoutBeforeFailure",
+            function.spec.readiness_timeout_before_failure,
+        )
     if function.spec.resources:
         nuclio_spec.set_config("spec.resources", function.spec.resources)
 

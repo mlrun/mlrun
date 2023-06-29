@@ -531,7 +531,7 @@ def _handle_job_deploy_status(
             pod=pod,
             pod_state=build_pod_state,
         )
-    if build_pod_state == mlrun.common.schemas.FunctionState.error:
+    elif normalized_pod_function_state == mlrun.common.schemas.FunctionState.error:
         logger.error(
             "Build failed", function_name=name, pod_name=pod, pod_status=build_pod_state
         )
@@ -570,7 +570,7 @@ def _handle_job_deploy_status(
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
-    # check if the previous function state is different from the current build pod state, it that is the case then
+    # check if the previous function state is different from the current build pod state, if that is the case then
     # update the function and store to the database
     if function_state != normalized_pod_function_state:
         update_in(fn, "status.state", normalized_pod_function_state)

@@ -101,6 +101,7 @@ class SystemTestPreparer:
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
         self._purge_db = purge_db
+        self._ssh_client = None
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -767,10 +768,10 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.option("--data-cluster-ip", required=True)
-@click.option("--data-cluster-ssh-username", required=True)
-@click.option("--data-cluster-ssh-password", required=True)
 @click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
+@click.option("--data-cluster-ip")
+@click.option("--data-cluster-ssh-username")
+@click.option("--data-cluster-ssh-password")
 @click.option("--username", help="Iguazio running username")
 @click.option("--access-key", help="Iguazio running user access key")
 @click.option(

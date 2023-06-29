@@ -74,8 +74,9 @@ To install on a **Python 3.7** environment (and optionally upgrade to python 3.9
 2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
 
 ```
-$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y conda=23.1.0 
 $CONDA_HOME/bin/conda install -y 'pip>=22.0'
+$CONDA_HOME/bin/conda install -y nbformat=5.7.0
 ```
 3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
 ```

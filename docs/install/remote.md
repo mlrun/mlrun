@@ -17,10 +17,38 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9 
+- Python 3.9 (or Python 3.7 for Iguazio versions up to and including v3.5.2)
 - Recommended pip 22.x+
 
-## Set up client environment 
+The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
+
+MLRun v1.3.x maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+
+
+## Set up Python 3.7 client environment (Iguazio version up to and including v3.5.2)
+
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9):
+  
+1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
+2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
+
+```
+$CONDA_HOME/bin/conda install -y conda=23.1.0 
+$CONDA_HOME/bin/conda install -y 'pip>=22.0'
+$CONDA_HOME/bin/conda install -y nbformat=5.7.0
+```
+3. If you want to upgrade to python 3.9, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
+```
+4. Install mlrun:
+```
+./align_mlrun.sh
+```
+
+## Set up Python 3.9 client environment 
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```

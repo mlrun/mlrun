@@ -164,7 +164,7 @@ jobs:
         cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
-        pip install -r automation/requirements.txt && pip install -e .
+        pip install -r automation/requirements.txt
         sudo apt-get install curl jq gnupg
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info

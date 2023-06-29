@@ -496,18 +496,6 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
     ),
     (
         {
-            "name": ["invalid-name"],
-        },
-        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-    ),
-    (
-        {
-            "name": "my-amazing-notification",
-        },
-        does_not_raise(),
-    ),
-    (
-        {
             "message": {"my-message": "invalid"},
         },
         pytest.raises(mlrun.errors.MLRunInvalidArgumentError),

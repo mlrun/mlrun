@@ -165,7 +165,7 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt && pip install -e .
-        sudo apt-get install curl jq gnupg2
+        sudo apt-get install curl jq gnupg
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
@@ -314,7 +314,7 @@ jobs:
 
     - name: Install GPG
       run: |
-        sudo apt-get update -qqy && sudo apt-get install -y gnupg2
+        sudo apt-get update -qqy && sudo apt-get install -y gnupg
 
     - name: Decrypt file
       run: |

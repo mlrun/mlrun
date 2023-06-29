@@ -87,6 +87,7 @@ class TestProject(TestMLRunSystem):
         )
 
     def _create_project(self, project_name, with_repo=False, overwrite=False):
+        self.custom_project_names_to_delete.append(project_name)
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )
@@ -166,8 +167,6 @@ class TestProject(TestMLRunSystem):
 
     def test_run(self):
         name = "pipe0"
-        self.custom_project_names_to_delete.append(name)
-        # create project in context
         self._create_project(name)
 
         # load project from context dir and run a workflow
@@ -198,8 +197,6 @@ class TestProject(TestMLRunSystem):
 
     def test_run_artifact_path(self):
         name = "pipe1"
-        self.custom_project_names_to_delete.append(name)
-        # create project in context
         self._create_project(name)
 
         # load project from context dir and run a workflow
@@ -343,10 +340,9 @@ class TestProject(TestMLRunSystem):
 
     def test_inline_pipeline(self):
         name = "pipe5"
-        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = self._create_project(name, True)
+        project = self._create_project(name, with_repo=True)
         run = project.run(
             artifact_path=f"v3io:///projects/{name}/artifacts",
             workflow_handler=pipe_test,
@@ -459,7 +455,6 @@ class TestProject(TestMLRunSystem):
 
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)
-        self.custom_project_names_to_delete.append(name)
         project.set_function(
             "gen_iris.py",
             "gen-iris",
@@ -574,7 +569,6 @@ class TestProject(TestMLRunSystem):
 
     def test_remote_from_archive(self):
         name = "pipe6"
-        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         archive_path = f"v3io:///projects/{project.name}/archive1.zip"
         project.export(archive_path)
@@ -624,7 +618,6 @@ class TestProject(TestMLRunSystem):
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"
-        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         project.set_function(
             "gen_iris.py",
@@ -865,7 +858,6 @@ class TestProject(TestMLRunSystem):
         name = "non-remote-fail"
         # Creating a local project
         project = self._create_project(name)
-        self.custom_project_names_to_delete.append(name)
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             project.run("main", schedule="*/10 * * * *")

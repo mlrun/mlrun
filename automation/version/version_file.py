@@ -53,20 +53,15 @@ def main():
 
     args = parser.parse_args()
     if args.command == "current-version":
-        with open("automation/version/unstable_version_prefix") as fp:
-            current_version = get_current_version(
-                packaging.version.Version(fp.read().strip())
-            )
-            print(current_version)
+        current_version = get_current_version(read_unstable_version_prefix())
+        print(current_version)
+
     elif args.command == "next-version":
-        with open("automation/version/unstable_version_prefix") as fp:
-            current_version = get_current_version(
-                packaging.version.Version(fp.read().strip())
-            )
-            next_version = bump_version(
-                args.mode, packaging.version.Version(current_version)
-            )
-            print(next_version)
+        current_version = packaging.version.Version(
+            get_current_version(read_unstable_version_prefix())
+        )
+        next_version = bump_version(args.mode, current_version)
+        print(next_version)
 
     elif args.command == "ensure":
         create_or_update_version_file(args.mlrun_version)
@@ -270,6 +265,11 @@ def resolve_feature_name(branch_name):
     feature_name = feature_name.lower()
     feature_name = re.sub(r"\+\./\\", "-", feature_name)
     return feature_name
+
+
+def read_unstable_version_prefix():
+    with open("automation/version/unstable_version_prefix") as fp:
+        return packaging.version.Version(fp.read().strip())
 
 
 def _run_command(command, args=None):

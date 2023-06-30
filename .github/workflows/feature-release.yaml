@@ -58,18 +58,13 @@ jobs:
 
   trigger-and-wait-for-mlrun-image-building:
     name: Trigger build workflow in mlrun/mlrun and wait to finish
-    runs-on: ubuntu-latest
-    needs: [ prepare-inputs ]
-    steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.5
-        with:
-          owner: ${{ github.repository_owner }}
-          repo: mlrun
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          workflow_file_name: build.yaml
-          ref: ${{ github.ref_name }}
-          wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}", "skip_images": "${{ github.event.inputs.skip_images }}"}'
+    needs: [prepare-inputs]
+    uses: ./.github/workflows/build.yaml
+    with:
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      skip_images: ${{ github.event.inputs.skip_images }}
+      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
+    secrets: inherit
 
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish

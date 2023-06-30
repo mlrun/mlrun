@@ -33,27 +33,22 @@ on:
     inputs:
       docker_registries:
         description: 'Comma separated list of docker registries to push images to (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: true
         default: 'ghcr.io/'
         type: string
       docker_repo:
         description: 'Docker repo to push images to (default: lowercase github repository owner name)'
-        required: false
         default: ''
         type: string
       version:
         description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <unstable-version-prefix>-<commit-hash>, where <unstable-version-prefix> is taken from automation/version/unstable_version_prefix'
-        required: false
         default: ''
         type: string
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
-        required: false
         default: ''
         type: string
       build_from_cache:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
-        required: true
         default: 'true'
         type: string
 

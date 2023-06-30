@@ -42,8 +42,8 @@ def main():
         "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
     )
 
-    subparsers.add_parser("current-version", help="bump the version")
-    next_version_parser = subparsers.add_parser("next-version", help="bump the version")
+    subparsers.add_parser("current-version", help="get the current version")
+    next_version_parser = subparsers.add_parser("next-version", help="get next version")
     next_version_parser.add_argument(
         "--mode",
         choices=["rc", "patch", "minor", "major"],

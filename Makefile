@@ -163,7 +163,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
+	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts

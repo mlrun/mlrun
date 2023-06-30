@@ -125,6 +125,9 @@ def get_current_version(base_version):
                 found_tag = semver_tag
                 continue
 
+            # tag is not rc, not feature branch, and not older than current tag. use it
+            found_tag = semver_tag
+
         # stop here because
         # we either have a tag
         # or, moving back in time wont find newer tags on same branch timeline
@@ -168,7 +171,13 @@ def bump_version(mode, current_version):
         current_version.micro,
     )
     if mode == "rc":
-        rc = 1 if rc is None else rc + 1
+
+        # if current version is not RC, update its patch version
+        if rc is None:
+            patch = patch + 1
+            rc = 1
+        else:
+            rc += 1
     elif mode == "patch":
         patch = patch + 1
         rc = None

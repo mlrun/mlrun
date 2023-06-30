@@ -44,9 +44,15 @@ def main():
 
     subparsers.add_parser("current-version", help="get the current version")
     next_version_parser = subparsers.add_parser("next-version", help="get next version")
+
+    # RC        - bump the rc version. if current is not rc, bump patch and set rc to 1
+    # RC-GRAD   - bump the rc version to its graduated version (1.0.0-rc1 -> 1.0.0)
+    # PATCH     - bump the patch version. reset rc
+    # MINOR     - bump the minor version. reset rc / patch
+    # MAJOR     - bump the major version. reset rc / patch / minor
     next_version_parser.add_argument(
         "--mode",
-        choices=["rc", "patch", "minor", "major"],
+        choices=["rc", "rc-grad", "patch", "minor", "major"],
         default="rc",
         help="bump the version by the given mode",
     )
@@ -173,6 +179,8 @@ def bump_version(mode, current_version):
             rc = 1
         else:
             rc += 1
+    elif mode == "rc-grad":
+        rc = None
     elif mode == "patch":
         patch = patch + 1
         rc = None

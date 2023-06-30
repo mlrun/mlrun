@@ -60,7 +60,7 @@ MLRUN_CUDA_VERSION ?= 11.7.0
 MLRUN_TENSORFLOW_VERSION ?= 2.9.0
 MLRUN_HOROVOD_VERSION ?= 0.25.0
 # overrides the ml-models base image (models core) since it is broken and ml-models is about to be deprecated anyway
-MLRUN_MODELS_BASE_IMAGE_OVERRIDE ?= quay.io/mlrun/ml-models:1.4.0-rc15
+MLRUN_MODELS_BASE_IMAGE_OVERRIDE ?= quay.io/mlrun/ml-models:1.3.3
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))

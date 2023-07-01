@@ -15,6 +15,12 @@
 
 name: Feature branch release
 
+permissions:
+
+  # Allow the action to upload images to ghcr
+  packages: write
+
+
 on:
   workflow_dispatch:
     inputs:
@@ -55,6 +61,8 @@ jobs:
           echo "ui_branch=${{ github.event.inputs.ui_branch }}" >> $GITHUB_OUTPUT
           echo "version=$(python ./automation/version/version_file.py next-version --mode rc)" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
+
+          cat $GITHUB_OUTPUT
 
   trigger-and-wait-for-mlrun-image-building:
     name: Trigger build workflow in mlrun/mlrun and wait to finish

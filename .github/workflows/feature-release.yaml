@@ -17,6 +17,9 @@ name: Feature branch release
 
 permissions:
 
+  # Create release and upload artifact to releases
+  contents: write
+
   # Allow the action to upload images to ghcr
   packages: write
 
@@ -51,6 +54,10 @@ jobs:
       ui_branch: ${{ steps.resolve.outputs.ui_branch }}
     steps:
       - uses: actions/checkout@v3
+        with:
+
+          # Fetch all history for all tags and branches
+          fetch-depth: 0
       - name: Resolve inputs
         id: resolve
         run: |
@@ -128,7 +135,7 @@ jobs:
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ github.event.inputs.pre_release }}
       - uses: ncipollo/release-action@v1
         with:
@@ -159,25 +166,30 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          make release-notes MLRUN_OLD_VERSION="v$INPUT_PREVIOUS_VERSION" MLRUN_VERSION="v$INPUT_VERSION" MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+          make release-notes
         env:
-          INPUT_PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
-          INPUT_VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          MLRUN_SKIP_CLONE: true
+          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
+          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
+          MLRUN_RAISE_ON_ERROR: false
+          MLRUN_OLD_VERSION: "v${{ github.event.inputs.previous_version }}"
+          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
+
       - name: resolve release notes
         id: resolve-release-notes
         run: |
           echo "body<<EOF" >> $GITHUB_OUTPUT
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
       - uses: ncipollo/release-action@v1
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ github.event.inputs.pre_release }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
-  
+          allowUpdates: true
   
   update-tutorials:
     name: Bundle tutorials
@@ -193,5 +205,5 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar

@@ -17,9 +17,11 @@ import argparse
 import json
 import logging
 import os.path
+import pathlib
 import re
 import subprocess
 import sys
+import typing
 
 import packaging.version
 
@@ -63,17 +65,37 @@ def main():
         print(current_version)
 
     elif args.command == "next-version":
-        current_version = packaging.version.Version(
-            get_current_version(read_unstable_version_prefix())
+        base_version = read_unstable_version_prefix()
+        current_version = get_current_version(base_version)
+
+        # if current version is not determined, fallback to base version
+        current_version = (
+            packaging.version.Version(current_version)
+            if current_version
+            else base_version
         )
-        next_version = bump_version(args.mode, current_version)
+
+        # when no tags were made yet
+        if current_version is None:
+            current_version = base_version
+        next_version = resolve_next_version(
+            args.mode, current_version, get_feature_branch_feature_name()
+        )
         print(next_version)
 
     elif args.command == "ensure":
-        create_or_update_version_file(args.mlrun_version)
+        repo_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        version_file_path = os.path.join(
+            repo_root, "mlrun", "utils", "version", "version.json"
+        )
+        create_or_update_version_file(args.mlrun_version, version_file_path)
 
 
-def get_current_version(base_version):
+def get_current_version(
+    base_version: packaging.version.Version,
+) -> typing.Optional[str]:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
     ).strip()
@@ -83,9 +105,12 @@ def get_current_version(base_version):
         else ""
     )
 
-    # get last 100 commits
-    commits = _run_command("git", args=["log", "--pretty=format:'%H'"]).strip()
+    # get last 100 commits, to avoid going over all commits
+    commits = _run_command("git", args=["log", "-100", "--pretty=format:'%H'"]).strip()
     found_tag = None
+
+    # previous_latest_greatest_tag is the most recent tag before vase version
+    most_recent_version = None
     for commit in commits.split("\n"):
         # is commit tagged?
         tags = _run_command("git", args=["tag", "--points-at", commit]).strip()
@@ -94,11 +119,26 @@ def get_current_version(base_version):
             continue
 
         for tag in tags:
-            # is tag a semver?
+
+            # work with semvar-like tags only
             if not re.match(r"^v[0-9]+\.[0-9]+\.[0-9]+.*$", tag):
                 continue
-            semver_tag = packaging.version.Version(tag[1:])
-            if semver_tag.base_version < base_version.base_version:
+
+            semver_tag = packaging.version.parse(tag.removeprefix("v"))
+
+            # compare base versions on both base and current tag
+            # if current tag version (e.g.: 1.4.0) is smaller than base version (e.g.: 1.5.0)
+            # then, keep that tag version as the most recent version
+            # if no base-version tag was made (e.g.: when starting new version (e.g. 1.5.0)
+            # but no tag/release was made yet)
+            if packaging.version.parse(
+                semver_tag.base_version
+            ) < packaging.version.parse(base_version.base_version):
+                if most_recent_version:
+                    if semver_tag > most_recent_version:
+                        most_recent_version = semver_tag
+                    continue
+                most_recent_version = semver_tag
                 continue
 
             # is feature branch?
@@ -136,33 +176,17 @@ def get_current_version(base_version):
 
     # nothing to bump, just return the version
     if not found_tag:
-        version = f"{base_version.base_version}-rc1"
+        if most_recent_version:
+            return version_to_mlrun_version(most_recent_version)
 
-        if feature_name:
-            version = f"{version}+{feature_name}"
-        return version
+        return None
 
-    found_version = f"{found_tag.major}.{found_tag.minor}.{found_tag.micro}"
-    if found_tag.pre and found_tag.pre[0] == "rc":
-        found_version += f"-rc{found_tag.pre[1]}"
-
-    if feature_name and found_tag.local:
-        found_version += f"+{feature_name}"
-    return found_version
+    return version_to_mlrun_version(found_tag)
 
 
-def bump_version(mode, current_version):
-    current_branch = _run_command(
-        "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
-    ).strip()
-    feature_name = (
-        resolve_feature_name(current_branch)
-        if current_branch.startswith("feature/")
-        else ""
-    )
-
-    # bump
-    local = current_version.local
+def resolve_next_version(
+    mode, current_version, feature_name: typing.Optional[str] = None
+):
     rc = None
     if current_version.pre and current_version.pre[0] == "rc":
         rc = int(current_version.pre[1])
@@ -194,6 +218,8 @@ def bump_version(mode, current_version):
         patch = 0
         rc = None
 
+    # when feature name is set, it means we are on a feature branch
+    # thus, we ensure rc is set as feature name are not meant to be "stable"
     if feature_name and not rc:
         rc = 1
 
@@ -201,16 +227,15 @@ def bump_version(mode, current_version):
     if rc is not None:
         new_version = f"{new_version}-rc{rc}"
 
-    if feature_name and local:
-        new_version = f"{new_version}+{local}"
+    if feature_name:
+        new_version = f"{new_version}+{feature_name}"
     return new_version
 
 
-def create_or_update_version_file(mlrun_version):
+def create_or_update_version_file(mlrun_version, version_file_path):
     git_commit = "unknown"
     try:
-        out = _run_command("git", args=["rev-parse", "HEAD"])
-        git_commit = out.strip()
+        git_commit = _run_command("git", args=["rev-parse", "HEAD"]).strip()
         logger.debug("Found git commit: {}".format(git_commit))
 
     except Exception as exc:
@@ -219,8 +244,9 @@ def create_or_update_version_file(mlrun_version):
     # get feature branch name from git branch
     git_branch = ""
     try:
-        out = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"])
-        git_branch = out.strip()
+        git_branch = _run_command(
+            "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
+        ).strip()
         logger.debug("Found git branch: {}".format(git_branch))
     except Exception as exc:
         logger.warning("Failed to get git branch", exc_info=exc)
@@ -257,12 +283,6 @@ def create_or_update_version_file(mlrun_version):
         "git_commit": git_commit,
     }
 
-    repo_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    )
-    version_file_path = os.path.join(
-        repo_root, "mlrun", "utils", "version", "version.json"
-    )
     logger.info("Writing version info to file: {}".format(str(version_info)))
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
@@ -276,8 +296,31 @@ def resolve_feature_name(branch_name):
 
 
 def read_unstable_version_prefix():
-    with open("automation/version/unstable_version_prefix") as fp:
+    with open(
+        pathlib.Path(__file__).absolute().parent / "unstable_version_prefix"
+    ) as fp:
         return packaging.version.Version(fp.read().strip())
+
+
+def version_to_mlrun_version(version):
+    version_str = f"{version.major}.{version.minor}.{version.micro}"
+    if version.pre and version.pre[0] == "rc":
+        version_str += f"-rc{version.pre[1]}"
+
+    if version.local:
+        version_str += f"+{version.local}"
+    return version_str
+
+
+def get_feature_branch_feature_name() -> typing.Optional[str]:
+    current_branch = _run_command(
+        "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
+    ).strip()
+    return (
+        resolve_feature_name(current_branch)
+        if current_branch.startswith("feature/")
+        else ""
+    )
 
 
 def _run_command(command, args=None):

@@ -106,6 +106,8 @@ jobs:
         with:
           python-version: 3.9
           cache: pip
+      - name: Install dependencies
+        run: pip install -r automation/requirements.txt
       - name: Build & push to pypi
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |

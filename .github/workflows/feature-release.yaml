@@ -32,13 +32,17 @@ on:
         required: false
         default: ''
       skip_publish_pypi:
-        description: 'Whether to skip publishing the python package to Pypi, (true/false)'
+        description: 'Whether to skip publishing the python package to Pypi'
         required: false
         default: 'false'
+        type: choice
+        options: ['true', 'false']
       skip_create_tag_release:
-        description: 'Whether to skip creating tag & release in Github, (true/false)'
+        description: 'Whether to skip creating tag & release in Github'
         required: false
         default: 'false'
+        type: choice
+        options: [ 'true', 'false' ]
       ui_branch:
         description: 'The branch to use for the UI image, (development, 1.3.x)'
         required: false

@@ -77,10 +77,13 @@ jobs:
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
     needs: [ prepare-inputs ]
     steps:
       - uses: convictional/trigger-workflow-and-wait@v1.6.5
+
+        # since some steps relay on the ui image, we need to wait for it to finish building
+        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
+        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
         with:
           owner: ${{ github.repository_owner }}
           repo: ui
@@ -93,7 +96,7 @@ jobs:
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
-    if: github.event.inputs.skip_publish_pypi != 'true'
+
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
@@ -104,6 +107,7 @@ jobs:
           python-version: 3.9
           cache: pip
       - name: Build & push to pypi
+        if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
           pip install twine wheel
           export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}

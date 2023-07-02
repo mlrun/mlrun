@@ -24,6 +24,7 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
@@ -479,6 +480,29 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
+
+    def test_kfp_runs_getting_deleted_on_project_deletion(self):
+        project_name = "kfppipedelete"
+        self._test_new_pipeline(project_name, engine="kfp")
+        db = mlrun.get_run_db()
+        project_pipeline_runs = db.list_pipelines(project=project_name)
+        # expecting to have pipeline run
+        assert (
+            project_pipeline_runs
+        ), "no pipeline runs found for project, expected to have pipeline run"
+        # deleting project with deletion strategy cascade so it will delete any related resources ( pipelines as well )
+        db.delete_project(
+            name=project_name,
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
+        )
+        # create the project again ( using new_project, instead of get_or_create_project so it won't create project
+        # from project.yaml in the context that might contain project.yaml
+        mlrun.new_project(project_name)
+
+        project_pipeline_runs = db.list_pipelines(project=project_name)
+        assert (
+            not project_pipeline_runs
+        ), "pipeline runs found for project after deletion, expected to be empty"
 
     def test_kfp_pipeline_with_resource_param_passed(self):
         project_name = "test-pipeline-with-resource-param"

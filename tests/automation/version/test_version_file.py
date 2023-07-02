@@ -17,7 +17,6 @@ import os
 import subprocess
 
 import packaging.version
-import py._path.local
 import pytest
 
 from automation.version.version_file import (
@@ -28,7 +27,7 @@ from automation.version.version_file import (
 
 
 @pytest.fixture(scope="function")
-def git_repo(tmpdir, request) -> py._path.local.LocalPath:
+def git_repo(tmpdir, request):
     # change working directory to tmpdir
     os.chdir(tmpdir)
 
@@ -44,7 +43,7 @@ def git_repo(tmpdir, request) -> py._path.local.LocalPath:
         subprocess.run(["git", "add", f"file{i}.txt"])
         subprocess.run(["git", "commit", "-m", f"test commit {i}"])
 
-    yield tmpdir
+    return tmpdir
 
 
 # tags structure:

@@ -182,7 +182,9 @@ def get_current_version(
 
 
 def resolve_next_version(
-    mode, current_version, feature_name: typing.Optional[str] = None
+    mode: str,
+    current_version: packaging.version.Version,
+    feature_name: typing.Optional[str] = None,
 ):
     rc = None
     if current_version.pre and current_version.pre[0] == "rc":
@@ -229,7 +231,7 @@ def resolve_next_version(
     return new_version
 
 
-def create_or_update_version_file(mlrun_version, version_file_path):
+def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     git_commit = "unknown"
     try:
         git_commit = _run_command("git", args=["rev-parse", "HEAD"]).strip()
@@ -288,6 +290,8 @@ def create_or_update_version_file(mlrun_version, version_file_path):
 def resolve_feature_name(branch_name):
     feature_name = branch_name.replace("feature/", "")
     feature_name = feature_name.lower()
+
+    # replace non-alphanumeric characters with "-" to align with PEP 440 and docker tag naming
     feature_name = re.sub(r"\+\./\\", "-", feature_name)
     return feature_name
 

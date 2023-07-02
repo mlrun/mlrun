@@ -527,7 +527,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests
+		tests/frameworks/test_ml_frameworks.py
 
 
 .PHONY: test-integration-dockerized

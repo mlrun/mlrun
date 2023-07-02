@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -95,6 +95,7 @@ class MLClientCtx(object):
         self._outputs = []
 
         self._results = {}
+        self._artifacts = []
         # tracks the execution state, completion of runs is not decided by the execution
         # as there may be multiple executions for a single run (e.g mpi)
         self._state = "created"
@@ -264,6 +265,7 @@ class MLClientCtx(object):
         log_stream=None,
         is_api=False,
         store_run=True,
+        include_status=False,
     ):
         """create execution context from dict"""
 
@@ -320,6 +322,12 @@ class MLClientCtx(object):
             start = parser.parse(start) if isinstance(start, str) else start
             self._start_time = start
         self._state = "running"
+
+        status = attrs.get("status")
+        if status and include_status:
+            self._results = status.get("results", self._results)
+            self._artifacts = status.get("artifacts", self._artifacts)
+
         if store_run:
             self.store_run()
         return self

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -343,7 +343,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if resp:
                     runobj_dict = json.loads(resp)
                     # If trackers where used, this is where we log all data collected to MLRun
-                    TRACKERS_MANAGER.post_run(runobj_dict)
+                    return TRACKERS_MANAGER.post_run(runobj_dict)
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")

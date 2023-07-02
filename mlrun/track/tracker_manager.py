@@ -47,7 +47,7 @@ class TrackerManager:
         :param context: current mlrun context
         """
         if isinstance(context, dict):
-            context = MLClientCtx.from_dict(context)
+            context = MLClientCtx.from_dict(context, include_status=True)
 
         for tracker in self._trackers:
             if tracker.is_enabled():

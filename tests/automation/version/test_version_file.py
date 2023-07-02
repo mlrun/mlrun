@@ -26,7 +26,7 @@ from automation.version.version_file import (
 )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def git_repo(tmpdir, request):
     # change working directory to tmpdir
     os.chdir(tmpdir)

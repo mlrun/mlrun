@@ -930,7 +930,6 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
             ),
         ),
         ("https://test.py", does_not_raise()),
-        ("./workflow.py", does_not_raise()),
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),

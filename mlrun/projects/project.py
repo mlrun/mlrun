@@ -1217,7 +1217,7 @@ class MlrunProject(ModelObj):
             if workflow_path.startswith("./")
             else workflow_path
         )
-
+        logger.info("abs_path!!!!", is_file=os.path.isfile(abs_workflow_path), code_path=self.spec.get_code_path(), abs_workflow_path=abs_workflow_path)
         if (
             not workflow_path
             or not (os.path.isfile(abs_workflow_path) or "://" in workflow_path)

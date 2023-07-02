@@ -556,8 +556,8 @@ def _migrate_artifacts_table_v2(
     """
     logger.info("Aligning artifacts")
     new_artifacts = []
-    artifacts_to_tags = []
-    artifacts_to_labels = []
+    artifacts_tags_to_migrate = []
+    artifacts_labels_to_migrate = []
     artifacts = db._find_artifacts(db_session, None, "*")
     for artifact in artifacts:
         new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
@@ -622,19 +622,19 @@ def _migrate_artifacts_table_v2(
 
         # save old and new artifact ids to be used later for migrating labels and tags
         if tag:
-            artifacts_to_tags.append((artifact, tag))
+            artifacts_tags_to_migrate.append((artifact, tag))
         labels = artifact_metadata.get("labels", {})
         if labels:
-            artifacts_to_labels.append((artifact, labels))
+            artifacts_labels_to_migrate.append((artifact, labels))
 
     # commit the new artifacts to the db
     db._upsert(db_session, new_artifacts, ignore=True)
 
     # migrate artifact labels to the new table ("artifact_v2_labels")
-    _migrate_artifact_labels(db, db_session, artifacts_to_labels)
+    _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
-    _migrate_artifact_tags(db, db_session, artifacts_to_tags)
+    _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
 
     # truncate the entire artifacts table
     db.del_artifacts(db_session, commit=False)
@@ -644,12 +644,12 @@ def _migrate_artifacts_table_v2(
 def _migrate_artifact_labels(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    artifacts_to_labels: list,
+    artifacts_labels_to_migrate: list,
 ):
     # iterate over all the artifacts, and create labels for each one
     logger.info("Aligning artifact labels")
     labels = []
-    for artifact, labels in artifacts_to_labels:
+    for artifact, labels in artifacts_labels_to_migrate:
         for name, value in labels.items():
             new_label = artifact.Label(
                 name=name,
@@ -664,12 +664,12 @@ def _migrate_artifact_labels(
 def _migrate_artifact_tags(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    artifacts_to_tags: list,
+    artifacts_tags_to_migrate: list,
 ):
     # iterate over all the artifacts, and create a new tag for each one
     logger.info("Aligning artifact tags")
     tags = []
-    for artifact, tag in artifacts_to_tags:
+    for artifact, tag in artifacts_tags_to_migrate:
         if tag:
             new_tag = artifact.Tag(
                 project=artifact.project,

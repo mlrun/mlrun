@@ -59,7 +59,7 @@ New sections describing [Git best practices](../projects/git-best-practices.html
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
-python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client.
 
 See instructions in [Set up your environment](../install/remote.html).
 

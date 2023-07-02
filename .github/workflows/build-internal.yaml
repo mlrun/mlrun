@@ -132,7 +132,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Docker login (quay.io)
-      if: ${{ contains(steps.computed_params.outputs.mlrun_docker_registries, 'quay.io') }} && ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME != '' }}
+      if: ${{ contains(steps.computed_params.outputs.mlrun_docker_registries, 'quay.io') }}
+      continue-on-error: true
       uses: docker/login-action@v2
       with:
         registry: quay.io
@@ -140,7 +141,8 @@ jobs:
         password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (docker.com)
-      if: ${{ contains(steps.computed_params.outputs.mlrun_docker_registries, 'docker.com') }}  && ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME != '' }}
+      if: ${{ contains(steps.computed_params.outputs.mlrun_docker_registries, 'docker.com') }}
+      continue-on-error: true
       uses: docker/login-action@v2
       with:
         registry: registry.hub.docker.com

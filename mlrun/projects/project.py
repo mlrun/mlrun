@@ -2791,7 +2791,7 @@ class MlrunProject(ModelObj):
             result_versions = project.list_artifacts('results', tag='*').to_objects()
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
-            case-sensitive. This means that querying for ``name`` may return artifacts named
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
@@ -2839,7 +2839,7 @@ class MlrunProject(ModelObj):
 
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
-            case-sensitive. This means that querying for ``name`` may return artifacts named
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or

@@ -738,7 +738,7 @@ class HTTPRunDB(RunDBInterface):
             result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
-            case-sensitive. This means that querying for ``name`` may return artifacts named
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.

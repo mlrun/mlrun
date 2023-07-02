@@ -106,8 +106,16 @@ class Pipelines(
         )
         kfp_client = self.initialize_kfp_client()
 
+        if project_pipeline_runs:
+            logger.debug(
+                "Detected pipeline runs for project, deleting them",
+                project=project,
+                pipeline_runs=[run["id"] for run in project_pipeline_runs],
+            )
+
         for pipeline_run in project_pipeline_runs:
             try:
+                # delete pipeline run also terminates it if it is in progress
                 kfp_client._run_api.delete_run(pipeline_run["id"])
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
@@ -120,6 +128,7 @@ class Pipelines(
                     pipeline_run=pipeline_run,
                     exc_info=exc,
                 )
+        logger.debug("Finished deleting pipeline runs", project=project)
 
     def get_pipeline(
         self,

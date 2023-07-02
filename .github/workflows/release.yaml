@@ -87,12 +87,11 @@ jobs:
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-
     steps:
       - uses: convictional/trigger-workflow-and-wait@v1.6.5
+        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
         with:
-          owner: mlrun
+          owner: ${{ github.repository_owner }}
           repo: ui
           github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           workflow_file_name: build.yaml

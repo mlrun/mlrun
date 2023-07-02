@@ -75,9 +75,6 @@ def main():
             else base_version
         )
 
-        # when no tags were made yet
-        if current_version is None:
-            current_version = base_version
         next_version = resolve_next_version(
             args.mode, current_version, get_feature_branch_feature_name()
         )
@@ -109,7 +106,7 @@ def get_current_version(
     commits = _run_command("git", args=["log", "-100", "--pretty=format:'%H'"]).strip()
     found_tag = None
 
-    # previous_latest_greatest_tag is the most recent tag before vase version
+    # most_recent_version is the most recent tag before base version
     most_recent_version = None
     for commit in commits.split("\n"):
         # is commit tagged?

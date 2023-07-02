@@ -350,11 +350,9 @@ def load_project(
 
     if to_save:
         project.register_artifacts()
-        if sync_functions:
-            project.sync_functions(names=project.get_function_names(), save=True)
 
-    elif sync_functions:
-        project.sync_functions(names=project.get_function_names(), save=False)
+    if sync_functions:
+        project.sync_functions(save=to_save)
 
     _set_as_current_default_project(project)
 
@@ -1879,10 +1877,6 @@ class MlrunProject(ModelObj):
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
-
-    def get_function_names(self) -> typing.List[str]:
-        """get a list of all the project function names"""
-        return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir

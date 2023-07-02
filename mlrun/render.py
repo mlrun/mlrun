@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 import uuid
 from os import environ, path
 
 import pandas as pd
+
+import mlrun.utils
 
 from .config import config
 from .datastore import uri_to_ipython
@@ -72,7 +75,13 @@ def dict_html(x):
     return "".join([f'<div class="dictlist">{i}</div>' for i in dict_to_list(x)])
 
 
-def link_to_ipython(link):
+def link_to_ipython(link: str):
+    """
+    Convert a link (e.g. v3io path) to a jupyter notebook local link.
+
+    :param link: the link to convert
+    :return:     the converted link and ref for expanding the file in the notebook
+    """
     valid = pathlib.Path(link).suffix in supported_viewers
     ref = 'class="artifact" onclick="expandPanel(this)" paneName="result" '
     if "://" not in link:
@@ -95,22 +104,42 @@ def link_html(text, link=""):
     return f'<div {ref}title="{link}">{text}</div>'
 
 
-def artifacts_html(x, pathcol="path"):
-    if not x:
+def artifacts_html(
+    artifacts: typing.List[dict],
+    attribute_name: str = "path",
+):
+    """
+    Generate HTML for a list of artifacts. The HTML will be a list of links to the artifacts to be presented in the
+    jupyter notebook. The links will be clickable and will open the artifact in a new tab.
+
+    :param artifacts:       contains a list of artifact dictionaries
+    :param attribute_name:  the attribute of the artifact to use as the link text
+    :return:                the generated HTML
+    """
+    if not artifacts:
         return ""
     html = ""
-    for i in x:
-        # support legacy format
-        if pathcol in i:
-            link, ref = link_to_ipython(i[pathcol])
-        else:
-            link, ref = link_to_ipython(i["spec"][pathcol])
 
-        if "key" in i:
-            key = i["key"]
+    for artifact in artifacts:
+        # TODO: remove this in 1.5.0 once we no longer support legacy format
+        if mlrun.utils.is_legacy_artifact(artifact):
+            attribute_value = artifact.get(attribute_name)
         else:
-            key = i["metadata"]["key"]
+            attribute_value = artifact["spec"].get(attribute_name)
 
+        if mlrun.utils.is_legacy_artifact(artifact):
+            key = artifact["key"]
+        else:
+            key = artifact["metadata"]["key"]
+
+        if not attribute_value:
+            mlrun.utils.logger.warning(
+                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging)",
+                artifact_key=key,
+            )
+            continue
+
+        link, ref = link_to_ipython(attribute_value)
         html += f'<div {ref}title="{link}">{key}</div>'
     return html
 
@@ -338,7 +367,12 @@ def get_tblframe(df, display, classes=None):
 uid_template = '<div title="{}"><a href="{}/{}/{}/jobs/monitor/{}/overview" target="_blank" >...{}</a></div>'
 
 
-def runs_to_html(df, display=True, classes=None, short=False):
+def runs_to_html(
+    df: pd.DataFrame,
+    display: bool = True,
+    classes: typing.Optional[typing.Union[str, list, tuple]] = None,
+    short: bool = False,
+):
     def time_str(x):
         try:
             return x.strftime("%b %d %H:%M:%S")
@@ -374,7 +408,7 @@ def runs_to_html(df, display=True, classes=None, short=False):
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
         df["artifacts"] = df["artifacts"].apply(
-            lambda x: artifacts_html(x, "target_path")
+            lambda artifacts: artifacts_html(artifacts, "target_path"),
         )
 
     def expand_error(x):

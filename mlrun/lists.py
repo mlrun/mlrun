@@ -92,7 +92,9 @@ class RunList(list):
 
         return [list_header] + rows
 
-    def to_df(self, flat=False, extend_iterations=False, cache=True):
+    def to_df(
+        self, flat: bool = False, extend_iterations: bool = False, cache: bool = True
+    ) -> pd.DataFrame:
         """convert the run list to a dataframe"""
         if hasattr(self, "_df") and cache:
             return self._df

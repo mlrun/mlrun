@@ -350,11 +350,9 @@ def load_project(
 
     if to_save:
         project.register_artifacts()
-        if sync_functions:
-            project.sync_functions(names=project.get_function_names(), save=True)
 
-    elif sync_functions:
-        project.sync_functions(names=project.get_function_names(), save=False)
+    if sync_functions:
+        project.sync_functions(save=to_save)
 
     _set_as_current_default_project(project)
 

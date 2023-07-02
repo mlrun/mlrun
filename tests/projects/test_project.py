@@ -398,7 +398,7 @@ def test_load_project_and_sync_functions(
     assert len(project.spec._function_objects) == expected_num_of_funcs
 
     if sync:
-        function_names = project.get_function_names()
+        function_names = project.spec._function_definitions.keys()
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)

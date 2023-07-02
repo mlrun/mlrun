@@ -18,6 +18,7 @@ import pandas
 import pytest
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.sqldb.models
 import mlrun.api.initial_data
 import mlrun.common.schemas
 import mlrun.errors
@@ -885,6 +886,51 @@ def test_data_migration_fix_datasets_large_previews(
         len(artifact_with_invalid_preview_after_migration["spec"]["schema"]["fields"])
         == mlrun.artifacts.dataset.max_preview_columns + 1
     )
+
+
+def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
+    # create an artifact in the old format
+    artifact_key = "artifact1"
+    artifact_uid = "uid1"
+    project = "project1"
+    artifact_body = _generate_artifact(artifact_key, artifact_uid, "artifact")
+    # replace the name with the key and fill some other fields
+    artifact_body["metadata"]["key"] = artifact_key
+    artifact_body["metadata"].pop("name")
+    artifact_body["metadata"]["iter"] = 2
+    artifact_body["metadata"]["project"] = project
+    db.store_artifact(
+        db_session, artifact_key, artifact_body, artifact_uid, project=project
+    )
+
+    # perform the migration
+    mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+
+    # validate the migration succeeded
+    # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
+    query = db._query(
+        db_session,
+        mlrun.api.db.sqldb.models.ArtifactV2,
+        key=artifact_key,
+        project=project,
+    )
+    artifact = query.one_or_none()
+    assert artifact is not None
+    assert artifact.key == artifact_key
+    assert artifact.producer_id == artifact_uid
+    assert artifact.project == project
+    assert artifact.iteration == 2
+
+    artifact_dict = artifact.full_object
+    assert len(artifact_dict) > 0
+    assert artifact_dict["metadata"]["key"] == artifact_key
+    assert artifact_dict["metadata"]["project"] == project
+    # the uid should be the generated uid and not the original one
+    assert artifact_dict["metadata"]["uid"] != artifact_uid
+
+    # validate the original artifact was deleted
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.read_artifact(db_session, artifact_key, artifact_uid, project)
 
 
 def _generate_artifact(name, uid=None, kind=None):

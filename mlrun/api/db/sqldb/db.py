@@ -849,7 +849,7 @@ class SQLDB(DBInterface):
             .all()
         )
 
-    def del_artifact(self, session, key, tag="", project=""):
+    def del_artifact(self, session, key, tag="", project="", commit=True):
         project = project or config.default_project
 
         query = session.query(Artifact).filter(
@@ -871,7 +871,8 @@ class SQLDB(DBInterface):
         )
         for artifact in artifacts:
             session.delete(artifact)
-        session.commit()
+        if commit:
+            session.commit()
 
     def _delete_artifacts_tags(
         self,
@@ -912,7 +913,9 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def del_artifacts(self, session, name="", project="", tag="*", labels=None):
+    def del_artifacts(
+        self, session, name="", project="", tag="*", labels=None, commit=True
+    ):
         project = project or config.default_project
         ids = "*"
         if tag and tag != "*":
@@ -924,7 +927,7 @@ class SQLDB(DBInterface):
             )
         }
         for key in distinct_keys:
-            self.del_artifact(session, key, "", project)
+            self.del_artifact(session, key, "", project, commit)
 
     @retry_on_conflict
     def store_function(

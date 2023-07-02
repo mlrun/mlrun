@@ -188,10 +188,7 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
-        _full_object = Column("object", JSON)
-
-        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        # body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
+        _full_object = Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")

@@ -49,7 +49,7 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
-        sa.Column("_full_object", sa.JSON(), nullable=True),
+        sa.Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),

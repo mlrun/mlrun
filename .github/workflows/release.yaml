@@ -26,13 +26,21 @@ on:
         description: 'The previous version, without prefix v (e.g. 1.1.0-rc9)'
         required: true
       pre_release:
-        description: 'Whether to mark release as pre-release or not (default: false)'
+        description: 'Whether to mark release as pre-release or not (default: true)'
         required: false
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       generate_release_notes:
         description: 'Whether to generate release notes or not (default: true)'
         required: false
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -41,10 +49,18 @@ on:
         description: 'Whether to skip publishing the python package to Pypi, (true/false)'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       skip_create_tag_release:
         description: 'Whether to skip creating tag & release in Github, (true/false)'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   trigger-and-wait-for-mlrun-image-building:

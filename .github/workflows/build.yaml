@@ -44,6 +44,10 @@ on:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
         required: true
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   matrix_prep:

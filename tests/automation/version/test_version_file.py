@@ -142,7 +142,7 @@ def test_next_version(bump_type, current_version, feature_name, expected_next_ve
     "git_repo,base_version,expected_version",
     [
         (
-            {"branch": "main"},
+            {"branch": "development"},
             "1.5.0",
             "1.5.0",
         ),

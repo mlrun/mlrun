@@ -1878,6 +1878,10 @@ class MlrunProject(ModelObj):
         self.sync_functions()
         return FunctionsDict(self)
 
+    def get_function_names(self) -> typing.List[str]:
+        """get a list of all the project function names"""
+        return [func["name"] for func in self.spec.functions]
+
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
 

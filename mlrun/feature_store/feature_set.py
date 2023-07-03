@@ -35,6 +35,7 @@ from ..datastore.targets import (
     validate_target_placement,
 )
 from ..features import Entity, Feature
+from .feature_vector import JoinOperand
 from ..model import (
     DataSource,
     DataTarget,
@@ -66,7 +67,9 @@ class FeatureAggregation(ModelObj):
         self.period = period
 
 
-class FeatureSetSpec(ModelObj):
+class FeatureSetSpec(
+    ModelObj,
+):
     def __init__(
         self,
         owner=None,
@@ -315,7 +318,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
     return struct
 
 
-class FeatureSet(ModelObj):
+class FeatureSet(ModelObj, JoinOperand):
     """Feature set object, defines a set of features and their data pipeline"""
 
     kind = mlrun.common.schemas.ObjectKind.feature_set.value
@@ -378,6 +381,8 @@ class FeatureSet(ModelObj):
         self._last_state = ""
         self._aggregations = {}
         self.set_targets()
+
+        super.__init__(name)
 
     @property
     def spec(self) -> FeatureSetSpec:

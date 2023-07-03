@@ -735,6 +735,14 @@ def test_imputer_default_value(rundb_mock, engine):
     assert not imputed_df.isnull().values.any()
 
 
+def test_vector_graph(rundb_mock):
+    graph = fstore.JoinGraph()
+    jo_list = [fstore.JoinOperand(name) for name in ["a", "b", "c", "d", "e"]]
+    graph.start(jo_list[0].inner(jo_list[1]).inner(jo_list[3])).left(jo_list[2].outer(jo_list[4]))
+
+    print(graph._steps)
+
+
 def get_data(with_none=False):
     names = ["A", "B", "C", "D", "E"]
     ages = [33, 4, 76, 90, 24]

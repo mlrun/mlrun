@@ -55,4 +55,6 @@ from .feature_vector import (
     FixedWindowType,
     OfflineVectorResponse,
     OnlineVectorService,
+    JoinGraph,
+    JoinOperand,
 )

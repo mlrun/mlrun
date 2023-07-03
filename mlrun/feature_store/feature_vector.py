@@ -13,6 +13,7 @@
 # limitations under the License.
 import collections
 import logging
+import typing
 from copy import copy
 from enum import Enum
 from typing import List, Union
@@ -31,7 +32,14 @@ from ..feature_store.common import (
     parse_project_name_from_feature_string,
 )
 from ..features import Feature
-from ..model import DataSource, DataTarget, ModelObj, ObjectList, VersionedObjMetadata
+from ..model import (
+    DataSource,
+    DataTarget,
+    ModelObj,
+    ObjectList,
+    VersionedObjMetadata,
+    ObjectDict,
+)
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
@@ -379,6 +387,167 @@ class FeatureVector(ModelObj):
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
+
+
+class JoinOperand:
+    # can be the feature set class himself
+    def __init__(
+        self,
+        name: str,
+    ):
+        self.name = name
+        self._steps: ObjectList = None
+        self._feature_sets = None
+
+    def _join_operands(func):
+        def wrapper(self, other_operand):
+            first_key_num = len(self._steps.keys()) if self._steps else 0
+            left_last_step_name, left_all_feature_sets = self.last_step_name, self.all_feature_sets,
+            if other_operand.steps:
+                # append all the other operand steps to the current operand steps.
+                all_new_key_names = [
+                    f"step_{i}"
+                    for i in range(
+                        first_key_num, first_key_num + len(other_operand.steps.keys())
+                    )
+                ]
+                if self.steps:
+                    rename_dict = dict(
+                        zip(other_operand.steps.keys(), all_new_key_names)
+                    )
+                    for key, step in other_operand.steps.items():
+                        step.rename_mentioned_steps(rename_dict)
+                        self.steps.update(step)
+                        first_key_num += 1
+                else:
+                    self.steps = list(other_operand.steps._children.values())
+
+            join_type = func(self)
+            if join_type == "start" and other_operand.steps is None:
+                join_type = "get"
+            elif join_type == "start":
+                # no need to add a new step because
+                # we're just connecting all the existing steps to the graph.
+                return self
+            elif self.name == "join_graph" and self.steps is None:
+                # used inner/outer/.. instanced of start
+                if other_operand.steps is None:
+                    join_type = "get"
+                else:
+                    return self
+
+            # create_new_step
+            new_step = _JoinStep(
+                f"step_{first_key_num}",
+                left_last_step_name,
+                other_operand.last_step_name,
+                left_all_feature_sets,
+                other_operand.all_feature_sets,
+                join_type,
+            )
+
+            if self.steps is not None:
+                self.steps.update(new_step)
+            else:
+                self.steps = [new_step]
+            return self
+
+        return wrapper
+
+    @_join_operands
+    def inner(self, other_operand=None):
+        return "inner"
+
+    @_join_operands
+    def outer(self, other_operand=None):
+        return "outer"
+
+    @_join_operands
+    def left(self, other_operand=None):
+        return "left"
+
+    @_join_operands
+    def right(self, other_operand=None):
+        return "right"
+
+    @property
+    def all_feature_sets(self):
+        if self._steps:
+            return (
+                self._steps[-1].left_feature_set_names
+                + self._steps[-1].right_feature_set_names
+            )
+        else:
+            return self.name
+
+    @property
+    def last_step_name(self):
+        if self._steps:
+            return self._steps[-1].name
+        else:
+            return self.name
+
+    @property
+    def steps(self):
+        """child (workflow) steps"""
+        return self._steps
+
+    @steps.setter
+    def steps(self, steps):
+        self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
+
+
+class JoinGraph(JoinOperand):
+    def __init__(self, name: str = None, entity_row_flag: bool = False):
+        super().__init__(name or "join_graph")
+        self.entity_row_flag = entity_row_flag
+        if entity_row_flag:
+            self.start(JoinOperand("$__entity_rows__$"))
+
+    @JoinOperand._join_operands
+    def start(self, other_operand=None):
+        return "start"
+
+
+class _JoinStep(ModelObj):
+    def __init__(
+        self,
+        name: str,
+        left_step_name: str,
+        right_step_name: str,
+        left_feature_set_names: Union[str, List[str]],
+        right_feature_set_names: Union[str, List[str]],
+        join_type: str = "inner",
+    ):
+        self.name = name
+        self.left_step_name = left_step_name
+        self.right_step_name = right_step_name
+        self.left_feature_set_names = (
+            left_feature_set_names
+            if isinstance(left_feature_set_names, list)
+            else [left_feature_set_names]
+        )
+        self.right_feature_set_names = (
+            right_feature_set_names
+            if isinstance(right_feature_set_names, list)
+            else [right_feature_set_names]
+        )
+        self.join_type = join_type
+
+        self.left_keys = []
+        self.right_keys = []
+
+    def init_join_keys(self, all_relations):
+        self.left_keys = []
+        self.right_keys = []
+
+        # relation wise and entity wise
+        pass
+
+    def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
+        self.name = rename_dict.get(self.name)
+        self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
+        self.right_step_name = rename_dict.get(self.right_step_name, self.right_step_name)
 
 
 class OnlineVectorService:

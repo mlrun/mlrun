@@ -82,7 +82,7 @@ jobs:
       skip_images: ${{ github.event.inputs.skip_images }}
     secrets: inherit
 
-  # Move to reuseable-workflow too.
+  # TODO: Move to reuseable-workflow too.
   # Requires cross-repo validation for passing github token as secret
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
@@ -102,6 +102,8 @@ jobs:
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
+
+    # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
       - uses: actions/checkout@v3
@@ -114,8 +116,6 @@ jobs:
         run: |
           pip install -r automation/requirements.txt
       - name: Build & push to pypi
-
-        # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
           pip install twine wheel

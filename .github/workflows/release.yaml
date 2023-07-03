@@ -110,6 +110,9 @@ jobs:
         with:
           python-version: 3.9
           cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r automation/requirements.txt
       - name: Build & push to pypi
 
         # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully

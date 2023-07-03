@@ -844,7 +844,7 @@ class RemoteRuntime(KubeResource):
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: bool = None,
-        verify: bool = True
+        **kwargs
     ):
         """Invoke the remote (live) function and return the results
 
@@ -860,9 +860,6 @@ class RemoteRuntime(KubeResource):
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
-        :param verify: (optional) Either a boolean, in which case it controls whether we verify
-            the server's TLS certificate, or a string, in which case it must be a path
-            to a CA bundle to use. Defaults to ``True``.
         """
         if not method:
             method = "POST" if body else "GET"
@@ -894,7 +891,8 @@ class RemoteRuntime(KubeResource):
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
         headers.setdefault("x-nuclio-target", full_function_name)
-        kwargs = {}
+        if not kwargs:
+            kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):
                 kwargs["data"] = body
@@ -902,7 +900,7 @@ class RemoteRuntime(KubeResource):
                 kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers,verify=verify, **kwargs)
+            resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

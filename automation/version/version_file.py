@@ -44,6 +44,11 @@ def main():
         "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
     )
 
+    is_stable_parser = subparsers.add_parser(
+        "is-stable", help="check if the version is stable"
+    )
+    is_stable_parser.add_argument("version", type=str)
+
     subparsers.add_parser("current-version", help="get the current version")
     next_version_parser = subparsers.add_parser("next-version", help="get next version")
 
@@ -88,6 +93,10 @@ def main():
             repo_root, "mlrun", "utils", "version", "version.json"
         )
         create_or_update_version_file(args.mlrun_version, version_file_path)
+
+    elif args.command == "is-stable":
+        is_stable = is_stable_version(args.version)
+        print(str(is_stable).lower())
 
 
 def get_current_version(
@@ -322,6 +331,10 @@ def get_feature_branch_feature_name() -> typing.Optional[str]:
         if current_branch.startswith("feature/")
         else ""
     )
+
+
+def is_stable_version(mlrun_version: str) -> bool:
+    return re.match(r"^\d+\.\d+\.\d+$", mlrun_version) is not None
 
 
 def _run_command(command, args=None):

@@ -81,9 +81,12 @@ jobs:
             version=$VERSION_INPUT; \
             echo "Using version from input: $version"; \
           fi
-          
+
           # can be either "true" or "false"
-          echo "prerelease=$(python ./automation/version/version_file.py is-stable $version)" >> $GITHUB_OUTPUT
+          is_stable=$(python ./automation/version/version_file.py is-stable $version)          
+
+          # turns is_stable to prerelease by changing "true" to "false" and vice versa
+          echo "prerelease=$(test $is_stable = false && echo "true" || "false")" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT

@@ -329,7 +329,7 @@ default_config = {
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more than 2 times in X. Can't be less than 1 minute, "0" to disable
-            "min_allowed_interval": "10 minutes",
+            "min_allowed_interval": "1 minutes",
             "default_concurrency_limit": 1,
             # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
             # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for

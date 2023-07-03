@@ -72,16 +72,10 @@ def main():
     elif args.command == "next-version":
         base_version = read_unstable_version_prefix()
         current_version = get_current_version(base_version)
-
-        # if current version is not determined, fallback to base version
-        current_version = (
-            packaging.version.Version(current_version)
-            if current_version
-            else base_version
-        )
-
         next_version = resolve_next_version(
-            args.mode, current_version, get_feature_branch_feature_name()
+            args.mode,
+            packaging.version.Version(current_version),
+            get_feature_branch_feature_name(),
         )
         print(next_version)
 
@@ -101,7 +95,7 @@ def main():
 
 def get_current_version(
     base_version: packaging.version.Version,
-) -> typing.Optional[str]:
+) -> str:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
     ).strip()
@@ -111,8 +105,8 @@ def get_current_version(
         else ""
     )
 
-    # get last 100 commits, to avoid going over all commits
-    commits = _run_command("git", args=["log", "-100", "--pretty=format:'%H'"]).strip()
+    # get last 200 commits, to avoid going over all commits
+    commits = _run_command("git", args=["log", "-200", "--pretty=format:'%H'"]).strip()
     found_tag = None
 
     # most_recent_version is the most recent tag before base version
@@ -185,7 +179,7 @@ def get_current_version(
         if most_recent_version:
             return version_to_mlrun_version(most_recent_version)
 
-        return None
+        return version_to_mlrun_version(base_version)
 
     return version_to_mlrun_version(found_tag)
 

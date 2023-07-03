@@ -52,8 +52,8 @@ def git_repo(tmpdir, request):
 @pytest.mark.parametrize(
     "base_version,tags,expected_current_version",
     [
-        # no tags were made
-        ("1.5.0", [], None),
+        # no tags were made, default to base_version
+        ("1.5.0", [], "1.5.0"),
         # tags were made, but none of them are similar to base_version, use latest greatest (< base version)
         (
             "1.5.0",

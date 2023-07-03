@@ -27,6 +27,12 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
+      bump_version_mode:
+        description: 'The version bump mode. RC - Bump current RC, RC-GRAD - turns RC to a stable. (rc, rc-grad)'
+        required: true
+        default: 'rc'
+        type: choice
+        options: [ 'rc', 'rc-grad' ]
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -65,20 +71,18 @@ jobs:
       - name: Resolve inputs
         id: resolve
         run: |
-          ui_branch=${{ github.ref_name }}
-          if [[ -n "${{ github.event.inputs.ui_branch }}" ]]; then \
-            ui_branch=${{ github.event.inputs.ui_branch }}; \
-          fi
-          echo "ui_branch=${{ github.event.inputs.ui_branch }}" >> $GITHUB_OUTPUT
-          echo "version=$(python ./automation/version/version_file.py next-version --mode rc)" >> $GITHUB_OUTPUT
+          echo "ui_branch=${UI_BRANCH_INPUT:-`echo ${{ github.ref_name }}`})" >> $GITHUB_OUTPUT
+          echo "version=$(python ./automation/version/version_file.py next-version --mode $BUMP_VERSION_MODE_INPUT)" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
-
           cat $GITHUB_OUTPUT
+        env:
+          UI_BRANCH_INPUT: ${{ github.event.inputs.ui_branch }}
+          BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
 
   trigger-and-wait-for-mlrun-image-building:
     name: Trigger build workflow in mlrun/mlrun and wait to finish
     needs: [prepare-inputs]
-    uses: ./.github/workflows/build.yaml
+    uses: ./.github/workflows/build-internal.yaml
     with:
       version: ${{ needs.prepare-inputs.outputs.version }}
       skip_images: ${{ github.event.inputs.skip_images }}

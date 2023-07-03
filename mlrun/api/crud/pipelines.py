@@ -110,7 +110,7 @@ class Pipelines(
             logger.debug(
                 "Detected pipeline runs for project, deleting them",
                 project=project,
-                pipeline_runs=[run["id"] for run in project_pipeline_runs],
+                pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
             )
 
         for pipeline_run in project_pipeline_runs:
@@ -119,13 +119,11 @@ class Pipelines(
                 kfp_client._run_api.delete_run(pipeline_run["id"])
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
-                # (we will log the error and continue) because it is being used as part of the delete project
-                # operation and we don't want to fail the entire delete project operation because of a single
-                # pipeline run
+                # so it won't fail the delete project operation. we will log the error and continue
                 logger.warning(
                     "Failed to delete pipeline run",
                     project=project,
-                    pipeline_run=pipeline_run,
+                    pipeline_run_id=pipeline_run["id"],
                     exc_info=exc,
                 )
         logger.debug("Finished deleting pipeline runs", project=project)

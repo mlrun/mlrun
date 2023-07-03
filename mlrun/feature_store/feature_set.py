@@ -942,6 +942,10 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
+            print(start_time or pd.Timestamp.min)
+            print(end_time)
+            print(columns)
+
             df = self.spec.source.to_dataframe(
                 columns=columns,
                 start_time=start_time

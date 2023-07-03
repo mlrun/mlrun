@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 import mlrun
+from . import FeatureSet
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -31,14 +32,13 @@ from ..feature_store.common import (
     parse_feature_string,
     parse_project_name_from_feature_string,
 )
-from ..features import Feature
+from ..features import Feature, Entity
 from ..model import (
     DataSource,
     DataTarget,
     ModelObj,
     ObjectList,
     VersionedObjMetadata,
-    ObjectDict,
 )
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
@@ -402,7 +402,10 @@ class JoinOperand:
     def _join_operands(func):
         def wrapper(self, other_operand):
             first_key_num = len(self._steps.keys()) if self._steps else 0
-            left_last_step_name, left_all_feature_sets = self.last_step_name, self.all_feature_sets,
+            left_last_step_name, left_all_feature_sets = (
+                self.last_step_name,
+                self.all_feature_sets,
+            )
             if other_operand.steps:
                 # append all the other operand steps to the current operand steps.
                 all_new_key_names = [
@@ -537,17 +540,58 @@ class _JoinStep(ModelObj):
         self.left_keys = []
         self.right_keys = []
 
-    def init_join_keys(self, all_relations):
+    def init_join_keys(
+        self,
+        all_relations: typing.Dict[str, typing.Dict[str, Union[str, Entity]]],
+        all_entities: typing.Dict[str, List[Entity]],
+        feature_set_objects: ObjectList,
+    ):
         self.left_keys = []
         self.right_keys = []
 
-        # relation wise and entity wise
-        pass
+        for left_fset in self.left_feature_set_names:
+            for right_fset in self.right_feature_set_names:
+                left_keys, right_keys = self._check_relation(
+                    all_relations[left_fset],
+                    all_entities[left_fset],
+                    feature_set_objects[right_fset],
+                )
+                self.left_keys.extend(left_keys)
+                self.right_keys.extend(right_keys)
+
+        if not self.left_keys:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{self.name} can't be preform due to undefined relation between {self.left_keys} to {self.right_keys}"
+            )
+
+    @staticmethod
+    def _check_relation(
+        relation: typing.Dict[str, Union[str, Entity]],
+        entities: List[Entity],
+        right_fset_fields,
+    ):
+
+        right_feature_set_entity_list = right_fset_fields.spec.entities
+
+        if all(ent in entities for ent in right_feature_set_entity_list) and len(
+            right_feature_set_entity_list
+        ) == len(entities):
+            # entities wise
+            return list(right_feature_set_entity_list.keys()), list(
+                right_feature_set_entity_list.keys()
+            )
+        elif all(ent in list(relation.values()) for ent in entities):
+            # relation wise
+            return list(relation.values()), list(right_feature_set_entity_list.keys())
+
+        return [], []
 
     def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
         self.name = rename_dict.get(self.name)
         self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
-        self.right_step_name = rename_dict.get(self.right_step_name, self.right_step_name)
+        self.right_step_name = rename_dict.get(
+            self.right_step_name, self.right_step_name
+        )
 
 
 class OnlineVectorService:

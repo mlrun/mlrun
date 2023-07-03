@@ -234,7 +234,7 @@ class CSVSource(BaseSourceDriver):
     ):
         reader_args = self.attributes.get("reader_args", {})
         parse_dates = self._parse_dates or []
-        if time_field not in parse_dates:
+        if time_field and time_field not in parse_dates:
             parse_dates.append(time_field)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,

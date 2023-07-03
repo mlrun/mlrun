@@ -1212,16 +1212,8 @@ class MlrunProject(ModelObj):
         :param args:          argument values (key=value, ..)
         """
 
-        abs_workflow_path = (
-            os.path.join(self.spec.get_code_path(), workflow_path.removeprefix("./"))
-            if workflow_path.startswith("./")
-            else workflow_path
-        )
-
-        if (
-            not workflow_path
-            or not (os.path.isfile(abs_workflow_path) or "://" in workflow_path)
-            or not pathlib.Path(workflow_path).suffix
+        if mlrun.utils.helpers.is_file_path_invalid(
+            self.spec.get_code_path(), workflow_path
         ):
             raise ValueError(
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."

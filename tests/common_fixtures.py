@@ -331,11 +331,14 @@ class RunDBMock:
         return True
 
     def store_project(self, name, project):
-        self._project_name = name
+        return self.create_project(project)
 
+    def create_project(self, project):
         if isinstance(project, dict):
             project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
+        self._project_name = project.name
+        return self._project
 
     def get_project(self, name):
         if self._project_name and name == self._project_name:

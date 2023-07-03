@@ -522,3 +522,18 @@ def test_tag_not_in_model_spec():
 
     assert "tag" not in model_spec, "tag should not be in model spec"
     assert "tag" not in model_spec["metadata"], "tag should not be in metadata"
+
+
+def test_register_artifacts(rundb_mock):
+    project_name = "my-projects"
+    project = mlrun.new_project(project_name)
+    artifact_key = "my-art"
+    artifact_tag = "v1"
+    project.set_artifact(
+        artifact_key,
+        artifact=mlrun.artifacts.Artifact(key=artifact_key, body=b"x=1"),
+        tag=artifact_tag,
+    )
+    project.register_artifacts()
+    artifact = project.get_artifact(artifact_key)
+    assert artifact.tree != "latest"

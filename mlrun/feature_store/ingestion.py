@@ -47,7 +47,6 @@ def init_featureset_graph(
 
     cache = ResourceCache()
     graph = featureset.spec.graph.copy()
-    print(f"DAVID (init_featureset_graph) source.start_time = {source.start_time}")
 
     # init targets (and table)
     targets = targets or []
@@ -96,7 +95,6 @@ def init_featureset_graph(
     if featureset.spec.passthrough:
         targets = [target for target in targets if not target.is_offline]
     for chunk in chunks:
-        print(f"DAVID (init_featureset_graph) chunk.shape = {chunk.shape}")
         event = MockEvent(body=chunk)
         if len(featureset.spec.entities) and isinstance(event.body, pd.DataFrame):
             # set the entities to be the indexes of the df

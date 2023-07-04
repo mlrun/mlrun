@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import types
 import warnings
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -951,6 +952,8 @@ class FeatureSet(ModelObj):
                 **kwargs,
             )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
+            if isinstance(df, types.GeneratorType):
+                df = [data for data in df]
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)
             return df

@@ -233,6 +233,7 @@ class CSVSource(BaseSourceDriver):
         time_field=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
+        print(f"DAVID in source start_time = {start_time or self.start_time}")
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

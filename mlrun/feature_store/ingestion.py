@@ -47,6 +47,7 @@ def init_featureset_graph(
 
     cache = ResourceCache()
     graph = featureset.spec.graph.copy()
+    print(f"DAVID (init_featureset_graph) source.start_time = {source.start_time}")
 
     # init targets (and table)
     targets = targets or []

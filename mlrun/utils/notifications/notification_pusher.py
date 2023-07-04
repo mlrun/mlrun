@@ -316,19 +316,22 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
+        logger.info("in push message!!", message=message)
         def _sync_push():
+            logger.info("in sync push", message=message, sync_not=self._sync_notifications)
             for notification_type, notification in self._sync_notifications.items():
                 if self.should_push_notification(notification_type):
                     notification.push(message, severity, runs, custom_html)
 
         async def _async_push():
+            logger.info("in async push", message=message, async_not=self._async_notifications)
             tasks = []
             for notification_type, notification in self._async_notifications.items():
                 if self.should_push_notification(notification_type):
                     tasks.append(
                         notification.push(message, severity, runs, custom_html)
                     )
-
+            logger.info("tasks in async push", tasks=tasks)
             # return exceptions to "best-effort" fire all notifications
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -406,6 +409,7 @@ class CustomNotificationPusher(object):
         has_workflow_url: bool = False,
     ):
         message = f"Workflow started in project {project}"
+        logger.info("message!!", message=message)
         if pipeline_id:
             message += f" id={pipeline_id}"
         commit_id = (
@@ -424,6 +428,7 @@ class CustomNotificationPusher(object):
                 + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
             )
             message = message + f", check progress in {url}"
+        logger.info("final message before push", message=message)
         self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(

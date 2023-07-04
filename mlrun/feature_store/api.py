@@ -500,8 +500,14 @@ def ingest(
     mlrun_context.logger.info(f"DAVID {source}")
     if isinstance(source, DataSource) and source.schedule:
         print(f"DAVID in isinstance(source, DataSource) and source.schedule")
-        if not featureset.spec.timestamp_key:
-            pass
+        if not source.time_field and featureset.spec.timestamp_key:
+            source.time_field = featureset.spec.timestamp_key
+        elif not source.time_field and featureset.spec.timestamp_key:
+            raise mlrun.errors.MLRunRuntimeError(
+                "When running schedule ingestion "
+                "you have to specified featureset's timestamp_key"
+                "or source's time_field"
+            )
         min_time = datetime.max
         for target in featureset.status.targets:
             print(f"DAVID target.last_written = {target.last_written}")

@@ -517,7 +517,7 @@ def ingest(
 
         if mlrun_context:
             mlrun_context.logger.info(
-                f"starting ingestion task to {featureset.uri}.{filter_time_string}!!!"
+                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
             )
 
         return_df = False
@@ -630,8 +630,6 @@ def ingest(
 
     if isinstance(source, DataSource) and source.schedule:
         for target in featureset.status.targets:
-            # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
-            # in the next scheduled run, we will have the same start time
             max_time = (
                 max(df[featureset.spec.timestamp_key])
                 if featureset.spec.timestamp_key

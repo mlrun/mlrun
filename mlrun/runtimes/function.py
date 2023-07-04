@@ -844,7 +844,7 @@ class RemoteRuntime(KubeResource):
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: bool = None,
-        **kwargs
+        **kwargs,
     ):
         """Invoke the remote (live) function and return the results
 

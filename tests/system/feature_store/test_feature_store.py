@@ -893,7 +893,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert result_columns.sort() == orig_columns.sort()
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
-    def test_passthrough_feature_set(self, engine):
+    @pytest.mark.parametrize("with_start_time", [True, False])
+    def test_passthrough_feature_set(self, engine, with_start_time):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
@@ -912,7 +913,10 @@ class TestFeatureStore(TestMLRunSystem):
         expected = source.to_dataframe().set_index("patient_id")
 
         # The file is sorted by time. 10 is just an arbitrary number.
-        start_time = expected["timestamp"][10]
+        if with_start_time:
+            start_time = expected["timestamp"][10]
+        else:
+            start_time = None
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
@@ -937,7 +941,8 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
 
         # check time filter with passthrough
-        expected = expected[(expected["timestamp"] > start_time)]
+        if start_time:
+            expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
         # assert get_online correctness

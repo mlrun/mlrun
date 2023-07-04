@@ -29,7 +29,6 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
 
-  # remove and reuse workflow_call from "build-ondemand.yaml"
   workflow_dispatch:
     inputs:
       docker_registries:

@@ -18,7 +18,7 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Generator, List, Optional, Union
+from typing import Callable, List, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff

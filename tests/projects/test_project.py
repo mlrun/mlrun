@@ -902,7 +902,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                        "Invalid file path: './'. Please provide a valid URL/path to a file."
                     )
                 ),
             ),
@@ -913,7 +913,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                        "Invalid file path: 'https://test'. Please provide a valid URL/path to a file."
                     )
                 ),
             ),
@@ -924,12 +924,17 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
+                        "Invalid request, please provide a valid URL/path to a file."
                     )
                 ),
             ),
         ),
         ("https://test.py", does_not_raise()),
+        # relative path
+        ("./workflow.py", does_not_raise()),
+        # only file name
+        ("workflow.py", does_not_raise()),
+        # absolute path
         (
             str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
             does_not_raise(),
@@ -938,6 +943,13 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 )
 def test_set_workflow_with_invalid_path(workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
+
+    # because the working directory inside the dockerized test is '/mlrun'
+    # modify cwd to the current file's dir to ensure the workflow files are located
+    current_file_abspath = os.path.abspath(__file__)
+    current_dirname = os.path.dirname(current_file_abspath)
+    os.chdir(current_dirname)
+
     with exception:
         proj.set_workflow("main", workflow_path)
 

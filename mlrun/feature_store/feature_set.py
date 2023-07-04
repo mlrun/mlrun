@@ -477,7 +477,7 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             self.spec.with_default_targets = True
-            targets.extend(get_default_targets())
+            targets.extend(get_default_targets(offline_only=self.spec.passthrough))
         else:
             self.spec.with_default_targets = False
 

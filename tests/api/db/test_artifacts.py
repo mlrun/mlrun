@@ -16,6 +16,7 @@ import deepdiff
 import numpy
 import pandas
 import pytest
+import sqlalchemy.exc
 from sqlalchemy.orm import Session
 
 import mlrun.api.db.sqldb.models
@@ -889,12 +890,23 @@ def test_data_migration_fix_datasets_large_previews(
 
 
 def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
-    # create an artifact in the old format
     artifact_key = "artifact1"
     artifact_uid = "uid1"
     project = "project1"
+
+    # create project
+    db.create_project(
+        db_session,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project,
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+        ),
+    )
+
+    # create an artifact in the old format
     artifact_body = _generate_artifact(artifact_key, artifact_uid, "artifact")
-    # replace the name with the key and fill some other fields
     artifact_body["metadata"]["key"] = artifact_key
     artifact_body["metadata"].pop("name")
     artifact_body["metadata"]["iter"] = 2
@@ -903,34 +915,74 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         db_session, artifact_key, artifact_body, artifact_uid, project=project
     )
 
+    # create a legacy artifact in the old format
+    legacy_artifact_key = "legacy-artifact1"
+    legacy_artifact_uid = "legacy-uid1"
+    legacy_artifact = {
+        "key": legacy_artifact_key,
+        "src_path": "/some/other/path",
+        "kind": "artifact",
+        "tree": legacy_artifact_uid,
+    }
+    db.store_artifact(
+        db_session,
+        legacy_artifact_key,
+        legacy_artifact,
+        legacy_artifact_uid,
+        project=project,
+    )
+
     # perform the migration
     mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
 
     # validate the migration succeeded
-    # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
-    query = db._query(
+    query_all = db._query(
         db_session,
         mlrun.api.db.sqldb.models.ArtifactV2,
-        key=artifact_key,
-        project=project,
     )
-    artifact = query.one_or_none()
-    assert artifact is not None
-    assert artifact.key == artifact_key
-    assert artifact.producer_id == artifact_uid
-    assert artifact.project == project
-    assert artifact.iteration == 2
+    new_artifacts = query_all.all()
+    assert len(new_artifacts) == 2
 
-    artifact_dict = artifact.full_object
-    assert len(artifact_dict) > 0
-    assert artifact_dict["metadata"]["key"] == artifact_key
-    assert artifact_dict["metadata"]["project"] == project
-    # the uid should be the generated uid and not the original one
-    assert artifact_dict["metadata"]["uid"] != artifact_uid
+    for expected in [
+        {
+            "key": artifact_key,
+            "uid": artifact_uid,
+            "project": project,
+            "iter": 2,
+        },
+        {
+            "key": legacy_artifact_key,
+            "uid": legacy_artifact_uid,
+            "project": None,
+            "iter": None,
+        },
+    ]:
+        # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
+        query = db._query(
+            db_session,
+            mlrun.api.db.sqldb.models.ArtifactV2,
+            key=expected["key"],
+        )
+        artifact = query.one_or_none()
+        assert artifact is not None
+        assert artifact.key == expected["key"]
+        assert artifact.producer_id == expected["uid"]
+        assert artifact.project == expected["project"]
+        assert artifact.iter == expected["iter"]
 
-    # validate the original artifact was deleted
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact(db_session, artifact_key, artifact_uid, project)
+        artifact_dict = artifact.full_object
+        assert len(artifact_dict) > 0
+        assert artifact_dict["metadata"]["key"] == expected["key"]
+        if expected["project"] is not None:
+            assert artifact_dict["metadata"]["project"] == expected["project"]
+        else:
+            assert "project" not in artifact_dict["metadata"]
+        # the uid should be the generated uid and not the original one
+        assert artifact_dict["metadata"]["uid"] != expected["uid"]
+
+        # validate the original artifact was deleted
+        with pytest.raises(sqlalchemy.exc.OperationalError):
+            db.read_artifact(db_session, expected["key"], project=expected["project"])
 
 
 def _generate_artifact(name, uid=None, kind=None):

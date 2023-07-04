@@ -32,6 +32,7 @@ import mlrun.api.utils.db.backup
 import mlrun.api.utils.db.mysql
 import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
+import mlrun.artifacts.base
 import mlrun.common.schemas
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
@@ -558,87 +559,94 @@ def _migrate_artifacts_table_v2(
     new_artifacts = []
     artifacts_tags_to_migrate = []
     artifacts_labels_to_migrate = []
-    artifacts = db._find_artifacts(db_session, None, "*")
-    for artifact in artifacts:
-        new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
-        artifact_dict = artifact.struct
-        artifact_metadata = {}
 
-        # if it is a legacy artifact, it won't a "metadata" field and the artifact_dict will contain the metadata
-        legacy = is_legacy_artifact(artifact_dict)
-        if not legacy:
-            artifact_metadata = artifact_dict.get("metadata", None)
+    # get all projects
+    projects = db.list_projects(
+        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+    )
 
-        # uid - calculate as the hash of the artifact object
-        tag = (
-            artifact_dict.get("tag", "") if legacy else artifact_metadata.get("tag", "")
-        )
-        uid = fill_object_hash(artifact_dict, "uid", tag)
-        new_artifact.uid = uid
+    # get all artifacts in batches per project and migrate them
+    for project in projects.projects:
+        # TODO: sort project artifacts by id, and migrate them in batches of 1000 (configurable)
+        artifacts = db.list_artifacts(db_session, project=project)
 
-        # project - copy as is
-        new_artifact.project = (
-            artifact_metadata.get("project", "")
-            if artifact_metadata
-            else artifact_dict.get("project", "")
-        )
+        for artifact in artifacts:
+            new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
 
-        # key - the artifact's key, without iteration if it is attached to it
-        # TODO: does the key include the iteration when its in the metadata?
-        key = (
-            artifact_dict.get("key", "") if legacy else artifact_metadata.get("key", "")
-        )
-        new_artifact.key = key
+            if is_legacy_artifact(artifact):
 
-        # iteration - the artifact's iteration
-        iteration = (
-            artifact_dict.get("iter", 1) if legacy else artifact_metadata.get("iter", 1)
-        )
-        new_artifact.iteration = int(iteration)
+                # convert the legacy artifact to the new format, by setting a metadata field and spec field
+                # and copying the old fields to the spec
+                artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                    artifact
+                ).to_dict()
 
-        # kind - doesn't exist in v1, will be set to "artifact" by default
-        new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
+            artifact_metadata = artifact.get("metadata", None)
 
-        # producer_id - the current uid value
-        new_artifact.producer_id = artifact.uid
+            # producer_id - the current uid value
+            # uid can be in the metadata or in the artifact itself, or in the tree field
+            old_uid = artifact_metadata.get("uid", None)
+            if not old_uid:
+                old_uid = artifact.get("uid", None)
+            if not old_uid:
+                old_uid = artifact_metadata.get("tree", None)
+            new_artifact.producer_id = old_uid
 
-        # updated - the artifact's updated time
-        updated = (
-            artifact_dict.get("updated", datetime.datetime.now())
-            if legacy
-            else artifact_metadata.get("updated", datetime.datetime.now())
-        )
-        new_artifact.updated = updated
+            # uid - calculate as the hash of the artifact object
+            tag = artifact_metadata.get("tag", "")
+            uid = fill_object_hash(artifact, "uid", tag)
+            new_artifact.uid = uid
 
-        # created - the artifact's created time
-        # since this is a new field, we just take the updated time
-        new_artifact.created = updated
+            # project - copy as is
+            new_artifact.project = artifact_metadata.get("project", None)
 
-        # full_object - the artifact dict
-        new_artifact.full_object = artifact_dict
+            # key - the artifact's key, without iteration if it is attached to it
+            # TODO: does the key include the iteration when its in the metadata?
+            key = artifact_metadata.get("key", "")
+            new_artifact.key = key
 
-        # save the new object to the db
-        new_artifacts.append(new_artifact)
+            # iteration - the artifact's iteration
+            iteration = artifact_metadata.get("iter", None)
+            if iteration is not None:
+                new_artifact.iter = int(iteration)
 
-        # save old and new artifact ids to be used later for migrating labels and tags
-        if tag:
-            artifacts_tags_to_migrate.append((artifact, tag))
-        labels = artifact_metadata.get("labels", {})
-        if labels:
-            artifacts_labels_to_migrate.append((artifact, labels))
+            # kind - doesn't exist in v1, will be set to "artifact" by default
+            new_artifact.kind = artifact.get("kind", mlrun.artifacts.Artifact.kind)
 
-    # commit the new artifacts to the db
-    db._upsert(db_session, new_artifacts, ignore=True)
+            # updated - the artifact's updated time
+            updated = artifact_metadata.get("updated", datetime.datetime.now())
+            new_artifact.updated = updated
 
-    # migrate artifact labels to the new table ("artifact_v2_labels")
-    _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
+            # created - the artifact's created time
+            # since this is a new field, we just take the updated time
+            new_artifact.created = updated
 
-    # migrate artifact tags to the new table ("artifact_v2_tags")
-    _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+            # full_object - the artifact dict
+            new_artifact.full_object = artifact
 
-    # truncate the entire artifacts table
-    db.del_artifacts(db_session, commit=False)
-    db_session.commit()
+            # save the new object to the db
+            new_artifacts.append(new_artifact)
+
+            # save the artifact's tags and labels to migrate them later
+            if tag:
+                artifacts_tags_to_migrate.append((new_artifact, tag))
+            labels = artifact_metadata.get("labels", {})
+            if labels:
+                artifacts_labels_to_migrate.append((new_artifact, labels))
+
+        # commit the new artifacts to the db
+        db._upsert(db_session, new_artifacts, ignore=True)
+
+        # migrate artifact labels to the new table ("artifact_v2_labels")
+        _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
+
+        # migrate artifact tags to the new table ("artifact_v2_tags")
+        _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+
+    # drop the old artifacts table, including their labels and tags tables
+    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.Label.__tablename__)
+    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.Tag.__tablename__)
+    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.__tablename__)
 
 
 def _migrate_artifact_labels(
@@ -649,8 +657,8 @@ def _migrate_artifact_labels(
     # iterate over all the artifacts, and create labels for each one
     logger.info("Aligning artifact labels")
     labels = []
-    for artifact, labels in artifacts_labels_to_migrate:
-        for name, value in labels.items():
+    for artifact, artifacts_labels in artifacts_labels_to_migrate:
+        for name, value in artifacts_labels.items():
             new_label = artifact.Label(
                 name=name,
                 value=value,

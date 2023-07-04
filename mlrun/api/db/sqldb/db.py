@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
+import sqlalchemy
 from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
@@ -849,7 +850,7 @@ class SQLDB(DBInterface):
             .all()
         )
 
-    def del_artifact(self, session, key, tag="", project="", commit=True):
+    def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
         query = session.query(Artifact).filter(
@@ -871,8 +872,7 @@ class SQLDB(DBInterface):
         )
         for artifact in artifacts:
             session.delete(artifact)
-        if commit:
-            session.commit()
+        session.commit()
 
     def _delete_artifacts_tags(
         self,
@@ -913,9 +913,7 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def del_artifacts(
-        self, session, name="", project="", tag="*", labels=None, commit=True
-    ):
+    def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
         ids = "*"
         if tag and tag != "*":
@@ -927,7 +925,7 @@ class SQLDB(DBInterface):
             )
         }
         for key in distinct_keys:
-            self.del_artifact(session, key, "", project, commit)
+            self.del_artifact(session, key, "", project)
 
     @retry_on_conflict
     def store_function(
@@ -3823,3 +3821,22 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    def drop_table(self, session: Session, table_name: str):
+        """Drop a table from the database
+
+        :param session: SQLAlchemy session
+        :param table_name: Table name
+        """
+        metadata = sqlalchemy.MetaData(bind=session.bind)
+        keys = metadata.tables.keys()
+        print(keys)
+
+        metadata.reflect()
+        keys = metadata.tables.keys()
+        print(keys)
+
+        # reflect the table using the metadata object
+        table = metadata.tables.get(table_name)
+        if table is not None:
+            table.drop()

@@ -94,7 +94,7 @@ def upgrade():
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "project", "name", "obj_id", "obj_name", name="_artifacts_v2_tags_uc"
+            "project", "name", "obj_name", name="_artifacts_v2_tags_uc"
         ),
     )
     # ### end Alembic commands ###

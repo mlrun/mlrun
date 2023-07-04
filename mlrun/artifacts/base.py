@@ -22,6 +22,7 @@ import yaml
 from deprecated import deprecated
 
 import mlrun
+import mlrun.artifacts
 import mlrun.errors
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
@@ -1032,3 +1033,43 @@ def generate_target_path(item: Artifact, artifact_path, producer):
             suffix = f".{item.format}"
 
     return f"{artifact_path}{item.key}{suffix}"
+
+
+def convert_legacy_artifact_to_new_format(
+    legacy_artifact: typing.Union[LegacyArtifact, dict]
+) -> Artifact:
+    """Converts a legacy artifact to a new format.
+
+    :param legacy_artifact: The legacy artifact to convert.
+    :return: The converted artifact.
+    """
+    if isinstance(legacy_artifact, LegacyArtifact):
+        legacy_artifact_dict = legacy_artifact.to_dict()
+    elif isinstance(legacy_artifact, dict):
+        legacy_artifact_dict = legacy_artifact
+    else:
+        raise TypeError(
+            f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
+        )
+    artifact_dict = {
+        "metadata": {},
+        "spec": {},
+        "status": {},
+        "kind": legacy_artifact_dict.get("kind", "artifact"),
+    }
+    for key, value in legacy_artifact_dict.items():
+        if value is not None:
+            if key in mlrun.artifacts.base.ArtifactMetadata._dict_fields:
+                artifact_dict["metadata"][key] = value
+            elif (
+                key
+                in mlrun.artifacts.base.ArtifactSpec._dict_fields
+                + mlrun.artifacts.base.ArtifactSpec._extra_fields
+            ):
+                artifact_dict["spec"][key] = value
+            elif key in mlrun.artifacts.base.ArtifactStatus._dict_fields:
+                artifact_dict["status"][key] = value
+            else:
+                artifact_dict[key] = value
+
+    return mlrun.artifacts.dict_to_artifact(artifact_dict)

@@ -85,10 +85,7 @@ def make_tag_v2(table):
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(
-            String(255, collation=SQLCollationUtil.collation()),
-            # ForeignKey(f"{table}.name"),
-        )
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
     return Tag
 
@@ -137,6 +134,10 @@ def make_notification(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
+    # deprecated, use ArtifactV2 instead
+    # TODO: remove in 1.7.0. Note that removing it will require upgrading mlrun in at least 2 steps:
+    #  1. upgrade to 1.6.x which will create the new table
+    #  2. upgrade to 1.7.x which will remove the old table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -172,14 +173,13 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         kind = Column(String(255, collation=SQLCollationUtil.collation()))
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
-        iteration = Column(Integer)
+        iter = Column(Integer)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         _full_object = Column("object", BLOB)
 
         labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
 
         @property
         def full_object(self):

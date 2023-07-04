@@ -943,10 +943,13 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 )
 def test_set_workflow_with_invalid_path(workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
-    tests_working_dir = os.getcwd()
 
+    # TODO: make this a fixture
     # because the working directory inside the dockerized test is '/mlrun'
     # modify cwd to the current file's dir to ensure the workflow files are located
+    # modify it back after the test case for other tests
+    tests_working_dir = os.getcwd()
+
     current_file_abspath = os.path.abspath(__file__)
     current_dirname = os.path.dirname(current_file_abspath)
     os.chdir(current_dirname)

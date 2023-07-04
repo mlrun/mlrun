@@ -16,6 +16,7 @@ import os
 import pathlib
 import typing
 import unittest.mock
+import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
@@ -534,6 +535,9 @@ def test_register_artifacts(rundb_mock):
         artifact=mlrun.artifacts.Artifact(key=artifact_key, body=b"x=1"),
         tag=artifact_tag,
     )
+
+    expected_tree = "my_uuid"
+    uuid.uuid4 = unittest.mock.Mock(return_value=expected_tree)
     project.register_artifacts()
     artifact = project.get_artifact(artifact_key)
-    assert artifact.tree != "latest"
+    assert artifact.tree == expected_tree

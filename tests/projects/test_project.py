@@ -943,6 +943,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
 )
 def test_set_workflow_with_invalid_path(workflow_path, exception):
     proj = mlrun.new_project("proj", save=False)
+    tests_working_dir = os.getcwd()
 
     # because the working directory inside the dockerized test is '/mlrun'
     # modify cwd to the current file's dir to ensure the workflow files are located
@@ -952,6 +953,8 @@ def test_set_workflow_with_invalid_path(workflow_path, exception):
 
     with exception:
         proj.set_workflow("main", workflow_path)
+
+    os.chdir(tests_working_dir)
 
 
 def test_project_ops():

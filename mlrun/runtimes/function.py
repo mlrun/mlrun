@@ -941,7 +941,7 @@ class RemoteRuntime(KubeResource):
             command = f"{command}/{runobj.spec.handler_name}"
         headers = {"x-nuclio-log-level": log_level}
         try:
-            resp = requests.put(command, json=runobj.to_dict(), headers=headers,)
+            resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
             logger.error(f"error invoking function: {err_to_str(err)}")
             raise OSError(f"error: cannot run function at url {command}")

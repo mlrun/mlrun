@@ -23,9 +23,6 @@ from sys import executable, platform, stderr
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ

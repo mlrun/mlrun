@@ -583,6 +583,9 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
+        logger.info("Hey Adaammmmmmm")
+        print("print meeee please!!!")
+        time.sleep(3)
         id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
@@ -592,6 +595,7 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
+        logger.info("in pipelines run kfp runner, before push start message!!")
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
@@ -701,6 +705,7 @@ class _LocalRunner(_PipelineRunner):
             original_source = project.spec.source
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
+        logger.info("in local runner before push start message!!!!")
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
         )
@@ -866,6 +871,10 @@ class _RemoteRunner(_PipelineRunner):
             f"{msg} '{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
         )
 
+        logger.info("in pipelines run remote runner, before push start message!!")
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name,
+        )
         try:
             run = load_and_run_fn.run(
                 runspec=runspec,
@@ -898,10 +907,6 @@ class _RemoteRunner(_PipelineRunner):
                 workflow=workflow_spec,
                 state=state,
             )
-
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-        )
         pipeline_context.clear()
         return _PipelineRunStatus(
             run_id,
@@ -910,7 +915,6 @@ class _RemoteRunner(_PipelineRunner):
             workflow=workflow_spec,
             state=state,
         )
-
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     spec = imputil.spec_from_file_location("workflow", pipeline)

@@ -1154,7 +1154,7 @@ def wait_for_pipeline_completion(
         def _wait_for_pipeline_completion():
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
-            show_kfp_run(pipeline, clear_output=True)
+            show_kfp_run(pipeline, clear_output=False)
             if pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",

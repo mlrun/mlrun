@@ -502,7 +502,7 @@ def ingest(
         print(f"DAVID in isinstance(source, DataSource) and source.schedule")
         if not source.time_field and featureset.spec.timestamp_key:
             source.time_field = featureset.spec.timestamp_key
-        elif not source.time_field and featureset.spec.timestamp_key:
+        elif not source.time_field and not featureset.spec.timestamp_key:
             raise mlrun.errors.MLRunRuntimeError(
                 "When running schedule ingestion "
                 "you have to specified featureset's timestamp_key"

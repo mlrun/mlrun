@@ -162,6 +162,7 @@ class CSVSource(BaseSourceDriver):
         super().__init__(
             name, path, attributes, key_field, time_field, schedule, **kwargs
         )
+        self._time_field = time_field
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
@@ -169,14 +170,11 @@ class CSVSource(BaseSourceDriver):
                 # TODO: remove in 1.5.0
                 FutureWarning,
             )
+            self._time_field = time_field
             if isinstance(parse_dates, (int, str)):
                 parse_dates = [parse_dates]
-
-            if parse_dates is None:
-                parse_dates = [time_field]
-            elif time_field not in parse_dates:
-                parse_dates = copy(parse_dates)
-                parse_dates.append(time_field)
+            parse_dates = self._parse_dates + [date_col for date_col in parse_dates
+                                               if date_col not in self._parse_dates]
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
@@ -249,6 +247,21 @@ class CSVSource(BaseSourceDriver):
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
+
+    @property
+    def time_field(self):
+        return self._time_field
+
+    @time_field.setter
+    def time_field(self, time_field):
+        if time_field != self._time_field and time_field:
+            if self._parse_dates:
+                self._parse_dates.remove(self._time_field)
+                if time_field not in self._parse_dates:
+                    self._parse_dates.append(time_field)
+            else:
+                self._parse_dates = [time_field]
+            self._time_field = time_field
 
 
 class ParquetSource(BaseSourceDriver):

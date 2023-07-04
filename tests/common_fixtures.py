@@ -27,11 +27,6 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
-import mlrun.api.utils.singletons.logs_dir
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.singletons.scheduler
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
@@ -39,10 +34,6 @@ import mlrun.k8s_utils
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine, create_session
-from mlrun.api.initial_data import init_data
-from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
@@ -91,12 +82,6 @@ def config_test_base():
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 
-    mlrun.api.utils.singletons.db.db = None
-    mlrun.api.utils.singletons.project_member.project_member = None
-    mlrun.api.utils.singletons.scheduler.scheduler = None
-    mlrun.api.utils.singletons.k8s._k8s = None
-    mlrun.api.utils.singletons.logs_dir.logs_dir = None
-
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
@@ -119,42 +104,8 @@ def aioresponses_mock():
 
 
 @pytest.fixture
-def db():
-    global session_maker
-    dsn = "sqlite:///:memory:?check_same_thread=false"
-    db_session = None
-    try:
-        config.httpdb.dsn = dsn
-        _init_engine(dsn=dsn)
-        init_data()
-        initialize_db()
-        db_session = create_session()
-        db = SQLDB(dsn)
-        db.initialize(db_session)
-        config.dbpath = dsn
-    finally:
-        if db_session is not None:
-            db_session.close()
-    mlrun.api.utils.singletons.db.initialize_db(db)
-    mlrun.api.utils.singletons.logs_dir.initialize_logs_dir()
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
-    return db
-
-
-@pytest.fixture
 def ensure_default_project() -> mlrun.projects.project.MlrunProject:
     return mlrun.get_or_create_project("default")
-
-
-@pytest.fixture()
-def db_session() -> Generator:
-    db_session = None
-    try:
-        db_session = create_session()
-        yield db_session
-    finally:
-        if db_session is not None:
-            db_session.close()
 
 
 @pytest.fixture()

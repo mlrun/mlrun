@@ -506,7 +506,7 @@ def ingest(
             )
         min_time = datetime.max
         for target in featureset.status.targets:
-             if target.last_written:
+            if target.last_written:
                 cur_last_written = target.last_written
                 if isinstance(cur_last_written, str):
                     cur_last_written = datetime.fromisoformat(target.last_written)

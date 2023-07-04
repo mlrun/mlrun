@@ -646,7 +646,7 @@ def ingest(
                 max(df[featureset.spec.timestamp_key])
                 if featureset.spec.timestamp_key
                 and featureset.spec.timestamp_key in df
-                and df[featureset.spec.timestamp_key].shape
+                and df[featureset.spec.timestamp_key].shape[0] != 0
                 else None
             )
             print(f"DAVID max_time = {max_time}")

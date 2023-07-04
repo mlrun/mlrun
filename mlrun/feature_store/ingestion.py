@@ -72,15 +72,15 @@ def init_featureset_graph(
         cache.cache_resource(featureset.uri, featureset, True)
 
     server.init_object(namespace)
-
+    timestamp_key = featureset.spec.timestamp_key
     # if the source is a dataframe iterator we load/write it in chunks
     chunk_id = 0
     if hasattr(source, "to_dataframe"):
         if source.is_iterator():
             chunk_id = 1
-            chunks = source.to_dataframe()
+            chunks = source.to_dataframe(time_field=timestamp_key)
         else:
-            chunks = [source.to_dataframe()]
+            chunks = [source.to_dataframe(time_field=timestamp_key)]
     elif not hasattr(source, "to_csv"):
         raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
     else:

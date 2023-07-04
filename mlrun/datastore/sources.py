@@ -162,7 +162,6 @@ class CSVSource(BaseSourceDriver):
         super().__init__(
             name, path, attributes, key_field, time_field, schedule, **kwargs
         )
-        self._time_field = time_field
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
@@ -170,11 +169,14 @@ class CSVSource(BaseSourceDriver):
                 # TODO: remove in 1.5.0
                 FutureWarning,
             )
-            self._time_field = time_field
             if isinstance(parse_dates, (int, str)):
                 parse_dates = [parse_dates]
-            parse_dates = self._parse_dates + [date_col for date_col in parse_dates
-                                               if date_col not in self._parse_dates]
+
+            if parse_dates is None:
+                parse_dates = [time_field]
+            elif time_field not in parse_dates:
+                parse_dates = copy(parse_dates)
+                parse_dates.append(time_field)
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
@@ -231,8 +233,9 @@ class CSVSource(BaseSourceDriver):
         time_field=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
-        print(f"DAVID in source start_time = {start_time or self.start_time}")
-        print(f"DAVID in source columns = {columns}")
+        parse_dates = self._parse_dates or []
+        if time_field:
+            parse_dates.append(time_field)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -240,28 +243,13 @@ class CSVSource(BaseSourceDriver):
             start_time=start_time or self.start_time,
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
-            parse_dates=self._parse_dates,
+            parse_dates=parse_dates,
             chunksize=self.attributes.get("chunksize"),
             **reader_args,
         )
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
-
-    @property
-    def time_field(self):
-        return self._time_field
-
-    @time_field.setter
-    def time_field(self, time_field):
-        if time_field != self._time_field and time_field:
-            if self._parse_dates:
-                self._parse_dates.remove(self._time_field)
-                if time_field not in self._parse_dates:
-                    self._parse_dates.append(time_field)
-            else:
-                self._parse_dates = [time_field]
-            self._time_field = time_field
 
 
 class ParquetSource(BaseSourceDriver):

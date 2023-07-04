@@ -498,12 +498,6 @@ def ingest(
             featureset.reload(update_spec=False)
 
     if isinstance(source, DataSource) and source.schedule:
-        if not source.time_field and not featureset.spec.timestamp_key:
-            raise mlrun.errors.MLRunRuntimeError(
-                "When running schedule ingestion "
-                "you have to specified featureset's timestamp_key"
-                "or source's time_field"
-            )
         min_time = datetime.max
         for target in featureset.status.targets:
             if target.last_written:

@@ -952,8 +952,6 @@ class FeatureSet(ModelObj):
                 **kwargs,
             )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
-            if isinstance(df, types.GeneratorType):
-                df = [data for data in df]
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)
             return df

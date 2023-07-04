@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
+import tempfile
+
 import deepdiff
 import numpy
 import pandas
@@ -932,8 +935,17 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         project=project,
     )
 
-    # perform the migration
-    mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+    try:
+        # change working directory to temp directory so the state file will be created there
+        current_dir = os.getcwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.chdir(temp_dir)
+
+            # perform the migration
+            mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+    finally:
+        # change working directory back to original directory
+        os.chdir(current_dir)
 
     # validate the migration succeeded
     query_all = db._query(

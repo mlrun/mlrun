@@ -14,6 +14,7 @@
 #
 import collections
 import datetime
+import json
 import os
 import pathlib
 import typing
@@ -546,102 +547,147 @@ def _perform_version_4_data_migrations(
     _migrate_artifacts_table_v2(db, db_session)
 
 
-def _migrate_artifacts_table_v2(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+def _migrate_artifacts_batch(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    batch_index: int,
+    batch_size: int,
 ):
-    """
-    Migrate the old artifacts table to the new one, which contains the following columns:
-    uid, key, project, iteration, kind, producer_id, created, updated, and full_object
+    # we don't necessarily have a last remaining batch,
+    # so don't do anything if the batch size is 0 or less
+    if batch_size <= 0:
+        return
 
-    Also migrate the artifact labels and tags to the new tables
-    """
-    logger.info("Aligning artifacts")
     new_artifacts = []
     artifacts_tags_to_migrate = []
     artifacts_labels_to_migrate = []
 
-    # get all projects
-    projects = db.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+    # get artifacts from the db, sorted by id
+    query = (
+        db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
+        .order_by(mlrun.api.db.sqldb.models.Artifact.id)
+        .limit(batch_size)
+    )
+    if batch_index > 0:
+        # skip the batches that were already migrated
+        query = query.offset(
+            batch_index * config.artifacts.artifact_migration_batch_size
+        )
+
+    artifacts = query.all()
+
+    for artifact in artifacts:
+        new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
+
+        artifact_dict = artifact.struct
+        if is_legacy_artifact(artifact_dict):
+            # convert the legacy artifact to the new format, by setting a metadata field and spec field
+            # and copying the old fields to the spec
+            artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact_dict
+            ).to_dict()
+
+        artifact_metadata = artifact_dict.get("metadata", None)
+
+        # producer_id - the current uid value
+        # uid can be in the metadata or in the artifact itself, or in the tree field
+        old_uid = artifact_metadata.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_dict.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_metadata.get("tree", None)
+        new_artifact.producer_id = old_uid
+
+        # uid - calculate as the hash of the artifact object
+        tag = artifact_metadata.get("tag", "")
+        uid = fill_object_hash(artifact_dict, "uid", tag)
+        new_artifact.uid = uid
+
+        # project - copy as is
+        new_artifact.project = artifact_metadata.get("project", None)
+
+        # key - the artifact's key, without iteration if it is attached to it
+        # TODO: does the key include the iteration when its in the metadata?
+        key = artifact_metadata.get("key", "")
+        new_artifact.key = key
+
+        # iteration - the artifact's iteration
+        iteration = artifact_metadata.get("iter", None)
+        if iteration is not None:
+            new_artifact.iter = int(iteration)
+
+        # kind - doesn't exist in v1, will be set to "artifact" by default
+        new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
+
+        # updated - the artifact's updated time
+        updated = artifact_metadata.get("updated", datetime.datetime.now())
+        new_artifact.updated = updated
+
+        # created - the artifact's created time
+        # since this is a new field, we just take the updated time
+        new_artifact.created = updated
+
+        # full_object - the artifact dict
+        new_artifact.full_object = artifact_dict
+
+        # save the new object to the db
+        new_artifacts.append(new_artifact)
+
+        # save the artifact's tags and labels to migrate them later
+        if tag:
+            artifacts_tags_to_migrate.append((new_artifact, tag))
+        labels = artifact_metadata.get("labels", {})
+        if labels:
+            artifacts_labels_to_migrate.append((new_artifact, labels))
+
+    # commit the new artifacts to the db
+    db._upsert(db_session, new_artifacts, ignore=True)
+
+    # migrate artifact labels to the new table ("artifact_v2_labels")
+    _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
+
+    # migrate artifact tags to the new table ("artifact_v2_tags")
+    _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+
+
+def _migrate_artifacts_table_v2(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    """
+    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
+    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
+    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
+    Delete the old artifacts table when done.
+    """
+    logger.info("Migrating artifacts to artifacts_v2 table")
+
+    # count the total number of artifacts to migrate
+    total_artifacts_count = db._query(
+        db_session, mlrun.api.db.sqldb.models.Artifact
+    ).count()
+    batch_size = config.artifacts.artifact_migration_batch_size
+
+    # get the last batch that was migrated from the state file
+    batch_index = _get_last_batch_index()
+
+    while batch_index * batch_size < total_artifacts_count:
+        logger.debug(
+            "Migrating artifacts batch",
+            batch_index=batch_index,
+            batch_size=batch_size,
+            total_artifacts_count=total_artifacts_count,
+        )
+        _migrate_artifacts_batch(db, db_session, batch_index, batch_size)
+        batch_index += 1
+        _update_last_batch_index(batch_index)
+
+    # migrate the remaining artifacts
+    _migrate_artifacts_batch(
+        db, db_session, batch_index, total_artifacts_count - batch_index * batch_size
     )
 
-    # get all artifacts in batches per project and migrate them
-    for project in projects.projects:
-        # TODO: sort project artifacts by id, and migrate them in batches of 1000 (configurable)
-        artifacts = db.list_artifacts(db_session, project=project)
-
-        for artifact in artifacts:
-            new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
-
-            if is_legacy_artifact(artifact):
-
-                # convert the legacy artifact to the new format, by setting a metadata field and spec field
-                # and copying the old fields to the spec
-                artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
-                    artifact
-                ).to_dict()
-
-            artifact_metadata = artifact.get("metadata", None)
-
-            # producer_id - the current uid value
-            # uid can be in the metadata or in the artifact itself, or in the tree field
-            old_uid = artifact_metadata.get("uid", None)
-            if not old_uid:
-                old_uid = artifact.get("uid", None)
-            if not old_uid:
-                old_uid = artifact_metadata.get("tree", None)
-            new_artifact.producer_id = old_uid
-
-            # uid - calculate as the hash of the artifact object
-            tag = artifact_metadata.get("tag", "")
-            uid = fill_object_hash(artifact, "uid", tag)
-            new_artifact.uid = uid
-
-            # project - copy as is
-            new_artifact.project = artifact_metadata.get("project", None)
-
-            # key - the artifact's key, without iteration if it is attached to it
-            # TODO: does the key include the iteration when its in the metadata?
-            key = artifact_metadata.get("key", "")
-            new_artifact.key = key
-
-            # iteration - the artifact's iteration
-            iteration = artifact_metadata.get("iter", None)
-            if iteration is not None:
-                new_artifact.iter = int(iteration)
-
-            # kind - doesn't exist in v1, will be set to "artifact" by default
-            new_artifact.kind = artifact.get("kind", mlrun.artifacts.Artifact.kind)
-
-            # updated - the artifact's updated time
-            updated = artifact_metadata.get("updated", datetime.datetime.now())
-            new_artifact.updated = updated
-
-            # created - the artifact's created time
-            # since this is a new field, we just take the updated time
-            new_artifact.created = updated
-
-            # full_object - the artifact dict
-            new_artifact.full_object = artifact
-
-            # save the new object to the db
-            new_artifacts.append(new_artifact)
-
-            # save the artifact's tags and labels to migrate them later
-            if tag:
-                artifacts_tags_to_migrate.append((new_artifact, tag))
-            labels = artifact_metadata.get("labels", {})
-            if labels:
-                artifacts_labels_to_migrate.append((new_artifact, labels))
-
-        # commit the new artifacts to the db
-        db._upsert(db_session, new_artifacts, ignore=True)
-
-        # migrate artifact labels to the new table ("artifact_v2_labels")
-        _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
-
-        # migrate artifact tags to the new table ("artifact_v2_tags")
-        _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+    # delete the state file
+    _delete_state_file()
 
     # drop the old artifacts table, including their labels and tags tables
     db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.Label.__tablename__)
@@ -794,6 +840,45 @@ def _resolve_current_data_version(
             return data_version_prior_to_table_addition
 
         raise exc
+
+
+def _get_last_batch_index():
+    """
+    Get the last batch index from the state file.
+    If the state file does not exist, return 0.
+    """
+    try:
+        with open(
+            config.artifacts.artifact_migration_state_file_path, "r"
+        ) as state_file:
+            state = json.load(state_file)
+            return state.get("last_batch_index", 0)
+    except FileNotFoundError:
+        return 0
+
+
+def _update_last_batch_index(batch_index: int):
+    """Create or update the state file with the given batch index.
+
+    :param batch_index: The batch index to update the state file with.
+    """
+    state_file_path = config.artifacts.artifact_migration_state_file_path
+    state_file_dir = os.path.dirname(state_file_path)
+    if not os.path.exists(state_file_dir):
+        os.makedirs(state_file_dir)
+    with open(state_file_path, "w") as state_file:
+        state = {
+            "last_batch_index": batch_index,
+        }
+        json.dump(state, state_file)
+
+
+def _delete_state_file():
+    """Delete the state file."""
+    try:
+        os.remove(config.artifacts.artifact_migration_state_file_path)
+    except FileNotFoundError:
+        pass
 
 
 def main() -> None:

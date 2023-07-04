@@ -248,13 +248,15 @@ def get_regex_list_as_string(regex_list: List) -> str:
 
 def is_file_path_invalid(code_path: str, file_path: str) -> bool:
     """
-    The function checks if the given file_path is a valid path, if it's invalid it will raise ValueError.
+    The function checks if the given file_path is a valid path.
     If the file_path is a relative path, it is completed by joining it with the code_path.
     Otherwise, the file_path is used as is.
     Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
     If the file_path has no suffix, it is considered invalid.
 
-
+    :param code_path: The base directory or code path to search for the file in case of relative file_path
+    :param file_path: The file path to be validated
+    :return: True if the file path is invalid, False otherwise
     """
     if not file_path:
         return True

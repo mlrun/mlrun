@@ -33,10 +33,10 @@ on:
         default: ''
         type: string
       bump_version_mode:
-        description: 'The version bump mode. RC - Bump current RC, RC-GRAD - turns RC to a stable. (rc, rc-grad)'
-        default: 'rc'
+        description: 'The version bump mode. Whether to bump rc version or set stable version'
+        default: 'bump-rc'
         type: choice
-        options: [ 'rc', 'rc-grad' ]
+        options: [ 'bump-rc', 'stable' ]
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -77,7 +77,11 @@ jobs:
       - name: Resolve inputs
         id: resolve
         run: |
-          version=$(python ./automation/version/version_file.py next-version --mode $BUMP_VERSION_MODE_INPUT)
+
+          # map the input to the actual mode
+          declare -A bump_version_mode=(["bump-rc"]="rc" ["stable"]="rc-grad")
+          NEXT_VERSION_MODE=${bump_version_mode[$BUMP_VERSION_MODE_INPUT]}
+          version=$(python ./automation/version/version_file.py next-version --mode $NEXT_VERSION_MODE)
           echo "Calculated version: $version"
           if [[ -n "$VERSION_INPUT" ]]; then \
             version=$VERSION_INPUT; \

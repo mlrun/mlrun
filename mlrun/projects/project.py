@@ -1087,11 +1087,13 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
+        # TODO: To correctly maintain the list of artifacts from an exported project,
+        #  we need to maintain the different trees that generated them
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):

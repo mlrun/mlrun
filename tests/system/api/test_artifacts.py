@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import pathlib
 
 import pytest
 
+import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.errors
 from tests.system.base import TestMLRunSystem
@@ -26,6 +27,7 @@ from tests.system.base import TestMLRunSystem
 class TestAPIArtifacts(TestMLRunSystem):
     project_name = "db-system-test-project"
 
+    @pytest.mark.enterprise
     def test_fail_overflowing_artifact(self):
         """
         Test that we fail when trying to (inline) log an artifact that is too big

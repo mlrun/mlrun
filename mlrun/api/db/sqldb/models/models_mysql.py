@@ -1,4 +1,4 @@
-# Copyright 2019 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,6 +89,52 @@ def make_tag_v2(table):
     return Tag
 
 
+def make_notification(table):
+    class Notification(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = f"{table}_notifications"
+        __table_args__ = (
+            UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        condition = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        parent_id = Column(Integer, ForeignKey(f"{table}.id"))
+
+        # TODO: Separate table for notification state.
+        #   Currently, we are only supporting one notification being sent per DB row (either on completion or on error).
+        #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
+        #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
+        #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
+        sent_time = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            nullable=True,
+        )
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
+    return Notification
+
+
 # quell SQLAlchemy warnings on duplicate class name (Label)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -139,46 +185,6 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
 
-    class Notification(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "notifications"
-        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
-        name = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        kind = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        message = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        severity = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        when = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        condition = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        params = Column("params", JSON)
-        run = Column(Integer, ForeignKey("runs.id"))
-
-        # TODO: Separate table for notification state.
-        #   Currently, we are only supporting one notification being sent per DB row (either on completion or on error).
-        #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
-        #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
-        #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
-        sent_time = Column(
-            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
-            nullable=True,
-        )
-        status = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-
     class Log(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "logs"
 
@@ -199,6 +205,7 @@ with warnings.catch_warnings():
 
         Label = make_label(__tablename__)
         Tag = make_tag(__tablename__)
+        Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
@@ -505,5 +512,8 @@ with warnings.catch_warnings():
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
 _labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
+_with_notifications = [
+    cls for cls in Base.__subclasses__() if hasattr(cls, "Notification")
+]
 _classes = [cls for cls in Base.__subclasses__()]
 _table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}

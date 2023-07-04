@@ -1,6 +1,6 @@
 //go:build test_unit
 
-// Copyright 2018 Iguazio
+// Copyright 2023 Iguazio
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().True(started, "Log streaming didn't start")
 
 	// resolve log file path
-	logFilePath := suite.logCollectorServer.resolvePodLogFilePath(suite.projectName, runId, pod.Name)
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runId)
 
 	// read log file until it has content, or timeout
 	timeout := time.After(30 * time.Second)
@@ -256,13 +256,92 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 	suite.Require().True(response.Success, "Failed to start log")
 }
 
+func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
+	selector := "app=some-app"
+	projectName := "some-project"
+	var runUidIndex int
+
+	// remove project from in-progress cache when test is done
+	defer func() {
+		err := suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		suite.Require().NoError(err, "Failed to remove project from state manifest")
+	}()
+
+	for _, testCase := range []struct {
+		name            string
+		podPhase        v1.PodPhase
+		expectedFailure bool
+	}{
+		{
+			name:            "pod is running",
+			podPhase:        v1.PodRunning,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is succeeded",
+			podPhase:        v1.PodSucceeded,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is failed",
+			podPhase:        v1.PodFailed,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is pending",
+			podPhase:        v1.PodPending,
+			expectedFailure: true,
+		},
+	} {
+		// not using suite.Run because when the test cases run in parallel the fake client set is shared between them
+		// and it causes conflicts
+		suite.logger.InfoWith("Running test case", "testName", testCase.name)
+
+		runUidIndex++
+
+		fakePod := v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("test-pod-%d", runUidIndex),
+				Labels: map[string]string{
+					"app": "some-app",
+				},
+			},
+			Status: v1.PodStatus{
+				Phase: testCase.podPhase,
+			},
+		}
+
+		pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
+		suite.Require().NoError(err, "Failed to create pod")
+
+		// call start log
+		request := &log_collector.StartLogRequest{
+			RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
+			ProjectName: projectName,
+			Selector:    selector,
+		}
+
+		response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
+		if testCase.expectedFailure {
+			suite.Require().Error(err, "Start log should have failed")
+			suite.Require().False(response.Success, "Start log should not have succeeded")
+		} else {
+			suite.Require().NoError(err, "Start log should not have failed")
+			suite.Require().True(response.Success, "Start log should have succeeded")
+		}
+
+		// delete pod when test is done
+		err = suite.kubeClientSet.CoreV1().Pods(suite.namespace).Delete(suite.ctx, pod.Name, metav1.DeleteOptions{})
+		suite.Require().NoError(err, "Failed to delete pod")
+	}
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
-	podName := "my-pod"
 
 	// creat log file for runUID and pod
-	logFilePath := suite.logCollectorServer.resolvePodLogFilePath(suite.projectName, runUID, podName)
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file
 	logText := "Some fake pod logs\n"
@@ -397,8 +476,6 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 func (suite *LogCollectorTestSuite) TestHasLogs() {
 	runUID := uuid.New().String()
-	podName := "my-pod"
-
 	request := &log_collector.HasLogsRequest{
 		RunUID:      runUID,
 		ProjectName: suite.projectName,
@@ -411,7 +488,7 @@ func (suite *LogCollectorTestSuite) TestHasLogs() {
 	suite.Require().False(hasLogsResponse.HasLogs, "Expected run to not have logs")
 
 	// create log file for runUID and pod
-	logFilePath := suite.logCollectorServer.resolvePodLogFilePath(suite.projectName, runUID, podName)
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file
 	logText := "Some fake pod logs\n"
@@ -521,7 +598,7 @@ func (suite *LogCollectorTestSuite) TestDeleteLogs() {
 			for i := 0; i < testCase.logsNumToCreate; i++ {
 				runUID := uuid.New().String()
 				runUIDs = append(runUIDs, runUID)
-				logFilePath := suite.logCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+				logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
 				err := common.WriteToFile(logFilePath, []byte("some log"), false)
 				suite.Require().NoError(err, "Failed to write to file")
 			}
@@ -558,7 +635,7 @@ func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
 	for i := 0; i < logsNum; i++ {
 		runUID := uuid.New().String()
 		runUIDs = append(runUIDs, runUID)
-		logFilePath := suite.logCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+		logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
 		err := common.WriteToFile(logFilePath, []byte("some log"), false)
 		suite.Require().NoError(err, "Failed to write to file")
 	}
@@ -596,7 +673,7 @@ func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
 	suite.Require().NoError(err)
 
 	// make the run file
-	runFilePath := suite.logCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
+	runFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
 	err = common.WriteToFile(runFilePath, []byte("some log"), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
@@ -604,43 +681,6 @@ func (suite *LogCollectorTestSuite) TestGetLogFilePath() {
 	logFilePath, err := suite.logCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
 	suite.Require().NoError(err, "Failed to get log file path")
 	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
-}
-
-func (suite *LogCollectorTestSuite) TestGetLogFilePathConcurrently() {
-	runUID := "1234"
-	projectName := "someProjectB"
-	var err error
-
-	projectMutex := &sync.Mutex{}
-	suite.logCollectorServer.readDirentProjectNameSyncMap = &sync.Map{}
-	suite.logCollectorServer.readDirentProjectNameSyncMap.Store(projectName, projectMutex)
-	projectMutex.Lock()
-	startTime := time.Now()
-
-	// unlock the mutex after 1 second
-	time.AfterFunc(1500*time.Millisecond, func() {
-		projectMutex.Unlock()
-	})
-
-	// make the project dir
-	err = os.MkdirAll(path.Join(suite.baseDir, projectName), 0755)
-	suite.Require().NoError(err)
-
-	// make the run file
-	runFilePath := suite.logCollectorServer.resolvePodLogFilePath(projectName, runUID, "pod")
-	err = common.WriteToFile(runFilePath, []byte("some log"), false)
-	suite.Require().NoError(err, "Failed to write to file")
-
-	// get the log file path
-	logFilePath, err := suite.logCollectorServer.getLogFilePath(suite.ctx, runUID, projectName)
-	suite.Require().NoError(err, "Failed to get log file path")
-	suite.Require().Equal(runFilePath, logFilePath, "Expected log file path to be the same as the run file path")
-
-	endTime := time.Since(startTime)
-	suite.Require().Truef(endTime >= 1*time.Second, "Expected getLogFilePath to take more than a second (took %v)", endTime)
-
-	// make sure the mutex is unlocked
-	suite.Require().True(projectMutex.TryLock(), "Expected project mutex to be unlocked")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

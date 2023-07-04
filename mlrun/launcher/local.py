@@ -75,7 +75,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 "local and schedule cannot be used together"
             )
 
-        self._enrich_runtime(runtime)
+        self.enrich_runtime(runtime)
         run = self._create_run_object(task)
 
         if self._is_run_local:
@@ -135,13 +135,15 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
 
-        logger.info(
-            "Storing function",
-            name=run.metadata.name,
-            uid=run.metadata.uid,
-            db=runtime.spec.rundb,
-        )
-        self._store_function(runtime, run)
+        # store function object in db unless running from within a run pod
+        if not runtime.is_child:
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=runtime.spec.rundb,
+            )
+            self._store_function(runtime, run)
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
@@ -188,7 +190,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 last_err = err
                 result = runtime._update_run_state(task=run, err=err)
 
-        self._push_notifications(run)
+        self._push_notifications(run, runtime)
 
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
@@ -259,7 +261,9 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _push_notifications(self, runobj):
+    def _push_notifications(
+        self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
+    ):
         if not self._run_has_valid_notifications(runobj):
             return
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
@@ -267,5 +271,6 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.
         # Only push from jupyter, not from the CLI.
-        if self._is_run_local:
+        # "handler" and "dask" kinds are special cases of local runs which don't set local=True
+        if self._is_run_local or runtime.kind in ["handler", "dask"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()

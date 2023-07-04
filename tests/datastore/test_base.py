@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,13 @@ from mlrun.datastore.v3io import V3ioStore
 def test_http_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
         "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq"
+    )
+    data_item.as_df()
+
+
+def test_http_fs_parquet_with_params_as_df():
+    data_item = mlrun.datastore.store_manager.object(
+        "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq?param1=1&param2=2"
     )
     data_item.as_df()
 

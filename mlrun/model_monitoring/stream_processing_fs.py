@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,6 +325,7 @@ class EventStreamProcessor:
                     index_cols=[
                         EventFieldType.ENDPOINT_ID,
                         EventFieldType.RECORD_TYPE,
+                        EventFieldType.ENDPOINT_TYPE,
                     ],
                     max_events=self.tsdb_batching_max_events,
                     flush_after_seconds=self.tsdb_batching_timeout_secs,
@@ -407,7 +408,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -465,7 +465,6 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -473,6 +472,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         base_fields = [
             EventFieldType.TIMESTAMP,
             EventFieldType.ENDPOINT_ID,
+            EventFieldType.ENDPOINT_TYPE,
         ]
 
         # Getting event timestamp and endpoint_id
@@ -535,7 +535,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
@@ -621,10 +620,12 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
 
-        # Handle errors coming from stream
-        found_errors = self.handle_errors(endpoint_id, event)
-        if found_errors:
-            return None
+        # If error key has been found in the current event,
+        # increase the error counter by 1 and raise the error description
+        error = event.get("error")
+        if error:
+            self.error_count[endpoint_id] += 1
+            raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
@@ -745,7 +746,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             endpoint_id in self.last_request
             and self.last_request[endpoint_id] > timestamp
         ):
-
             logger.error(
                 f"current event request time {timestamp} is earlier than the last request time "
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
@@ -767,7 +767,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
         if endpoint_id not in self.endpoints:
-
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
             endpoint_record = get_endpoint_record(
                 project=self.project,
@@ -783,7 +782,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
                 last_request = endpoint_record.get(EventFieldType.LAST_REQUEST)
                 if last_request:
-
                     self.last_request[endpoint_id] = last_request
 
                 error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
@@ -804,13 +802,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if validation_function(field, dict_path):
             return True
         self.error_count[endpoint_id] += 1
-        return False
-
-    def handle_errors(self, endpoint_id, event) -> bool:
-        if "error" in event:
-            self.error_count[endpoint_id] += 1
-            return True
-
         return False
 
 
@@ -884,6 +875,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         self.feature_names = {}
         self.label_columns = {}
 
+        # Dictionary to manage the model endpoint types - important for the V3IO TSDB
+        self.endpoint_type = {}
+
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(
@@ -915,7 +909,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
             label_columns = json.loads(label_columns) if label_columns else None
 
-            # Ff feature names were not found,
+            # If feature names were not found,
             # try to retrieve them from the previous events of the current process
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
@@ -967,6 +961,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
+            # Update the endpoint type within the endpoint types dictionary
+            endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
+            self.endpoint_type[endpoint_id] = endpoint_type
+
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
         feature_values = event[EventFieldType.FEATURES]
@@ -986,6 +984,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             values_iters=label_values,
             mapping_dictionary=EventFieldType.NAMED_PREDICTIONS,
         )
+
+        # Add endpoint type to the event
+        event[EventFieldType.ENDPOINT_TYPE] = self.endpoint_type[endpoint_id]
 
         logger.info("Mapped event", event=event)
         return event
@@ -1065,7 +1066,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.keys = set()
 
     def do(self, event: typing.Dict):
-
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             self.keys.update(key_set)

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 # Don't remove this, used by sphinx documentation
 __all__ = ["get_model", "update_model"]
 
-from .base import Artifact, get_artifact_meta
+from .base import Artifact, ArtifactMetadata, ArtifactSpec, get_artifact_meta
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
 from .model import ModelArtifact, get_model, update_model

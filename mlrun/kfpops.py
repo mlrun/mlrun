@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import os.path
 from copy import deepcopy
 from typing import Dict, List, Union
 
+import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 
@@ -712,6 +713,14 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
         record = {
             k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
         }
+
+        # snake case
+        # align kfp fields to mlrun snake case convention
+        # create snake_case for consistency.
+        # retain the camelCase for compatibility
+        for key in list(record.keys()):
+            record[inflection.underscore(key)] = record[key]
+
         record["parent"] = node.get("boundaryID", "")
         record["name"] = name
         record["children"] = node.get("children", [])
@@ -747,21 +756,9 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
             if error:
                 dag[step]["error"] = error
 
-    short_run = {"graph": dag}
-    short_run["run"] = {
-        k: str(v)
-        for k, v in kfp_run["run"].items()
-        if k
-        in [
-            "id",
-            "name",
-            "status",
-            "error",
-            "created_at",
-            "scheduled_at",
-            "finished_at",
-            "description",
-        ]
+    short_run = {
+        "graph": dag,
+        "run": mlrun.utils.helpers.format_run(kfp_run["run"]),
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message

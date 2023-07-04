@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from kubernetes import client
 import mlrun
 import mlrun.api.utils.builder
 import mlrun.common.constants
+import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.api.utils.clients import nuclio
 from mlrun.errors import err_to_str
@@ -208,8 +209,18 @@ def add_code_metadata(path=""):
         ]
         if len(remotes) > 0:
             return f"{remotes[0]}#{repo.head.commit.hexsha}"
-    except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
-        pass
+
+    except (
+        GitCommandNotFound,
+        InvalidGitRepositoryError,
+        NoSuchPathError,
+        ValueError,
+    ) as exc:
+        logger.warning(
+            "Failed to add git metadata, ignore if path is not part of a git repo.",
+            path=path,
+            error=err_to_str(exc),
+        )
     return None
 
 
@@ -474,20 +485,26 @@ def verify_limits(
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if gpus:
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.gpus",
             gpus,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
 
@@ -501,13 +518,17 @@ def verify_requests(
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu)
 

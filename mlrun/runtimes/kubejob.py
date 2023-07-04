@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,6 +112,7 @@ class KubejobRuntime(KubeResource):
         overwrite=False,
         verify_base_image=False,
         prepare_image_for_deploy=True,
+        requirements_file=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -126,7 +127,8 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param requirements: requirements.txt file to install or list of packages to install
+        :param requirements: a list of packages to install
+        :param requirements_file: requirements file to install
         :param overwrite:  overwrite existing build configuration
 
            * False: the new params are merged with the existing (currently merge is applied to requirements and
@@ -137,6 +139,7 @@ class KubejobRuntime(KubeResource):
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         """
 
+        image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image,
             base_image,
@@ -148,6 +151,7 @@ class KubejobRuntime(KubeResource):
             with_mlrun,
             auto_build,
             requirements,
+            requirements_file,
             overwrite,
         )
 

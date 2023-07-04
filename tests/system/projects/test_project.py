@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
 import pathlib
 import re
@@ -23,9 +24,9 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
-from mlrun.utils import logger
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -59,17 +60,24 @@ def pipe_test():
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
     custom_project_names_to_delete = []
+    _logger_redirected = False
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        if self._logger_redirected:
+            mlrun.utils.logger.replace_handler_stream("default", sys.stdout)
+            self._logger_redirected = False
+
         self._logger.debug(
             "Deleting custom projects",
             num_projects_to_delete=len(self.custom_project_names_to_delete),
         )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
+
+        self.custom_project_names_to_delete = []
 
     @property
     def assets_path(self):
@@ -79,6 +87,7 @@ class TestProject(TestMLRunSystem):
         )
 
     def _create_project(self, project_name, with_repo=False, overwrite=False):
+        self.custom_project_names_to_delete.append(project_name)
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )
@@ -126,10 +135,38 @@ class TestProject(TestMLRunSystem):
             == commands
         )
 
+    def test_build_function_image_usability(self):
+        func_name = "my-func"
+        fn = self.project.set_function(
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        # redirect logger to capture logs and check for warnings
+        self._logger_redirected = True
+        _stdout = io.StringIO()
+        mlrun.utils.logger.replace_handler_stream("default", _stdout)
+
+        # build function with image that has a protocol prefix
+        self.project.build_function(
+            fn,
+            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            base_image="mlrun/mlrun",
+            commands=["echo 1"],
+        )
+        out = _stdout.getvalue()
+        assert (
+            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL "
+            "where <image-name> is a placeholder). "
+            "Removing protocol prefix from image." in out
+        )
+
     def test_run(self):
         name = "pipe0"
-        self.custom_project_names_to_delete.append(name)
-        # create project in context
         self._create_project(name)
 
         # load project from context dir and run a workflow
@@ -160,8 +197,6 @@ class TestProject(TestMLRunSystem):
 
     def test_run_artifact_path(self):
         name = "pipe1"
-        self.custom_project_names_to_delete.append(name)
-        # create project in context
         self._create_project(name)
 
         # load project from context dir and run a workflow
@@ -190,7 +225,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
 
         # run project, load source into container at runtime
         project2.spec.load_source_on_run = True
@@ -208,7 +243,7 @@ class TestProject(TestMLRunSystem):
         project2 = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
         )
-        logger.info("run pipeline from git")
+        self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
         run = project2.run(
             "main",
@@ -245,7 +280,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
@@ -253,7 +288,7 @@ class TestProject(TestMLRunSystem):
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
-        print(project2.to_yaml())
+        self._logger.debug("saved project", project2=project2.to_yaml())
 
         # exec the workflow
         args = [
@@ -285,7 +320,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        print(out)
+        self._logger.debug("executed project", out=out)
 
         # exec the workflow
         args = [
@@ -305,10 +340,9 @@ class TestProject(TestMLRunSystem):
 
     def test_inline_pipeline(self):
         name = "pipe5"
-        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = self._create_project(name, True)
+        project = self._create_project(name, with_repo=True)
         run = project.run(
             artifact_path=f"v3io:///projects/{name}/artifacts",
             workflow_handler=pipe_test,
@@ -421,7 +455,6 @@ class TestProject(TestMLRunSystem):
 
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)
-        self.custom_project_names_to_delete.append(name)
         project.set_function(
             "gen_iris.py",
             "gen-iris",
@@ -429,7 +462,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
             requirements=["requests"],
         )
-        print(project.to_yaml())
+        self._logger.debug("set project function", project=project.to_yaml())
         run = project.run(
             "newflow",
             engine=engine,
@@ -446,6 +479,34 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
+
+    def test_kfp_pipeline_with_resource_param_passed(self):
+        project_name = "test-pipeline-with-resource-param"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.new_project(project_name, context=str(self.assets_path))
+
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "pipeline_with_resource_param.py")
+
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        # set and run a two-step workflow in the project
+        project.set_workflow("paramflow", workflow_path)
+
+        arguments = {"memory": "11Mi"}
+        pipeline_status = project.run(
+            "paramflow", engine="kfp", arguments=arguments, watch=True
+        )
+        assert pipeline_status.workflow.args == arguments
+
+        # get the function from the db
+        function = project.get_function("func-1", ignore_cache=True)
+        assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def _test_remote_pipeline_from_github(
         self, name, workflow_name, engine=None, local=None, watch=False
@@ -497,15 +558,23 @@ class TestProject(TestMLRunSystem):
                 local=True,
             )
 
+    def test_non_existent_run_id_in_pipeline(self):
+        project_name = "default"
+        db = mlrun.get_run_db()
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_pipeline(
+                "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
+            )
+
     def test_remote_from_archive(self):
         name = "pipe6"
-        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         archive_path = f"v3io:///projects/{project.name}/archive1.zip"
         project.export(archive_path)
         project.spec.source = archive_path
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
         run = project.run(
             "main",
             watch=True,
@@ -517,6 +586,12 @@ class TestProject(TestMLRunSystem):
     def test_kfp_from_local_code(self):
         name = "kfp-from-local-code"
         self.custom_project_names_to_delete.append(name)
+
+        # change cwd to the current file's dir to make sure the handler file is found
+        current_file_abspath = os.path.abspath(__file__)
+        current_dirname = os.path.dirname(current_file_abspath)
+        os.chdir(current_dirname)
+
         project = mlrun.get_or_create_project(name, user_project=True, context="./")
 
         handler_fn = project.set_function(
@@ -543,7 +618,6 @@ class TestProject(TestMLRunSystem):
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"
-        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         project.set_function(
             "gen_iris.py",
@@ -552,7 +626,7 @@ class TestProject(TestMLRunSystem):
             handler="iris_generator",
         )
         project.save()
-        print(project.to_yaml())
+        self._logger.debug("saved project", project=project.to_yaml())
 
         # exec the workflow
         args = [
@@ -568,7 +642,7 @@ class TestProject(TestMLRunSystem):
             str(self.assets_path),
         ]
         out = exec_project(args)
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find("pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
@@ -593,11 +667,13 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
 
-        print("OUT:\n", out)
+        self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "Exception: failed to execute command by the given deadline. last_exception: "
-                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+                "failed to execute command by the given deadline. "
+                "last_exception: pipeline run has not completed yet, "
+                "function_name: _wait_for_pipeline_completion, timeout: 1, "
+                "caused by: pipeline run has not completed yet"
             )
             != -1
         )
@@ -782,7 +858,6 @@ class TestProject(TestMLRunSystem):
         name = "non-remote-fail"
         # Creating a local project
         project = self._create_project(name)
-        self.custom_project_names_to_delete.append(name)
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             project.run("main", schedule="*/10 * * * *")
@@ -861,6 +936,72 @@ class TestProject(TestMLRunSystem):
             name=project_name,
         )
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
+
+    @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])
+    def test_abort_step_in_workflow(self, pull_state_mode):
+        project_name = "test-abort-step"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.new_project(project_name, context=str(self.assets_path))
+
+        # when pull_state mode is enabled it simulates the flow of wait_for_completion
+        mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = pull_state_mode
+
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "workflow.py")
+
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        project.set_function(
+            name="func-2",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+
+        def _assert_workflow_status(workflow, status):
+            assert workflow.state == status
+
+        # set and run a two-step workflow in the project
+        project.set_workflow("main", workflow_path)
+        workflow = project.run("main", engine="kfp")
+
+        mlrun.utils.retry_until_successful(
+            1,
+            20,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.running,
+        )
+
+        # obtain the first run in the workflow when it began running
+        runs = []
+        while len(runs) != 1:
+            runs = project.list_runs(
+                labels=[f"workflow={workflow.run_id}"], state="running"
+            )
+
+        # abort the first workflow step
+        db = mlrun.get_run_db()
+        db.abort_run(runs.to_objects()[0].uid())
+
+        # when a step is aborted, assert that the entire workflow failed and did not continue
+        mlrun.utils.retry_until_successful(
+            5,
+            60,
+            self._logger,
+            True,
+            _assert_workflow_status,
+            workflow,
+            mlrun.run.RunStatuses.failed,
+        )
 
     def test_project_build_image(self):
         name = "test-build-image"

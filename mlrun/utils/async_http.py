@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,6 +134,13 @@ class _CustomRequestContext(_RequestContext):
                     params = self._params_list[-1]
 
                 headers = {k: v for k, v in params.headers.items() if v is not None}
+
+                # enrich user agent
+                # will help traceability and debugging
+                headers[
+                    aiohttp.hdrs.USER_AGENT
+                ] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
+
                 response: typing.Optional[
                     aiohttp.ClientResponse
                 ] = await self._request_func(

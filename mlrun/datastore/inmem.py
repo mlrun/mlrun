@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,5 +80,8 @@ class InMemoryStore(DataStore):
             reader = df_module.read_json
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"file type unhandled {url}")
+        # InMemoryStore store do not filter on time
+        for field in ["time_column", "start_time", "end_time"]:
+            kwargs.pop(field, None)
 
         return reader(item, **kwargs)

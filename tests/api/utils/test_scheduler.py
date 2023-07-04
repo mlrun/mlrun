@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,10 @@ async def scheduler(db: Session) -> typing.Generator:
 
 
 call_counter: int = 0
-schedule_end_time_margin = 0.5
+
+# TODO: The margin will need to rise for each additional CPU-consuming operation added along the flow,
+#  we need to consider how to decouple in the future
+schedule_end_time_margin = 0.7
 
 
 async def bump_counter():
@@ -386,7 +389,7 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
                 do_nothing,
                 cron_trigger,
             )
-        assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+        assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -429,7 +432,7 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     If the limit is 10 minutes and the cron trigger configured with minute=0-45 (which means every minute, for the
     first 45 minutes of every hour), and the check will occur at the 44 minute of some hour, the next run time
     will be one minute away, but the second next run time after it, will be at the next hour 0 minute. The delta
-    between the two will be 15 minutes, more then 10 minutes so it will pass validation, although it actually runs
+    between the two will be 15 minutes, more than 10 minutes so it will pass validation, although it actually runs
     every minute.
     """
     scheduler._min_allowed_interval = "10 minutes"
@@ -445,7 +448,7 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     )
     with pytest.raises(ValueError) as excinfo:
         scheduler._validate_cron_trigger(cron_trigger, now)
-    assert "Cron trigger too frequent. no more then one job" in str(excinfo.value)
+    assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -932,10 +935,8 @@ async def test_schedule_access_key_reference_handling(
     username = "some-user-name"
     access_key = "some-access-key"
 
-    secret_ref = (
-        mlrun.model.Credentials.secret_reference_prefix
-        + k8s_secrets_mock.store_auth_secret(username, access_key)
-    )
+    mocked_secret_ref, _ = k8s_secrets_mock.store_auth_secret(username, access_key)
+    secret_ref = mlrun.model.Credentials.secret_reference_prefix + mocked_secret_ref
     auth_info = mlrun.common.schemas.AuthInfo()
     auth_info.access_key = secret_ref
 

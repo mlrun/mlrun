@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,6 +75,10 @@ class SlackNotification(NotificationBase):
                 },
             ]
         }
+        if self.name:
+            data["blocks"].append(
+                {"type": "section", "text": self._get_slack_row(self.name)}
+            )
 
         if not runs:
             return data

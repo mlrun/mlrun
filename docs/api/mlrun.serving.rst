@@ -9,3 +9,6 @@ mlrun.serving
 .. automodule:: mlrun.serving.remote
    :members:
    :special-members: __init__
+
+.. autoclass:: mlrun.serving.utils.StepToDict
+   :members:

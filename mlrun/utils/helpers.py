@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import enum
 import hashlib
 import inspect
 import json
+import os
 import re
 import sys
 import time
@@ -38,6 +39,7 @@ from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
@@ -96,8 +98,11 @@ def get_artifact_target(item: dict, project=None):
         tree = item["metadata"].get("tree")
 
     kind = item.get("kind")
-    if kind in ["dataset", "model"] and db_key:
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+    if kind in ["dataset", "model", "artifact"] and db_key:
+        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+        if tree:
+            target = f"{target}:{tree}"
+        return target
 
     return (
         item.get("target_path")
@@ -144,6 +149,7 @@ def verify_field_regex(
     patterns,
     raise_on_failure: bool = True,
     log_message: str = "Field is malformed. Does not match required pattern",
+    mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
@@ -154,13 +160,23 @@ def verify_field_regex(
                 field_value=field_value,
                 pattern=pattern,
             )
-            if raise_on_failure:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-                )
-            else:
+            if mode == mlrun.common.schemas.RegexMatchModes.all:
+                if raise_on_failure:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                    )
                 return False
-    return True
+        elif mode == mlrun.common.schemas.RegexMatchModes.any:
+            return True
+    if mode == mlrun.common.schemas.RegexMatchModes.all:
+        return True
+    elif mode == mlrun.common.schemas.RegexMatchModes.any:
+        if raise_on_failure:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f" required patterns: {patterns}"
+            )
+        return False
 
 
 def validate_builder_source(
@@ -172,17 +188,18 @@ def validate_builder_source(
     if "://" not in source:
         if not path.isabs(source):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+                f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
                 "set 'source' to a remote URL to clone/copy the source to the base image, "
                 "or set 'pull_at_runtime' to True to pull the source at runtime."
             )
-    else:
-        logger.warn(
-            "Loading local source at build time requires the source to be on the base image, "
-            "in which case it is recommended to use 'workdir' instead",
-            source=source,
-            workdir=workdir,
-        )
+
+        else:
+            logger.warn(
+                "Loading local source at build time requires the source to be on the base image, "
+                "in which case it is recommended to use 'workdir' instead",
+                source=source,
+                workdir=workdir,
+            )
 
     if source.endswith(".zip"):
         logger.warn(
@@ -234,6 +251,23 @@ def tag_name_regex_as_string() -> str:
 
 def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
+
+
+def remove_image_protocol_prefix(image: str) -> str:
+    if not image:
+        return image
+
+    prefixes = ["https://", "https://"]
+    if any(prefix in image for prefix in prefixes):
+        image = image.removeprefix("https://").removeprefix("http://")
+        logger.warning(
+            "The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "If you wish to use the default configured registry, no protocol prefix is required "
+            "(note that you can also use '.<image-name>' instead of the full URL where <image-name> is a placeholder). "
+            "Removing protocol prefix from image.",
+            image=image,
+        )
+    return image
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -1244,6 +1278,43 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def format_run(run: dict, with_project=False) -> dict:
+    fields = [
+        "id",
+        "name",
+        "status",
+        "error",
+        "created_at",
+        "scheduled_at",
+        "finished_at",
+        "description",
+    ]
+
+    if with_project:
+        fields.append("project")
+
+    # create a run object that contains all fields,
+    run = {
+        key: str(value) if value is not None else value
+        for key, value in run.items()
+        if key in fields
+    }
+
+    # if the time_keys values is from 1970, this indicates that the field has not yet been specified yet,
+    # and we want to return a None value instead
+    time_keys = ["scheduled_at", "finished_at", "created_at"]
+
+    for key, value in run.items():
+        if (
+            key in time_keys
+            and isinstance(value, (str, datetime))
+            and parser.parse(str(value)).year == 1970
+        ):
+            run[key] = None
+
+    return run
+
+
 def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
     if is_legacy_artifact(artifact):
@@ -1330,6 +1401,11 @@ def ensure_git_branch(url: str, repo: git.Repo) -> str:
     if not branch and not reference:
         url = f"{url}#refs/heads/{repo.active_branch}"
     return url
+
+
+def is_file_path(filepath):
+    root, ext = os.path.splitext(filepath)
+    return os.path.isfile(filepath) and ext
 
 
 class DeprecationHelper(object):

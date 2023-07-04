@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import fastapi.testclient
 import sqlalchemy.orm
 
 import mlrun.api.crud
+import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.errors
@@ -98,6 +99,10 @@ def test_get_frontend_spec(
     assert (
         frontend_spec.allowed_artifact_path_prefixes_list
         == mlrun.api.api.utils.get_allowed_path_prefixes_list()
+    )
+    assert (
+        frontend_spec.function_deployment_mlrun_command
+        == f'python -m pip install "{mlrun.api.utils.builder.resolve_mlrun_install_command_version()}"'
     )
 
 

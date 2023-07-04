@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import traceback
 import typing
 
 import kfp
+import kfp_server_api
 import sqlalchemy.orm
 
 import mlrun
@@ -123,13 +124,16 @@ class Pipelines(
                 if project and project != "*":
                     run_project = self.resolve_project_from_pipeline(run)
                     if run_project != project:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
+                        raise mlrun.errors.MLRunNotFoundError(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
                 run = self._format_run(
                     db_session, run, format_, api_run_detail.to_dict()
                 )
-
+        except kfp_server_api.ApiException as exc:
+            mlrun.errors.raise_for_status_code(int(exc.status), err_to_str(exc))
+        except mlrun.errors.MLRunHTTPStatusError:
+            raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Failed getting kfp run: {err_to_str(exc)}"
@@ -159,7 +163,6 @@ class Pipelines(
             )
 
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-        print(str(data))
 
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:
@@ -219,22 +222,8 @@ class Pipelines(
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
             return run
         elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
-            return {
-                k: str(v)
-                for k, v in run.items()
-                if k
-                in [
-                    "id",
-                    "name",
-                    "project",
-                    "status",
-                    "error",
-                    "created_at",
-                    "scheduled_at",
-                    "finished_at",
-                    "description",
-                ]
-            }
+            return mlrun.utils.helpers.format_run(run, with_project=True)
+
         elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
             return run.get("name")
         elif format_ == mlrun.common.schemas.PipelinesFormat.summary:

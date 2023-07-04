@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -180,6 +180,34 @@ def test_submit_job_ensure_function_has_auth_set(
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
+
+
+def test_submit_schedule_job_from_hub_from_ui(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
+) -> None:
+    project = "my-proj1"
+    hub_function_uri = "hub://aggregate"
+
+    tests.api.api.utils.create_project(client, project)
+
+    function = mlrun.import_function(hub_function_uri)
+    submit_job_body = _create_submit_job_body(function, project)
+
+    # replicate UI behavior
+    submit_job_body["task"]["spec"]["function"] = hub_function_uri
+    submit_job_body["schedule"] = "*/15 * * * *"
+
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    resp = client.get(f"projects/{project}/schedules")
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    schedules = resp.json().get("schedules", [])
+    assert len(schedules) == 1
+
+    schedule = schedules[0]
+    assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
 
 
 def test_submit_job_with_output_path_enrichment(

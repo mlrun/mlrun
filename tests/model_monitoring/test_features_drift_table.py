@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
 
-def test_plot_produce():
+def test_plot_produce(rundb_mock):
     # Create a temp directory:
     output_path = tempfile.TemporaryDirectory()
 
@@ -118,7 +118,7 @@ def test_plot_produce():
 
     # Check the plot was saved properly (only the drift table plot should appear):
     artifact_directory_content = os.listdir(
-        os.path.dirname(train_run.outputs["drift_table_plot"])
+        os.path.dirname(train_run.status.artifacts[0]["spec"]["target_path"])
     )
     assert len(artifact_directory_content) == 1
     assert artifact_directory_content[0] == "drift_table_plot.html"

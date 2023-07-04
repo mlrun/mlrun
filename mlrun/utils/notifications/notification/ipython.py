@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,9 +28,10 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
+        name: str = None,
         params: typing.Dict[str, str] = None,
     ):
-        super().__init__(params)
+        super().__init__(name, params)
         self._ipython = None
         try:
             import IPython

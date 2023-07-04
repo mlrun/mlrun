@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
-import mlrun.api.schemas
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
 import mlrun.runtimes.function
@@ -35,7 +35,7 @@ from mlrun.utils import logger
 
 def deploy_nuclio_function(
     function: mlrun.runtimes.function.RemoteRuntime,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
     client_python_version: str = None,
@@ -65,7 +65,11 @@ def deploy_nuclio_function(
     )
 
     try:
-        logger.info("Starting Nuclio function deployment")
+        logger.info(
+            "Starting Nuclio function deployment",
+            function_name=function_name,
+            project_name=project_name,
+        )
         return nuclio.deploy.deploy_config(
             function_config,
             dashboard_url=mlrun.mlconf.nuclio_dashboard_url,
@@ -116,7 +120,7 @@ def get_nuclio_deploy_status(
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """
     Get nuclio function deploy status
@@ -419,6 +423,11 @@ def _set_misc_specs(function, nuclio_spec):
     if function.spec.readiness_timeout:
         nuclio_spec.set_config(
             "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
+    if function.spec.readiness_timeout_before_failure:
+        nuclio_spec.set_config(
+            "spec.waitReadinessTimeoutBeforeFailure",
+            function.spec.readiness_timeout_before_failure,
         )
     if function.spec.resources:
         nuclio_spec.set_config("spec.resources", function.spec.resources)

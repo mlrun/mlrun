@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,9 @@ def get_engine(first_event):
 class MLRunStep(MapClass):
     def __init__(self, **kwargs):
         """Abstract class for mlrun step.
-        Can be used in pandas/storey/spark feature set ingestion"""
+        Can be used in pandas/storey/spark feature set ingestion. Extend this class and implement the relevant
+        `_do_XXX` methods to support the required execution engines.
+        """
         super().__init__(**kwargs)
         self._engine_to_do_method = {
             "pandas": self._do_pandas,
@@ -52,6 +54,9 @@ class MLRunStep(MapClass):
     def do(self, event):
         """
         This method defines the do method of this class according to the first event type.
+
+        .. warning::
+            When extending this class, do not override this method; only override the `_do_XXX` methods.
         """
         engine = get_engine(event)
         self.do = self._engine_to_do_method.get(engine, None)
@@ -63,12 +68,27 @@ class MLRunStep(MapClass):
         return self.do(event)
 
     def _do_pandas(self, event):
+        """
+        The execution method for pandas engine.
+
+        :param event: Incoming event, a `pandas.DataFrame` object.
+        """
         raise NotImplementedError
 
     def _do_storey(self, event):
+        """
+        The execution method for storey engine.
+
+        :param event: Incoming event, a dictionary or `storey.Event` object, depending on the `full_event` value.
+        """
         raise NotImplementedError
 
     def _do_spark(self, event):
+        """
+        The execution method for spark engine.
+
+        :param event: Incoming event, a `pyspark.sql.DataFrame` object.
+        """
         raise NotImplementedError
 
 

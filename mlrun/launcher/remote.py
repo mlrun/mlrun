@@ -57,7 +57,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> "mlrun.run.RunObject":
-        self._enrich_runtime(runtime)
+        self.enrich_runtime(runtime)
         run = self._create_run_object(task)
 
         run = self._enrich_run(
@@ -146,6 +146,7 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             txt = mlrun.runtimes.utils.helpers.get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+
         # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
         # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
         # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
@@ -162,7 +163,6 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
             logs_interval = int(
                 mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval
             )
-
             run.wait_for_completion(
                 show_logs=True,
                 sleep=state_interval,

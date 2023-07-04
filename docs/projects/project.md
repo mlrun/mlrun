@@ -9,7 +9,7 @@ MLRun **Project** is a container for all your work on a particular ML applicatio
 Projects are stored in a GIT or archive and map to IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and [CI/CD](../projects/ci-integration.html). 
 Projects simplify how you process data, [submit jobs](../concepts/submitting-tasks-jobs-to-functions.html), run [multi-stage workflows](../concepts/workflow-overview.html), and deploy [real-time pipelines](../serving/serving-graph.html) in continuous development or production environments.
 
-<p align="center"><img src="./_static/images/project-lifecycle.png" alt="project-lifecycle" width="700"/></p><br>
+<p align="center"><img src="../_static/images/project-lifecycle.png" alt="project-lifecycle" width="700"/></p><br>
 
 **In this section**
 
@@ -21,6 +21,7 @@ git-best-practices
 load-project
 run-build-deploy
 build-run-workflows-pipelines
+ci-cd-automate
 ci-integration
 ../secrets
 ```

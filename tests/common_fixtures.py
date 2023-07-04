@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
 #
 import shutil
 import unittest
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable, Generator, List, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -102,6 +103,10 @@ def config_test_base():
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
+
+    # revert change of default project after project creation
+    mlrun.mlconf.default_project = "default"
+    mlrun.projects.project.pipeline_context.set(None)
 
 
 @pytest.fixture
@@ -257,14 +262,46 @@ class RunDBMock:
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._runs[uid] = {
-            "struct": struct,
-            "project": project,
-            "iter": iter,
-        }
+        if hasattr(struct, "to_dict"):
+            struct = struct.to_dict()
+
+        if project:
+            struct["metadata"]["project"] = project
+
+        if iter:
+            struct["status"]["iteration"] = iter
+
+        self._runs[uid] = struct
 
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
+
+    def list_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, List[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> mlrun.lists.RunList:
+        return mlrun.lists.RunList(self._runs.values())
 
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:
@@ -295,6 +332,9 @@ class RunDBMock:
 
     def store_project(self, name, project):
         self._project_name = name
+
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
 
     def get_project(self, name):
@@ -342,7 +382,7 @@ class RunDBMock:
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
-            update_in(self._runs[uid]["struct"], key, value)
+            update_in(self._runs[uid], key, value)
 
     def assert_no_mount_or_creds_configured(self, function_name=None):
         function = self._get_function_internal(function_name)
@@ -482,6 +522,10 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+
+    # Create the default project to mimic real MLRun DB (the default project is always available for use):
+    mlrun.get_or_create_project("default")
+
     yield mock_object
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing

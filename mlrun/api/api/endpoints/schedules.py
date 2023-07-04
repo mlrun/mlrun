@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
+import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
@@ -28,10 +29,10 @@ from mlrun.api.api import deps
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.utils import logger
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}/schedules")
 
 
-@router.post("/projects/{project}/schedules")
+@router.post("")
 async def create_schedule(
     project: str,
     schedule: mlrun.common.schemas.ScheduleInput,
@@ -86,7 +87,7 @@ async def create_schedule(
     return Response(status_code=HTTPStatus.CREATED.value)
 
 
-@router.put("/projects/{project}/schedules/{name}")
+@router.put("/{name}")
 async def update_schedule(
     project: str,
     name: str,
@@ -136,9 +137,7 @@ async def update_schedule(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.get(
-    "/projects/{project}/schedules", response_model=mlrun.common.schemas.SchedulesOutput
-)
+@router.get("", response_model=mlrun.common.schemas.SchedulesOutput)
 async def list_schedules(
     project: str,
     name: str = None,
@@ -178,7 +177,7 @@ async def list_schedules(
 
 
 @router.get(
-    "/projects/{project}/schedules/{name}",
+    "/{name}",
     response_model=mlrun.common.schemas.ScheduleOutput,
 )
 async def get_schedule(
@@ -207,7 +206,7 @@ async def get_schedule(
     return schedule
 
 
-@router.post("/projects/{project}/schedules/{name}/invoke")
+@router.post("/{name}/invoke")
 async def invoke_schedule(
     project: str,
     name: str,
@@ -240,9 +239,7 @@ async def invoke_schedule(
     return await get_scheduler().invoke_schedule(db_session, auth_info, project, name)
 
 
-@router.delete(
-    "/projects/{project}/schedules/{name}", status_code=HTTPStatus.NO_CONTENT.value
-)
+@router.delete("/{name}", status_code=HTTPStatus.NO_CONTENT.value)
 async def delete_schedule(
     project: str,
     name: str,
@@ -276,7 +273,7 @@ async def delete_schedule(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.delete("/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value)
+@router.delete("", status_code=HTTPStatus.NO_CONTENT.value)
 async def delete_schedules(
     project: str,
     request: fastapi.Request,
@@ -309,3 +306,60 @@ async def delete_schedules(
 
     await run_in_threadpool(get_scheduler().delete_schedules, db_session, project)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+@router.put("/{name}/notifications", status_code=HTTPStatus.OK.value)
+async def set_schedule_notifications(
+    project: str,
+    name: str,
+    request: fastapi.Request,
+    set_notifications_request: mlrun.common.schemas.SetNotificationRequest = fastapi.Body(
+        ...
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
+):
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_info,
+    )
+
+    # check permission per object type
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+        project,
+        resource_name=name,
+        action=mlrun.common.schemas.AuthorizationAction.update,
+        auth_info=auth_info,
+    )
+
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to set schedule notifications, re-routing to chief",
+            project=project,
+            schedule=set_notifications_request.dict(),
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return await chief_client.set_schedule_notifications(
+            project=project,
+            schedule_name=name,
+            request=request,
+            json=set_notifications_request.dict(),
+        )
+
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.Notifications().set_object_notifications,
+        db_session,
+        auth_info,
+        project,
+        set_notifications_request.notifications,
+        mlrun.common.schemas.ScheduleIdentifier(name=name),
+    )
+    return fastapi.Response(status_code=HTTPStatus.OK.value)

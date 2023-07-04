@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 import enum
 import getpass
 import http
+import re
 import traceback
 import warnings
 from abc import ABC, abstractmethod
@@ -599,6 +600,12 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
+    def _has_pipeline_param(self) -> bool:
+        # check if the runtime has pipeline parameters
+        # https://www.kubeflow.org/docs/components/pipelines/v1/sdk/parameters/
+        matches = re.findall(mlrun.utils.regex.pipeline_param[0], self.to_json())
+        return bool(matches)
+
     def full_image_path(
         self, image=None, client_version: str = None, client_python_version: str = None
     ):
@@ -678,10 +685,9 @@ class BaseRuntime(ModelObj):
         :return: KubeFlow containerOp
         """
 
-        # if self.spec.image and not image:
-        #     image = self.full_image_path()
-
-        if use_db:
+        # if the function contain KFP PipelineParams (futures) pass the full spec to the
+        # ContainerOp this way KFP will substitute the params with previous step outputs
+        if use_db and not self._has_pipeline_param():
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status
             versioned = False if hasattr(self, "_build_in_pipeline") else True
@@ -759,17 +765,19 @@ class BaseRuntime(ModelObj):
         overwrite: bool = False,
         verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
+        requirements_file: str = "",
     ):
         """add package requirements from file or list to build spec.
 
-        :param requirements:                python requirements file path or list of packages
+        :param requirements:                a list of python packages
+        :param requirements_file:           a local python requirements file path
         :param overwrite:                   overwrite existing requirements
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
-        self.spec.build.with_requirements(requirements, overwrite)
+        self.spec.build.with_requirements(requirements, requirements_file, overwrite)
 
         if verify_base_image or prepare_image_for_deploy:
             # TODO: remove verify_base_image in 1.6.0

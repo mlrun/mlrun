@@ -537,7 +537,8 @@ def test_register_artifacts(rundb_mock):
     )
 
     expected_tree = "my_uuid"
-    uuid.uuid4 = unittest.mock.Mock(return_value=expected_tree)
-    project.register_artifacts()
+    with unittest.mock.patch.object(uuid, "uuid4", return_value=expected_tree):
+        project.register_artifacts()
+
     artifact = project.get_artifact(artifact_key)
     assert artifact.tree == expected_tree

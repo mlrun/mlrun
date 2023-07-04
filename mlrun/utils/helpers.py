@@ -246,7 +246,7 @@ def get_regex_list_as_string(regex_list: List) -> str:
     return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
 
 
-def is_file_path_invalid(code_path: str, file_path: str) -> None:
+def is_file_path_invalid(code_path: str, file_path: str) -> bool:
     """
     The function checks if the given file_path is a valid path, if it's invalid it will raise ValueError.
     If the file_path is a relative path, it is completed by joining it with the code_path.
@@ -257,7 +257,7 @@ def is_file_path_invalid(code_path: str, file_path: str) -> None:
 
     """
     if not file_path:
-        raise ValueError("Invalid request, please provide a valid URL/path to a file.")
+        return True
 
     if file_path.startswith("./") or (
         "://" not in file_path and os.path.basename(file_path) == file_path
@@ -266,13 +266,10 @@ def is_file_path_invalid(code_path: str, file_path: str) -> None:
     else:
         abs_path = file_path
 
-    if (
+    return (
         not (os.path.isfile(abs_path) or "://" in file_path)
         or not pathlib.Path(file_path).suffix
-    ):
-        raise ValueError(
-            f"Invalid file path: '{file_path}'. Please provide a valid URL/path to a file."
-        )
+    )
 
 
 def tag_name_regex_as_string() -> str:

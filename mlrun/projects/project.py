@@ -1213,9 +1213,12 @@ class MlrunProject(ModelObj):
         """
 
         # validate the provided workflow_path
-        mlrun.utils.helpers.is_file_path_invalid(
+        if mlrun.utils.helpers.is_file_path_invalid(
             self.spec.get_code_path(), workflow_path
-        )
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
+            )
 
         if embed:
             if (

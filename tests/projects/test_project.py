@@ -902,7 +902,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid file path: './'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
                     )
                 ),
             ),
@@ -913,7 +913,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid file path: 'https://test'. Please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
                     )
                 ),
             ),
@@ -924,7 +924,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
                 ValueError,
                 match=str(
                     re.escape(
-                        "Invalid request, please provide a valid URL/path to a file."
+                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
                     )
                 ),
             ),

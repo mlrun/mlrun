@@ -329,7 +329,7 @@ default_config = {
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
             # allowed to be scheduled to run more than 2 times in X. Can't be less than 1 minute, "0" to disable
-            "min_allowed_interval": "1 minutes",
+            "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
             # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
             # multiple schedules scheduled to the same time, there might be delays, the default of the scheduler for
@@ -455,7 +455,7 @@ default_config = {
             "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
-        "default_job_image": "quay.io/eyaligu/mlrun-api:ml4107",
+        "default_job_image": "mlrun/mlrun",
         "flush_interval": 300,
     },
     "ui": {
@@ -559,7 +559,7 @@ default_config = {
         # supported modes "enabled", "disabled".
         # "enabled" - events are emitted.
         # "disabled" - a nop client is used (aka doing nothing).
-        "mode": "enabled",
+        "mode": "disabled",
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",

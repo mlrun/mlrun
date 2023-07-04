@@ -860,6 +860,7 @@ class RemoteRuntime(KubeResource):
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
+        :param kwargs:   allow the user to pass any parameter supported in requests.request method
         """
         if not method:
             method = "POST" if body else "GET"

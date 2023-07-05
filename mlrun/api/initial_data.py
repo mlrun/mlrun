@@ -587,9 +587,9 @@ def _migrate_artifacts_table_v2(
     _delete_state_file()
 
     # drop the old artifacts table, including their labels and tags tables
-    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact.Label)
-    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact.Tag)
-    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact)
+    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact.Label)
+    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact.Tag)
+    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact)
 
 
 def _migrate_artifacts_batch(

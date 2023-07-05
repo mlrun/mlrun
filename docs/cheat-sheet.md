@@ -990,9 +990,10 @@ fn = project.set_function(
 )
 graph = function.set_topology("flow", engine="async")
 
-# use built-in storey class or our custom Echo class to create and link Task steps
+# use built-in storey class or our custom Echo class to create and link Task steps. Add an error 
+# handling step that runs only if the "Echo" step fails
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
+     .to(class_name="Echo", name="pre-process", some_arg='abc') .error_handler(name='catcher', handler='handle_error', full_event=True)
 
 # add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
@@ -1001,9 +1002,6 @@ router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
 # add the final step (after the router), which handles post-processing and response to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
-
-# add error handling step, run only when/if the "pre-process" step fails (keep after="")  
-graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 ```
 ![](./_static/images/graph-flow.svg)
 

@@ -271,12 +271,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_output_subdir_path(self, url=True):
         return f"{self.output_dir(url=url)}/{self.test_name()}"
 
-    def set_targets(self, feature_set, also_in_remote=False):
+    def set_targets(self, feature_set, also_in_remote=False, explicit=False):
         dir_name = self.test_name()
         if self.run_local or also_in_remote:
             target_path = f"{self.output_dir(url=False)}/{dir_name}"
             feature_set.set_targets(
                 [ParquetTarget(path=target_path)], with_defaults=False
+            )
+        elif explicit:
+            feature_set.set_targets(
+                [ParquetTarget(), NoSqlTarget()], with_defaults=False
             )
 
     def test_basic_remote_spark_ingest(self):
@@ -1397,7 +1401,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        self.set_targets(measurements)
+        self.set_targets(measurements, explicit=passthrough)
         fstore.ingest(
             measurements,
             source,

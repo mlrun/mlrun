@@ -1359,7 +1359,7 @@ def is_running_in_jupyter_notebook() -> bool:
     import IPython
 
     ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (can't show html)
+    # if its IPython terminal, it isn't a Jupyter ipython
     return ipy and "Terminal" not in str(type(ipy))
 
 

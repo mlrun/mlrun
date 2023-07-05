@@ -639,6 +639,7 @@ class _KFPRunner(_PipelineRunner):
         raise_error = None
         try:
             if timeout:
+                logger.info("waiting for pipeline run completion")
                 state = run.wait_for_completion(
                     timeout=timeout, expected_statuses=expected_statuses
                 )
@@ -865,9 +866,6 @@ class _RemoteRunner(_PipelineRunner):
             f"{msg} '{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
         )
 
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-        )
         try:
             run = load_and_run_fn.run(
                 runspec=runspec,
@@ -900,6 +898,10 @@ class _RemoteRunner(_PipelineRunner):
                 workflow=workflow_spec,
                 state=state,
             )
+
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name,
+        )
         pipeline_context.clear()
         return _PipelineRunStatus(
             run_id,

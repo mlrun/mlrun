@@ -271,6 +271,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         self, event_kind: str, since_time: datetime.datetime
     ) -> typing.List[igz_mgmt.AuditEvent]:
         def _get_audit_events():
+            self._logger.info(
+                "Trying to get audit events",
+                event_kind=event_kind,
+                since_time=since_time,
+            )
             audit_events = igz_mgmt.AuditEvent.list(
                 self._igz_mgmt_client,
                 filter_by={
@@ -282,9 +287,10 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             assert len(audit_events) > 0
             return audit_events
 
+        # wait for 30 seconds for the audit events to be available
         return mlrun.utils.retry_until_successful(
             3,
-            60 * 3,
+            10 * 3,
             self._logger,
             True,
             _get_audit_events,

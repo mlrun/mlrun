@@ -339,8 +339,8 @@ class CustomNotificationPusher(object):
             # if so, we need to create a new thread and run a separate event loop on that thread,
             # and use it instead of the main_event_loop
             # This is necessary because Jupyter Notebook has its own event loop,
-            # but it runs in the same thread as the main thread
-            # and as long as a cell is running, the event loop will not execute properly
+            # but it runs in the main thread. As long as a cell is running,
+            # the event loop will not execute properly
             if mlrun.utils.helpers.is_running_in_jupyter_notebook():
                 _run_async_push_in_jupyter_notebook(_async_push=_async_push)
             else:

@@ -19,7 +19,6 @@ import deepdiff
 import numpy
 import pandas
 import pytest
-import sqlalchemy.exc
 from sqlalchemy.orm import Session
 
 import mlrun.api.db.sqldb.models
@@ -993,7 +992,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         assert artifact_dict["metadata"]["uid"] != expected["uid"]
 
         # validate the original artifact was deleted
-        with pytest.raises(sqlalchemy.exc.OperationalError):
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.read_artifact(db_session, expected["key"], project=expected["project"])
 
 

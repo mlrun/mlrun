@@ -547,6 +547,51 @@ def _perform_version_4_data_migrations(
     _migrate_artifacts_table_v2(db, db_session)
 
 
+def _migrate_artifacts_table_v2(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    """
+    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
+    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
+    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
+    Delete the old artifacts table when done.
+    """
+    logger.info("Migrating artifacts to artifacts_v2 table")
+
+    # count the total number of artifacts to migrate
+    total_artifacts_count = db._query(
+        db_session, mlrun.api.db.sqldb.models.Artifact
+    ).count()
+    batch_size = config.artifacts.artifact_migration_batch_size
+
+    # get the last batch that was migrated from the state file
+    batch_index = _get_last_batch_index()
+
+    while batch_index * batch_size < total_artifacts_count:
+        logger.debug(
+            "Migrating artifacts batch",
+            batch_index=batch_index,
+            batch_size=batch_size,
+            total_artifacts_count=total_artifacts_count,
+        )
+        _migrate_artifacts_batch(db, db_session, batch_index, batch_size)
+        batch_index += 1
+        _update_last_batch_index(batch_index)
+
+    # migrate the remaining artifacts
+    _migrate_artifacts_batch(
+        db, db_session, batch_index, total_artifacts_count - batch_index * batch_size
+    )
+
+    # delete the state file
+    _delete_state_file()
+
+    # drop the old artifacts table, including their labels and tags tables
+    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact.Label)
+    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact.Tag)
+    db.delete_table_records(db_session, table=mlrun.api.db.sqldb.models.Artifact)
+
+
 def _migrate_artifacts_batch(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
@@ -648,51 +693,6 @@ def _migrate_artifacts_batch(
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
     _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
-
-
-def _migrate_artifacts_table_v2(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    """
-    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
-    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
-    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
-    Delete the old artifacts table when done.
-    """
-    logger.info("Migrating artifacts to artifacts_v2 table")
-
-    # count the total number of artifacts to migrate
-    total_artifacts_count = db._query(
-        db_session, mlrun.api.db.sqldb.models.Artifact
-    ).count()
-    batch_size = config.artifacts.artifact_migration_batch_size
-
-    # get the last batch that was migrated from the state file
-    batch_index = _get_last_batch_index()
-
-    while batch_index * batch_size < total_artifacts_count:
-        logger.debug(
-            "Migrating artifacts batch",
-            batch_index=batch_index,
-            batch_size=batch_size,
-            total_artifacts_count=total_artifacts_count,
-        )
-        _migrate_artifacts_batch(db, db_session, batch_index, batch_size)
-        batch_index += 1
-        _update_last_batch_index(batch_index)
-
-    # migrate the remaining artifacts
-    _migrate_artifacts_batch(
-        db, db_session, batch_index, total_artifacts_count - batch_index * batch_size
-    )
-
-    # delete the state file
-    _delete_state_file()
-
-    # drop the old artifacts table, including their labels and tags tables
-    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.Label.__tablename__)
-    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.Tag.__tablename__)
-    db.drop_table(db_session, mlrun.api.db.sqldb.models.Artifact.__tablename__)
 
 
 def _migrate_artifact_labels(

@@ -49,6 +49,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    Base,
     DataVersion,
     Entity,
     Feature,
@@ -3822,21 +3823,43 @@ class SQLDB(DBInterface):
             )
         self._commit(session, [run], ignore=True)
 
-    def drop_table(self, session: Session, table_name: str):
-        """Drop a table from the database
+    def delete_table_records(
+        self,
+        session: Session,
+        table: typing.Type[Base] = None,
+        table_name: str = "",
+        raise_on_not_exists=True,
+    ):
+        """Delete all records from a table
 
         :param session: SQLAlchemy session
-        :param table_name: Table name
+        :param table: the table class
+        :param table_name: table name
+        :param raise_on_not_exists: raise an error if the table does not exist
         """
-        metadata = sqlalchemy.MetaData(bind=session.bind)
-        keys = metadata.tables.keys()
-        print(keys)
+        if table:
+            session.query(table).delete()
+            session.commit()
 
-        metadata.reflect()
-        keys = metadata.tables.keys()
-        print(keys)
+        elif table_name:
+            # get the table using its name
+            metadata = sqlalchemy.MetaData(bind=session.bind)
+            metadata.reflect()
+            table = metadata.tables.get(table_name)
+            if table is None:
+                if raise_on_not_exists:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        "Table not found: {}".format(table_name)
+                    )
+                else:
+                    logger.warning(
+                        "Table not found, skipping delete",
+                        table_name=table_name,
+                    )
+                    return
 
-        # reflect the table using the metadata object
-        table = metadata.tables.get(table_name)
-        if table is not None:
-            table.drop()
+            session.query(table).delete()
+            session.commit()
+
+        else:
+            raise ValueError("Either table or table_name must be specified")

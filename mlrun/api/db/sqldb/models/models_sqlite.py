@@ -180,6 +180,7 @@ with warnings.catch_warnings():
         _full_object = Column("object", BLOB)
 
         labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
 
         @property
         def full_object(self):

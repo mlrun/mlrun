@@ -512,6 +512,6 @@ def _run_coroutine_in_jupyter_notebook(coroutine_method):
     async_event_loop = asyncio.new_event_loop()
     thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
     result = thread_pool_executer.submit(
-        async_event_loop.run_until_complete, coroutine_method
+        async_event_loop.run_until_complete, coroutine_method()
     ).result()
     return result

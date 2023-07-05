@@ -564,62 +564,64 @@ def _migrate_artifacts_table_v2(
     ).count()
     batch_size = config.artifacts.artifact_migration_batch_size
 
-    # get the last batch that was migrated from the state file
-    batch_index = _get_last_batch_index()
+    # get the id of the last migrated artifact
+    last_migrated_artifact_id = _get_last_migrated_artifact_id()
 
-    while batch_index * batch_size < total_artifacts_count:
+    while True:
         logger.debug(
             "Migrating artifacts batch",
-            batch_index=batch_index,
             batch_size=batch_size,
             total_artifacts_count=total_artifacts_count,
         )
-        _migrate_artifacts_batch(db, db_session, batch_index, batch_size)
-        batch_index += 1
-        _update_last_batch_index(batch_index)
-
-    # migrate the remaining artifacts
-    _migrate_artifacts_batch(
-        db, db_session, batch_index, total_artifacts_count - batch_index * batch_size
-    )
+        # migrate the next batch
+        last_migrated_artifact_id = _migrate_artifacts_batch(
+            db, db_session, last_migrated_artifact_id, batch_size
+        )
+        if last_migrated_artifact_id is None:
+            # we're done
+            break
+        _update_last_migrated_artifact_id(last_migrated_artifact_id)
 
     # delete the state file
     _delete_state_file()
 
     # drop the old artifacts table, including their labels and tags tables
-    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact.Label)
-    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact.Tag)
-    db.delete_table_records(db_session, mlrun.api.db.sqldb.models.Artifact)
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact, raise_on_not_exists=False
+    )
 
 
 def _migrate_artifacts_batch(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    batch_index: int,
+    last_migrated_artifact_id: int,
     batch_size: int,
 ):
-    # we don't necessarily have a last remaining batch,
-    # so don't do anything if the batch size is 0 or less
-    if batch_size <= 0:
-        return
-
     new_artifacts = []
     artifacts_tags_to_migrate = []
     artifacts_labels_to_migrate = []
 
     # get artifacts from the db, sorted by id
-    query = (
-        db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
-        .order_by(mlrun.api.db.sqldb.models.Artifact.id)
-        .limit(batch_size)
-    )
-    if batch_index > 0:
-        # skip the batches that were already migrated
-        query = query.offset(
-            batch_index * config.artifacts.artifact_migration_batch_size
+    query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
+    if last_migrated_artifact_id > 0:
+        # skip the artifacts that were already migrated
+        query = query.filter(
+            mlrun.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
         )
 
+    query = query.order_by(mlrun.api.db.sqldb.models.Artifact.id).limit(batch_size)
+
     artifacts = query.all()
+
+    if len(artifacts) == 0:
+        # we're done
+        return None
 
     for artifact in artifacts:
         new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
@@ -652,7 +654,6 @@ def _migrate_artifacts_batch(
         new_artifact.project = artifact_metadata.get("project", None)
 
         # key - the artifact's key, without iteration if it is attached to it
-        # TODO: does the key include the iteration when its in the metadata?
         key = artifact_metadata.get("key", "")
         new_artifact.key = key
 
@@ -678,6 +679,8 @@ def _migrate_artifacts_batch(
         # save the new object to the db
         new_artifacts.append(new_artifact)
 
+        last_migrated_artifact_id = artifact.id
+
         # save the artifact's tags and labels to migrate them later
         if tag:
             artifacts_tags_to_migrate.append((new_artifact, tag))
@@ -693,6 +696,8 @@ def _migrate_artifacts_batch(
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
     _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+
+    return last_migrated_artifact_id
 
 
 def _migrate_artifact_labels(
@@ -842,9 +847,9 @@ def _resolve_current_data_version(
         raise exc
 
 
-def _get_last_batch_index():
+def _get_last_migrated_artifact_id():
     """
-    Get the last batch index from the state file.
+    Get the id of the last migrated artifact from the state file.
     If the state file does not exist, return 0.
     """
     try:
@@ -852,15 +857,15 @@ def _get_last_batch_index():
             config.artifacts.artifact_migration_state_file_path, "r"
         ) as state_file:
             state = json.load(state_file)
-            return state.get("last_batch_index", 0)
+            return state.get("last_migrated_id", 0)
     except FileNotFoundError:
         return 0
 
 
-def _update_last_batch_index(batch_index: int):
+def _update_last_migrated_artifact_id(last_migrated_id: int):
     """Create or update the state file with the given batch index.
 
-    :param batch_index: The batch index to update the state file with.
+    :param last_migrated_id: The id of the last migrated artifact.
     """
     state_file_path = config.artifacts.artifact_migration_state_file_path
     state_file_dir = os.path.dirname(state_file_path)
@@ -868,7 +873,7 @@ def _update_last_batch_index(batch_index: int):
         os.makedirs(state_file_dir)
     with open(state_file_path, "w") as state_file:
         state = {
-            "last_batch_index": batch_index,
+            "last_migrated_id": last_migrated_id,
         }
         json.dump(state, state_file)
 

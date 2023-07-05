@@ -918,13 +918,15 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     )
 
     # create a legacy artifact in the old format
-    legacy_artifact_key = "legacy-artifact1"
+    legacy_artifact_key = "legacy-dataset-artifact1"
     legacy_artifact_uid = "legacy-uid1"
     legacy_artifact = {
         "key": legacy_artifact_key,
         "src_path": "/some/other/path",
-        "kind": "artifact",
+        "kind": "dataset",
         "tree": legacy_artifact_uid,
+        "length": 100,
+        "preview": 5,
     }
     db.store_artifact(
         db_session,

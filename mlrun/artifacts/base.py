@@ -1051,25 +1051,13 @@ def convert_legacy_artifact_to_new_format(
         raise TypeError(
             f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
         )
-    artifact_dict = {
-        "metadata": {},
-        "spec": {},
-        "status": {},
-        "kind": legacy_artifact_dict.get("kind", "artifact"),
-    }
-    for key, value in legacy_artifact_dict.items():
-        if value is not None:
-            if key in mlrun.artifacts.base.ArtifactMetadata._dict_fields:
-                artifact_dict["metadata"][key] = value
-            elif (
-                key
-                in mlrun.artifacts.base.ArtifactSpec._dict_fields
-                + mlrun.artifacts.base.ArtifactSpec._extra_fields
-            ):
-                artifact_dict["spec"][key] = value
-            elif key in mlrun.artifacts.base.ArtifactStatus._dict_fields:
-                artifact_dict["status"][key] = value
-            else:
-                artifact_dict[key] = value
 
-    return mlrun.artifacts.dict_to_artifact(artifact_dict)
+    artifact = mlrun.artifacts.artifact_types.get(
+        legacy_artifact_dict.get("kind", "artifact"), mlrun.artifacts.Artifact
+    )()
+
+    artifact.metadata = artifact.metadata.from_dict(legacy_artifact_dict)
+    artifact.spec = artifact.spec.from_dict(legacy_artifact_dict)
+    artifact.status = artifact.status.from_dict(legacy_artifact_dict)
+
+    return artifact

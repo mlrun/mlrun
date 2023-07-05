@@ -3823,6 +3823,22 @@ class SQLDB(DBInterface):
             )
         self._commit(session, [run], ignore=True)
 
+    def delete_table_records(
+        self,
+        session: Session,
+        table: typing.Type[Base],
+        raise_on_not_exists=True,
+    ):
+        """Delete all records from a table
+
+        :param session: SQLAlchemy session
+        :param table: the table class
+        :param raise_on_not_exists: raise an error if the table does not exist
+        """
+        return self.delete_table_records_by_name(
+            session, table.__tablename__, raise_on_not_exists
+        )
+
     def delete_table_records_by_name(
         self,
         session: Session,
@@ -3836,12 +3852,12 @@ class SQLDB(DBInterface):
         :param table_name: table name
         :param raise_on_not_exists: raise an error if the table does not exist
         """
-        # get the table from the metadata using its name
-        metadata = sqlalchemy.MetaData(bind=session.bind)
-        metadata.reflect()
-        table = metadata.tables.get(table_name)
-        if table:
-            return self.delete_table_records(session, table)
+        if self._is_table_exists(session, table_name):
+            truncate_statement = sqlalchemy.text(f"DELETE FROM {table_name}")
+            session.execute(truncate_statement)
+            session.commit()
+            return
+
         if raise_on_not_exists:
             raise mlrun.errors.MLRunNotFoundError(
                 "Table not found: {}".format(table_name)
@@ -3851,15 +3867,14 @@ class SQLDB(DBInterface):
             table_name=table_name,
         )
 
-    def delete_table_records(
-        self,
-        session: Session,
-        table: typing.Type[Base],
-    ):
-        """Delete all records from a table
-
-        :param session: SQLAlchemy session
-        :param table: the table class
+    @staticmethod
+    def _is_table_exists(session: Session, table_name: str) -> bool:
         """
-        session.query(table).delete()
-        session.commit()
+        Check if a table exists
+
+        :param table_name: table name
+        :return: True if the table exists, False otherwise
+        """
+        metadata = sqlalchemy.MetaData(bind=session.bind)
+        metadata.reflect()
+        return table_name in metadata.tables.keys()

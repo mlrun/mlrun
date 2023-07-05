@@ -274,7 +274,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             self._logger.info(
                 "Trying to get audit events",
                 event_kind=event_kind,
-                since_time=since_time,
+                since_time=since_time.isoformat(),
             )
             audit_events = igz_mgmt.AuditEvent.list(
                 self._igz_mgmt_client,

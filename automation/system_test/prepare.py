@@ -14,6 +14,7 @@
 #
 
 import datetime
+import json
 import logging
 import os
 import pathlib
@@ -372,6 +373,13 @@ class SystemTestPreparer:
         )
 
     def _enrich_env(self):
+        devutils_outputs = self._get_devutils_status()
+        if "redis" in devutils_outputs:
+            self._logger.log("debug", "Enriching env with redis info")
+            self._env_config["MLRUN_REDIS__URL"] = devutils_outputs["redis"]["app_url"]
+            self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
+            self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
+
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
@@ -698,6 +706,29 @@ class SystemTestPreparer:
         if stderr:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
         return service_name.strip()
+
+    def _get_devutils_status(self):
+        out, err = "", ""
+        try:
+            out, err = self._run_command(
+                "python3",
+                [
+                    "/home/iguazio/dev_utilities.py",
+                    "status",
+                    "--redis",
+                    "--kafka",
+                    "--mysql",
+                    "--redisinsight",
+                    "--output",
+                    "json",
+                ],
+            )
+        except Exception as exc:
+            self._logger.log(
+                "warning", "Failed to enrich env", exc=exc, err=err, out=out
+            )
+
+        return json.loads(out or "{}")
 
 
 @click.group()

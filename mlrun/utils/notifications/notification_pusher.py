@@ -342,7 +342,7 @@ class CustomNotificationPusher(object):
             # but it runs in the main thread. As long as a cell is running,
             # the event loop will not execute properly
             if mlrun.utils.helpers.is_running_in_jupyter_notebook():
-                _run_async_push_in_jupyter_notebook(_async_push=_async_push)
+                _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
             else:
                 asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
         else:
@@ -502,6 +502,6 @@ def _run_coroutine_in_jupyter_notebook(coroutine_method):
     async_event_loop = asyncio.new_event_loop()
     thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
     result = thread_pool_executer.submit(
-        async_event_loop.run_until_complete, _async_push()
+        async_event_loop.run_until_complete, coroutine_method
     ).result()
     return result

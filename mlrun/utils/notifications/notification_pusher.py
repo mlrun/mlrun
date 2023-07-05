@@ -108,16 +108,22 @@ class NotificationPusher(object):
 
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()
-        if main_event_loop.is_running():
-
-            # If running from the api or from jupyter notebook, we are already in an event loop.
-            # We add the async push function to the loop and run it.
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
-        else:
-
+        if not main_event_loop.is_running():
             # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
             # We create a new event loop and run the async push function in it.
             main_event_loop.run_until_complete(_async_push())
+        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
+            # Running in Jupyter notebook.
+            # In this case, we need to create a new thread, run a separate event loop in
+            # that thread, and use it instead of the main_event_loop.
+            # This is necessary because Jupyter Notebook has its own event loop,
+            # but it runs in the main thread. As long as a cell is running,
+            # the event loop will not execute properly
+            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
+        else:
+            # Running in mlrun api, we are in a separate thread from the one in which
+            # the main event loop, so we can just send the notifications to that loop
+            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():
@@ -334,19 +340,22 @@ class CustomNotificationPusher(object):
 
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()
-        if main_event_loop.is_running():
-            # Check if the code is running inside a Jupyter Notebook
-            # if so, we need to create a new thread and run a separate event loop on that thread,
-            # and use it instead of the main_event_loop
+        if not main_event_loop.is_running():
+            # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
+            # We create a new event loop and run the async push function in it.
+            main_event_loop.run_until_complete(_async_push())
+        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
+            # Running in Jupyter notebook.
+            # In this case, we need to create a new thread, run a separate event loop in
+            # that thread, and use it instead of the main_event_loop.
             # This is necessary because Jupyter Notebook has its own event loop,
             # but it runs in the main thread. As long as a cell is running,
             # the event loop will not execute properly
-            if mlrun.utils.helpers.is_running_in_jupyter_notebook():
-                _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
-            else:
-                asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
+            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
         else:
-            main_event_loop.run_until_complete(_async_push())
+            # Running in mlrun api, we are in a separate thread from the one in which
+            # the main event loop, so we can just send the notifications to that loop
+            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():

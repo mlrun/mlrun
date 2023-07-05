@@ -2,21 +2,10 @@
 # Change log
 
 - [v1.4.0](#v1-4-0)
-- [v1.3.3](#v1-3-3)
-- [v1.3.2](#v1-3-2)
-- [v1.3.1](#v1-3-1)
-- [v1.3.0](#v1-3-0)
-- [v1.2.3](#v1-2-3)
-- [v1.2.2](#v1-2-2)
-- [v1.2.1](#v1-2-1)
-- [v1.2.0](#v1-2-0)
+- [v1.3.3](#v1-3-3) | [v1.3.2](#v1-3-2) | [v1.3.1](#v1-3-1) | [v1.3.0](#v1-3-0) 
+- [v1.2.3](#v1-2-3) | [v1.2.2](#v1-2-2) | [v1.2.1](#v1-2-1) | [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
-- [v1.0.6](#v1-0-6)
-- [v1.0.5](#v1-0-5)
-- [v1.0.4](#v1-0-4)
-- [v1.0.3](#v1-0-3)
-- [v1.0.2](#v1-0-2)
-- [v1.0.0](#v1-0-0)
+- [v1.0.6](#v1-0-6) | [v1.0.5](#v1-0-5) | [v1.0.4](#v1-0-4) | [v1.0.3](#v1-0-3) | [v1.0.2](#v1-0-2) | [v1.0.0](#v1-0-0)
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
@@ -621,7 +610,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
 | ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
-| ML-2030 |  Need means of moving artifacts from test to production Spark | To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'` | 1.0.0 |
+| ML-2030 |  Need means of moving artifacts from test to production Spark | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'` | 1.0.0 |
 | ML-2380 | Spark runtime should sustain naive user actions | NA | 1.0.4 |
     
 ## Limitations

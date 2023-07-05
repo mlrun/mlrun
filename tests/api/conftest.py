@@ -24,17 +24,31 @@ import pytest
 from fastapi.testclient import TestClient
 
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
+import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.api.utils.singletons.logs_dir
+import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
-from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
+
+
+@pytest.fixture(autouse=True)
+def api_config_test():
+    mlrun.api.utils.singletons.db.db = None
+    mlrun.api.utils.singletons.project_member.project_member = None
+    mlrun.api.utils.singletons.scheduler.scheduler = None
+    mlrun.api.utils.singletons.k8s._k8s = None
+    mlrun.api.utils.singletons.logs_dir.logs_dir = None
+
+    mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
 
 
 @pytest.fixture()
@@ -56,8 +70,8 @@ def db() -> Generator:
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
-    initialize_db()
-    initialize_project_member()
+    mlrun.api.utils.singletons.db.initialize_db()
+    mlrun.api.utils.singletons.project_member.initialize_project_member()
 
     # we're also running client code in tests so set dbpath as well
     # note that setting this attribute triggers connection to the run db therefore must happen after the initialization

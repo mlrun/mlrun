@@ -17,6 +17,8 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
+cached_nuclio_version = None
+
 
 # if nuclio version specified on mlrun config set it likewise,
 # if not specified, get it from nuclio api client

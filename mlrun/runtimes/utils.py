@@ -60,7 +60,6 @@ global_context = _ContextStore()
 
 
 cached_mpijob_crd_version = None
-cached_nuclio_version = None
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version

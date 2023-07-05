@@ -1380,6 +1380,18 @@ def is_relative_path(path):
     return not (path.startswith("/") or ":\\" in path or "://" in path)
 
 
+def is_running_in_jupyter_notebook() -> bool:
+    """
+    Check if the code is running inside a Jupyter Notebook.
+    :return: True if running inside a Jupyter Notebook, False otherwise.
+    """
+    import IPython
+
+    ipy = IPython.get_ipython()
+    # if its IPython terminal, it isn't a Jupyter ipython
+    return ipy and "Terminal" not in str(type(ipy))
+
+
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"{field_name} must be numeric (str/int types)")

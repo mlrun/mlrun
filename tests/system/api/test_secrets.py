@@ -33,7 +33,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 
     @pytest.mark.enterprise
-    def test_audit_secret(self):
+    def test_audit_project_secret_events(self):
         secret_key = str(uuid.uuid4())
         secrets = {secret_key: "JustMySecret"}
 
@@ -42,8 +42,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # create secret
         now = datetime.datetime.utcnow()
-        project = self._run_db.get_project(self.project_name)
-        project.set_secrets(secrets=secrets)
+        self.project.set_secrets(secrets=secrets)
 
         self._ensure_audit_events(
             mlrun.api.utils.events.iguazio.PROJECT_SECRET_CREATED,
@@ -55,7 +54,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         now = datetime.datetime.utcnow()
         another_secret_key = str(uuid.uuid4())
         secrets.update({another_secret_key: "one"})
-        project.set_secrets(secrets=secrets)
+        self.project.set_secrets(secrets=secrets)
         self._ensure_audit_events(
             mlrun.api.utils.events.iguazio.PROJECT_SECRET_UPDATED,
             now,

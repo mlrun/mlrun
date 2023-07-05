@@ -16,6 +16,7 @@ import asyncio
 import datetime
 import os
 import typing
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.concurrency import run_in_threadpool
 
@@ -316,15 +317,22 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        logger.info("in push message!!", notification_message=message)
         def _sync_push():
-            logger.info("in sync push", notification_message=message, sync_not=self._sync_notifications)
+            logger.info(
+                "in sync push",
+                notification_message=message,
+                sync_not=self._sync_notifications,
+            )
             for notification_type, notification in self._sync_notifications.items():
                 if self.should_push_notification(notification_type):
                     notification.push(message, severity, runs, custom_html)
 
         async def _async_push():
-            logger.info("in async push", notification_message=message, async_not=self._async_notifications)
+            logger.info(
+                "in async push",
+                notification_message=message,
+                async_not=self._async_notifications,
+            )
             tasks = []
             for notification_type, notification in self._async_notifications.items():
                 if self.should_push_notification(notification_type):
@@ -338,10 +346,17 @@ class CustomNotificationPusher(object):
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()
         if main_event_loop.is_running():
-            logger.info("in if main_event_loop.is_running %%%")
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
+            # Check if the code is running inside a Jupyter Notebook
+            # if so, we need to create a new thread and run a separate event loop on that thread,
+            # and use it instead of the main_event_loop
+            # This is necessary because Jupyter Notebook has its own event loop,
+            # but it runs in the same thread as the main thread
+            # and as long as a cell is running, the event loop will not execute properly
+            if mlrun.utils.helpers.is_running_in_jupyter_notebook():
+                _run_async_push_in_jupyter_notebook(_async_push=_async_push)
+            else:
+                asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
         else:
-            logger.info("in else %%%%%")
             main_event_loop.run_until_complete(_async_push())
 
         # then push sync notifications
@@ -481,3 +496,23 @@ def _separate_sync_notifications(
         else:
             sync_notifications.append(notification)
     return sync_notifications, async_notifications
+
+
+def _run_async_push_in_jupyter_notebook(_async_push):
+    """
+    Run the async push operation in a Jupyter Notebook
+
+    This function creates a new thread pool executor with a single thread and a new event loop.
+    It sets the created event loop as the current event loop.
+    Then, it submits `_async_push()` to the event loop and waits for its completion.
+
+    This approach is used in Jupyter Notebook to ensure the proper execution of the event loop in a separate thread,
+    allowing for the asynchronous push operation to be executed while the notebook is running.
+
+    :return: The result of the `_async_push()` coroutine.
+    """
+    thread_pool_executer = ThreadPoolExecutor(1)
+    async_event_loop = asyncio.new_event_loop()
+    thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
+    result = thread_pool_executer.submit(async_event_loop.run_until_complete, _async_push()).result()
+    return result

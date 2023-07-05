@@ -1,18 +1,18 @@
-(load-from-marketplace)=
-# Function Hub <!-- omit in toc -->
+(load-from-hub)=
+# Function hub <!-- omit in toc -->
 
 This section demonstrates how to import a function from the Hub into your project, and provides some basic instructions on how to run the function and view the results.
 
 **In this section**
 - [Overview](#overview)
-- [Function Hub](#function-hub)
+- [Function hub](#function-hub)
 - [Searching for functions](#searching-for-functions)
 - [Setting the project configuration](#setting-the-project-configuration)
 - [Loading functions from the hub](#loading-functions-from-the-hub)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
-## Function Hub
+## Function hub
 
 The MLRun Function Hub has a wide range of functions that can be used for a variety of use cases.
 There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
@@ -57,7 +57,7 @@ mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
 ```
 
-## Loading functions from the Hub
+## Loading functions from the hub
 
 Run `project.set_function` to load a function.<br>
 `set_function` updates or adds a function object to the project.

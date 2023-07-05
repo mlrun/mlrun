@@ -38,21 +38,20 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
+|  | The `error_handler` was updated. See {ref}`pipelines-error-handling` |
+
 
 ###  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2030 | Using artifacts in multiple environments now described: <add link> [View in Git](https://github.com/mlrun/mlrun/pull/). (move artifacts from test to prod. To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'`)|  
-| ML-3315 | how to aggregate aggregations |
-| ML-3373 | feature vector complex join |
+| ML-3373 | feature vector complex join **<add link>** |
 | ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
-| ML-3647 | Jobs can now be terminated with MLRun SDK. |
-| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
-| ML- | **if it's in the rel**  need doc update,  Multiple engines - each has its own run ID (3857) but reqs must be in another JIRA... |
 
+
+| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
  
 
-#### New content
+#### New documentation pages
 - {ref}`git-repo-as-hub`
 - {ref}`notifications`
 - {ref}`ci-cd-automate`
@@ -85,25 +84,16 @@ run2 = func2.run(..., inputs={"artifact": run1.outputs["my_artifact"]})
 run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 ```
 
-### Deprecations
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3547 | **Is it in release?**   [View in Git](https://github.com/mlrun/mlrun/pull/). |
-
-
-
 
 ### Closed issues
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-2030 |  **Also in docs**  move artifacts from test to prod [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-2380 | **Is it in release?** Spark and Presto [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
 | ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3373 | You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/3055). |
+| ML-3373 | **Is it in rel?** You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3420 | **needs better explanation** MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
 | ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
@@ -111,23 +101,17 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
 | ML-3631 | MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927). |
-| ML-3647 | Jobs can now be terminated with MLRun SDK. (Previously could only terminate in the UI.)  **Also in docs** [View in Git](https://github.com/mlrun/mlrun/pull/). **Looks like 1.5**|
 | ML-3652 | V3IO_API is now inferred from the DBPATH.  [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
+| ML-3654 | Serving functions (in a graph) now recover after an `error_handler` error.  [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
-| ML-3705 |  **Is it in rel? May also in docs dep on fix**MLRun jobs does not execute ENTRYPOINT image command [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3713 | **Is it in release?** Jobs spec parameter failed when the user configure them in a kubeflow [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3731 | **Is it in release?** mlrun.db.list_pipelines() displays error=None [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3743 | Fix pushing to ECR [View in Git](https://github.com/mlrun/mlrun/pull/3407). |
+| ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812). |
+| ML-3743 | **???** Fix pushing to ECR [View in Git](https://github.com/mlrun/mlrun/pull/3407). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
-| ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target, in case of an error (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/mlrun/pull/??). |
-| ML-3847 | **if it's in the rel** `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/??). |
-| ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/). 
-
-
-
-
+| ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446). |
+| ML-3847 | `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810). |
+| ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687). 
 
 
 
@@ -637,7 +621,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
 | ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
-
+| ML-2030 |  Need means of moving artifacts from test to production Spark | To register artifact between different environments e.g dev and prod you must upload your artifacts to a remote storage e.g s3, you can change your project artifact path using mlrun or mlrun ui. `project.artifact_path='s3:<bucket-name/..'` | 1.0.0 |
+| ML-2380 | Spark runtime should sustain naive user actions | NA | 1.0.4 |
     
 ## Limitations
 

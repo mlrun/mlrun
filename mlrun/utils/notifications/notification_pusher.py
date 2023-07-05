@@ -487,16 +487,17 @@ def _separate_sync_notifications(
 
 def _run_coroutine_in_jupyter_notebook(coroutine_method):
     """
-    Run the async push operation in a Jupyter Notebook
+    Execute a coroutine in a Jupyter Notebook environment.
 
     This function creates a new thread pool executor with a single thread and a new event loop.
     It sets the created event loop as the current event loop.
-    Then, it submits `_async_push()` to the event loop and waits for its completion.
+    Then, it submits the coroutine to the event loop and waits for its completion.
 
     This approach is used in Jupyter Notebook to ensure the proper execution of the event loop in a separate thread,
     allowing for the asynchronous push operation to be executed while the notebook is running.
 
-    :return: The result of the `_async_push()` coroutine.
+    :param coroutine_method: The coroutine method to be executed.
+    :return: The result of the executed coroutine.
     """
     thread_pool_executer = ThreadPoolExecutor(1)
     async_event_loop = asyncio.new_event_loop()

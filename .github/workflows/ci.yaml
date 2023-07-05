@@ -54,6 +54,8 @@ jobs:
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
+    - name: justTest
+      run: cat ${{ GITHUB_EVENT_PATH }}
 
   go-lint:
     name: Lint code (GO)

@@ -677,7 +677,7 @@ fmt: ## Format the code (using black and isort)
 	python -m isort .
 
 .PHONY: lint-imports
-lint-imports: ## making sure imports dependencies are aligned
+lint-imports: ## Validates import dependencies
 	@echo "Running import linter"
 	lint-imports
 

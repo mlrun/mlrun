@@ -1028,7 +1028,10 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
     suffix = "/"
     if not item.is_dir:
-        suffix = os.path.splitext(item.src_path or "")[1]
+
+        # suffixes yields a list of suffixes, e.g. ['.tar', '.gz']
+        # join them together to get the full suffix, e.g. '.tar.gz'
+        suffix = "".join(pathlib.Path(item.src_path or "").suffixes)
         if not suffix and item.format:
             suffix = f".{item.format}"
 

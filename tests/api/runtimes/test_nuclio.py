@@ -1572,6 +1572,20 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
             assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
 
+    def test_deploy_with_readiness_timeout_params(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.readiness_timeout = 501
+        function.spec.readiness_timeout_before_failure = True
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["readinessTimeoutSeconds"] == 501
+        assert deploy_spec["waitReadinessTimeoutBeforeFailure"]
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

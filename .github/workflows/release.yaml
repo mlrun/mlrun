@@ -14,7 +14,16 @@
 #
 
 name: Release
+
 run-name: Releasing ${{ inputs.version }}
+
+permissions:
+
+  # Create release and upload artifact to releases
+  contents: write
+
+  # Allow the action to upload images to ghcr
+  packages: write
 
 on:
   workflow_dispatch:
@@ -26,13 +35,21 @@ on:
         description: 'The previous version, without prefix v (e.g. 1.1.0-rc9)'
         required: true
       pre_release:
-        description: 'Whether to mark release as pre-release or not (default: false)'
+        description: 'Whether to mark release as pre-release or not (default: true)'
         required: false
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       generate_release_notes:
         description: 'Whether to generate release notes or not (default: true)'
         required: false
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -41,36 +58,40 @@ on:
         description: 'Whether to skip publishing the python package to Pypi, (true/false)'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       skip_create_tag_release:
         description: 'Whether to skip creating tag & release in Github, (true/false)'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
+
   trigger-and-wait-for-mlrun-image-building:
     name: Trigger build workflow in mlrun/mlrun and wait to finish
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/build-internal.yaml
+    with:
+      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
+      version: ${{ github.event.inputs.version }}
+      skip_images: ${{ github.event.inputs.skip_images }}
+    secrets: inherit
 
-    steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.5
-        with:
-          owner: mlrun
-          repo: mlrun
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          workflow_file_name: build.yaml
-          ref: ${{ github.ref_name }}
-          wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}", "skip_images": "${{ github.event.inputs.skip_images }}"}'
-
+  # TODO: Move to reuseable-workflow too.
+  # Requires cross-repo validation for passing github token as secret
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-
     steps:
       - uses: convictional/trigger-workflow-and-wait@v1.6.5
+        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
         with:
-          owner: mlrun
+          owner: ${{ github.repository_owner }}
           repo: ui
           github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           workflow_file_name: build.yaml
@@ -81,7 +102,7 @@ jobs:
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
-    if: github.event.inputs.skip_publish_pypi != 'true'
+
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
@@ -91,7 +112,11 @@ jobs:
         with:
           python-version: 3.9
           cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r automation/requirements.txt
       - name: Build & push to pypi
+        if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
           pip install twine wheel
           export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
@@ -103,16 +128,17 @@ jobs:
   create-releases:
     name: Create release & tag v${{ github.event.inputs.version }}
     runs-on: ubuntu-latest
-    if: github.event.inputs.skip_create_tag_release != 'true'
     needs: publish-to-pypi
     steps:
       - uses: ncipollo/release-action@v1
+        if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ github.event.inputs.pre_release }}
       - uses: ncipollo/release-action@v1
+        if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
           tag: v${{ github.event.inputs.version }}
@@ -155,7 +181,7 @@ jobs:
         with:
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
@@ -175,5 +201,5 @@ jobs:
         with:
           allowUpdates: true
           tag: v${{ github.event.inputs.version }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar

@@ -17,6 +17,7 @@ import hashlib
 import inspect
 import json
 import os
+import pathlib
 import re
 import sys
 import time
@@ -39,6 +40,7 @@ from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
@@ -148,6 +150,7 @@ def verify_field_regex(
     patterns,
     raise_on_failure: bool = True,
     log_message: str = "Field is malformed. Does not match required pattern",
+    mode: mlrun.common.schemas.RegexMatchModes = mlrun.common.schemas.RegexMatchModes.all,
 ) -> bool:
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
@@ -158,13 +161,23 @@ def verify_field_regex(
                 field_value=field_value,
                 pattern=pattern,
             )
-            if raise_on_failure:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
-                )
-            else:
+            if mode == mlrun.common.schemas.RegexMatchModes.all:
+                if raise_on_failure:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                    )
                 return False
-    return True
+        elif mode == mlrun.common.schemas.RegexMatchModes.any:
+            return True
+    if mode == mlrun.common.schemas.RegexMatchModes.all:
+        return True
+    elif mode == mlrun.common.schemas.RegexMatchModes.any:
+        if raise_on_failure:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f" required patterns: {patterns}"
+            )
+        return False
 
 
 def validate_builder_source(
@@ -231,6 +244,34 @@ def get_regex_list_as_string(regex_list: List) -> str:
     with and condition between them.
     """
     return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
+def is_file_path_invalid(code_path: str, file_path: str) -> bool:
+    """
+    The function checks if the given file_path is a valid path.
+    If the file_path is a relative path, it is completed by joining it with the code_path.
+    Otherwise, the file_path is used as is.
+    Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
+    If the file_path has no suffix, it is considered invalid.
+
+    :param code_path: The base directory or code path to search for the file in case of relative file_path
+    :param file_path: The file path to be validated
+    :return: True if the file path is invalid, False otherwise
+    """
+    if not file_path:
+        return True
+
+    if file_path.startswith("./") or (
+        "://" not in file_path and os.path.basename(file_path) == file_path
+    ):
+        abs_path = os.path.join(code_path, file_path.lstrip("./"))
+    else:
+        abs_path = file_path
+
+    return (
+        not (os.path.isfile(abs_path) or "://" in file_path)
+        or not pathlib.Path(file_path).suffix
+    )
 
 
 def tag_name_regex_as_string() -> str:

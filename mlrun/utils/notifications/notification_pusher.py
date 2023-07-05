@@ -485,7 +485,7 @@ def _separate_sync_notifications(
     return sync_notifications, async_notifications
 
 
-def _run_async_push_in_jupyter_notebook(_async_push):
+def _run_coroutine_in_jupyter_notebook(coroutine_method):
     """
     Run the async push operation in a Jupyter Notebook
 

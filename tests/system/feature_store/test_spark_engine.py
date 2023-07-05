@@ -1404,7 +1404,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        if not self.run_local and not passthrough:
+        if passthrough:
+            assert len(measurements.status.targets) == 0
+        elif not self.run_local:
             assert measurements.status.targets[0].run_id is not None
 
         fv_name = "measurements-fv"

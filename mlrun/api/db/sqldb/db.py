@@ -3823,10 +3823,10 @@ class SQLDB(DBInterface):
             )
         self._commit(session, [run], ignore=True)
 
-    def delete_table_by_name(
+    def delete_table_records_by_name(
         self,
         session: Session,
-        table_name: str = "",
+        table_name: str,
         raise_on_not_exists=True,
     ):
         """
@@ -3836,26 +3836,20 @@ class SQLDB(DBInterface):
         :param table_name: table name
         :param raise_on_not_exists: raise an error if the table does not exist
         """
-        if not table_name:
-            raise ValueError("table_name must be specified")
-
-        # get the table using its name
+        # get the table from the metadata using its name
         metadata = sqlalchemy.MetaData(bind=session.bind)
         metadata.reflect()
         table = metadata.tables.get(table_name)
-        if table is None:
-            if raise_on_not_exists:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "Table not found: {}".format(table_name)
-                )
-            else:
-                logger.warning(
-                    "Table not found, skipping delete",
-                    table_name=table_name,
-                )
-                return
-
-        return self.delete_table_records(session, table)
+        if table:
+            return self.delete_table_records(session, table)
+        if raise_on_not_exists:
+            raise mlrun.errors.MLRunNotFoundError(
+                "Table not found: {}".format(table_name)
+            )
+        logger.warning(
+            "Table not found, skipping delete",
+            table_name=table_name,
+        )
 
     def delete_table_records(
         self,

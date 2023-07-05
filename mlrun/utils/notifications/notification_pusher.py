@@ -415,7 +415,6 @@ class CustomNotificationPusher(object):
         has_workflow_url: bool = False,
     ):
         message = f"Workflow started in project {project}"
-        logger.info("message!!", notification_message=message)
         if pipeline_id:
             message += f" id={pipeline_id}"
         commit_id = (
@@ -434,7 +433,6 @@ class CustomNotificationPusher(object):
                 + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
             )
             message = message + f", check progress in {url}"
-        logger.info("final message before push", notification_message=message)
         self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(

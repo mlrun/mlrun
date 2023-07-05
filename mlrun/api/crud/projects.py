@@ -191,7 +191,11 @@ class Projects(
             )
             events_client = events_factory.EventsFactory().get_events_client()
             events_client.emit(
-                events_client.generate_project_secret_deleted_event(name, secret_name)
+                events_client.generate_project_secret_event(
+                    name,
+                    secret_name,
+                    action=mlrun.common.schemas.SecretEventActions.deleted,
+                )
             )
 
     def get_project(

@@ -55,7 +55,7 @@ jobs:
     - name: Lint
       run: make lint
     - name: justTest
-      run: cat ${{ GITHUB_EVENT_PATH }}
+      run: cat $GITHUB_EVENT_PATH
 
   go-lint:
     name: Lint code (GO)

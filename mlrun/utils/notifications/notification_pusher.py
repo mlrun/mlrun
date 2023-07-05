@@ -318,28 +318,17 @@ class CustomNotificationPusher(object):
         custom_html: str = None,
     ):
         def _sync_push():
-            logger.info(
-                "in sync push",
-                notification_message=message,
-                sync_not=self._sync_notifications,
-            )
             for notification_type, notification in self._sync_notifications.items():
                 if self.should_push_notification(notification_type):
                     notification.push(message, severity, runs, custom_html)
 
         async def _async_push():
-            logger.info(
-                "in async push",
-                notification_message=message,
-                async_not=self._async_notifications,
-            )
             tasks = []
             for notification_type, notification in self._async_notifications.items():
                 if self.should_push_notification(notification_type):
                     tasks.append(
                         notification.push(message, severity, runs, custom_html)
                     )
-            logger.info("tasks in async push", tasks=tasks)
             # return exceptions to "best-effort" fire all notifications
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -514,5 +503,7 @@ def _run_async_push_in_jupyter_notebook(_async_push):
     thread_pool_executer = ThreadPoolExecutor(1)
     async_event_loop = asyncio.new_event_loop()
     thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
-    result = thread_pool_executer.submit(async_event_loop.run_until_complete, _async_push()).result()
+    result = thread_pool_executer.submit(
+        async_event_loop.run_until_complete, _async_push()
+    ).result()
     return result

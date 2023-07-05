@@ -12,17 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import mlrun
-
-
-def kfpipeline():
-    # sleeping for 60 seconds to be able to abort the run in the middle of the execution
-    time_to_sleep = 60
-
-    step_1 = mlrun.run_function(
-        "func-1", params={"time_to_sleep": time_to_sleep}, outputs=["return"]
-    )
-
-    mlrun.run_function(
-        "func-2", params={"time_to_sleep": time_to_sleep}, outputs=["return"]
-    ).after(step_1)

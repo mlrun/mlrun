@@ -128,6 +128,10 @@ class StoreyFeatureMerger(BaseMerger):
         feature_set_objects, feature_set_fields = self.vector.parse_features(
             offline=False, update_stats=update_stats
         )
+        if not feature_set_fields:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"No features found for feature vector '{self.vector.metadata.name}'"
+            )
         (
             graph,
             requested_columns,

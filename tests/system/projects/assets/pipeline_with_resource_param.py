@@ -12,17 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import kfp
+
 import mlrun
 
 
-def kfpipeline():
-    # sleeping for 60 seconds to be able to abort the run in the middle of the execution
-    time_to_sleep = 60
-
-    step_1 = mlrun.run_function(
-        "func-1", params={"time_to_sleep": time_to_sleep}, outputs=["return"]
-    )
-
+@kfp.dsl.pipeline(
+    name="Demo passing param to function spec", description="Shows how to use mlrun."
+)
+def kfpipeline(memory: str = "10Mi"):
+    time_to_sleep = 2
+    project: mlrun.projects.MlrunProject = mlrun.get_current_project()
+    func: mlrun.runtimes.KubejobRuntime = project.get_function("func-1")
+    func.with_requests(mem=str(memory))
     mlrun.run_function(
-        "func-2", params={"time_to_sleep": time_to_sleep}, outputs=["return"]
-    ).after(step_1)
+        func,
+        params={"time_to_sleep": time_to_sleep},
+        outputs=["return"],
+    )

@@ -75,6 +75,14 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
     @pytest.mark.enterprise
     def test_delete_project_secret_events(self):
+        """
+        Test flow:
+            1. Delete project secrets of project with no secrets - should not emit event
+            2. Create 2 secrets - should emit created event
+            3. Delete 1 secret - should emit update event
+            4. Delete all secrets - should emit deleted event
+            5. Delete project - should not emit secret deleted event
+        """
         secret_key1 = str(uuid.uuid4())
         secret_key2 = str(uuid.uuid4())
         secrets = {
@@ -83,7 +91,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         }
 
         # ensure no project secrets
-        now = datetime.datetime.utcnow()
+        start = datetime.datetime.utcnow()
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         time.sleep(1)
         audit_events = igz_mgmt.AuditEvent.list(
@@ -91,7 +99,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filter_by={
                 "source": "mlrun-api",
                 "kind": mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
-                "timestamp_iso8601": f"[$ge]{now.isoformat()}Z",
+                "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
             },
         )
         assert len(audit_events) == 0
@@ -116,7 +124,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             mlrun.api.utils.events.iguazio.PROJECT_SECRET_UPDATED,
             now,
             "secret_keys",
-            secret_key2,
+            secret_key1,
         )
 
         # delete all secrets
@@ -125,8 +133,8 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         self._ensure_audit_events(
             mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
             now,
-            "secret_keys",
-            secret_key2,
+            "project_name",
+            self.project_name,
         )
 
         # delete the secret-less project
@@ -146,6 +154,17 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             },
         )
         assert len(audit_events) == 0
+
+        # assert 2 deleted events from the start of the test
+        audit_events = igz_mgmt.AuditEvent.list(
+            self._igz_mgmt_client,
+            filter_by={
+                "source": "mlrun-api",
+                "kind": mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
+            },
+        )
+        assert len(audit_events) == 1
 
     def test_k8s_project_secrets_using_api(self):
         secrets = {"secret1": "value1", "secret2": "value2"}

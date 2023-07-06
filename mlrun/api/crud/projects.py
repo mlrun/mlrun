@@ -200,7 +200,7 @@ class Projects(
                 )
             else:
                 logger.debug(
-                    "Secret has not changed", action=action, secret_name=secret_name
+                    "Secret was not changed", action=action, secret_name=secret_name
                 )
 
     def get_project(

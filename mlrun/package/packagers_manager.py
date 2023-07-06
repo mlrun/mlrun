@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ import importlib
 import inspect
 import os
 import shutil
-import sys
 import traceback
 from typing import Any, Dict, List, Tuple, Type, Union
 
@@ -265,11 +264,7 @@ class PackagersManager:
         :return: The unpacked object parsed as type hinted.
         """
         # Check if `DataItem` is hinted - meaning the user can expect a data item and do not want to unpack it:
-        # TODO: Remove when we'll no longer support Python 3.7:
-        if sys.version_info[1] < 8:
-            if self._get_type_name(typ=DataItem) in str(type_hint):
-                return data_item
-        elif TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
+        if TypeHintUtils.is_matching(object_type=DataItem, type_hint=type_hint):
             return data_item
 
         # Set variables to hold the manager notes and packager instructions:

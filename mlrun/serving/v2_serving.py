@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import threading
 import time
 import traceback
@@ -260,20 +259,11 @@ class V2ModelServer(StepToDict):
             # get model health operation
             setattr(event, "terminated", True)
             if self.ready:
-                # Generate a response, confirming that the model is ready
-                event.body = self.context.Response(
-                    status_code=200,
-                    body=bytes(
-                        f"Model {self.name} is ready (event_id = {event_id})",
-                        encoding="utf-8",
-                    ),
-                )
-
+                event.body = self.context.Response()
             else:
                 event.body = self.context.Response(
                     status_code=408, body=b"model not ready"
                 )
-
             return event
 
         elif op == "" and event.method == "GET":

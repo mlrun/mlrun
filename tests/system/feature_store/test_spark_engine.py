@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -821,7 +822,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector("my-vec", features)
-        resp = fstore.get_offline_features(vector, with_indexes=True)
+        resp = fstore.get_offline_features(
+            vector, entity_timestamp_column="time", with_indexes=True
+        )
 
         # We can't count on the order when reading the results back
         result_records = (
@@ -1396,18 +1399,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        if not passthrough:
-            self.set_targets(measurements)
+        self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        if passthrough:
-            assert len(measurements.status.targets) == 0
-        elif not self.run_local:
+        if not self.run_local:
             assert measurements.status.targets[0].run_id is not None
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        if passthrough and not self.run_local:
+            assert len(measurements.status.targets) == 1
+            assert isinstance(measurements.status.targets["nosql"], DataTarget)
 
         fv_name = "measurements-fv"
         features = [

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import typing
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-import mlrun.common.schemas
+import mlrun.api.schemas
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
@@ -298,10 +298,9 @@ class K8sHelper:
     def _hash_access_key(access_key: str):
         return hashlib.sha224(access_key.encode()).hexdigest()
 
-    def store_project_secrets(self, project, secrets, namespace="") -> (str, bool):
+    def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
-        created = self.store_secrets(secret_name, secrets, namespace)
-        return secret_name, created
+        self.store_secrets(secret_name, secrets, namespace)
 
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         namespace = self.resolve_namespace(namespace)
@@ -331,38 +330,30 @@ class K8sHelper:
                 return None
 
         username = _get_secret_value(
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
         )
         access_key = _get_secret_value(
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
 
         return username, access_key
 
-    def store_auth_secret(
-        self, username: str, access_key: str, namespace=""
-    ) -> (str, bool):
-        """
-        Store the given access key as a secret in the cluster. The secret name is generated from the access key
-        :return: returns the secret name and a boolean indicating whether the secret was created or updated
-        """
+    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(access_key)
         secret_data = {
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                "username"
-            ): username,
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }
-        created = self.store_secrets(
+        self.store_secrets(
             secret_name,
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels={"mlrun/username": username},
         )
-        return secret_name, created
+        return secret_name
 
     def store_secrets(
         self,
@@ -371,11 +362,7 @@ class K8sHelper:
         namespace="",
         type_=SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
-    ) -> bool:
-        """
-        Store secrets in a kubernetes secret object
-        :return: returns True if the secret was created, False if it already existed and required an update
-        """
+    ):
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -392,7 +379,7 @@ class K8sHelper:
             )
             k8s_secret.string_data = secrets
             self.v1api.create_namespaced_secret(namespace, k8s_secret)
-            return True
+            return
 
         secret_data = k8s_secret.data.copy()
         for key, value in secrets.items():
@@ -400,7 +387,6 @@ class K8sHelper:
 
         k8s_secret.data = secret_data
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
-        return False
 
     def load_secret(self, secret_name, namespace=""):
         namespace = namespace or self.resolve_namespace(namespace)
@@ -412,23 +398,14 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def delete_project_secrets(self, project, secrets, namespace="") -> (str, bool):
-        """
-        Delete secrets from a kubernetes secret object
-        :return: returns the secret name and a boolean indicating whether the secret was deleted
-        """
+    def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
-        deleted = self.delete_secrets(secret_name, secrets, namespace)
-        return secret_name, deleted
+        self.delete_secrets(secret_name, secrets, namespace)
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         self.delete_secrets(secret_ref, {}, namespace)
 
-    def delete_secrets(self, secret_name, secrets, namespace="") -> bool:
-        """
-        Delete secrets from a kubernetes secret object
-        :return: returns True if the secret was deleted, False if it still exists and only deleted part of the keys
-        """
+    def delete_secrets(self, secret_name, secrets, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -452,11 +429,9 @@ class K8sHelper:
 
         if not secret_data:
             self.v1api.delete_namespaced_secret(secret_name, namespace)
-            return True
         else:
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
-            return False
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)

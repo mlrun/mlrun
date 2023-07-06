@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             when=when or ["completed"],
             name=name or "test-notification",
             message=message or "test-notification-message",
-            condition=condition,
+            condition=condition or "",
             severity=severity or "info",
             params=params or {},
         )

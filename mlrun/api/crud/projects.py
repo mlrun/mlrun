@@ -198,9 +198,12 @@ class Projects(
                         action=action,
                     )
                 )
+
             else:
                 logger.debug(
-                    "Secret was not changed", action=action, secret_name=secret_name
+                    "No project secrets to delete",
+                    action=action,
+                    secret_name=secret_name,
                 )
 
     def get_project(

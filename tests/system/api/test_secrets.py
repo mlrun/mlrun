@@ -14,6 +14,7 @@
 #
 import datetime
 import pathlib
+import time
 import typing
 import uuid
 from http import HTTPStatus
@@ -71,6 +72,80 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "project_name",
             self.project_name,
         )
+
+    @pytest.mark.enterprise
+    def test_delete_project_secret_events(self):
+        secret_key1 = str(uuid.uuid4())
+        secret_key2 = str(uuid.uuid4())
+        secrets = {
+            secret_key1: "JustMySecret",
+            secret_key2: "MyOtherSecret",
+        }
+
+        # ensure no project secrets
+        now = datetime.datetime.utcnow()
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+        time.sleep(1)
+        audit_events = igz_mgmt.AuditEvent.list(
+            self._igz_mgmt_client,
+            filter_by={
+                "source": "mlrun-api",
+                "kind": mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "timestamp_iso8601": f"[$ge]{now.isoformat()}Z",
+            },
+        )
+        assert len(audit_events) == 0
+
+        now = datetime.datetime.utcnow()
+        self.project.set_secrets(secrets=secrets)
+        self._ensure_audit_events(
+            mlrun.api.utils.events.iguazio.PROJECT_SECRET_CREATED,
+            now,
+            "project_name",
+            self.project_name,
+        )
+
+        # delete 1 of the secrets
+        now = datetime.datetime.utcnow()
+        self._run_db.delete_project_secrets(
+            self.project_name, provider="kubernetes", secrets=[secret_key1]
+        )
+
+        # project secret should remain (updated)
+        self._ensure_audit_events(
+            mlrun.api.utils.events.iguazio.PROJECT_SECRET_UPDATED,
+            now,
+            "secret_keys",
+            secret_key2,
+        )
+
+        # delete all secrets
+        now = datetime.datetime.utcnow()
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+        self._ensure_audit_events(
+            mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+            now,
+            "secret_keys",
+            secret_key2,
+        )
+
+        # delete the secret-less project
+        now = datetime.datetime.utcnow()
+        self._run_db.delete_project(
+            self.project_name, mlrun.common.schemas.DeletionStrategy.cascade
+        )
+
+        # should not emit deleted event
+        time.sleep(1)
+        audit_events = igz_mgmt.AuditEvent.list(
+            self._igz_mgmt_client,
+            filter_by={
+                "source": "mlrun-api",
+                "kind": mlrun.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "timestamp_iso8601": f"[$ge]{now.isoformat()}Z",
+            },
+        )
+        assert len(audit_events) == 0
 
     def test_k8s_project_secrets_using_api(self):
         secrets = {"secret1": "value1", "secret2": "value2"}

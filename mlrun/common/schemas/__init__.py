@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,12 +46,6 @@ from .constants import (
     PatchMode,
     RunPartitionByField,
     SortField,
-)
-from .events import (
-    AuthSecretEventActions,
-    EventClientKinds,
-    EventsModes,
-    SecretEventActions,
 )
 from .feature_store import (
     EntitiesOutput,
@@ -136,7 +130,6 @@ from .project import (
     ProjectSummariesOutput,
     ProjectSummary,
 )
-from .regex import RegexMatchModes
 from .runs import RunIdentifier
 from .runtime_resource import (
     GroupedByJobRuntimeResourcesOutput,

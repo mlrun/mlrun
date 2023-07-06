@@ -1,10 +1,6 @@
 mlrun.serving
 ==============
 
-.. autoclass:: mlrun.serving.states.BaseStep
-   :members: to, error_handler
-   :private-members:
-
 .. automodule:: mlrun.serving
    :members:
    :show-inheritance:

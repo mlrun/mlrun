@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1027,10 +1027,7 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
     suffix = "/"
     if not item.is_dir:
-
-        # suffixes yields a list of suffixes, e.g. ['.tar', '.gz']
-        # join them together to get the full suffix, e.g. '.tar.gz'
-        suffix = "".join(pathlib.Path(item.src_path or "").suffixes)
+        suffix = os.path.splitext(item.src_path or "")[1]
         if not suffix and item.format:
             suffix = f".{item.format}"
 

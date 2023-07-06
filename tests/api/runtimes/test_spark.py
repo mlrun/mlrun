@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -614,7 +614,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             fstore.get_offline_features(
                 fv,
                 with_indexes=True,
-                timestamp_for_filtering="timestamp",
+                entity_timestamp_column="timestamp",
                 engine="remote-spark",
                 run_config=RunConfig(local=False, function=runtime, watch=False),
                 target=ParquetTarget(),
@@ -626,7 +626,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
-            timestamp_for_filtering="timestamp",
+            entity_timestamp_column="timestamp",
             engine="spark",
             # setting watch=False, because we don't want to wait for the job to complete when running in API
             run_config=RunConfig(local=False, function=runtime, watch=False),
@@ -643,14 +643,14 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     "max_events": 10000,
                     "flush_after_seconds": 900,
                 },
-                "entity_timestamp_column": None,
+                "entity_timestamp_column": "timestamp",
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
                 "order_by": None,
                 "start_time": None,
                 "end_time": None,
-                "timestamp_for_filtering": "timestamp",
+                "timestamp_for_filtering": None,
                 "engine_args": None,
             },
             "outputs": [],

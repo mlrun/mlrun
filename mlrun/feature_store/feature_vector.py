@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -384,21 +384,13 @@ class FeatureVector(ModelObj):
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(
-        self,
-        vector,
-        graph,
-        index_columns,
-        impute_policy: dict = None,
-        requested_columns: List[str] = None,
-    ):
+    def __init__(self, vector, graph, index_columns, impute_policy: dict = None):
         self.vector = vector
         self.impute_policy = impute_policy or {}
 
         self._controller = graph.controller
         self._index_columns = index_columns
         self._impute_values = {}
-        self._requested_columns = requested_columns
 
     def __enter__(self):
         return self
@@ -501,39 +493,40 @@ class OnlineVectorService:
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
 
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
-            if data:
+            for key in self._index_columns:
+                if data and key in data:
+                    del data[key]
+            if not data:
+                data = None
+            else:
                 actual_columns = data.keys()
-                if all([col in self._index_columns for col in actual_columns]):
-                    # didn't get any data from the graph
-                    results.append(None)
-                    continue
-                for column in self._requested_columns:
+                for column in requested_columns:
                     if (
                         column not in actual_columns
                         and column != self.vector.status.label_column
                     ):
                         data[column] = None
 
-                if self._impute_values:
-                    for name in data.keys():
-                        v = data[name]
-                        if v is None or (
-                            type(v) == float and (np.isinf(v) or np.isnan(v))
-                        ):
-                            data[name] = self._impute_values.get(name, v)
-                if not self.vector.spec.with_indexes:
-                    for name in list(self.vector.spec.entity_fields.keys()):
-                        data.pop(name, None)
-                if not any(data.values()):
-                    data = None
+            if self._impute_values and data:
+                for name in data.keys():
+                    v = data[name]
+                    if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
+                        data[name] = self._impute_values.get(name, v)
+            for name in list(self.vector.spec.entity_fields.keys()):
+                data.pop(name, None)
 
             if as_list and data:
                 data = [
                     data.get(key, None)
-                    for key in self._requested_columns
+                    for key in requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)

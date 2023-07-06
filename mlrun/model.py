@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,11 +62,7 @@ class ModelObj:
         return param
 
     def to_dict(self, fields=None, exclude=None):
-        """convert the object to a python dictionary
-
-        :param fields:  list of fields to include in the dict
-        :param exclude: list of fields to exclude from the dict
-        """
+        """convert the object to a python dictionary"""
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
@@ -109,19 +105,13 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self, exclude=None) -> str:
-        """convert the object to yaml
+    def to_yaml(self) -> str:
+        """convert the object to yaml"""
+        return dict_to_yaml(self.to_dict())
 
-        :param exclude: list of fields to exclude from the yaml
-        """
-        return dict_to_yaml(self.to_dict(exclude=exclude))
-
-    def to_json(self, exclude=None):
-        """convert the object to json
-
-        :param exclude: list of fields to exclude from the json
-        """
-        return dict_to_json(self.to_dict(exclude=exclude))
+    def to_json(self):
+        """convert the object to json"""
+        return dict_to_json(self.to_dict())
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -549,14 +539,12 @@ class Notification(ModelObj):
         status=None,
         sent_time=None,
     ):
-        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
-        self.name = name or ""
-        self.message = message or ""
-        self.severity = (
-            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
-        )
-        self.when = when or ["completed"]
-        self.condition = condition or ""
+        self.kind = kind
+        self.name = name
+        self.message = message
+        self.severity = severity
+        self.when = when
+        self.condition = condition
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
@@ -1383,6 +1371,7 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
+
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"

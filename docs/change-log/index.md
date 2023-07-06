@@ -144,12 +144,34 @@ New sections describing [Git best practices](../projects/git-best-practices.html
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
-python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client.
-
-See instructions in [Set up your environment](../install/remote.html).
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
 MLRun is pre-installed in CE Jupyter.
 
+To install on a **Python 3.9** environment, run:<br>
+```
+./align_mlrun.sh
+```
+
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
+  
+1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
+2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
+
+```
+$CONDA_HOME/bin/conda install -y conda=23.1.0
+$CONDA_HOME/bin/conda install -y 'pip>=22.0'
+```
+3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
+```
+4. Install mlrun:
+```
+./align_mlrun.sh
+```
+    
 ### New and updated features
 
 #### Feature store
@@ -639,16 +661,17 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
-### Deprecated CLI
 
-The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
+## Future Deprecations
 
- ## Future Deprecations
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
 old dashboards won't be supported in v1.5.0. |
+
+
+
 
 ### Deprecated APIs, will be removed in v1.5.0
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
@@ -665,7 +688,6 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
-| `user_project`                                   | Use `get_or_create_project` or `load_project` to configure the active project. |
 
 ### Deprecated APIs, will be removed in v1.6.0
 These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.6.0.

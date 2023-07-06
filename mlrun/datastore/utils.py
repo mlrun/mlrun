@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ def filter_df_start_end_time(
     if isinstance(df, pd.DataFrame):
         return _execute_time_filter(df, time_column, start_time, end_time)
     else:
-        filter_df_generator(df, time_column, start_time, end_time)
+        return filter_df_generator(df, time_column, start_time, end_time)
 
 
 def filter_df_generator(

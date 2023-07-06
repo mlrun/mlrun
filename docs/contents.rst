@@ -31,6 +31,7 @@ Table of Contents
    development/index
    deployment/index
    monitoring/index
+   projects/ci-cd-automate
      
 .. toctree::
    :maxdepth: 1

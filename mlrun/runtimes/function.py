@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -133,6 +133,7 @@ class NuclioSpec(KubeResourceSpec):
         "source",
         "function_kind",
         "readiness_timeout",
+        "readiness_timeout_before_failure",
         "function_handler",
         "nuclio_runtime",
         "base_image_pull",
@@ -164,6 +165,7 @@ class NuclioSpec(KubeResourceSpec):
         build=None,
         service_account=None,
         readiness_timeout=None,
+        readiness_timeout_before_failure=None,
         default_handler=None,
         node_name=None,
         node_selector=None,
@@ -219,6 +221,7 @@ class NuclioSpec(KubeResourceSpec):
         self.nuclio_runtime = None
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
+        self.readiness_timeout_before_failure = readiness_timeout_before_failure
         self.service_type = service_type
         self.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 
@@ -808,13 +811,12 @@ class RemoteRuntime(KubeResource):
         # verify auto mount is applied (with the client credentials)
         self.try_auto_mount_based_on_config()
 
-        # if the function spec contain KFP PipelineParams (futures) pass the full spec to the
-        # ContainerOp this way KFP will substitute the params with previous step outputs
-        func_has_pipeline_params = self.to_json().find("{{pipelineparam:op") > 0
         if (
             use_function_from_db
             or use_function_from_db is None
-            and not func_has_pipeline_params
+            # if the function contain KFP PipelineParams (futures) pass the full spec to the
+            # ContainerOp this way KFP will substitute the params with previous step outputs
+            and not self._has_pipeline_param()
         ):
             url = self.save(versioned=True, refresh=True)
         else:

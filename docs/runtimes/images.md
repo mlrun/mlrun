@@ -10,7 +10,7 @@ Every release of MLRun includes several images for different usages. The build a
 
 ## Using images
 
-See [Kubernetes Jobs & Images](./mlrun_jobs.html).
+See {ref}`build-function-image`.
 
 ## MLRun images and how to build them 
 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,6 +325,7 @@ class EventStreamProcessor:
                     index_cols=[
                         EventFieldType.ENDPOINT_ID,
                         EventFieldType.RECORD_TYPE,
+                        EventFieldType.ENDPOINT_TYPE,
                     ],
                     max_events=self.tsdb_batching_max_events,
                     flush_after_seconds=self.tsdb_batching_timeout_secs,
@@ -471,6 +472,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         base_fields = [
             EventFieldType.TIMESTAMP,
             EventFieldType.ENDPOINT_ID,
+            EventFieldType.ENDPOINT_TYPE,
         ]
 
         # Getting event timestamp and endpoint_id
@@ -873,6 +875,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         self.feature_names = {}
         self.label_columns = {}
 
+        # Dictionary to manage the model endpoint types - important for the V3IO TSDB
+        self.endpoint_type = {}
+
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(
@@ -904,7 +909,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
             label_columns = json.loads(label_columns) if label_columns else None
 
-            # Ff feature names were not found,
+            # If feature names were not found,
             # try to retrieve them from the previous events of the current process
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
@@ -956,6 +961,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
+            # Update the endpoint type within the endpoint types dictionary
+            endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
+            self.endpoint_type[endpoint_id] = endpoint_type
+
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
         feature_values = event[EventFieldType.FEATURES]
@@ -975,6 +984,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             values_iters=label_values,
             mapping_dictionary=EventFieldType.NAMED_PREDICTIONS,
         )
+
+        # Add endpoint type to the event
+        event[EventFieldType.ENDPOINT_TYPE] = self.endpoint_type[endpoint_id]
 
         logger.info("Mapped event", event=event)
         return event

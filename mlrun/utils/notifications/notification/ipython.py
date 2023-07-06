@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,9 +36,7 @@ class IPythonNotification(NotificationBase):
         try:
             import IPython
 
-            ipy = IPython.get_ipython()
-            # if its IPython terminal ignore (can't show html)
-            if ipy and "Terminal" not in str(type(ipy)):
+            if mlrun.utils.helpers.is_running_in_jupyter_notebook():
                 self._ipython = IPython
         except ImportError:
             pass

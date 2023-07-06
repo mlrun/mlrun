@@ -25,7 +25,7 @@ graph.error_handler(name='error_catcher', handler='handle_error', full_event=Tru
 graph.to(name='raise', handler='raising_step').to(name="echo", handler='echo', after="raise").respond()
 ```
 
-See full parameter description in 
+See full parameter description in {py:class}`~mlrun.serving.states.BaseStep.error_handler`.
 
 
 ## Exception stream

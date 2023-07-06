@@ -983,6 +983,8 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 
 ### Advanced data processing and serving ensemble
 
+Docs: {ref}`graph-example`
+
 ```python
 fn = project.set_function(
     name="advanced", func="demo.py", 

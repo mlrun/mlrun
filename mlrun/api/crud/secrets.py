@@ -231,6 +231,7 @@ class Secrets(
                     project, secrets
                 )
 
+                # TODO: do not emit updated if 404
                 events_client = events_factory.EventsFactory().get_events_client()
                 event = events_client.generate_project_secret_event(
                     project=project,

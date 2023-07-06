@@ -434,9 +434,12 @@ class K8sHelper:
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
-                return
+                logger.info(
+                    "Project secret does not exist, nothing to delete.",
+                    secret_name=secret_name,
+                )
+                return False
             else:
                 logger.error(
                     f"failed to retrieve k8s secret: {mlrun.errors.err_to_str(exc)}"

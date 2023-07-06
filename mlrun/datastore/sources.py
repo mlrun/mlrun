@@ -427,6 +427,7 @@ class BigQuerySource(BaseSourceDriver):
         end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
+        **kwargs,
     ):
         if query and table:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -459,6 +460,7 @@ class BigQuerySource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def _get_credentials_string(self):

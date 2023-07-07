@@ -23,9 +23,6 @@ from sys import executable, platform, stderr
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ
@@ -41,8 +38,7 @@ examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
 # import package stuff after setting env vars so it will take effect
-from mlrun.api.db.sqldb.db import run_time_fmt  # noqa: E402
-from mlrun.api.db.sqldb.models import Base  # noqa: E402
+from mlrun.utils.db import run_time_fmt  # noqa: E402
 
 
 def check_docker():
@@ -120,12 +116,6 @@ def freeze(f, **kwargs):
         return f(*args, **kwargs)
 
     return wrapper
-
-
-def init_sqldb(dsn):
-    engine = create_engine(dsn)
-    Base.metadata.create_all(bind=engine)
-    return sessionmaker(bind=engine)
 
 
 def exec_mlrun(args, cwd=None, op="run"):

@@ -24,11 +24,9 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
-import mlrun.api.utils.builder
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
-from mlrun.api.utils.clients import nuclio
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -62,7 +60,6 @@ global_context = _ContextStore()
 
 
 cached_mpijob_crd_version = None
-cached_nuclio_version = None
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
@@ -117,29 +114,6 @@ def resolve_spark_operator_version():
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
-
-
-# if nuclio version specified on mlrun config set it likewise,
-# if not specified, get it from nuclio api client
-# since this is a heavy operation (sending requests to API), and it's unlikely that the version
-# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-def resolve_nuclio_version():
-    global cached_nuclio_version
-
-    if not cached_nuclio_version:
-
-        # config override everything
-        nuclio_version = config.nuclio_version
-        if not nuclio_version and config.nuclio_dashboard_url:
-            try:
-                nuclio_client = nuclio.Client()
-                nuclio_version = nuclio_client.get_dashboard_version()
-            except Exception as exc:
-                logger.warning("Failed to resolve nuclio version", exc=err_to_str(exc))
-
-        cached_nuclio_version = nuclio_version
-
-    return cached_nuclio_version
 
 
 def calc_hash(func, tag=""):

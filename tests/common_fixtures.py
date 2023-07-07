@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import inspect
+import os
 import shutil
 import unittest
 from datetime import datetime
@@ -84,7 +86,6 @@ def config_test_base():
 
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
-    mlrun.runtimes.utils.cached_nuclio_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
@@ -114,6 +115,27 @@ def running_as_api():
     mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
     yield
     mlrun.config.is_running_as_api = old_is_running_as_api
+
+
+@pytest.fixture()
+def chdir_to_test_location(request):
+    """
+    Fixture to change the working directory for tests,
+    It allows seamless access to files relative to the test file.
+
+    Because the working directory inside the dockerized test is '/mlrun',
+    this fixture allows to automatically modify the cwd to the test file directory,
+    to ensure the workflow files are located,
+    and modify it back after the test case for other tests
+
+    """
+    original_working_dir = os.getcwd()
+    test_file_path = os.path.dirname(inspect.getfile(request.function))
+    os.chdir(os.path.dirname(test_file_path))
+
+    yield
+
+    os.chdir(original_working_dir)
 
 
 @pytest.fixture

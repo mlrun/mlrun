@@ -326,9 +326,7 @@ class Client(
         """
         return True
 
-    def emit_manual_event(
-        self, access_key: str, event: igz_mgmt.schemas.manual_events.ManualEventSchema
-    ):
+    def emit_manual_event(self, access_key: str, event: igz_mgmt.Event):
         """
         Emit a manual event to Iguazio
         """

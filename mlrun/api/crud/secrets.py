@@ -167,7 +167,7 @@ class Secrets(
         )
 
         events_client = events_factory.EventsFactory().get_events_client()
-        event = events_client.generate_project_auth_secret_event(
+        event = events_client.generate_auth_secret_event(
             username=secret.username,
             secret_name=auth_secret_name,
             action=mlrun.common.schemas.SecretEventActions.created

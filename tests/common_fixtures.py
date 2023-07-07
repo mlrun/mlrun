@@ -29,6 +29,7 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.logs_dir
@@ -101,7 +102,6 @@ def config_test_base():
 
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
-    mlrun.runtimes.utils.cached_nuclio_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"

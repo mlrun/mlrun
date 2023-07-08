@@ -24,7 +24,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.utils.events.events_factory as events_factory
-import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.follower as project_follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.scheduler
@@ -35,7 +35,7 @@ from mlrun.utils import logger
 
 
 class Projects(
-    mlrun.api.utils.projects.remotes.follower.Member,
+    project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:

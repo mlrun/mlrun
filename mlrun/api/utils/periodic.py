@@ -28,7 +28,7 @@ tasks: typing.Dict = {}
 # also this module supports asyncio while the other currently not
 # TODO: merge the modules
 async def _periodic_function_wrapper(
-    interval: typing.Optional[int, float], function, *args, **kwargs
+    interval: typing.Union[int, float], function, *args, **kwargs
 ):
     while True:
         try:
@@ -47,7 +47,7 @@ async def _periodic_function_wrapper(
 
 
 def run_function_periodically(
-    interval: typing.Optional[float, int],
+    interval: typing.Union[float, int],
     name: str,
     replace: bool,
     function,

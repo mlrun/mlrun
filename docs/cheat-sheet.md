@@ -300,7 +300,7 @@ Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/developmen
 import nuclio
 serve = mlrun.import_function('hub://v2_model_server')
 
-#Set amount of workers 
+# Set amount of workers 
 serve.with_http(workers=8, worker_timeout=10)
 
 # V3IO stream trigger

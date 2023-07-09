@@ -692,19 +692,18 @@ def _migrate_artifacts_batch(
     db_session.add_all(new_artifacts)
 
     # migrate artifact labels to the new table ("artifact_v2_labels")
-    _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
+    new_labels = _migrate_artifact_labels(db_session, artifacts_labels_to_migrate)
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
-    _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+    new_tags = _migrate_artifact_tags(db_session, artifacts_tags_to_migrate)
 
     # commit the changes
-    db_session.commit()
+    db._commit(db_session, new_artifacts + new_labels + new_tags)
 
     return last_migrated_artifact_id
 
 
 def _migrate_artifact_labels(
-    db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     artifacts_labels_to_migrate: list,
 ):
@@ -721,10 +720,10 @@ def _migrate_artifact_labels(
             labels.append(new_label)
     if labels:
         db_session.add_all(labels)
+    return labels
 
 
 def _migrate_artifact_tags(
-    db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     artifacts_tags_to_migrate: list,
 ):
@@ -742,6 +741,7 @@ def _migrate_artifact_tags(
             tags.append(new_tag)
     if tags:
         db_session.add_all(tags)
+    return tags
 
 
 def _add_default_hub_source_if_needed(

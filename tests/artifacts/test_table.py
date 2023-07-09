@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ def test_table_artifact_get_body(use_dataframe):
     assert artifact_body is not None
 
 
-# TODO: remove in 1.6.0 when removing TableArtifact
 def _generate_table_artifact(use_dataframe=True):
     if use_dataframe:
         data_frame = pandas.DataFrame({"x": [1, 2]})

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import semver
 import mlrun.api.api.deps
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
@@ -117,7 +118,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
-        mlrun.runtimes.utils.resolve_nuclio_version()
+        mlrun.api.utils.runtimes.nuclio.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 

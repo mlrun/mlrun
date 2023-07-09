@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@ import mlrun.errors
 from .dask_merger import DaskFeatureMerger
 from .job import run_merge_job  # noqa
 from .local_merger import LocalFeatureMerger
-from .online import init_feature_vector_graph  # noqa
 from .spark_merger import SparkFeatureMerger
+from .storey_merger import StoreyFeatureMerger
 
 mergers = {
     "local": LocalFeatureMerger,
     "dask": DaskFeatureMerger,
     "spark": SparkFeatureMerger,
+    "storey": StoreyFeatureMerger,
 }
 
 

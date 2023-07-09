@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import get_merger, init_feature_vector_graph, run_merge_job
+from .retrieval import get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -140,12 +140,16 @@ def get_offline_features(
     :param entity_rows:             dataframe with entity rows to join with
     :param target:                  where to write the results to
     :param drop_columns:            list of columns to drop from the final result
-    :param entity_timestamp_column: timestamp column name in the entity rows dataframe
+    :param entity_timestamp_column: timestamp column name in the entity rows dataframe. can be specified
+                                    only if param entity_rows was specified.
     :param run_config:              function and/or run configuration
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
     :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+    :param with_indexes:            Return vector with/without the entities and the timestamp_key of the feature sets
+                                    and with/without entity_timestamp_column and timestamp_for_filtering columns.
+                                    This property can be specified also in the feature vector spec
+                                    (feature_vector.spec.with_indexes)
                                     (default False)
     :param update_stats:            update features statistics from the requested feature sets on the vector.
                                     (default False).
@@ -158,11 +162,17 @@ def get_offline_features(
     :param timestamp_for_filtering: name of the column to filter by, can be str for all the feature sets or a
                                     dictionary ({<feature set name>: <timestamp column name>, ...})
                                     that indicates the timestamp column name for each feature set. Optional.
-                                    By default, the filter executed on the timestamp_key of each feature set.
-                                    Note: the time filtering preformed on each feature set before the
+                                    By default, the filter executes on the timestamp_key of each feature set.
+                                    Note: the time filtering is performed on each feature set before the
                                     merge process using start_time and end_time params.
 
     """
+    if entity_rows is None and entity_timestamp_column is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "entity_timestamp_column param "
+            "can not be specified without entity_rows param"
+        )
+
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
 
@@ -218,6 +228,7 @@ def get_online_feature_service(
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
     impute_policy: dict = None,
     update_stats: bool = False,
+    entity_keys: List[str] = None,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -237,14 +248,15 @@ def get_online_feature_service(
 
             Example with imputing::
 
-                with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
+                with get_online_feature_service(vector_uri, entity_keys=['id'],
+                                                impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
 
         2. as simple function, note that in that option you need to close the session.
 
             Example::
 
-                svc = get_online_feature_service(vector_uri)
+                svc = get_online_feature_service(vector_uri, entity_keys=['ticker'])
                 try:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                     print(resp)
@@ -256,7 +268,8 @@ def get_online_feature_service(
 
             Example with imputing::
 
-                svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+                svc = get_online_feature_service(vector_uri, entity_keys=['id'],
+                                                 impute_policy={"*": "$mean", "amount": 0))
                 try:
                     resp = svc.get([{"id": "C123487"}])
                 except Exception as e:
@@ -264,15 +277,21 @@ def get_online_feature_service(
                 finally:
                     svc.close()
 
-    :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
-                            permissions
-    :param run_config:        function and/or run configuration for remote jobs/services
-    :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
-                            value indicate which value will be used in case the feature is NaN/empty, the replaced
-                            value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
-                            values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
-    :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
-    :param update_stats:      update features statistics from the requested feature sets on the vector. Default: False.
+    :param feature_vector:      feature vector uri or FeatureVector object. passing feature vector obj requires update
+                                permissions.
+    :param run_config:          function and/or run configuration for remote jobs/services
+    :param impute_policy:       a dict with `impute_policy` per feature, the dict key is the feature name and the dict
+                                value indicate which value will be used in case the feature is NaN/empty, the replaced
+                                value can be fixed number for constants or $mean, $max, $min, $std, $count
+                                for statistical
+                                values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+    :param fixed_window_type:   determines how to query the fixed window values which were previously inserted by ingest
+    :param update_stats:        update features statistics from the requested feature sets on the vector.
+                                Default: False.
+    :param entity_keys:         Entity list of the first feature_set in the vector.
+                                The indexes that are used to query the online service.
+    :return:                    Initialize the `OnlineVectorService`.
+                                Will be used in subclasses where `support_online=True`.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -284,17 +303,15 @@ def get_online_feature_service(
     if impute_policy and not feature_vector.status.stats:
         update_stats = True
 
-    graph, index_columns = init_feature_vector_graph(
-        feature_vector, fixed_window_type, update_stats=update_stats
-    )
-    service = OnlineVectorService(
-        feature_vector, graph, index_columns, impute_policy=impute_policy
-    )
-    service.initialize()
-
+    engine_args = {"impute_policy": impute_policy}
+    merger_engine = get_merger("storey")
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    return service
+    merger = merger_engine(feature_vector, **engine_args)
+
+    return merger.init_online_vector_service(
+        entity_keys, fixed_window_type, update_stats=update_stats
+    )
 
 
 def _rename_source_dataframe_columns(df):
@@ -661,6 +678,9 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    if isinstance(source, pd.DataFrame):
+        source = _rename_source_dataframe_columns(source)
+
     # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(

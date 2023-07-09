@@ -155,7 +155,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
         assert len(audit_events) == 0
 
-        # assert 2 deleted events from the start of the test
+        # assert 1 deleted event from the start of the test
         audit_events = igz_mgmt.AuditEvent.list(
             self._igz_mgmt_client,
             filter_by={

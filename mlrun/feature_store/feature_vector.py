@@ -22,8 +22,6 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from . import FeatureSet
-
 from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import get_offline_target
@@ -395,86 +393,106 @@ class JoinOperand:
         self,
         name: str,
     ):
+        """
+
+        :param name:
+        """
         self.name = name
         self._steps: ObjectList = None
         self._feature_sets = None
 
-    def _join_operands(func):
-        def wrapper(self, other_operand):
-            first_key_num = len(self._steps.keys()) if self._steps else 0
-            left_last_step_name, left_all_feature_sets = (
-                self.last_step_name,
-                self.all_feature_sets,
-            )
-            if other_operand.steps:
-                # append all the other operand steps to the current operand steps.
-                all_new_key_names = [
-                    f"step_{i}"
-                    for i in range(
-                        first_key_num, first_key_num + len(other_operand.steps.keys())
-                    )
-                ]
-                if self.steps:
-                    rename_dict = dict(
-                        zip(other_operand.steps.keys(), all_new_key_names)
-                    )
-                    for key, step in other_operand.steps.items():
-                        step.rename_mentioned_steps(rename_dict)
-                        self.steps.update(step)
-                        first_key_num += 1
-                else:
-                    self.steps = list(other_operand.steps._children.values())
-
-            join_type = func(self)
-            if join_type == "start" and other_operand.steps is None:
-                join_type = "get"
-            elif join_type == "start":
-                # no need to add a new step because
-                # we're just connecting all the existing steps to the graph.
-                return self
-            elif self.name == "join_graph" and self.steps is None:
-                # used inner/outer/.. instanced of start
-                if other_operand.steps is None:
-                    join_type = "get"
-                else:
-                    return self
-
-            # create_new_step
-            new_step = _JoinStep(
-                f"step_{first_key_num}",
-                left_last_step_name,
-                other_operand.last_step_name,
-                left_all_feature_sets,
-                other_operand.all_feature_sets,
-                join_type,
-            )
-
-            if self.steps is not None:
-                self.steps.update(new_step)
+    def _join_operands(self, other_operand, join_type):
+        first_key_num = len(self._steps.keys()) if self._steps else 0
+        left_last_step_name, left_all_feature_sets = (
+            self.last_step_name,
+            self.all_feature_sets_names,
+        )
+        if other_operand.steps:
+            # append all the other operand steps to the current operand steps.
+            all_new_key_names = [
+                f"step_{i}"
+                for i in range(
+                    first_key_num, first_key_num + len(other_operand.steps.keys())
+                )
+            ]
+            if self.steps:
+                rename_dict = dict(
+                    zip(other_operand.steps.keys(), all_new_key_names)
+                )
+                for key, step in other_operand.steps.items():
+                    step.rename_mentioned_steps(rename_dict)
+                    self.steps.update(step)
+                    first_key_num += 1
             else:
-                self.steps = [new_step]
+                self.steps = list(other_operand.steps._children.values())
+
+        if join_type == "start" and other_operand.steps is None:
+            join_type = "get"
+        elif join_type == "start":
+            # no need to add a new step because
+            # we're just connecting all the existing steps to the graph.
             return self
+        elif self.name == "join_graph" and self.steps is None:
+            # used inner/outer/.. instanced of start
+            if other_operand.steps is None:
+                join_type = "get"
+            else:
+                return self
 
-        return wrapper
+        # create_new_step
+        new_step = _JoinStep(
+            f"step_{first_key_num}",
+            left_last_step_name if join_type != "get" else "",
+            other_operand.last_step_name,
+            left_all_feature_sets if join_type != "get" else [],
+            other_operand.all_feature_sets_names,
+            join_type,
+        )
 
-    @_join_operands
+        if self.steps is not None:
+            self.steps.update(new_step)
+        else:
+            self.steps = [new_step]
+        return self
+
     def inner(self, other_operand=None):
-        return "inner"
+        """
 
-    @_join_operands
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "inner")
+
     def outer(self, other_operand=None):
-        return "outer"
+        """
 
-    @_join_operands
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "outer")
+
     def left(self, other_operand=None):
-        return "left"
+        """
 
-    @_join_operands
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "left")
+
     def right(self, other_operand=None):
-        return "right"
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "right")
 
     @property
-    def all_feature_sets(self):
+    def all_feature_sets_names(self):
+        """
+
+        :return:
+        """
         if self._steps:
             return (
                 self._steps[-1].left_feature_set_names
@@ -485,6 +503,10 @@ class JoinOperand:
 
     @property
     def last_step_name(self):
+        """
+
+        :return:
+        """
         if self._steps:
             return self._steps[-1].name
         else:
@@ -492,24 +514,42 @@ class JoinOperand:
 
     @property
     def steps(self):
+        """
+
+        :return:
+        """
         """child (workflow) steps"""
         return self._steps
 
     @steps.setter
     def steps(self, steps):
+        """
+
+        :param steps:
+        :return:
+        """
         self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
 
 
 class JoinGraph(JoinOperand):
     def __init__(self, name: str = None, entity_row_flag: bool = False):
-        super().__init__(name or "join_graph")
+        """
+
+        :param name:
+        :param entity_row_flag:
+        """
+        super().__init__(name or "$_join_graph_$")
         self.entity_row_flag = entity_row_flag
         if entity_row_flag:
             self.start(JoinOperand("$__entity_rows__$"))
 
-    @JoinOperand._join_operands
     def start(self, other_operand=None):
-        return "start"
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "start")
 
 
 class _JoinStep(ModelObj):
@@ -522,6 +562,15 @@ class _JoinStep(ModelObj):
         right_feature_set_names: Union[str, List[str]],
         join_type: str = "inner",
     ):
+        """
+
+        :param name:
+        :param left_step_name:
+        :param right_step_name:
+        :param left_feature_set_names:
+        :param right_feature_set_names:
+        :param join_type:
+        """
         self.name = name
         self.left_step_name = left_step_name
         self.right_step_name = right_step_name
@@ -546,6 +595,13 @@ class _JoinStep(ModelObj):
         all_entities: typing.Dict[str, List[Entity]],
         feature_set_objects: ObjectList,
     ):
+        """
+
+        :param all_relations:
+        :param all_entities:
+        :param feature_set_objects:
+        :return:
+        """
         self.left_keys = []
         self.right_keys = []
 
@@ -570,7 +626,6 @@ class _JoinStep(ModelObj):
         entities: List[Entity],
         right_fset_fields,
     ):
-
         right_feature_set_entity_list = right_fset_fields.spec.entities
 
         if all(ent in entities for ent in right_feature_set_entity_list) and len(
@@ -587,6 +642,11 @@ class _JoinStep(ModelObj):
         return [], []
 
     def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
+        """
+
+        :param rename_dict:
+        :return:
+        """
         self.name = rename_dict.get(self.name)
         self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
         self.right_step_name = rename_dict.get(

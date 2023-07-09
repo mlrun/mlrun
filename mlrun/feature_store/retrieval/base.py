@@ -480,6 +480,10 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
+    def _extract_join_graph_and_fs_ll(self, feature_set_objects, feature_set_fields, entity_rows_keys=None):
+        # if self.vector.
+        pass
+
     class _Node:
         def __init__(self, name: str, order: int, data=None):
             self.name = name

@@ -66,7 +66,7 @@ class PlotArtifact(Artifact):
         )
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.5.0",
     reason="'ChartArtifact' will be removed in 1.7.0, use 'Artifact' instead",
@@ -140,7 +140,7 @@ class ChartArtifact(Artifact):
         )
 
 
-# TODO: remove in 1.6.0
+# TODO: remove in 1.7.0
 @deprecated(
     version="1.5.0",
     reason="'BokehArtifact' will be removed in 1.7.0, use 'Artifact' instead",
